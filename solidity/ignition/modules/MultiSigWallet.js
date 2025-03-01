@@ -12,7 +12,7 @@ module.exports = buildModule("MultiSigWalletModule", (m) => {
   const wallet = m.contract("MultiSigWallet", [client, recoveryAddress]);
 
   // For testing purposes, also deploy the mock token
-  const mockToken = m.contract("MockToken", []);
+  const mockToken = m.contract("contracts/mocks/MockToken.sol:MockToken", []);
 
   return { wallet, mockToken };
 });

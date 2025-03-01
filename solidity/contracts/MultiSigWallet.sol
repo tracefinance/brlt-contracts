@@ -21,6 +21,7 @@ contract MultiSigWallet is ReentrancyGuard {
     
     uint256 public constant RECOVERY_DELAY = 72 hours;
     uint256 public constant MAX_BATCH_SIZE = 20;
+    uint256 public constant WITHDRAWAL_EXPIRATION = 24 hours;
     uint256 public recoveryRequestTimestamp;
     bool public recoveryExecuted;
     uint256 public withdrawalNonce;
@@ -201,7 +202,7 @@ contract MultiSigWallet is ReentrancyGuard {
         WithdrawalRequest storage request = withdrawalRequests[requestId];
         require(request.timestamp > 0, "Request not found");
         require(!request.executed, "Already executed");
-        require(request.timestamp + 1 days >= block.timestamp, "Request expired");
+        require(request.timestamp + WITHDRAWAL_EXPIRATION >= block.timestamp, "Request expired");
         
         if (msg.sender == manager) {
             require(!request.managerSigned, "Already signed");
@@ -225,6 +226,7 @@ contract MultiSigWallet is ReentrancyGuard {
         require(request.timestamp > 0, "Request not found");
         require(!request.executed, "Already executed");
         require(request.managerSigned && request.clientSigned, "Not fully signed");
+        require(request.timestamp + WITHDRAWAL_EXPIRATION >= block.timestamp, "Request expired");
         
         uint256 amount = request.amount;
         address to = request.to;

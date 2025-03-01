@@ -15,7 +15,7 @@ describe("MultiSigWallet", function () {
     [manager, client, recovery, other] = await ethers.getSigners();
 
     // Deploy mock token
-    const MockToken = await ethers.getContractFactory("MockToken");
+    const MockToken = await ethers.getContractFactory("contracts/mocks/MockToken.sol:MockToken");
     token = await MockToken.deploy();
 
     // Deploy wallet
@@ -247,6 +247,39 @@ describe("MultiSigWallet", function () {
 
       // Try to sign expired request
       await expect(wallet.connect(client).signWithdrawal(requestId))
+        .to.be.revertedWith("Request expired");
+    });
+
+    it("Should not execute withdrawal if request expired after both signatures", async function () {
+      // Create a mock method to simulate internal _executeWithdrawal call with an expired request
+      const MockWallet = await ethers.getContractFactory("MockMultiSigWalletTest");
+      const mockWallet = await MockWallet.deploy(client.address, recovery.address);
+      
+      // Fund the mock wallet
+      await manager.sendTransaction({
+        to: mockWallet.target,
+        value: ethers.parseEther("5.0")
+      });
+      
+      // Create withdrawal request
+      const tx = await mockWallet.requestWithdrawal(
+        ethers.ZeroAddress,
+        ethers.parseEther("1.0"),
+        other.address
+      );
+      const receipt = await tx.wait();
+      const requestId = receipt.logs.find(
+        log => log.fragment && log.fragment.name === 'WithdrawalRequested'
+      ).args[0];
+      
+      // Manager already signed in creation, now client signs
+      await mockWallet.connect(client).signWithdrawalWithoutExecution(requestId);
+      
+      // Fast forward 25 hours to expire the request
+      await time.increase(25 * 60 * 60);
+      
+      // Try to execute the expired request directly
+      await expect(mockWallet.executeWithdrawalDirect(requestId))
         .to.be.revertedWith("Request expired");
     });
 
@@ -517,7 +550,7 @@ describe("MultiSigWallet", function () {
 
     it("Should handle token balance queries for tokens with no balance", async function () {
       // Deploy a new token that the wallet doesn't have
-      const MockToken = await ethers.getContractFactory("MockToken");
+      const MockToken = await ethers.getContractFactory("contracts/mocks/MockToken.sol:MockToken");
       const newToken = await MockToken.deploy();
 
       const balance = await wallet.getTokenBalance(newToken.target);
