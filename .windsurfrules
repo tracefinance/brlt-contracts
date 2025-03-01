@@ -52,12 +52,6 @@ Vault0 is a Multi-Signature Crypto Wallet smart contract project that implements
 - Update package information with `brew update` before installations
 - Use `brew upgrade` for updating existing packages
 
-#### Python Packages
-- Use `pipx` instead of `pip` for installing Python applications
-- Use `pipx install package_name` for regular installations
-- Use `pipx install -e .` for local packages in editable mode
-- Use `pipx inject venv package_name` to add dependencies to existing pipx installations
-
 #### JavaScript/Node.js Packages
 - Use npm for dependency management
 - Maintain consistent and locked versions in package.json
@@ -66,6 +60,7 @@ Vault0 is a Multi-Signature Crypto Wallet smart contract project that implements
 ### 4. CI/CD Practices
 
 #### GitHub Actions
+- Follow Angular convetion for commit messages
 - All pull requests to main branch must pass CI checks
 - CI pipeline includes compilation, testing, and coverage reporting
 - Code quality gates must be passed before merging
@@ -124,7 +119,3 @@ Vault0 is a Multi-Signature Crypto Wallet smart contract project that implements
 - Document all contract interfaces and function behaviors
 - Include deployment guides for different networks
 - Document security considerations and best practices
-
----
-
-*This document serves as a guide for AI coding agents working on the Vault0 project. Always prioritize security, thorough testing, and adherence to blockchain development best practices.*
