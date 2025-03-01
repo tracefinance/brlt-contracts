@@ -20,7 +20,6 @@ contract MultiSigWallet is ReentrancyGuard {
     address public immutable recoveryAddress;
     
     uint256 public constant RECOVERY_DELAY = 72 hours;
-    uint256 public constant MAX_BATCH_SIZE = 20;
     uint256 public constant WITHDRAWAL_EXPIRATION = 24 hours;
     uint256 public recoveryRequestTimestamp;
     bool public recoveryExecuted;
@@ -44,7 +43,6 @@ contract MultiSigWallet is ReentrancyGuard {
     }
     
     mapping(bytes32 => WithdrawalRequest) public withdrawalRequests;
-    mapping(address => uint256) public recoveryAttempts;
     
     // Events
     event Deposited(address indexed token, address indexed from, uint256 amount);
