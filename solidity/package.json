@@ -1,0 +1,27 @@
+{
+  "name": "trace-wallet",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "NODE_ENV=test hardhat test",
+    "test:coverage": "NODE_ENV=test hardhat coverage",
+    "test:gas": "NODE_ENV=test REPORT_GAS=true hardhat test",
+    "test:watch": "NODE_ENV=test hardhat test --watch",
+    "compile": "NODE_ENV=test hardhat compile",
+    "deploy:base-test": "hardhat run scripts/deploy.js --network base-testnet",
+    "deploy:base": "hardhat run scripts/deploy.js --network base",
+    "deploy:polygon-test": "hardhat run scripts/deploy.js --network polygon-zkevm-testnet",
+    "deploy:polygon": "hardhat run scripts/deploy.js --network polygon-zkevm"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.12",
+    "@openzeppelin/contracts": "^5.2.0",
+    "dotenv": "^16.4.7",
+    "hardhat": "^2.22.18"
+  }
+}

@@ -1,0 +1,84 @@
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log
+jspm_packages/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.prod
+
+# Keep example environment file
+!.env.example
+
+# Hardhat
+cache/
+artifacts/
+typechain/
+typechain-types/
+.hardhat/
+.openzeppelin/unknown-*.json
+
+# Coverage reports
+coverage/
+coverage.json
+.nyc_output/
+
+# Build directories
+dist/
+build/
+out/
+
+# Debug
+debug/
+logs/
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+logs
+*.log
+
+# Local blockchain data
+.openzeppelin/
+
+# Ignition files
+.ignition/deployments/
+
+# Foundry
+cache/
+out/
+
+# Temporary files
+*.tmp
+*.bak
+.temp/
+.tmp/
+*.pid
+*.seed
+*.pid.lock
