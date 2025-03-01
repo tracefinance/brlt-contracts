@@ -219,6 +219,13 @@ contract MultiSigWallet is ReentrancyGuard {
         require(token != address(0), "Use receive() for native coin");
         require(amount > 0, "Amount must be greater than 0");
         
+        // Add token to supported tokens if not already supported
+        if (!supportedTokens[token]) {
+            supportedTokens[token] = true;
+            supportedTokensList.push(token);
+            emit TokenSupported(token);
+        }
+        
         // Use SafeERC20 for the transfer
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         emit Deposited(token, msg.sender, amount);

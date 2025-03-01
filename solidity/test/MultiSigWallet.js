@@ -158,6 +158,30 @@ describe("MultiSigWallet", function () {
       expect(event.args.amount).to.equal(amount);
     });
 
+    it("Should add token to supported tokens when depositing", async function () {
+      const newToken = await ethers.deployContract("MockToken");
+      
+      // Verify token is not supported initially
+      expect(await wallet.supportedTokens(newToken.target)).to.equal(false);
+      
+      // Deposit tokens
+      const amount = ethers.parseUnits("10", 18);
+      await newToken.approve(wallet.target, amount);
+      const tx = await wallet.depositToken(newToken.target, amount);
+      
+      // Verify token is now supported
+      expect(await wallet.supportedTokens(newToken.target)).to.equal(true);
+      
+      // Check for TokenSupported event
+      const receipt = await tx.wait();
+      const supportEvent = receipt.logs.find(
+        log => log.fragment && log.fragment.name === 'TokenSupported'
+      );
+      
+      expect(supportEvent).to.not.be.undefined;
+      expect(supportEvent.args.token).to.equal(newToken.target);
+    });
+
     it("Should not allow token deposits with zero amount", async function () {
       await token.approve(wallet.target, ethers.parseUnits("10", 18));
       await expect(wallet.depositToken(token.target, 0))
