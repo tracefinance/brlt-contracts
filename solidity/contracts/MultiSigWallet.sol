@@ -65,6 +65,11 @@ contract MultiSigWallet is ReentrancyGuard {
         _;
     }
     
+    modifier notInRecovery() {
+        require(recoveryRequestTimestamp == 0, "Wallet in recovery mode");
+        _;
+    }
+    
     constructor(address _client, address _recoveryAddress) {
         require(_client != address(0), "Invalid client address");
         require(_recoveryAddress != address(0), "Invalid recovery address");
@@ -137,12 +142,12 @@ contract MultiSigWallet is ReentrancyGuard {
     }
     
     // Receive function to accept native coin
-    receive() external payable {
+    receive() external payable notInRecovery {
         emit Deposited(address(0), msg.sender, msg.value);
     }
     
     // Function to deposit ERC20 tokens
-    function depositToken(address token, uint256 amount) external {
+    function depositToken(address token, uint256 amount) external notInRecovery {
         require(token != address(0), "Use receive() for native coin");
         require(amount > 0, "Amount must be greater than 0");
         
@@ -156,7 +161,7 @@ contract MultiSigWallet is ReentrancyGuard {
         address token,
         uint256 amount,
         address to
-    ) external onlyAuthorized returns (bytes32) {
+    ) external onlyAuthorized notInRecovery returns (bytes32) {
         require(to != address(0), "Invalid recipient");
         require(amount > 0, "Invalid amount");
         

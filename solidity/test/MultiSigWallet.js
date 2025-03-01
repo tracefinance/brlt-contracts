@@ -107,6 +107,50 @@ describe("MultiSigWallet", function () {
       const finalBalance = await ethers.provider.getBalance(other.address);
       expect(finalBalance - initialBalance).to.equal(withdrawAmount);
     });
+    
+    it("Should not allow withdrawal request during recovery mode", async function () {
+      // Request recovery to enter recovery mode
+      await wallet.requestRecovery();
+      
+      // Try to create a withdrawal request
+      await expect(
+        wallet.requestWithdrawal(
+          ethers.ZeroAddress,
+          ethers.parseEther("1.0"),
+          other.address
+        )
+      ).to.be.revertedWith("Wallet in recovery mode");
+      
+      // Manager should also be blocked
+      await expect(
+        wallet.connect(manager).requestWithdrawal(
+          token.target,
+          ethers.parseUnits("1.0", 18),
+          other.address
+        )
+      ).to.be.revertedWith("Wallet in recovery mode");
+    });
+    
+    it("Should allow withdrawal request after recovery is cancelled", async function () {
+      // Request recovery
+      await wallet.requestRecovery();
+      
+      // Cancel recovery
+      await wallet.connect(client).cancelRecovery();
+      
+      // Create request - should work now
+      const tx = await wallet.requestWithdrawal(
+        ethers.ZeroAddress,
+        ethers.parseEther("1.0"),
+        other.address
+      );
+      
+      const receipt = await tx.wait();
+      const event = receipt.logs.find(
+        log => log.fragment && log.fragment.name === 'WithdrawalRequested'
+      );
+      expect(event).to.not.be.undefined;
+    });
   });
 
   describe("Token Operations", function () {
@@ -156,6 +200,32 @@ describe("MultiSigWallet", function () {
       // Check balance changed
       const finalBalance = await token.balanceOf(other.address);
       expect(finalBalance - initialBalance).to.equal(withdrawAmount);
+    });
+    
+    it("Should not allow token deposits during recovery mode", async function () {
+      const amount = ethers.parseUnits("10", 18);
+      await token.approve(wallet.target, amount);
+      
+      // Request recovery to enter recovery mode
+      await wallet.requestRecovery();
+      
+      // Try to deposit tokens
+      await expect(
+        wallet.depositToken(token.target, amount)
+      ).to.be.revertedWith("Wallet in recovery mode");
+    });
+    
+    it("Should not allow ETH deposits during recovery mode", async function () {
+      // Request recovery to enter recovery mode
+      await wallet.requestRecovery();
+      
+      // Try to send ETH directly
+      await expect(
+        manager.sendTransaction({
+          to: wallet.target,
+          value: ethers.parseEther("1.0")
+        })
+      ).to.be.revertedWith("Wallet in recovery mode");
     });
   });
 
