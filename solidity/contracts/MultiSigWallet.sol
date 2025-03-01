@@ -26,6 +26,11 @@ contract MultiSigWallet is ReentrancyGuard {
     bool public recoveryExecuted;
     uint256 public withdrawalNonce;
     
+    // Array to store supported tokens for recovery
+    address[] public supportedTokensList;
+    // Mapping to store supported tokens for automatic recovery
+    mapping(address => bool) public supportedTokens;
+    
     // Mapping to store withdrawal requests
     struct WithdrawalRequest {
         address token;      // Address of token (address(0) for native coin)
@@ -50,6 +55,9 @@ contract MultiSigWallet is ReentrancyGuard {
     event RecoveryCancelled();
     event RecoveryExecuted(address indexed token, uint256 amount);
     event RecoveryCompleted();
+    event TokenSupported(address indexed token);
+    event TokenRemoved(address indexed token);
+    event NonSupportedTokenRecovered(address indexed token, uint256 amount, address to);
     
     modifier onlyManager() {
         require(msg.sender == manager, "Only manager can call this function");
@@ -71,12 +79,77 @@ contract MultiSigWallet is ReentrancyGuard {
         _;
     }
     
+    modifier recoveryCompleted() {
+        require(recoveryExecuted, "Recovery not completed");
+        _;
+    }
+    
     constructor(address _client, address _recoveryAddress) {
         require(_client != address(0), "Invalid client address");
         require(_recoveryAddress != address(0), "Invalid recovery address");
         manager = msg.sender;
         client = _client;
         recoveryAddress = _recoveryAddress;
+        
+        // Accept native coin (ETH) by default
+        supportedTokens[address(0)] = true;
+        supportedTokensList.push(address(0));
+    }
+    
+    /**
+     * @dev Allows the manager to add a token to the supported tokens list for automatic recovery
+     * @param token The token address to support
+     */
+    function addSupportedToken(address token) external onlyManager {
+        require(!supportedTokens[token], "Token already supported");
+        supportedTokens[token] = true;
+        supportedTokensList.push(token);
+        emit TokenSupported(token);
+    }
+    
+    /**
+     * @dev Allows the manager to remove a token from the supported tokens list
+     * @param token The token address to remove
+     */
+    function removeSupportedToken(address token) external onlyManager {
+        require(supportedTokens[token], "Token not in supported list");
+        supportedTokens[token] = false;
+        
+        // Remove token from supportedTokensList
+        for (uint i = 0; i < supportedTokensList.length; i++) {
+            if (supportedTokensList[i] == token) {
+                supportedTokensList[i] = supportedTokensList[supportedTokensList.length - 1];
+                supportedTokensList.pop();
+                break;
+            }
+        }
+        
+        emit TokenRemoved(token);
+    }
+    
+    /**
+     * @dev Allows the manager to recover non-supported tokens after recovery is completed
+     * @param token The token address to recover
+     * @param to The address to send the recovered tokens to
+     */
+    function recoverNonSupportedToken(address token, address to) external onlyManager recoveryCompleted nonReentrant {
+        require(token != address(0), "Cannot recover native coin");
+        require(!supportedTokens[token], "Use regular recovery for supported tokens");
+        require(to != address(0), "Invalid recipient address");
+        
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        require(balance > 0, "No balance to recover");
+        
+        IERC20(token).safeTransfer(to, balance);
+        emit NonSupportedTokenRecovered(token, balance, to);
+    }
+    
+    /**
+     * @dev Returns the list of all supported tokens
+     * @return Array of supported token addresses
+     */
+    function getSupportedTokens() external view returns (address[] memory) {
+        return supportedTokensList;
     }
     
     // Recovery functions
@@ -109,34 +182,29 @@ contract MultiSigWallet is ReentrancyGuard {
     function executeRecovery() external nonReentrant onlyManager {
         _checkRecoveryStatus();
         
-        // Transfer native coin balance
-        uint256 balance = address(this).balance;
-        if (balance > 0) {
-            (bool success, ) = recoveryAddress.call{value: balance}("");
-            require(success, "Native coin transfer failed");
-            emit RecoveryExecuted(address(0), balance);
-        }
-    }
-    
-    function executeTokenRecovery(address[] calldata tokens) external nonReentrant onlyManager {
-        _checkRecoveryStatus();
-        require(tokens.length <= MAX_BATCH_SIZE, "Batch size too large");
-        
-        // Transfer each token's balance
-        for (uint i = 0; i < tokens.length; i++) {
-            address token = tokens[i];
-            require(token != address(0), "Use executeRecovery() for native coin");
-            
-            uint256 balance = IERC20(token).balanceOf(address(this));
+        // Transfer native coin if it's a supported token
+        if (supportedTokens[address(0)]) {
+            uint256 balance = address(this).balance;
             if (balance > 0) {
-                IERC20(token).safeTransfer(recoveryAddress, balance);
-                emit RecoveryExecuted(token, balance);
+                (bool success, ) = recoveryAddress.call{value: balance}("");
+                require(success, "Native coin transfer failed");
+                emit RecoveryExecuted(address(0), balance);
             }
         }
-    }
-    
-    function completeRecovery() external nonReentrant onlyManager {
-        _checkRecoveryStatus();
+        
+        // Transfer all supported tokens' balances in one go
+        for (uint i = 0; i < supportedTokensList.length; i++) {
+            address token = supportedTokensList[i];
+            if (token != address(0) && supportedTokens[token]) {
+                uint256 balance = IERC20(token).balanceOf(address(this));
+                if (balance > 0) {
+                    IERC20(token).safeTransfer(recoveryAddress, balance);
+                    emit RecoveryExecuted(token, balance);
+                }
+            }
+        }
+        
+        // Complete the recovery process in the same transaction
         recoveryExecuted = true;
         recoveryRequestTimestamp = 0;
         emit RecoveryCompleted();

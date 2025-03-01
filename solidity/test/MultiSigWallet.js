@@ -5,31 +5,30 @@ const { time } = require("@nomicfoundation/hardhat-network-helpers");
 describe("MultiSigWallet", function () {
   let wallet;
   let token;
+  let token2; 
   let manager;
   let client;
   let recovery;
   let other;
-  const RECOVERY_DELAY = 72 * 60 * 60; // 72 hours in seconds
+  const RECOVERY_DELAY = 72 * 60 * 60; 
 
   beforeEach(async function () {
     [manager, client, recovery, other] = await ethers.getSigners();
 
-    // Deploy mock token
     const MockToken = await ethers.getContractFactory("contracts/mocks/MockToken.sol:MockToken");
     token = await MockToken.deploy();
+    token2 = await MockToken.deploy(); 
 
-    // Deploy wallet
     const Wallet = await ethers.getContractFactory("MultiSigWallet");
     wallet = await Wallet.deploy(client.address, recovery.address);
 
-    // Send some ETH to the wallet
     await manager.sendTransaction({
       to: wallet.target,
       value: ethers.parseEther("10.0")
     });
 
-    // Send some tokens to the wallet
     await token.transfer(wallet.target, ethers.parseUnits("100", 18));
+    await token2.transfer(wallet.target, ethers.parseUnits("50", 18));
   });
 
   describe("Deployment", function () {
@@ -89,7 +88,6 @@ describe("MultiSigWallet", function () {
       const withdrawAmount = ethers.parseEther("1.0");
       const initialBalance = await ethers.provider.getBalance(other.address);
 
-      // Create request
       const tx = await wallet.requestWithdrawal(
         ethers.ZeroAddress,
         withdrawAmount,
@@ -100,19 +98,15 @@ describe("MultiSigWallet", function () {
         log => log.fragment && log.fragment.name === 'WithdrawalRequested'
       ).args[0];
 
-      // Client signs
       await wallet.connect(client).signWithdrawal(requestId);
 
-      // Check balance changed
       const finalBalance = await ethers.provider.getBalance(other.address);
       expect(finalBalance - initialBalance).to.equal(withdrawAmount);
     });
     
     it("Should not allow withdrawal request during recovery mode", async function () {
-      // Request recovery to enter recovery mode
       await wallet.requestRecovery();
       
-      // Try to create a withdrawal request
       await expect(
         wallet.requestWithdrawal(
           ethers.ZeroAddress,
@@ -121,7 +115,6 @@ describe("MultiSigWallet", function () {
         )
       ).to.be.revertedWith("Wallet in recovery mode");
       
-      // Manager should also be blocked
       await expect(
         wallet.connect(manager).requestWithdrawal(
           token.target,
@@ -132,13 +125,10 @@ describe("MultiSigWallet", function () {
     });
     
     it("Should allow withdrawal request after recovery is cancelled", async function () {
-      // Request recovery
       await wallet.requestRecovery();
       
-      // Cancel recovery
       await wallet.connect(client).cancelRecovery();
       
-      // Create request - should work now
       const tx = await wallet.requestWithdrawal(
         ethers.ZeroAddress,
         ethers.parseEther("1.0"),
@@ -183,7 +173,6 @@ describe("MultiSigWallet", function () {
       const withdrawAmount = ethers.parseUnits("1.0", 18);
       const initialBalance = await token.balanceOf(other.address);
 
-      // Create request
       const tx = await wallet.requestWithdrawal(
         token.target,
         withdrawAmount,
@@ -194,10 +183,8 @@ describe("MultiSigWallet", function () {
         log => log.fragment && log.fragment.name === 'WithdrawalRequested'
       ).args[0];
 
-      // Client signs
       await wallet.connect(client).signWithdrawal(requestId);
 
-      // Check balance changed
       const finalBalance = await token.balanceOf(other.address);
       expect(finalBalance - initialBalance).to.equal(withdrawAmount);
     });
@@ -206,20 +193,16 @@ describe("MultiSigWallet", function () {
       const amount = ethers.parseUnits("10", 18);
       await token.approve(wallet.target, amount);
       
-      // Request recovery to enter recovery mode
       await wallet.requestRecovery();
       
-      // Try to deposit tokens
       await expect(
         wallet.depositToken(token.target, amount)
       ).to.be.revertedWith("Wallet in recovery mode");
     });
     
     it("Should not allow ETH deposits during recovery mode", async function () {
-      // Request recovery to enter recovery mode
       await wallet.requestRecovery();
       
-      // Try to send ETH directly
       await expect(
         manager.sendTransaction({
           to: wallet.target,
@@ -231,7 +214,6 @@ describe("MultiSigWallet", function () {
 
   describe("Withdrawal Edge Cases", function () {
     it("Should not allow withdrawal request after expiration", async function () {
-      // Create request
       const tx = await wallet.requestWithdrawal(
         ethers.ZeroAddress,
         ethers.parseEther("1.0"),
@@ -242,26 +224,21 @@ describe("MultiSigWallet", function () {
         log => log.fragment && log.fragment.name === 'WithdrawalRequested'
       ).args[0];
 
-      // Fast forward 25 hours
       await time.increase(25 * 60 * 60);
 
-      // Try to sign expired request
       await expect(wallet.connect(client).signWithdrawal(requestId))
         .to.be.revertedWith("Request expired");
     });
 
     it("Should not execute withdrawal if request expired after both signatures", async function () {
-      // Create a mock method to simulate internal _executeWithdrawal call with an expired request
       const MockWallet = await ethers.getContractFactory("MockMultiSigWalletTest");
       const mockWallet = await MockWallet.deploy(client.address, recovery.address);
       
-      // Fund the mock wallet
       await manager.sendTransaction({
         to: mockWallet.target,
         value: ethers.parseEther("5.0")
       });
       
-      // Create withdrawal request
       const tx = await mockWallet.requestWithdrawal(
         ethers.ZeroAddress,
         ethers.parseEther("1.0"),
@@ -272,13 +249,10 @@ describe("MultiSigWallet", function () {
         log => log.fragment && log.fragment.name === 'WithdrawalRequested'
       ).args[0];
       
-      // Manager already signed in creation, now client signs
       await mockWallet.connect(client).signWithdrawalWithoutExecution(requestId);
       
-      // Fast forward 25 hours to expire the request
       await time.increase(25 * 60 * 60);
       
-      // Try to execute the expired request directly
       await expect(mockWallet.executeWithdrawalDirect(requestId))
         .to.be.revertedWith("Request expired");
     });
@@ -351,31 +325,21 @@ describe("MultiSigWallet", function () {
       const walletEthBalance = await ethers.provider.getBalance(wallet.target);
       const walletTokenBalance = await token.balanceOf(wallet.target);
 
-      // Request recovery
+      await wallet.addSupportedToken(token.target);
+
       await wallet.requestRecovery();
 
-      // Fast forward 72 hours
       await time.increase(RECOVERY_DELAY);
 
-      // Execute token recovery first
-      await wallet.executeTokenRecovery([token.target]);
+      await wallet.executeRecovery();
 
-      // Check token balances
       expect(await token.balanceOf(recovery.address)).to.equal(walletTokenBalance);
       expect(await token.balanceOf(wallet.target)).to.equal(0);
 
-      // Execute ETH recovery
-      await wallet.executeRecovery();
-
-      // Check ETH balances
       const finalEthBalance = await ethers.provider.getBalance(recovery.address);
       expect(finalEthBalance - initialEthBalance).to.equal(walletEthBalance);
       expect(await ethers.provider.getBalance(wallet.target)).to.equal(0);
 
-      // Complete recovery
-      await wallet.completeRecovery();
-
-      // Verify recovery is completed
       expect(await wallet.recoveryExecuted()).to.be.true;
       expect(await wallet.recoveryRequestTimestamp()).to.equal(0);
     });
@@ -384,7 +348,6 @@ describe("MultiSigWallet", function () {
       await wallet.requestRecovery();
       await wallet.connect(client).cancelRecovery();
 
-      // Fast forward 72 hours
       await time.increase(RECOVERY_DELAY);
 
       await expect(wallet.executeRecovery())
@@ -394,7 +357,6 @@ describe("MultiSigWallet", function () {
     it("Should not allow client to cancel after timelock", async function () {
       await wallet.requestRecovery();
 
-      // Fast forward 72 hours
       await time.increase(RECOVERY_DELAY);
 
       await expect(wallet.connect(client).cancelRecovery())
@@ -413,10 +375,7 @@ describe("MultiSigWallet", function () {
       await wallet.requestRecovery();
       await time.increase(RECOVERY_DELAY);
       await wallet.executeRecovery();
-      await wallet.executeTokenRecovery([token.target]);
-      await wallet.completeRecovery();
 
-      // Try to request recovery again
       await expect(wallet.requestRecovery())
         .to.be.revertedWith("Recovery already executed");
     });
@@ -425,104 +384,268 @@ describe("MultiSigWallet", function () {
       await wallet.requestRecovery();
       await time.increase(RECOVERY_DELAY);
       await wallet.executeRecovery();
-      await wallet.executeTokenRecovery([token.target]);
 
-      // Try to request recovery again without completing
       await expect(wallet.requestRecovery())
-        .to.be.revertedWith("Recovery already requested");
+        .to.be.revertedWith("Recovery already executed");
     });
 
     it("Should not allow executing recovery twice", async function () {
-      // Request and execute recovery
       await wallet.requestRecovery();
       await time.increase(RECOVERY_DELAY);
       await wallet.executeRecovery();
-      await wallet.completeRecovery();
-      
-      // Try to execute recovery again without requesting
+
       await expect(wallet.executeRecovery())
         .to.be.revertedWith("No recovery requested");
     });
 
-    it("Should not allow completing recovery without executing recovery", async function () {
-      await wallet.requestRecovery();
-      await time.increase(RECOVERY_DELAY);
-      
-      // Try to complete without executing
-      await wallet.executeRecovery();
-      await wallet.completeRecovery();
-
-      // Try to complete again
-      await expect(wallet.completeRecovery())
-        .to.be.revertedWith("No recovery requested");
-    });
-
-    it("Should handle empty token recovery array", async function () {
-      await wallet.requestRecovery();
-      await time.increase(RECOVERY_DELAY);
-      
-      const tx = await wallet.executeTokenRecovery([]);
-      const receipt = await tx.wait();
-      
-      // Should not emit RecoveryExecuted for empty array
-      const events = receipt.logs.filter(
-        log => log.fragment && log.fragment.name === 'RecoveryExecuted'
-      );
-      expect(events.length).to.equal(0);
-    });
-
     it("Should handle empty token recovery", async function () {
-      // Transfer all tokens out first
-      const balance = await token.balanceOf(wallet.target);
-      const network = await ethers.provider.getNetwork();
-      await wallet.requestWithdrawal(token.target, balance, other.address);
+      // Set up contract with no tokens to recover
+      await wallet.requestWithdrawal(token.target, await token.balanceOf(wallet.target), other.address);
       await wallet.connect(client).signWithdrawal(
         ethers.keccak256(
           ethers.solidityPacked(
             ["address", "uint256", "address", "uint256", "uint256", "uint256"],
-            [token.target, balance, other.address, await time.latest(), 0, network.chainId]
+            [token.target, await token.balanceOf(wallet.target), other.address, await time.latest(), 0, await ethers.provider.getNetwork().then(network => network.chainId)]
           )
         )
       );
 
-      // Request and execute recovery
       await wallet.requestRecovery();
       await time.increase(RECOVERY_DELAY);
       
-      const tx = await wallet.executeTokenRecovery([token.target]);
+      // First add the token as supported
+      await wallet.addSupportedToken(token.target);
+      
+      // Then execute recovery
+      const tx = await wallet.executeRecovery();
       const receipt = await tx.wait();
       
-      // Should not emit RecoveryExecuted for zero balance
-      const events = receipt.logs.filter(
-        log => log.fragment && log.fragment.name === 'RecoveryExecuted'
+      // Should not emit RecoveryExecuted for token with zero balance
+      const tokenEvents = receipt.logs.filter(
+        log => log.fragment && log.fragment.name === 'RecoveryExecuted' && 
+        log.args && log.args[0] === token.target
       );
-      expect(events.length).to.equal(0);
+      expect(tokenEvents.length).to.equal(0);
     });
-
-    it("Should not allow token recovery batch size exceeding limit", async function () {
-      const tokens = Array(21).fill(token.target);
+    
+    it("Should not allow non-supported tokens to be recovered in executeRecovery", async function () {
+      // Add token1 but not token2
+      await wallet.addSupportedToken(token.target);
+      
+      const initialToken2Balance = await token2.balanceOf(wallet.target);
+      
       await wallet.requestRecovery();
       await time.increase(RECOVERY_DELAY);
+      
+      await wallet.executeRecovery();
+      
+      // Verify token2 was not recovered
+      expect(await token2.balanceOf(recovery.address)).to.equal(0);
+      expect(await token2.balanceOf(wallet.target)).to.equal(initialToken2Balance);
+    });
+  });
 
-      await expect(wallet.executeTokenRecovery(tokens))
-        .to.be.revertedWith("Batch size too large");
+  describe("Supported Tokens Management", function () {
+    it("Should set native coin as supported by default", async function () {
+      expect(await wallet.supportedTokens(ethers.ZeroAddress)).to.be.true;
     });
 
-    it("Should not allow native coin in token recovery", async function () {
+    it("Should allow manager to add supported tokens", async function () {
+      expect(await wallet.supportedTokens(token.target)).to.be.false;
+      
+      const tx = await wallet.addSupportedToken(token.target);
+      const receipt = await tx.wait();
+      
+      const event = receipt.logs.find(log => log.fragment && log.fragment.name === 'TokenSupported');
+      expect(event).to.not.be.undefined;
+      expect(event.args.token).to.equal(token.target);
+      
+      expect(await wallet.supportedTokens(token.target)).to.be.true;
+      
+      // Verify it was added to the list
+      const supportedTokens = await wallet.getSupportedTokens();
+      expect(supportedTokens).to.include(token.target);
+    });
+
+    it("Should not allow adding a token that is already supported", async function () {
+      await wallet.addSupportedToken(token.target);
+      await expect(wallet.addSupportedToken(token.target))
+        .to.be.revertedWith("Token already supported");
+    });
+
+    it("Should allow manager to remove supported tokens", async function () {
+      await wallet.addSupportedToken(token.target);
+      expect(await wallet.supportedTokens(token.target)).to.be.true;
+      
+      const tx = await wallet.removeSupportedToken(token.target);
+      const receipt = await tx.wait();
+      
+      const event = receipt.logs.find(log => log.fragment && log.fragment.name === 'TokenRemoved');
+      expect(event).to.not.be.undefined;
+      expect(event.args.token).to.equal(token.target);
+      
+      expect(await wallet.supportedTokens(token.target)).to.be.false;
+      
+      // Verify it was removed from the list
+      const supportedTokens = await wallet.getSupportedTokens();
+      expect(supportedTokens).to.not.include(token.target);
+    });
+
+    it("Should not allow removing a token that is not supported", async function () {
+      await expect(wallet.removeSupportedToken(token.target))
+        .to.be.revertedWith("Token not in supported list");
+    });
+
+    it("Should not allow non-manager to add supported tokens", async function () {
+      await expect(wallet.connect(client).addSupportedToken(token.target))
+        .to.be.revertedWith("Only manager can call this function");
+    });
+
+    it("Should not allow non-manager to remove supported tokens", async function () {
+      await wallet.addSupportedToken(token.target);
+      await expect(wallet.connect(client).removeSupportedToken(token.target))
+        .to.be.revertedWith("Only manager can call this function");
+    });
+    
+    it("Should correctly maintain the supported tokens list", async function () {
+      // Add several tokens
+      await wallet.addSupportedToken(token.target);
+      await wallet.addSupportedToken(token2.target);
+      
+      // Get the list
+      let supportedTokens = await wallet.getSupportedTokens();
+      expect(supportedTokens.length).to.equal(3); // ETH + 2 tokens
+      expect(supportedTokens).to.include(ethers.ZeroAddress);
+      expect(supportedTokens).to.include(token.target);
+      expect(supportedTokens).to.include(token2.target);
+      
+      // Remove a token
+      await wallet.removeSupportedToken(token.target);
+      
+      // Check list again
+      supportedTokens = await wallet.getSupportedTokens();
+      expect(supportedTokens.length).to.equal(2); // ETH + token2
+      expect(supportedTokens).to.include(ethers.ZeroAddress);
+      expect(supportedTokens).to.not.include(token.target);
+      expect(supportedTokens).to.include(token2.target);
+    });
+  });
+
+  describe("Modified Recovery Process", function () {
+    it("Should only recover supported tokens during recovery", async function () {
+      const walletToken1Balance = await token.balanceOf(wallet.target);
+      const walletToken2Balance = await token2.balanceOf(wallet.target);
+      
+      await wallet.addSupportedToken(token.target);
+      
       await wallet.requestRecovery();
       await time.increase(RECOVERY_DELAY);
+      
+      await wallet.executeRecovery();
+      
+      expect(await token.balanceOf(recovery.address)).to.equal(walletToken1Balance);
+      expect(await token.balanceOf(wallet.target)).to.equal(0);
+      
+      expect(await token2.balanceOf(recovery.address)).to.equal(0);
+      expect(await token2.balanceOf(wallet.target)).to.equal(walletToken2Balance);
+    });
 
-      await expect(wallet.executeTokenRecovery([ethers.ZeroAddress]))
-        .to.be.revertedWith("Use executeRecovery() for native coin");
+    it("Should not recover ETH if it's removed from supported tokens", async function () {
+      const initialEthBalance = await ethers.provider.getBalance(recovery.address);
+      const walletEthBalance = await ethers.provider.getBalance(wallet.target);
+      
+      await wallet.removeSupportedToken(ethers.ZeroAddress);
+      
+      await wallet.requestRecovery();
+      await time.increase(RECOVERY_DELAY);
+      
+      await wallet.executeRecovery();
+      
+      const finalEthBalance = await ethers.provider.getBalance(recovery.address);
+      expect(finalEthBalance).to.equal(initialEthBalance);
+      expect(await ethers.provider.getBalance(wallet.target)).to.equal(walletEthBalance);
+    });
+
+    it("Should allow manager to recover non-supported tokens after recovery is complete", async function () {
+      const walletToken2Balance = await token2.balanceOf(wallet.target);
+      
+      await wallet.requestRecovery();
+      await time.increase(RECOVERY_DELAY);
+      
+      await wallet.executeRecovery();
+      
+      const tx = await wallet.recoverNonSupportedToken(token2.target, other.address);
+      const receipt = await tx.wait();
+      
+      const event = receipt.logs.find(log => log.fragment && log.fragment.name === 'NonSupportedTokenRecovered');
+      expect(event).to.not.be.undefined;
+      expect(event.args.token).to.equal(token2.target);
+      expect(event.args.amount).to.equal(walletToken2Balance);
+      expect(event.args.to).to.equal(other.address);
+      
+      expect(await token2.balanceOf(other.address)).to.equal(walletToken2Balance);
+      expect(await token2.balanceOf(wallet.target)).to.equal(0);
+    });
+
+    it("Should not allow recovering non-supported tokens before recovery is complete", async function () {
+      await expect(wallet.recoverNonSupportedToken(token2.target, other.address))
+        .to.be.revertedWith("Recovery not completed");
+        
+      await wallet.requestRecovery();
+      await time.increase(RECOVERY_DELAY);
+      
+      await expect(wallet.recoverNonSupportedToken(token2.target, other.address))
+        .to.be.revertedWith("Recovery not completed");
+    });
+
+    it("Should not allow recovering supported tokens with recoverNonSupportedToken", async function () {
+      await wallet.addSupportedToken(token.target);
+      
+      await wallet.requestRecovery();
+      await time.increase(RECOVERY_DELAY);
+      
+      await wallet.executeRecovery();
+      
+      await expect(wallet.recoverNonSupportedToken(token.target, other.address))
+        .to.be.revertedWith("Use regular recovery for supported tokens");
+    });
+
+    it("Should not allow recovering native coin with recoverNonSupportedToken", async function () {
+      await wallet.requestRecovery();
+      await time.increase(RECOVERY_DELAY);
+      
+      await wallet.executeRecovery();
+      
+      await expect(wallet.recoverNonSupportedToken(ethers.ZeroAddress, other.address))
+        .to.be.revertedWith("Cannot recover native coin");
+    });
+
+    it("Should require a valid recipient address for recoverNonSupportedToken", async function () {
+      await wallet.requestRecovery();
+      await time.increase(RECOVERY_DELAY);
+      
+      await wallet.executeRecovery();
+      
+      await expect(wallet.recoverNonSupportedToken(token2.target, ethers.ZeroAddress))
+        .to.be.revertedWith("Invalid recipient address");
+    });
+
+    it("Should not allow non-manager to recover non-supported tokens", async function () {
+      await wallet.requestRecovery();
+      await time.increase(RECOVERY_DELAY);
+      
+      await wallet.executeRecovery();
+      
+      await expect(wallet.connect(client).recoverNonSupportedToken(token2.target, other.address))
+        .to.be.revertedWith("Only manager can call this function");
     });
   });
 
   describe("Balance Queries", function () {
     it("Should return correct native coin balance", async function () {
       const balance = await wallet.getBalance();
-      expect(balance).to.equal(ethers.parseEther("10.0")); // Initial balance from setup
+      expect(balance).to.equal(ethers.parseEther("10.0")); 
       
-      // Send more ETH and check balance updates
       await manager.sendTransaction({
         to: wallet.target,
         value: ethers.parseEther("5.0")
@@ -534,9 +657,8 @@ describe("MultiSigWallet", function () {
 
     it("Should return correct token balance", async function () {
       const balance = await wallet.getTokenBalance(token.target);
-      expect(balance).to.equal(ethers.parseUnits("100", 18)); // Initial balance from setup
+      expect(balance).to.equal(ethers.parseUnits("100", 18)); 
       
-      // Send more tokens and check balance updates
       await token.transfer(wallet.target, ethers.parseUnits("50", 18));
       
       const newBalance = await wallet.getTokenBalance(token.target);
@@ -549,7 +671,6 @@ describe("MultiSigWallet", function () {
     });
 
     it("Should handle token balance queries for tokens with no balance", async function () {
-      // Deploy a new token that the wallet doesn't have
       const MockToken = await ethers.getContractFactory("contracts/mocks/MockToken.sol:MockToken");
       const newToken = await MockToken.deploy();
 
