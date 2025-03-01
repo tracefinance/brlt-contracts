@@ -300,12 +300,18 @@ contract MultiSigWallet is ReentrancyGuard {
         address to = request.to;
         address token = request.token;
         
+        // Check balances before marking as executed
+        if (token == address(0)) {
+            require(address(this).balance >= amount, "Insufficient balance");
+        } else {
+            require(IERC20(token).balanceOf(address(this)) >= amount, "Insufficient token balance");
+        }
+        
         // Mark as executed before transfer to prevent reentrancy
         request.executed = true;
         
         // Execute transfer
         if (token == address(0)) {
-            require(address(this).balance >= amount, "Insufficient balance");
             (bool success, ) = to.call{value: amount}("");
             require(success, "Transfer failed");
         } else {

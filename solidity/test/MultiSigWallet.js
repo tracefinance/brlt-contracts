@@ -284,6 +284,58 @@ describe("MultiSigWallet", function () {
 
       expect(await wallet.withdrawalNonce()).to.equal(initialNonce + 1n);
     });
+
+    it("Should not allow withdrawal with insufficient token balance", async function () {
+      // Get current token balance
+      const currentBalance = await token.balanceOf(wallet.target);
+      
+      // Create a withdrawal request for more tokens than available
+      const excessAmount = currentBalance + ethers.parseUnits("10", 18);
+      
+      // Request withdrawal for an excessive amount
+      const tx = await wallet.requestWithdrawal(
+        token.target,
+        excessAmount,
+        other.address
+      );
+      
+      const receipt = await tx.wait();
+      const requestId = receipt.logs.find(
+        log => log.fragment && log.fragment.name === 'WithdrawalRequested'
+      ).args[0];
+      
+      // Try to complete the withdrawal with client signature
+      // This should fail with "Insufficient token balance"
+      await expect(wallet.connect(client).signWithdrawal(requestId))
+        .to.be.revertedWith("Insufficient token balance");
+    });
+
+    it("Should not allow direct withdrawal execution with insufficient token balance", async function () {
+      const MockWallet = await ethers.getContractFactory("MockMultiSigWalletTest");
+      const mockWallet = await MockWallet.deploy(client.address, recovery.address);
+      
+      // Transfer some tokens to the mock wallet
+      await token.transfer(mockWallet.target, ethers.parseUnits("5", 18));
+      
+      // Create a withdrawal request for more tokens than available
+      const tx = await mockWallet.requestWithdrawal(
+        token.target,
+        ethers.parseUnits("10", 18),  // More than the 5 available
+        other.address
+      );
+      
+      const receipt = await tx.wait();
+      const requestId = receipt.logs.find(
+        log => log.fragment && log.fragment.name === 'WithdrawalRequested'
+      ).args[0];
+      
+      // Sign without executing
+      await mockWallet.connect(client).signWithdrawalWithoutExecution(requestId);
+      
+      // Try to execute directly - should fail with insufficient balance
+      await expect(mockWallet.executeWithdrawalDirect(requestId))
+        .to.be.revertedWith("Insufficient token balance");
+    });
   });
 
   describe("Recovery", function () {
