@@ -21,6 +21,7 @@ contract MultiSigWallet is ReentrancyGuard {
     
     uint256 public constant RECOVERY_DELAY = 72 hours;
     uint256 public constant WITHDRAWAL_EXPIRATION = 24 hours;
+    uint256 public constant MAX_SUPPORTED_TOKENS = 20;
     uint256 public recoveryRequestTimestamp;
     bool public recoveryExecuted;
     uint256 public withdrawalNonce;
@@ -92,6 +93,7 @@ contract MultiSigWallet is ReentrancyGuard {
     ) {
         require(_client != address(0), "Invalid client address");
         require(_recoveryAddress != address(0), "Invalid recovery address");
+        require(_whitelistedTokens.length < MAX_SUPPORTED_TOKENS, "Too many whitelisted tokens");
         manager = msg.sender;
         client = _client;
         recoveryAddress = _recoveryAddress;
@@ -118,6 +120,7 @@ contract MultiSigWallet is ReentrancyGuard {
     function addSupportedToken(address token) external onlyManager {
         require(token != address(0), "Cannot add zero address");
         require(!supportedTokens[token], "Token already supported");
+        require(supportedTokensList.length < MAX_SUPPORTED_TOKENS, "Maximum supported tokens reached");
         supportedTokens[token] = true;
         supportedTokensList.push(token);
         emit TokenSupported(token);
@@ -167,6 +170,7 @@ contract MultiSigWallet is ReentrancyGuard {
         
         // Add token to supported tokens if it's whitelisted and not already supported
         if (whitelistedTokens[token] && !supportedTokens[token]) {
+            require(supportedTokensList.length < MAX_SUPPORTED_TOKENS, "Maximum supported tokens reached");
             supportedTokens[token] = true;
             supportedTokensList.push(token);
             emit TokenSupported(token);

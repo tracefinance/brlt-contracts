@@ -728,6 +728,136 @@ describe("MultiSigWallet", function () {
       expect(supportedTokens).to.not.include(token.target);
       expect(supportedTokens).to.include(token2.target);
     });
+
+    it("Should enforce the maximum supported tokens limit when adding tokens", async function () {
+      // Get the MAX_SUPPORTED_TOKENS constant value
+      const MAX_SUPPORTED_TOKENS = 20;
+      
+      // Create many mock tokens and add them until we reach the limit
+      const MockToken = await ethers.getContractFactory("contracts/mocks/MockToken.sol:MockToken");
+      const mockTokens = [];
+      
+      // We already have ETH (address(0)) as a supported token
+      const numTokensToAdd = MAX_SUPPORTED_TOKENS - 1; // -1 for ETH
+      
+      // Create and add tokens until we're just below the limit
+      for (let i = 0; i < numTokensToAdd; i++) {
+        const mockToken = await MockToken.deploy();
+        await mockToken.waitForDeployment();
+        mockTokens.push(mockToken);
+        
+        // Add token to supported list if it's not the last one
+        if (i < numTokensToAdd - 1) {
+          await wallet.addSupportedToken(mockToken.target);
+        }
+      }
+      
+      // Verify we have MAX_SUPPORTED_TOKENS - 1 tokens supported
+      let supportedTokens = await wallet.getSupportedTokens();
+      expect(supportedTokens.length).to.equal(MAX_SUPPORTED_TOKENS - 1);
+      
+      // Add the last token to reach the limit
+      const lastToken = mockTokens[numTokensToAdd - 1];
+      await wallet.addSupportedToken(lastToken.target);
+      
+      // Verify we now have MAX_SUPPORTED_TOKENS tokens supported
+      supportedTokens = await wallet.getSupportedTokens();
+      expect(supportedTokens.length).to.equal(MAX_SUPPORTED_TOKENS);
+      
+      // Try to add one more token, which should fail
+      const extraToken = await MockToken.deploy();
+      await extraToken.waitForDeployment();
+      
+      await expect(wallet.addSupportedToken(extraToken.target))
+        .to.be.revertedWith("Maximum supported tokens reached");
+    });
+    
+    it("Should enforce the maximum supported tokens limit when depositing whitelisted tokens", async function () {
+      // Deploy a new wallet with the maximum allowed tokens already whitelisted
+      const MAX_SUPPORTED_TOKENS = 20;
+      
+      // Create tokens for whitelisting
+      const MockToken = await ethers.getContractFactory("contracts/mocks/MockToken.sol:MockToken");
+      const whitelistedTokens = [];
+      
+      // Create MAX_SUPPORTED_TOKENS - 1 tokens (to account for ETH which is auto-added)
+      for (let i = 0; i < MAX_SUPPORTED_TOKENS - 1; i++) {
+        const mockToken = await MockToken.deploy();
+        await mockToken.waitForDeployment();
+        whitelistedTokens.push(mockToken.target);
+      }
+      
+      // Deploy a new wallet with all these tokens whitelisted and verify deployment succeeds
+      const walletFactory = await ethers.getContractFactory("MultiSigWallet");
+      const newWallet = await walletFactory.deploy(
+        client.address,
+        recovery.address,
+        whitelistedTokens
+      );
+      await newWallet.waitForDeployment();
+      
+      // Create an additional whitelisted token
+      const extraToken = await MockToken.deploy();
+      await extraToken.waitForDeployment();
+      
+      // Try to deploy another wallet with too many tokens (should fail)
+      const tooManyTokens = [...whitelistedTokens, extraToken.target];
+      await expect(walletFactory.deploy(
+        client.address,
+        recovery.address,
+        tooManyTokens
+      )).to.be.revertedWith("Too many whitelisted tokens");
+    });
+
+    it("Should prevent auto-adding whitelisted tokens during deposit when limit is reached", async function () {
+      // We'll create a simpler test with fewer tokens but the same logic
+      const MAX_SUPPORTED_TOKENS = 20;
+      
+      // Deploy a wallet with a limited initial set of tokens
+      const MockToken = await ethers.getContractFactory("contracts/mocks/MockToken.sol:MockToken");
+      
+      // Create a whitelisted token that won't be auto-included initially
+      const whitelistedToken = await MockToken.deploy();
+      await whitelistedToken.waitForDeployment();
+      
+      // Deploy the wallet with just this one whitelisted token
+      const walletFactory = await ethers.getContractFactory("MultiSigWallet");
+      const newWallet = await walletFactory.deploy(
+        client.address,
+        recovery.address,
+        [whitelistedToken.target]
+      );
+      await newWallet.waitForDeployment();
+      
+      // Now fill up the supportedTokensList array to reach the limit
+      for (let i = 0; i < MAX_SUPPORTED_TOKENS - 2; i++) { // -2 for ETH and the last token we'll add
+        const regularToken = await MockToken.deploy();
+        await regularToken.waitForDeployment();
+        await newWallet.addSupportedToken(regularToken.target);
+      }
+      
+      // Add one final token to reach the limit
+      const finalToken = await MockToken.deploy();
+      await finalToken.waitForDeployment();
+      await newWallet.addSupportedToken(finalToken.target);
+      
+      // Verify we now have MAX_SUPPORTED_TOKENS supported tokens
+      const supportedTokens = await newWallet.getSupportedTokens();
+      expect(supportedTokens.length).to.equal(MAX_SUPPORTED_TOKENS);
+      
+      // Verify that our whitelistedToken is whitelisted but not yet in the supported list
+      expect(await newWallet.whitelistedTokens(whitelistedToken.target)).to.equal(true);
+      expect(await newWallet.supportedTokens(whitelistedToken.target)).to.equal(false);
+      
+      // Prepare to deposit the whitelisted token
+      const depositAmount = ethers.parseEther("1.0");
+      await whitelistedToken.transfer(manager.address, depositAmount);
+      await whitelistedToken.connect(manager).approve(newWallet.target, depositAmount);
+      
+      // Try to deposit the whitelisted token, which should fail to be auto-added due to the limit
+      await expect(newWallet.connect(manager).depositToken(whitelistedToken.target, depositAmount))
+        .to.be.revertedWith("Maximum supported tokens reached");
+    });
   });
 
   describe("Modified Recovery Process", function () {
