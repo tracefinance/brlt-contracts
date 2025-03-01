@@ -29,6 +29,8 @@ contract MultiSigWallet is ReentrancyGuard {
     address[] public supportedTokensList;
     // Mapping to store supported tokens for automatic recovery
     mapping(address => bool) public supportedTokens;
+    // Mapping to store whitelisted tokens that can be auto-included
+    mapping(address => bool) public whitelistedTokens;
     
     // Mapping to store withdrawal requests
     struct WithdrawalRequest {
@@ -56,6 +58,7 @@ contract MultiSigWallet is ReentrancyGuard {
     event TokenSupported(address indexed token);
     event TokenRemoved(address indexed token);
     event NonSupportedTokenRecovered(address indexed token, uint256 amount, address to);
+    event TokenWhitelisted(address indexed token);
     
     modifier onlyManager() {
         require(msg.sender == manager, "Only manager can call this function");
@@ -82,7 +85,11 @@ contract MultiSigWallet is ReentrancyGuard {
         _;
     }
     
-    constructor(address _client, address _recoveryAddress) {
+    constructor(
+        address _client, 
+        address _recoveryAddress,
+        address[] memory _whitelistedTokens
+    ) {
         require(_client != address(0), "Invalid client address");
         require(_recoveryAddress != address(0), "Invalid recovery address");
         manager = msg.sender;
@@ -92,6 +99,16 @@ contract MultiSigWallet is ReentrancyGuard {
         // Accept native coin (ETH) by default
         supportedTokens[address(0)] = true;
         supportedTokensList.push(address(0));
+        
+        // Add whitelisted tokens
+        for (uint256 i = 0; i < _whitelistedTokens.length; i++) {
+            address token = _whitelistedTokens[i];
+            require(token != address(0), "Cannot whitelist zero address");
+            if (!whitelistedTokens[token]) {
+                whitelistedTokens[token] = true;
+                emit TokenWhitelisted(token);
+            }
+        }
     }
     
     /**
@@ -141,6 +158,23 @@ contract MultiSigWallet is ReentrancyGuard {
         
         IERC20(token).safeTransfer(to, balance);
         emit NonSupportedTokenRecovered(token, balance, to);
+    }
+    
+    // Function to deposit ERC20 tokens
+    function depositToken(address token, uint256 amount) external notInRecovery {
+        require(token != address(0), "Use receive() for native coin");
+        require(amount > 0, "Amount must be greater than 0");
+        
+        // Add token to supported tokens if it's whitelisted and not already supported
+        if (whitelistedTokens[token] && !supportedTokens[token]) {
+            supportedTokens[token] = true;
+            supportedTokensList.push(token);
+            emit TokenSupported(token);
+        }
+        
+        // Use SafeERC20 for the transfer
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        emit Deposited(token, msg.sender, amount);
     }
     
     /**
@@ -212,23 +246,6 @@ contract MultiSigWallet is ReentrancyGuard {
     // Receive function to accept native coin
     receive() external payable notInRecovery {
         emit Deposited(address(0), msg.sender, msg.value);
-    }
-    
-    // Function to deposit ERC20 tokens
-    function depositToken(address token, uint256 amount) external notInRecovery {
-        require(token != address(0), "Use receive() for native coin");
-        require(amount > 0, "Amount must be greater than 0");
-        
-        // Add token to supported tokens if not already supported
-        if (!supportedTokens[token]) {
-            supportedTokens[token] = true;
-            supportedTokensList.push(token);
-            emit TokenSupported(token);
-        }
-        
-        // Use SafeERC20 for the transfer
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-        emit Deposited(token, msg.sender, amount);
     }
     
     // Create a withdrawal request

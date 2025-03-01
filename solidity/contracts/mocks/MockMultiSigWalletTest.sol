@@ -8,8 +8,8 @@ import "../MultiSigWallet.sol";
  * @dev Extension of MultiSigWallet for testing internal functions
  */
 contract MockMultiSigWalletTest is MultiSigWallet {
-    constructor(address _client, address _recoveryAddress) 
-        MultiSigWallet(_client, _recoveryAddress) {}
+    constructor(address _client, address _recoveryAddress, address[] memory _whitelistedTokens) 
+        MultiSigWallet(_client, _recoveryAddress, _whitelistedTokens) {}
     
     // Function to sign without executing, to test direct execution later
     function signWithdrawalWithoutExecution(bytes32 requestId) external onlyAuthorized {

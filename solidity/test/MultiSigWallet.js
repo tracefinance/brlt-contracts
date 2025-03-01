@@ -6,6 +6,7 @@ describe("MultiSigWallet", function () {
   let wallet;
   let token;
   let token2; 
+  let token3; 
   let manager;
   let client;
   let recovery;
@@ -18,9 +19,14 @@ describe("MultiSigWallet", function () {
     const MockToken = await ethers.getContractFactory("contracts/mocks/MockToken.sol:MockToken");
     token = await MockToken.deploy();
     token2 = await MockToken.deploy(); 
+    token3 = await MockToken.deploy(); 
 
     const Wallet = await ethers.getContractFactory("MultiSigWallet");
-    wallet = await Wallet.deploy(client.address, recovery.address);
+    wallet = await Wallet.deploy(
+      client.address, 
+      recovery.address, 
+      [token.target, token2.target]
+    );
 
     await manager.sendTransaction({
       to: wallet.target,
@@ -42,6 +48,37 @@ describe("MultiSigWallet", function () {
 
     it("Should set the right recovery address", async function () {
       expect(await wallet.recoveryAddress()).to.equal(recovery.address);
+    });
+    
+    it("Should set the correct whitelisted tokens", async function () {
+      expect(await wallet.whitelistedTokens(token.target)).to.equal(true);
+      expect(await wallet.whitelistedTokens(token2.target)).to.equal(true);
+      expect(await wallet.whitelistedTokens(token3.target)).to.equal(false);
+      expect(await wallet.whitelistedTokens(ethers.ZeroAddress)).to.equal(false);
+    });
+    
+    it("Should emit TokenWhitelisted events during deployment", async function () {
+      // Deploy a new wallet to capture events
+      const newWallet = await ethers.deployContract("MultiSigWallet", [
+        client.address, 
+        recovery.address, 
+        [token.target, token2.target]
+      ]);
+      
+      // Get the deployment transaction
+      const txReceipt = await newWallet.deploymentTransaction().wait();
+      
+      // Check for TokenWhitelisted events
+      const events = txReceipt.logs.filter(
+        log => log.fragment && log.fragment.name === 'TokenWhitelisted'
+      );
+      
+      expect(events.length).to.equal(2);
+      
+      // Check that each token is in the events
+      const tokenAddresses = events.map(e => e.args.token);
+      expect(tokenAddresses).to.include(token.target);
+      expect(tokenAddresses).to.include(token2.target);
     });
   });
 
@@ -158,19 +195,20 @@ describe("MultiSigWallet", function () {
       expect(event.args.amount).to.equal(amount);
     });
 
-    it("Should add token to supported tokens when depositing", async function () {
-      const newToken = await ethers.deployContract("MockToken");
+    it("Should add whitelisted token to supported tokens when depositing", async function () {
+      // Verify tokens are whitelisted but not yet supported
+      expect(await wallet.whitelistedTokens(token.target)).to.equal(true);
+      expect(await wallet.whitelistedTokens(token2.target)).to.equal(true);
+      expect(await wallet.supportedTokens(token.target)).to.equal(false);
+      expect(await wallet.supportedTokens(token2.target)).to.equal(false);
       
-      // Verify token is not supported initially
-      expect(await wallet.supportedTokens(newToken.target)).to.equal(false);
-      
-      // Deposit tokens
+      // Deposit whitelisted token
       const amount = ethers.parseUnits("10", 18);
-      await newToken.approve(wallet.target, amount);
-      const tx = await wallet.depositToken(newToken.target, amount);
+      await token.approve(wallet.target, amount);
+      const tx = await wallet.depositToken(token.target, amount);
       
       // Verify token is now supported
-      expect(await wallet.supportedTokens(newToken.target)).to.equal(true);
+      expect(await wallet.supportedTokens(token.target)).to.equal(true);
       
       // Check for TokenSupported event
       const receipt = await tx.wait();
@@ -179,7 +217,38 @@ describe("MultiSigWallet", function () {
       );
       
       expect(supportEvent).to.not.be.undefined;
-      expect(supportEvent.args.token).to.equal(newToken.target);
+      expect(supportEvent.args.token).to.equal(token.target);
+    });
+
+    it("Should not add non-whitelisted token to supported tokens when depositing", async function () {
+      // Verify token3 is not whitelisted
+      expect(await wallet.whitelistedTokens(token3.target)).to.equal(false);
+      expect(await wallet.supportedTokens(token3.target)).to.equal(false);
+      
+      // Deposit non-whitelisted token
+      const amount = ethers.parseUnits("10", 18);
+      await token3.approve(wallet.target, amount);
+      const tx = await wallet.depositToken(token3.target, amount);
+      const receipt = await tx.wait();
+      
+      // Verify token is still not supported
+      expect(await wallet.supportedTokens(token3.target)).to.equal(false);
+      
+      // Check that no TokenSupported event was emitted
+      const supportEvent = receipt.logs.find(
+        log => log.fragment && log.fragment.name === 'TokenSupported'
+      );
+      
+      expect(supportEvent).to.be.undefined;
+      
+      // But Deposited event should still be emitted
+      const depositEvent = receipt.logs.find(
+        log => log.fragment && log.fragment.name === 'Deposited'
+      );
+      
+      expect(depositEvent).to.not.be.undefined;
+      expect(depositEvent.args.token).to.equal(token3.target);
+      expect(depositEvent.args.amount).to.equal(amount);
     });
 
     it("Should not allow token deposits with zero amount", async function () {
@@ -256,7 +325,11 @@ describe("MultiSigWallet", function () {
 
     it("Should not execute withdrawal if request expired after both signatures", async function () {
       const MockWallet = await ethers.getContractFactory("MockMultiSigWalletTest");
-      const mockWallet = await MockWallet.deploy(client.address, recovery.address);
+      const mockWallet = await MockWallet.deploy(
+        client.address, 
+        recovery.address,
+        [token.target, token2.target]
+      );
       
       await manager.sendTransaction({
         to: mockWallet.target,
@@ -336,7 +409,11 @@ describe("MultiSigWallet", function () {
 
     it("Should not allow direct withdrawal execution with insufficient token balance", async function () {
       const MockWallet = await ethers.getContractFactory("MockMultiSigWalletTest");
-      const mockWallet = await MockWallet.deploy(client.address, recovery.address);
+      const mockWallet = await MockWallet.deploy(
+        client.address, 
+        recovery.address,
+        [token.target, token2.target]
+      );
       
       // Transfer some tokens to the mock wallet
       await token.transfer(mockWallet.target, ethers.parseUnits("5", 18));
