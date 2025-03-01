@@ -39,7 +39,7 @@ contract MultiSigWallet is ReentrancyGuard {
         bool clientSigned;  // Whether client has signed
         uint256 timestamp;  // When the request was created
         bool executed;      // Whether the request was executed
-        uint256 nonce;     // Unique nonce for the request
+        uint256 nonce;      // Unique nonce for the request
     }
     
     mapping(bytes32 => WithdrawalRequest) public withdrawalRequests;
@@ -99,6 +99,7 @@ contract MultiSigWallet is ReentrancyGuard {
      * @param token The token address to support
      */
     function addSupportedToken(address token) external onlyManager {
+        require(token != address(0), "Cannot add zero address");
         require(!supportedTokens[token], "Token already supported");
         supportedTokens[token] = true;
         supportedTokensList.push(token);
