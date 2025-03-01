@@ -336,6 +336,54 @@ describe("MultiSigWallet", function () {
       await expect(mockWallet.executeWithdrawalDirect(requestId))
         .to.be.revertedWith("Insufficient token balance");
     });
+
+    it("Should generate different requestIds for identical parameters from different signers", async function () {
+      const amount = ethers.parseEther("1.0");
+      const recipient = other.address;
+      
+      // Create first withdrawal request from manager
+      const managerTx = await wallet.requestWithdrawal(
+        ethers.ZeroAddress,
+        amount,
+        recipient
+      );
+      const managerReceipt = await managerTx.wait();
+      const managerRequestId = managerReceipt.logs.find(
+        log => log.fragment && log.fragment.name === 'WithdrawalRequested'
+      ).args[0];
+      
+      // Create second withdrawal request with identical parameters from client
+      const clientTx = await wallet.connect(client).requestWithdrawal(
+        ethers.ZeroAddress,
+        amount,
+        recipient
+      );
+      const clientReceipt = await clientTx.wait();
+      const clientRequestId = clientReceipt.logs.find(
+        log => log.fragment && log.fragment.name === 'WithdrawalRequested'
+      ).args[0];
+      
+      // Verify requestIds are different despite identical parameters
+      expect(managerRequestId).to.not.equal(clientRequestId);
+      
+      // Verify both requests can be processed independently
+      await wallet.connect(client).signWithdrawal(managerRequestId);
+      
+      // Create a new withdrawal for the client to sign
+      const newTx = await wallet.requestWithdrawal(
+        ethers.ZeroAddress,
+        amount,
+        recipient
+      );
+      const newReceipt = await newTx.wait();
+      const newRequestId = newReceipt.logs.find(
+        log => log.fragment && log.fragment.name === 'WithdrawalRequested'
+      ).args[0];
+      
+      // Verify the new requestId is also different
+      expect(newRequestId).to.not.equal(managerRequestId);
+      expect(newRequestId).to.not.equal(clientRequestId);
+    });
   });
 
   describe("Recovery", function () {
@@ -452,15 +500,13 @@ describe("MultiSigWallet", function () {
 
     it("Should handle empty token recovery", async function () {
       // Set up contract with no tokens to recover
-      await wallet.requestWithdrawal(token.target, await token.balanceOf(wallet.target), other.address);
-      await wallet.connect(client).signWithdrawal(
-        ethers.keccak256(
-          ethers.solidityPacked(
-            ["address", "uint256", "address", "uint256", "uint256", "uint256"],
-            [token.target, await token.balanceOf(wallet.target), other.address, await time.latest(), 0, await ethers.provider.getNetwork().then(network => network.chainId)]
-          )
-        )
-      );
+      const tx = await wallet.requestWithdrawal(token.target, await token.balanceOf(wallet.target), other.address);
+      const receipt = await tx.wait();
+      const requestId = receipt.logs.find(
+        log => log.fragment && log.fragment.name === 'WithdrawalRequested'
+      ).args[0];
+      
+      await wallet.connect(client).signWithdrawal(requestId);
 
       await wallet.requestRecovery();
       await time.increase(RECOVERY_DELAY);
@@ -469,11 +515,11 @@ describe("MultiSigWallet", function () {
       await wallet.addSupportedToken(token.target);
       
       // Then execute recovery
-      const tx = await wallet.executeRecovery();
-      const receipt = await tx.wait();
+      const recoveryTx = await wallet.executeRecovery();
+      const recoveryReceipt = await recoveryTx.wait();
       
       // Should not emit RecoveryExecuted for token with zero balance
-      const tokenEvents = receipt.logs.filter(
+      const tokenEvents = recoveryReceipt.logs.filter(
         log => log.fragment && log.fragment.name === 'RecoveryExecuted' && 
         log.args && log.args[0] === token.target
       );

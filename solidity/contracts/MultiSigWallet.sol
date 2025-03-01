@@ -235,14 +235,18 @@ contract MultiSigWallet is ReentrancyGuard {
         require(amount > 0, "Invalid amount");
         
         uint256 nonce = withdrawalNonce++;
+        
+        // Use keccak256 hash with abi.encode instead of abi.encodePacked for better type safety
+        // Include msg.sender to make requests unique per signer
         bytes32 requestId = keccak256(
-            abi.encodePacked(
+            abi.encode(
                 token, 
                 amount, 
                 to, 
-                block.timestamp,
                 nonce,
-                block.chainid
+                block.chainid,
+                msg.sender,
+                address(this)  // Include contract address to prevent cross-contract replay
             )
         );
         
