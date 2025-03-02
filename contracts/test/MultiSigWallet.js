@@ -16,7 +16,7 @@ describe("MultiSigWallet", function () {
   beforeEach(async function () {
     [manager, client, recovery, other] = await ethers.getSigners();
 
-    const MockToken = await ethers.getContractFactory("contracts/mocks/MockToken.sol:MockToken");
+    const MockToken = await ethers.getContractFactory("solidity/mocks/MockToken.sol:MockToken");
     token = await MockToken.deploy();
     token2 = await MockToken.deploy(); 
     token3 = await MockToken.deploy(); 
@@ -734,7 +734,7 @@ describe("MultiSigWallet", function () {
       const MAX_SUPPORTED_TOKENS = 20;
       
       // Create many mock tokens and add them until we reach the limit
-      const MockToken = await ethers.getContractFactory("contracts/mocks/MockToken.sol:MockToken");
+      const MockToken = await ethers.getContractFactory("solidity/mocks/MockToken.sol:MockToken");
       const mockTokens = [];
       
       // We already have ETH (address(0)) as a supported token
@@ -777,7 +777,7 @@ describe("MultiSigWallet", function () {
       const MAX_SUPPORTED_TOKENS = 20;
       
       // Create tokens for whitelisting
-      const MockToken = await ethers.getContractFactory("contracts/mocks/MockToken.sol:MockToken");
+      const MockToken = await ethers.getContractFactory("solidity/mocks/MockToken.sol:MockToken");
       const whitelistedTokens = [];
       
       // Create MAX_SUPPORTED_TOKENS - 1 tokens (to account for ETH which is auto-added)
@@ -814,7 +814,7 @@ describe("MultiSigWallet", function () {
       const MAX_SUPPORTED_TOKENS = 20;
       
       // Deploy a wallet with a limited initial set of tokens
-      const MockToken = await ethers.getContractFactory("contracts/mocks/MockToken.sol:MockToken");
+      const MockToken = await ethers.getContractFactory("solidity/mocks/MockToken.sol:MockToken");
       
       // Create a whitelisted token that won't be auto-included initially
       const whitelistedToken = await MockToken.deploy();
@@ -1000,7 +1000,7 @@ describe("MultiSigWallet", function () {
     });
 
     it("Should handle token balance queries for tokens with no balance", async function () {
-      const MockToken = await ethers.getContractFactory("contracts/mocks/MockToken.sol:MockToken");
+      const MockToken = await ethers.getContractFactory("solidity/mocks/MockToken.sol:MockToken");
       const newToken = await MockToken.deploy();
 
       const balance = await wallet.getTokenBalance(newToken.target);

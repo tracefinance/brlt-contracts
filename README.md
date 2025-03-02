@@ -1,125 +1,184 @@
-# Vault0 Go Server with React SPA
+# Vault0: Multi-Signature Crypto Wallet
 
-A secure, modular, and deployable foundation for a Go server application that serves a React Single Page Application (SPA), sets up a SQLite database, and applies initial database migrations.
+Vault0 is a secure, dual-signature cryptocurrency wallet smart contract system with a robust recovery mechanism. It implements a multi-signature wallet that requires two authorizations (client and manager) to withdraw funds, with additional security features such as timelock-based recovery and token whitelisting.
 
-## Features
+## Project Overview
 
-- Go server built with Gin web framework
-- SQLite database integration with libSQL driver
-- Database migrations using golang-migrate
-- Precompiled React SPA serving with client-side routing support
-- Secure configuration management
-- Modular codebase with clean separation of concerns
+The Vault0 system consists of:
 
-## Prerequisites
+1. **Smart Contracts**: Solidity-based multi-signature wallet implementation
+2. **Backend API**: Go-based server providing wallet management features
+3. **Frontend UI**: Next.js with React 19 web interface for user interactions
 
-- Go 1.16 or higher
-- SQLite installed on your system
+## Key Features
+
+- **Dual-Signature Security**: Requires both manager and client signatures to authorize withdrawals
+- **Recovery Mechanism**: 72-hour timelock recovery process to recover funds if needed
+- **Token Support**: Configurable token support with whitelisting functionality
+- **Gas Optimization**: Optimized for efficient gas usage on Ethereum-compatible chains
+- **Cross-Chain Compatibility**: Supports Base and Polygon zkEVM networks
+
+## Technical Architecture
+
+### Smart Contract Layer
+
+The core of Vault0 is the `MultiSigWallet.sol` contract, which:
+
+- Implements a dual-signature system for withdrawals
+- Provides a 72-hour recovery timelock mechanism
+- Supports both native coins (ETH) and ERC20 tokens
+- Includes whitelisting and token management functions
+- Uses OpenZeppelin contracts for security best practices
+
+### Backend API (Go)
+
+The Go backend provides:
+
+- RESTful API for wallet management
+- Database integration for transaction history
+- Configuration management
+- Migration support
+
+### Frontend (React/Next.js)
+
+The UI is built with:
+
+- Next.js 15.2 with React 19
+- TailwindCSS for styling
+- TypeScript for type safety
+
+## Supported Networks
+
+Vault0 is designed to work on:
+
+- **Base**: 
+  - Mainnet (Chain ID: 8453)
+  - Testnet (Chain ID: 84531)
+- **Polygon zkEVM**: 
+  - Mainnet (Chain ID: 1101)
+  - Testnet (Chain ID: 1442)
+
+## Technical Stack
+
+### Smart Contracts
+- **Language**: Solidity ^0.8.28
+- **Framework**: Hardhat
+- **Libraries**: OpenZeppelin Contracts
+- **Testing**: Hardhat test suite with high coverage requirements (90%+)
+
+### Backend
+- **Language**: Go
+- **Database**: SQLite
+- **API**: RESTful API
+- **Configuration**: Environment-based configuration
+
+### Frontend
+- **Framework**: Next.js 15.2
+- **UI Library**: React 19
+- **Styling**: TailwindCSS 4
+- **Language**: TypeScript
+
+## Security Features
+
+- **Dual-Signature Requirement**: Prevents single-point compromise
+- **Timelock Recovery**: 72-hour delay for recovery operations
+- **Withdrawal Expiration**: 24-hour expiration for withdrawal requests
+- **Reentrancy Protection**: Guards against reentrancy attacks
+- **Token Whitelisting**: Controlled token support
+- **Event Logging**: Comprehensive event logging for all operations
 
 ## Project Structure
 
 ```
-go-server/
-├── cmd/                # Application entrypoints
-│   └── server/         # Server command
-│       └── main.go     # Main server application
-├── internal/           # Private application code
-│   ├── api/            # API handlers and routing
-│   ├── config/         # Configuration management
-│   └── db/             # Database access and management
-├── migrations/         # Database migration files
-│   ├── 000001_create_users_table.up.sql
-│   └── 000001_create_users_table.down.sql
-└── ui/                 # Frontend related files
-    └── dist/           # Compiled React SPA
+vault0/
+├── cmd/                    # Command-line applications
+│   └── server/             # Main server application
+├── internal/               # Private application code
+│   ├── api/                # API handlers
+│   ├── config/             # Configuration management
+│   └── db/                 # Database access layer
+├── migrations/             # Database migrations
+├── contracts/               # Smart contract codebase
+│   ├── solidity/          # Solidity contracts
+│   │   └── MultiSigWallet.sol  # Main wallet contract
+│   ├── test/               # Contract test suite
+│   └── scripts/            # Deployment scripts
+└── ui/                     # Frontend application
+    ├── public/             # Static assets
+    └── src/                # React components and pages
 ```
 
-## Getting Started
+## Development Setup
 
-### Running the Server
+### Prerequisites
 
-1. Clone this repository
-2. Navigate to the project directory
-3. Run the server:
+- Node.js ≥ 14.0.0
+- npm ≥ 6.0.0
+- Go ≥ 1.16
+- Solidity ^0.8.28
+- Hardhat
+
+### Smart Contract Development
 
 ```bash
-cd go-server
+# Install dependencies
+cd contracts
+npm ci
+
+# Compile contracts
+npm run compile
+
+# Run tests
+npm test
+
+# Run coverage
+npm run test:coverage
+
+# Deploy to testnet
+npm run deploy:base-test
+```
+
+### Backend Development
+
+```bash
+# Run server
 go run cmd/server/main.go
 ```
 
-The server will start on port 8080 by default (or the port specified in the `SERVER_PORT` environment variable).
-
-### Configuration
-
-The server can be configured using environment variables:
-
-- `APP_BASE_DIR`: Base directory for relative paths (defaults to current working directory)
-- `DB_PATH`: Path to SQLite database file (defaults to `vault0.db` in the base directory)
-- `SERVER_PORT`: Port for the server to listen on (defaults to `8080`)
-- `UI_PATH`: Path to the compiled React UI files (defaults to `ui/dist` in the base directory)
-- `MIGRATIONS_PATH`: Path to migration files (defaults to `migrations` in the base directory)
-
-Example:
+### Frontend Development
 
 ```bash
-SERVER_PORT=3000 DB_PATH=/path/to/database.db go run cmd/server/main.go
+# Install dependencies
+cd ui
+npm ci
+
+# Run development server
+npm run dev
 ```
 
-## Database Migrations
+## Deployment
 
-The server automatically applies migrations at startup. Migrations are stored in the `migrations` directory.
-
-If you want to manually apply migrations, you can use the golang-migrate CLI tool:
+### Smart Contract Deployment
 
 ```bash
-# Install golang-migrate CLI
-go install -tags 'sqlite' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+# Deploy to Base testnet
+cd contracts
+npm run deploy:base-test
 
-# Apply migrations
-migrate -database "sqlite3://vault0.db" -path ./migrations up
+# Deploy to Base mainnet
+npm run deploy:base
+
+# Deploy to Polygon zkEVM testnet
+npm run deploy:polygon-test
+
+# Deploy to Polygon zkEVM mainnet
+npm run deploy:polygon
 ```
 
-To create new migrations:
+## License
 
-```bash
-migrate create -ext sql -dir ./migrations -seq migration_name
-```
+ISC
 
-## API Endpoints
+## Contributors
 
-- `GET /api/health`: Health check endpoint that returns `{"status": "ok"}`
-
-## Frontend
-
-The React SPA is served from the `ui/dist` directory. The server is configured to handle client-side routing by serving `index.html` for all non-API routes.
-
-## Development
-
-### Adding New API Endpoints
-
-Add new API endpoints in the `internal/api/server.go` file:
-
-```go
-apiGroup.GET("/your-endpoint", yourHandlerFunc)
-```
-
-### Adding New Database Migrations
-
-Create new migration files in the `migrations` directory following the naming convention: `{version}_{name}.{up|down}.sql`.
-
-For example:
-- `000002_add_email_to_users.up.sql`
-- `000002_add_email_to_users.down.sql`
-
-## Security Notes
-
-- Sensitive configuration is stored in environment variables
-- The database connection is securely managed
-- The `private_key` field in the users table is intended for future encryption use
-
-## Future Enhancements
-
-- User authentication
-- API documentation with Swagger
-- Enhanced security features
-- HTTPS support
+The Vault0 team

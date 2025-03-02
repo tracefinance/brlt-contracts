@@ -19,14 +19,14 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: './solidity/package-lock.json'
+          cache-dependency-path: './contracts/package-lock.json'
 
       - name: Install dependencies
-        run: cd solidity && npm ci
+        run: cd contracts && npm ci
 
       - name: Create test environment file
         run: |
-          cd solidity
+          cd contracts
           cat > .env.test << EOL
           # Test Private Key (Hardhat test account)
           PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
@@ -37,19 +37,19 @@ jobs:
           EOL
 
       - name: Compile contracts
-        run: cd solidity && npm run compile
+        run: cd contracts && npm run compile
 
       - name: Run tests
-        run: cd solidity && npm run test
+        run: cd contracts && npm run test
 
       - name: Run coverage
-        run: cd solidity && npm run test:coverage
+        run: cd contracts && npm run test:coverage
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./solidity/coverage/lcov.info
+          files: ./contracts/coverage/lcov.info
           flags: smart-contracts
           name: smart-contract-coverage
           fail_ci_if_error: true

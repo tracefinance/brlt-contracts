@@ -14,6 +14,9 @@ module.exports = {
       }
     }
   },
+  paths: {
+    sources: "./solidity",
+  },
   networks: {
     // Base Mainnet
     base: {

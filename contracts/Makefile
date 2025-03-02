@@ -54,7 +54,7 @@ test-watch:
 # Lint target (add hardhat-solhint plugin to package.json if not already there)
 lint:
 	@echo "Linting solidity files..."
-	npx solhint 'contracts/**/*.sol'
+	npx solhint 'solidity/**/*.sol'
 
 # Deployment targets
 deploy-base-test:
