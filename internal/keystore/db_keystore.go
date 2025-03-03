@@ -1,4 +1,4 @@
-package keymanager
+package keystore
 
 import (
 	"context"
@@ -21,15 +21,15 @@ import (
 	"vault0/internal/config"
 )
 
-// DBKeyManager implements the KeyManager interface using a local database
-type DBKeyManager struct {
+// DBKeyStore implements the KeyStore interface using a local database
+type DBKeyStore struct {
 	db           *sql.DB
 	encryptor    Encryptor
 	keyGenerator KeyGenerator
 }
 
-// NewDBKeyManager creates a new DBKeyManager instance
-func NewDBKeyManager(db *sql.DB, cfg *config.Config) (*DBKeyManager, error) {
+// NewDBKeyStore creates a new DBKeyStore instance
+func NewDBKeyStore(db *sql.DB, cfg *config.Config) (*DBKeyStore, error) {
 	if cfg.DBEncryptionKey == "" {
 		return nil, errors.New("DB_ENCRYPTION_KEY environment variable is required")
 	}
@@ -40,7 +40,7 @@ func NewDBKeyManager(db *sql.DB, cfg *config.Config) (*DBKeyManager, error) {
 		return nil, err
 	}
 
-	return &DBKeyManager{
+	return &DBKeyStore{
 		db:           db,
 		encryptor:    encryptor,
 		keyGenerator: NewKeyGenerator(),
@@ -48,10 +48,10 @@ func NewDBKeyManager(db *sql.DB, cfg *config.Config) (*DBKeyManager, error) {
 }
 
 // Create creates a new key with the given ID, name, and type
-func (km *DBKeyManager) Create(ctx context.Context, id, name string, keyType KeyType, tags map[string]string) (*Key, error) {
+func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType KeyType, tags map[string]string) (*Key, error) {
 	// Check if key with the same ID already exists
 	var count int
-	err := km.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
+	err := ks.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
 	if err != nil {
 		return nil, err
 	}
@@ -75,13 +75,13 @@ func (km *DBKeyManager) Create(ctx context.Context, id, name string, keyType Key
 	}
 
 	// Generate cryptographic key material based on key type
-	privateKey, publicKey, err := km.keyGenerator.GenerateKeyPair(keyType)
+	privateKey, publicKey, err := ks.keyGenerator.GenerateKeyPair(keyType)
 	if err != nil {
 		return nil, err
 	}
 
 	// Encrypt the private key before storing
-	encryptedPrivateKey, err := km.encryptor.Encrypt(privateKey)
+	encryptedPrivateKey, err := ks.encryptor.Encrypt(privateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (km *DBKeyManager) Create(ctx context.Context, id, name string, keyType Key
 	key.PublicKey = publicKey
 
 	// Insert the key into the database
-	_, err = km.db.ExecContext(
+	_, err = ks.db.ExecContext(
 		ctx,
 		"INSERT INTO keys (id, name, key_type, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		key.ID,
@@ -110,10 +110,10 @@ func (km *DBKeyManager) Create(ctx context.Context, id, name string, keyType Key
 }
 
 // Import imports an existing key
-func (km *DBKeyManager) Import(ctx context.Context, id, name string, keyType KeyType, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
+func (ks *DBKeyStore) Import(ctx context.Context, id, name string, keyType KeyType, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
 	// Check if key with the same ID already exists
 	var count int
-	err := km.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
+	err := ks.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (km *DBKeyManager) Import(ctx context.Context, id, name string, keyType Key
 	}
 
 	// Encrypt the private key
-	encryptedPrivateKey, err := km.encryptor.Encrypt(privateKey)
+	encryptedPrivateKey, err := ks.encryptor.Encrypt(privateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (km *DBKeyManager) Import(ctx context.Context, id, name string, keyType Key
 	}
 
 	// Insert the key into the database
-	_, err = km.db.ExecContext(
+	_, err = ks.db.ExecContext(
 		ctx,
 		"INSERT INTO keys (id, name, key_type, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		key.ID,
@@ -164,7 +164,7 @@ func (km *DBKeyManager) Import(ctx context.Context, id, name string, keyType Key
 }
 
 // GetPublicKey retrieves only the public part of a key by its ID
-func (km *DBKeyManager) GetPublicKey(ctx context.Context, id string) (*Key, error) {
+func (ks *DBKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, error) {
 	var (
 		key      Key
 		keyType  string
@@ -172,7 +172,7 @@ func (km *DBKeyManager) GetPublicKey(ctx context.Context, id string) (*Key, erro
 	)
 
 	// Query the database
-	err := km.db.QueryRowContext(
+	err := ks.db.QueryRowContext(
 		ctx,
 		"SELECT id, name, key_type, tags, created_at, public_key FROM keys WHERE id = ?",
 		id,
@@ -210,9 +210,9 @@ func (km *DBKeyManager) GetPublicKey(ctx context.Context, id string) (*Key, erro
 }
 
 // List lists all keys
-func (km *DBKeyManager) List(ctx context.Context) ([]*Key, error) {
+func (ks *DBKeyStore) List(ctx context.Context) ([]*Key, error) {
 	// Query the database
-	rows, err := km.db.QueryContext(
+	rows, err := ks.db.QueryContext(
 		ctx,
 		"SELECT id, name, key_type, tags, created_at, NULL, public_key FROM keys",
 	)
@@ -265,10 +265,10 @@ func (km *DBKeyManager) List(ctx context.Context) ([]*Key, error) {
 }
 
 // Update updates a key's metadata
-func (km *DBKeyManager) Update(ctx context.Context, id string, name string, tags map[string]string) (*Key, error) {
+func (ks *DBKeyStore) Update(ctx context.Context, id string, name string, tags map[string]string) (*Key, error) {
 	// Check if key exists
 	var count int
-	err := km.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
+	err := ks.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +283,7 @@ func (km *DBKeyManager) Update(ctx context.Context, id string, name string, tags
 	}
 
 	// Update the key
-	_, err = km.db.ExecContext(
+	_, err = ks.db.ExecContext(
 		ctx,
 		"UPDATE keys SET name = ?, tags = ? WHERE id = ?",
 		name,
@@ -295,14 +295,14 @@ func (km *DBKeyManager) Update(ctx context.Context, id string, name string, tags
 	}
 
 	// Get the updated key (using public only to ensure security)
-	return km.GetPublicKey(ctx, id)
+	return ks.GetPublicKey(ctx, id)
 }
 
 // Delete deletes a key by its ID
-func (km *DBKeyManager) Delete(ctx context.Context, id string) error {
+func (ks *DBKeyStore) Delete(ctx context.Context, id string) error {
 	// Check if key exists
 	var count int
-	err := km.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
+	err := ks.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
 	if err != nil {
 		return err
 	}
@@ -311,26 +311,26 @@ func (km *DBKeyManager) Delete(ctx context.Context, id string) error {
 	}
 
 	// Delete the key
-	_, err = km.db.ExecContext(ctx, "DELETE FROM keys WHERE id = ?", id)
+	_, err = ks.db.ExecContext(ctx, "DELETE FROM keys WHERE id = ?", id)
 	return err
 }
 
-// Close releases any resources used by the key manager
-func (km *DBKeyManager) Close() error {
+// Close releases any resources used by the key store
+func (ks *DBKeyStore) Close() error {
 	// No resources to release
 	return nil
 }
 
 // Sign signs the provided data using the key identified by id
 // This method never returns the private key material, only the signature
-func (km *DBKeyManager) Sign(ctx context.Context, id string, data []byte) ([]byte, error) {
+func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte) ([]byte, error) {
 	var (
 		privateKeyBytes []byte
 		keyType         string
 	)
 
 	// Query the database for the private key and key type
-	err := km.db.QueryRowContext(
+	err := ks.db.QueryRowContext(
 		ctx,
 		"SELECT private_key, key_type FROM keys WHERE id = ?",
 		id,
@@ -344,13 +344,13 @@ func (km *DBKeyManager) Sign(ctx context.Context, id string, data []byte) ([]byt
 	}
 
 	// Decrypt the private key
-	decryptedPrivateKey, err := km.encryptor.Decrypt(privateKeyBytes)
+	decryptedPrivateKey, err := ks.encryptor.Decrypt(privateKeyBytes)
 	if err != nil {
 		return nil, err
 	}
 
 	// Sign the data based on the key type
-	signature, err := km.signData(KeyType(keyType), decryptedPrivateKey, data)
+	signature, err := ks.signData(KeyType(keyType), decryptedPrivateKey, data)
 	if err != nil {
 		return nil, err
 	}
@@ -359,24 +359,24 @@ func (km *DBKeyManager) Sign(ctx context.Context, id string, data []byte) ([]byt
 }
 
 // signData signs data using the appropriate algorithm based on the key type
-func (km *DBKeyManager) signData(keyType KeyType, privateKeyBytes, data []byte) ([]byte, error) {
+func (ks *DBKeyStore) signData(keyType KeyType, privateKeyBytes, data []byte) ([]byte, error) {
 	switch keyType {
 	case KeyTypeECDSA:
-		return km.signWithECDSA(privateKeyBytes, data)
+		return ks.signWithECDSA(privateKeyBytes, data)
 	case KeyTypeRSA:
-		return km.signWithRSA(privateKeyBytes, data)
+		return ks.signWithRSA(privateKeyBytes, data)
 	case KeyTypeEd25519:
-		return km.signWithEd25519(privateKeyBytes, data)
+		return ks.signWithEd25519(privateKeyBytes, data)
 	case KeyTypeSymmetric:
 		// For symmetric keys, we use HMAC instead of digital signatures
-		return km.signWithHMAC(privateKeyBytes, data)
+		return ks.signWithHMAC(privateKeyBytes, data)
 	default:
 		return nil, errors.New("unsupported key type for signing")
 	}
 }
 
 // signWithECDSA signs data using an ECDSA private key
-func (km *DBKeyManager) signWithECDSA(privateKeyBytes, data []byte) ([]byte, error) {
+func (ks *DBKeyStore) signWithECDSA(privateKeyBytes, data []byte) ([]byte, error) {
 	// Parse the PEM encoded private key
 	block, _ := pem.Decode(privateKeyBytes)
 	if block == nil {
@@ -411,7 +411,7 @@ func (km *DBKeyManager) signWithECDSA(privateKeyBytes, data []byte) ([]byte, err
 }
 
 // signWithRSA signs data using an RSA private key
-func (km *DBKeyManager) signWithRSA(privateKeyBytes, data []byte) ([]byte, error) {
+func (ks *DBKeyStore) signWithRSA(privateKeyBytes, data []byte) ([]byte, error) {
 	// Parse the PEM encoded private key
 	block, _ := pem.Decode(privateKeyBytes)
 	if block == nil {
@@ -437,7 +437,7 @@ func (km *DBKeyManager) signWithRSA(privateKeyBytes, data []byte) ([]byte, error
 }
 
 // signWithEd25519 signs data using an Ed25519 private key
-func (km *DBKeyManager) signWithEd25519(privateKeyBytes, data []byte) ([]byte, error) {
+func (ks *DBKeyStore) signWithEd25519(privateKeyBytes, data []byte) ([]byte, error) {
 	// Parse the PEM encoded private key
 	block, _ := pem.Decode(privateKeyBytes)
 	if block == nil {
@@ -462,7 +462,7 @@ func (km *DBKeyManager) signWithEd25519(privateKeyBytes, data []byte) ([]byte, e
 }
 
 // signWithHMAC creates an HMAC for symmetric keys
-func (km *DBKeyManager) signWithHMAC(keyBytes, data []byte) ([]byte, error) {
+func (ks *DBKeyStore) signWithHMAC(keyBytes, data []byte) ([]byte, error) {
 	// Create a new HMAC instance using SHA-256
 	hmac := hmac.New(sha256.New, keyBytes)
 

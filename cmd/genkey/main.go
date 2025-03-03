@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"vault0/internal/keymanager"
+	"vault0/internal/keystore"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 	}
 
 	// Generate the key
-	key, err := keymanager.GenerateEncryptionKeyBase64(*keySize)
+	key, err := keystore.GenerateEncryptionKeyBase64(*keySize)
 	if err != nil {
 		fmt.Printf("Error generating key: %v\n", err)
 		os.Exit(1)

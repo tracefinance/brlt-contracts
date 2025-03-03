@@ -1,4 +1,4 @@
-package keymanager
+package keystore
 
 import (
 	"context"
@@ -39,14 +39,14 @@ type Key struct {
 	CreatedAt int64
 	// PrivateKey is the encrypted private key material
 	// Note: This field should only be populated during key creation and import operations
-	// and should never be exposed outside the keymanager package
+	// and should never be exposed outside the keystore package
 	PrivateKey []byte
 	// PublicKey is the public key material (if applicable)
 	PublicKey []byte
 }
 
-// KeyManager defines the interface for key management operations
-type KeyManager interface {
+// KeyStore defines the interface for key management operations
+type KeyStore interface {
 	// Create creates a new key with the given ID, name, and type
 	Create(ctx context.Context, id, name string, keyType KeyType, tags map[string]string) (*Key, error)
 
@@ -69,6 +69,6 @@ type KeyManager interface {
 	// Delete deletes a key by its ID
 	Delete(ctx context.Context, id string) error
 
-	// Close releases any resources used by the key manager
+	// Close releases any resources used by the key store
 	Close() error
 }

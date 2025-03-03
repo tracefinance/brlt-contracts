@@ -105,7 +105,7 @@ vault0/
 │   ├── api/                # API handlers
 │   ├── config/             # Configuration management
 │   ├── db/                 # Database access layer
-│   └── keymanager/         # Key management module
+│   └── keystore/         # Key management module
 ├── migrations/             # Database migrations
 ├── contracts/              # Smart contract codebase
 │   ├── solidity/           # Solidity contracts
