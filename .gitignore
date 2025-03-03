@@ -37,3 +37,14 @@ vendor/
 # OS specific
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+
+# Debug files
+debug
+__debug_bin
+
+# Build artifacts
+/dist/
+/build/
