@@ -17,6 +17,7 @@ The Vault0 system consists of:
 - **Token Support**: Configurable token support with whitelisting functionality
 - **Gas Optimization**: Optimized for efficient gas usage on Ethereum-compatible chains
 - **Cross-Chain Compatibility**: Supports Base and Polygon zkEVM networks
+- **Secure Key Management**: Built-in key management service with encrypted storage
 
 ## Technical Architecture
 
@@ -38,6 +39,8 @@ The Go backend provides:
 - Database integration for transaction history
 - Configuration management
 - Migration support
+- Secure key management with AES-GCM encryption
+- Modular architecture for multiple key storage mechanisms
 
 ### Frontend (React/Next.js)
 
@@ -71,6 +74,8 @@ Vault0 is designed to work on:
 - **Database**: SQLite
 - **API**: RESTful API
 - **Configuration**: Environment-based configuration
+- **Encryption**: AES-GCM for key encryption
+- **Key Management**: Module-based architecture supporting multiple implementations
 
 ### Frontend
 - **Framework**: Next.js 15.2
@@ -86,20 +91,24 @@ Vault0 is designed to work on:
 - **Reentrancy Protection**: Guards against reentrancy attacks
 - **Token Whitelisting**: Controlled token support
 - **Event Logging**: Comprehensive event logging for all operations
+- **Encrypted Key Storage**: Private keys stored using AES-GCM encryption
+- **Environment-Based Encryption Key**: Database encryption key provided via environment variables
 
 ## Project Structure
 
 ```
 vault0/
 ├── cmd/                    # Command-line applications
-│   └── server/             # Main server application
+│   ├── server/             # Main server application
+│   └── genkey/             # Encryption key generation utility
 ├── internal/               # Private application code
 │   ├── api/                # API handlers
 │   ├── config/             # Configuration management
-│   └── db/                 # Database access layer
+│   ├── db/                 # Database access layer
+│   └── keymanagement/      # Key management module
 ├── migrations/             # Database migrations
-├── contracts/               # Smart contract codebase
-│   ├── solidity/          # Solidity contracts
+├── contracts/              # Smart contract codebase
+│   ├── solidity/           # Solidity contracts
 │   │   └── MultiSigWallet.sol  # Main wallet contract
 │   ├── test/               # Contract test suite
 │   └── scripts/            # Deployment scripts
@@ -141,6 +150,12 @@ npm run deploy:base-test
 ### Backend Development
 
 ```bash
+# Generate an encryption key for development
+go run cmd/genkey/main.go
+
+# Set the encryption key in your environment
+export DB_ENCRYPTION_KEY='generated-key-from-above-command'
+
 # Run server
 go run cmd/server/main.go
 ```

@@ -15,6 +15,8 @@ type Config struct {
 	UIPath string
 	// MigrationsPath is the path to the migration files
 	MigrationsPath string
+	// DBEncryptionKey is the base64-encoded key used for encrypting sensitive data in the database
+	DBEncryptionKey string
 }
 
 // LoadConfig loads the application configuration from environment variables
@@ -53,10 +55,15 @@ func LoadConfig() *Config {
 		migrationsPath = filepath.Join(baseDir, "migrations")
 	}
 
+	// Get DB encryption key from environment
+	dbEncryptionKey := os.Getenv("DB_ENCRYPTION_KEY")
+	// No default for encryption key, it must be provided
+
 	return &Config{
-		DBPath:         dbPath,
-		Port:           port,
-		UIPath:         uiPath,
-		MigrationsPath: migrationsPath,
+		DBPath:          dbPath,
+		Port:            port,
+		UIPath:          uiPath,
+		MigrationsPath:  migrationsPath,
+		DBEncryptionKey: dbEncryptionKey,
 	}
 }

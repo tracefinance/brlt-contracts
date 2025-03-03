@@ -1,0 +1,15 @@
+-- Create keys table for key management
+CREATE TABLE IF NOT EXISTS keys (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    key_type TEXT NOT NULL,
+    tags TEXT, -- JSON encoded map of tags
+    created_at INTEGER NOT NULL,
+    private_key BLOB, -- Encrypted private key material
+    public_key BLOB -- Public key material (if applicable)
+);
+
+-- Create indexes for common lookups
+CREATE INDEX IF NOT EXISTS idx_keys_name ON keys(name);
+CREATE INDEX IF NOT EXISTS idx_keys_type ON keys(key_type);
+CREATE INDEX IF NOT EXISTS idx_keys_created_at ON keys(created_at); 
