@@ -3,10 +3,21 @@ package keymanager
 import (
 	"context"
 	"database/sql"
+	"encoding/asn1"
 	"encoding/json"
 	"errors"
+	"math/big"
 	"time"
 
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/pem"
 	"vault0/internal/config"
 )
 
@@ -152,8 +163,8 @@ func (km *DBKeyManager) Import(ctx context.Context, id, name string, keyType Key
 	return key, nil
 }
 
-// Get retrieves a key by its ID
-func (km *DBKeyManager) Get(ctx context.Context, id string) (*Key, error) {
+// GetPublicKey retrieves only the public part of a key by its ID
+func (km *DBKeyManager) GetPublicKey(ctx context.Context, id string) (*Key, error) {
 	var (
 		key      Key
 		keyType  string
@@ -163,7 +174,7 @@ func (km *DBKeyManager) Get(ctx context.Context, id string) (*Key, error) {
 	// Query the database
 	err := km.db.QueryRowContext(
 		ctx,
-		"SELECT id, name, key_type, tags, created_at, private_key, public_key FROM keys WHERE id = ?",
+		"SELECT id, name, key_type, tags, created_at, public_key FROM keys WHERE id = ?",
 		id,
 	).Scan(
 		&key.ID,
@@ -171,7 +182,6 @@ func (km *DBKeyManager) Get(ctx context.Context, id string) (*Key, error) {
 		&keyType,
 		&tagsJSON,
 		&key.CreatedAt,
-		&key.PrivateKey,
 		&key.PublicKey,
 	)
 	if err != nil {
@@ -193,58 +203,8 @@ func (km *DBKeyManager) Get(ctx context.Context, id string) (*Key, error) {
 		key.Tags = make(map[string]string)
 	}
 
-	// Decrypt the private key if present
-	if len(key.PrivateKey) > 0 {
-		decryptedPrivateKey, err := km.encryptor.Decrypt(key.PrivateKey)
-		if err != nil {
-			return nil, err
-		}
-		key.PrivateKey = decryptedPrivateKey
-	}
-
-	return &key, nil
-}
-
-// GetPublicOnly retrieves only the public part of a key by its ID
-func (km *DBKeyManager) GetPublicOnly(ctx context.Context, id string) (*Key, error) {
-	var (
-		key      Key
-		keyType  string
-		tagsJSON string
-	)
-
-	// Query the database
-	err := km.db.QueryRowContext(
-		ctx,
-		"SELECT id, name, key_type, tags, created_at, NULL, public_key FROM keys WHERE id = ?",
-		id,
-	).Scan(
-		&key.ID,
-		&key.Name,
-		&keyType,
-		&tagsJSON,
-		&key.CreatedAt,
-		&key.PrivateKey, // Will be NULL
-		&key.PublicKey,
-	)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrKeyNotFound
-		}
-		return nil, err
-	}
-
-	// Convert key type
-	key.Type = KeyType(keyType)
-
-	// Parse tags JSON
-	if tagsJSON != "" {
-		if err := json.Unmarshal([]byte(tagsJSON), &key.Tags); err != nil {
-			return nil, err
-		}
-	} else {
-		key.Tags = make(map[string]string)
-	}
+	// Set private key to nil to ensure it's never exposed
+	key.PrivateKey = nil
 
 	return &key, nil
 }
@@ -334,8 +294,8 @@ func (km *DBKeyManager) Update(ctx context.Context, id string, name string, tags
 		return nil, err
 	}
 
-	// Get the updated key
-	return km.Get(ctx, id)
+	// Get the updated key (using public only to ensure security)
+	return km.GetPublicKey(ctx, id)
 }
 
 // Delete deletes a key by its ID
@@ -359,4 +319,159 @@ func (km *DBKeyManager) Delete(ctx context.Context, id string) error {
 func (km *DBKeyManager) Close() error {
 	// No resources to release
 	return nil
+}
+
+// Sign signs the provided data using the key identified by id
+// This method never returns the private key material, only the signature
+func (km *DBKeyManager) Sign(ctx context.Context, id string, data []byte) ([]byte, error) {
+	var (
+		privateKeyBytes []byte
+		keyType         string
+	)
+
+	// Query the database for the private key and key type
+	err := km.db.QueryRowContext(
+		ctx,
+		"SELECT private_key, key_type FROM keys WHERE id = ?",
+		id,
+	).Scan(&privateKeyBytes, &keyType)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("key not found")
+		}
+		return nil, err
+	}
+
+	// Decrypt the private key
+	decryptedPrivateKey, err := km.encryptor.Decrypt(privateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// Sign the data based on the key type
+	signature, err := km.signData(KeyType(keyType), decryptedPrivateKey, data)
+	if err != nil {
+		return nil, err
+	}
+
+	return signature, nil
+}
+
+// signData signs data using the appropriate algorithm based on the key type
+func (km *DBKeyManager) signData(keyType KeyType, privateKeyBytes, data []byte) ([]byte, error) {
+	switch keyType {
+	case KeyTypeECDSA:
+		return km.signWithECDSA(privateKeyBytes, data)
+	case KeyTypeRSA:
+		return km.signWithRSA(privateKeyBytes, data)
+	case KeyTypeEd25519:
+		return km.signWithEd25519(privateKeyBytes, data)
+	case KeyTypeSymmetric:
+		// For symmetric keys, we use HMAC instead of digital signatures
+		return km.signWithHMAC(privateKeyBytes, data)
+	default:
+		return nil, errors.New("unsupported key type for signing")
+	}
+}
+
+// signWithECDSA signs data using an ECDSA private key
+func (km *DBKeyManager) signWithECDSA(privateKeyBytes, data []byte) ([]byte, error) {
+	// Parse the PEM encoded private key
+	block, _ := pem.Decode(privateKeyBytes)
+	if block == nil {
+		return nil, errors.New("failed to decode PEM block containing ECDSA private key")
+	}
+
+	// Parse the private key
+	privateKey, err := x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		return nil, errors.New("failed to parse ECDSA private key: " + err.Error())
+	}
+
+	// Create a hash of the data
+	hash := sha256.Sum256(data)
+
+	// Sign the hash
+	r, s, err := ecdsa.Sign(rand.Reader, privateKey, hash[:])
+	if err != nil {
+		return nil, err
+	}
+
+	// ASN.1 DER encoding for ECDSA signatures
+	type ECDSASignature struct {
+		R, S *big.Int
+	}
+	signature, err := asn1.Marshal(ECDSASignature{R: r, S: s})
+	if err != nil {
+		return nil, errors.New("failed to marshal ECDSA signature: " + err.Error())
+	}
+
+	return signature, nil
+}
+
+// signWithRSA signs data using an RSA private key
+func (km *DBKeyManager) signWithRSA(privateKeyBytes, data []byte) ([]byte, error) {
+	// Parse the PEM encoded private key
+	block, _ := pem.Decode(privateKeyBytes)
+	if block == nil {
+		return nil, errors.New("failed to decode PEM block containing RSA private key")
+	}
+
+	// Parse the private key
+	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, errors.New("failed to parse RSA private key: " + err.Error())
+	}
+
+	// Create a hash of the data
+	hash := sha256.Sum256(data)
+
+	// Sign the hash
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hash[:])
+	if err != nil {
+		return nil, err
+	}
+
+	return signature, nil
+}
+
+// signWithEd25519 signs data using an Ed25519 private key
+func (km *DBKeyManager) signWithEd25519(privateKeyBytes, data []byte) ([]byte, error) {
+	// Parse the PEM encoded private key
+	block, _ := pem.Decode(privateKeyBytes)
+	if block == nil {
+		return nil, errors.New("failed to decode PEM block containing Ed25519 private key")
+	}
+
+	// Parse the private key
+	privateKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, errors.New("failed to parse Ed25519 private key: " + err.Error())
+	}
+
+	// Convert to the correct type
+	edKey, ok := privateKey.(ed25519.PrivateKey)
+	if !ok {
+		return nil, errors.New("private key is not an Ed25519 key")
+	}
+
+	// Sign the data directly (Ed25519 does not require pre-hashing)
+	signature := ed25519.Sign(edKey, data)
+	return signature, nil
+}
+
+// signWithHMAC creates an HMAC for symmetric keys
+func (km *DBKeyManager) signWithHMAC(keyBytes, data []byte) ([]byte, error) {
+	// Create a new HMAC instance using SHA-256
+	hmac := hmac.New(sha256.New, keyBytes)
+
+	// Write the data to the HMAC
+	_, err := hmac.Write(data)
+	if err != nil {
+		return nil, err
+	}
+
+	// Compute the HMAC
+	return hmac.Sum(nil), nil
 }

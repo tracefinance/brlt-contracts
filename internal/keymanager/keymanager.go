@@ -14,7 +14,7 @@ var (
 	ErrDecryptionFailed = errors.New("decryption failed")
 )
 
-// KeyType represents the type of cryptographic key
+// KeyType denotes the type of cryptographic key
 type KeyType string
 
 // Supported key types
@@ -25,7 +25,7 @@ const (
 	KeyTypeSymmetric KeyType = "Symmetric"
 )
 
-// Key represents a cryptographic key stored in the key management system
+// Key struct represents a cryptographic key.
 type Key struct {
 	// ID is the unique identifier for the key
 	ID string
@@ -37,7 +37,9 @@ type Key struct {
 	Tags map[string]string
 	// CreatedAt is the timestamp when the key was created
 	CreatedAt int64
-	// PrivateKey is the encrypted private key material (empty when retrieved without secret access)
+	// PrivateKey is the encrypted private key material
+	// Note: This field should only be populated during key creation and import operations
+	// and should never be exposed outside the keymanager package
 	PrivateKey []byte
 	// PublicKey is the public key material (if applicable)
 	PublicKey []byte
@@ -51,11 +53,12 @@ type KeyManager interface {
 	// Import imports an existing key
 	Import(ctx context.Context, id, name string, keyType KeyType, privateKey, publicKey []byte, tags map[string]string) (*Key, error)
 
-	// Get retrieves a key by its ID
-	Get(ctx context.Context, id string) (*Key, error)
+	// Sign signs the provided data using the key identified by id
+	// This method uses the private key internally without exposing it
+	Sign(ctx context.Context, id string, data []byte) ([]byte, error)
 
-	// GetPublicOnly retrieves only the public part of a key by its ID
-	GetPublicOnly(ctx context.Context, id string) (*Key, error)
+	// GetPublicKey retrieves only the public part of a key by its ID
+	GetPublicKey(ctx context.Context, id string) (*Key, error)
 
 	// List lists all keys
 	List(ctx context.Context) ([]*Key, error)
