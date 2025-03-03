@@ -1,10 +1,11 @@
 ---
 description: Git commit desciption
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 - Follow Angular commit convetion with prefixes: feat, fix, chore, refactor, docs and tests
 - Make the head / title of the commit message brief
 - Include elaborate details in the body of the commit message
 - Always follow the conventional commit message format
 - Add two newlines after the commit message title
+- To run a git commit with multiple lines, place a `\` at the end of each line to avoid errors
