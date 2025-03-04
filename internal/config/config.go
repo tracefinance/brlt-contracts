@@ -3,7 +3,30 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 )
+
+// BlockchainConfig holds configuration for a specific blockchain
+type BlockchainConfig struct {
+	// RPCURL is the RPC URL for the blockchain
+	RPCURL string
+	// ChainID is the chain ID for the blockchain
+	ChainID int64
+	// DefaultGasPrice is the default gas price for transactions in Gwei
+	DefaultGasPrice int64
+	// DefaultGasLimit is the default gas limit for transactions
+	DefaultGasLimit uint64
+}
+
+// BlockchainsConfig holds configuration for all supported blockchains
+type BlockchainsConfig struct {
+	// Ethereum holds Ethereum blockchain configuration
+	Ethereum BlockchainConfig
+	// Polygon holds Polygon blockchain configuration
+	Polygon BlockchainConfig
+	// Base holds Base blockchain configuration
+	Base BlockchainConfig
+}
 
 // Config holds the application configuration
 type Config struct {
@@ -17,6 +40,9 @@ type Config struct {
 	MigrationsPath string
 	// DBEncryptionKey is the base64-encoded key used for encrypting sensitive data in the database
 	DBEncryptionKey string
+
+	// Blockchains holds configuration for all supported blockchains
+	Blockchains BlockchainsConfig
 }
 
 // LoadConfig loads the application configuration from environment variables
@@ -59,11 +85,108 @@ func LoadConfig() *Config {
 	dbEncryptionKey := os.Getenv("DB_ENCRYPTION_KEY")
 	// No default for encryption key, it must be provided
 
+	// Load blockchain configurations
+	blockchains := BlockchainsConfig{
+		Ethereum: loadEthereumConfig(),
+		Polygon:  loadPolygonConfig(),
+		Base:     loadBaseConfig(),
+	}
+
 	return &Config{
 		DBPath:          dbPath,
 		Port:            port,
 		UIPath:          uiPath,
 		MigrationsPath:  migrationsPath,
 		DBEncryptionKey: dbEncryptionKey,
+		Blockchains:     blockchains,
+	}
+}
+
+// loadEthereumConfig loads Ethereum configuration from environment variables
+func loadEthereumConfig() BlockchainConfig {
+	rpcURL := os.Getenv("ETHEREUM_RPC_URL")
+	if rpcURL == "" {
+		rpcURL = "https://mainnet.infura.io/v3/YOUR_INFURA_API_KEY"
+	}
+
+	return BlockchainConfig{
+		RPCURL:          rpcURL,
+		ChainID:         parseEnvInt("ETHEREUM_CHAIN_ID", 1),
+		DefaultGasPrice: parseEnvInt("ETHEREUM_GAS_PRICE", 20), // Gwei
+		DefaultGasLimit: parseEnvUint("ETHEREUM_GAS_LIMIT", 21000),
+	}
+}
+
+// loadPolygonConfig loads Polygon configuration from environment variables
+func loadPolygonConfig() BlockchainConfig {
+	rpcURL := os.Getenv("POLYGON_RPC_URL")
+	if rpcURL == "" {
+		rpcURL = "https://polygon-rpc.com"
+	}
+
+	return BlockchainConfig{
+		RPCURL:          rpcURL,
+		ChainID:         parseEnvInt("POLYGON_CHAIN_ID", 137),
+		DefaultGasPrice: parseEnvInt("POLYGON_GAS_PRICE", 30), // Gwei
+		DefaultGasLimit: parseEnvUint("POLYGON_GAS_LIMIT", 21000),
+	}
+}
+
+// loadBaseConfig loads Base configuration from environment variables
+func loadBaseConfig() BlockchainConfig {
+	rpcURL := os.Getenv("BASE_RPC_URL")
+	if rpcURL == "" {
+		rpcURL = "https://mainnet.base.org"
+	}
+
+	return BlockchainConfig{
+		RPCURL:          rpcURL,
+		ChainID:         parseEnvInt("BASE_CHAIN_ID", 8453),
+		DefaultGasPrice: parseEnvInt("BASE_GAS_PRICE", 10), // Gwei
+		DefaultGasLimit: parseEnvUint("BASE_GAS_LIMIT", 21000),
+	}
+}
+
+// Helper function to parse integers from environment variables
+func parseEnvInt(key string, defaultValue int64) int64 {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+
+	value, err := strconv.ParseInt(valueStr, 10, 64)
+	if err != nil {
+		return defaultValue
+	}
+
+	return value
+}
+
+// Helper function to parse unsigned integers from environment variables
+func parseEnvUint(key string, defaultValue uint64) uint64 {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+
+	value, err := strconv.ParseUint(valueStr, 10, 64)
+	if err != nil {
+		return defaultValue
+	}
+
+	return value
+}
+
+// GetBlockchainConfig returns the configuration for a specific blockchain by its type
+func (c *Config) GetBlockchainConfig(chainType string) *BlockchainConfig {
+	switch chainType {
+	case "ethereum":
+		return &c.Blockchains.Ethereum
+	case "polygon":
+		return &c.Blockchains.Polygon
+	case "base":
+		return &c.Blockchains.Base
+	default:
+		return nil
 	}
 }
