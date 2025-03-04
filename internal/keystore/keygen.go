@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
 )
@@ -50,16 +51,28 @@ func (kg *DefaultKeyGenerator) generateECDSAKeyPair() (privateKey, publicKey []b
 	}
 
 	// Convert private key to DER format
-	privateKey, err = x509.MarshalECPrivateKey(privateECDSA)
+	privDER, err := x509.MarshalECPrivateKey(privateECDSA)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Convert public key to DER format
-	publicKey, err = x509.MarshalPKIXPublicKey(&privateECDSA.PublicKey)
+	pubDER, err := x509.MarshalPKIXPublicKey(&privateECDSA.PublicKey)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// PEM encode the private key
+	privateKey = pem.EncodeToMemory(&pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: privDER,
+	})
+
+	// PEM encode the public key
+	publicKey = pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubDER,
+	})
 
 	return privateKey, publicKey, nil
 }
@@ -73,13 +86,25 @@ func (kg *DefaultKeyGenerator) generateRSAKeyPair() (privateKey, publicKey []byt
 	}
 
 	// Convert private key to PKCS#1 DER format
-	privateKey = x509.MarshalPKCS1PrivateKey(privateRSA)
+	privDER := x509.MarshalPKCS1PrivateKey(privateRSA)
 
 	// Convert public key to PKIX DER format
-	publicKey, err = x509.MarshalPKIXPublicKey(&privateRSA.PublicKey)
+	pubDER, err := x509.MarshalPKIXPublicKey(&privateRSA.PublicKey)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// PEM encode the private key
+	privateKey = pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: privDER,
+	})
+
+	// PEM encode the public key
+	publicKey = pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubDER,
+	})
 
 	return privateKey, publicKey, nil
 }
@@ -92,7 +117,31 @@ func (kg *DefaultKeyGenerator) generateEd25519KeyPair() (privateKey, publicKey [
 		return nil, nil, err
 	}
 
-	return privKey, pubKey, nil
+	// For Ed25519, we need to convert to PKCS8 format for PEM encoding
+	pkcs8Key, err := x509.MarshalPKCS8PrivateKey(privKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// PEM encode the private key
+	privateKey = pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: pkcs8Key,
+	})
+
+	// Convert public key to DER format
+	pubDER, err := x509.MarshalPKIXPublicKey(pubKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// PEM encode the public key
+	publicKey = pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubDER,
+	})
+
+	return privateKey, publicKey, nil
 }
 
 // generateSymmetricKey generates a 32-byte (256-bit) symmetric key
