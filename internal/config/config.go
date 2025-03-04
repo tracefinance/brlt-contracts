@@ -1,9 +1,12 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/joho/godotenv"
 )
 
 // BlockchainConfig holds configuration for a specific blockchain
@@ -48,6 +51,9 @@ type Config struct {
 // LoadConfig loads the application configuration from environment variables
 // or falls back to default values
 func LoadConfig() *Config {
+	// Try to load environment variables from .env files
+	loadEnvFiles()
+
 	// Get base directory for paths
 	baseDir := os.Getenv("APP_BASE_DIR")
 	if baseDir == "" {
@@ -106,7 +112,7 @@ func LoadConfig() *Config {
 func loadEthereumConfig() BlockchainConfig {
 	rpcURL := os.Getenv("ETHEREUM_RPC_URL")
 	if rpcURL == "" {
-		rpcURL = "https://mainnet.infura.io/v3/YOUR_INFURA_API_KEY"
+		rpcURL = "https://ethereum-rpc.publicnode.com"
 	}
 
 	return BlockchainConfig{
@@ -189,4 +195,33 @@ func (c *Config) GetBlockchainConfig(chainType string) *BlockchainConfig {
 	default:
 		return nil
 	}
+}
+
+// loadEnvFiles tries to load environment variables from .env files in multiple locations
+func loadEnvFiles() {
+	// Check if a custom .env file path is provided
+	customEnvPath := os.Getenv("ENV_FILE")
+	if customEnvPath != "" {
+		if err := godotenv.Load(customEnvPath); err != nil {
+			fmt.Printf("Warning: could not load custom .env file from %s: %v\n", customEnvPath, err)
+		} else {
+			fmt.Printf("Loaded environment variables from custom .env file: %s\n", customEnvPath)
+			return // If custom file is loaded successfully, don't try other files
+		}
+	}
+
+	// Try the default .env file in the current directory
+	if err := godotenv.Load(); err == nil {
+		fmt.Println("Loaded environment variables from .env file")
+		return
+	}
+
+	// Try .env file in the parent directory (useful for development)
+	if err := godotenv.Load("../.env"); err == nil {
+		fmt.Println("Loaded environment variables from ../.env file")
+		return
+	}
+
+	// If no .env file is found, just continue with the default values
+	fmt.Println("No .env file found, using default values")
 }
