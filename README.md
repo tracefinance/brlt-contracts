@@ -127,48 +127,84 @@ vault0/
 - Solidity ^0.8.28
 - Hardhat
 
+### Quick Start
+
+```bash
+# Install all dependencies
+make server-deps ui-deps contracts-deps
+
+# Build all components
+make build
+
+# Clean all artifacts
+make clean
+```
+
 ### Smart Contract Development
 
 ```bash
 # Install dependencies
-cd contracts
-npm ci
+make contracts-deps
 
 # Compile contracts
-npm run compile
+make contracts
 
 # Run tests
-npm test
+make contracts-test
 
-# Run coverage
-npm run test:coverage
+# Run coverage tests
+make contracts-test-coverage
 
-# Deploy to testnet
-npm run deploy:base-test
+# Lint contracts
+make contracts-lint
+
+# Clean contract artifacts
+make contracts-clean
 ```
 
 ### Backend Development
 
 ```bash
+# Install Go dependencies
+make server-deps
+
 # Generate an encryption key for development
-go run cmd/genkey/main.go
+make genkey
+./bin/genkey
 
 # Set the encryption key in your environment
 export DB_ENCRYPTION_KEY='generated-key-from-above-command'
 
+# Build server
+make server
+
 # Run server
-go run cmd/server/main.go
+make server-dev
+
+# Run tests
+make server-test
 ```
 
 ### Frontend Development
 
 ```bash
 # Install dependencies
-cd ui
-npm ci
+make ui-deps
 
-# Run development server
-npm run dev
+# Start development server
+make ui-dev
+
+# Build for production
+make ui
+
+# Start production server
+make ui-start
+
+# Lint code
+make ui-lint
+
+# Clean UI build artifacts
+make ui-clean
 ```
 
 ## Deployment
@@ -177,17 +213,23 @@ npm run dev
 
 ```bash
 # Deploy to Base testnet
-cd contracts
-npm run deploy:base-test
+make contracts-deploy-base-test
 
 # Deploy to Base mainnet
-npm run deploy:base
+make contracts-deploy-base
 
 # Deploy to Polygon zkEVM testnet
-npm run deploy:polygon-test
+make contracts-deploy-polygon-test
 
 # Deploy to Polygon zkEVM mainnet
-npm run deploy:polygon
+make contracts-deploy-polygon
+```
+
+### Version Control
+
+```bash
+# Reset to last commit (caution: removes all untracked files)
+make git-reset
 ```
 
 ## License
