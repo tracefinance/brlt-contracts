@@ -23,7 +23,7 @@ GENKEY_SRC = ./cmd/genkey
 # Package name
 PACKAGE = vault0
 
-.PHONY: all build clean test deps install server genkey
+.PHONY: all build clean test deps install server genkey git-reset git-status git-pull git-push
 
 # Default target
 all: clean build
@@ -72,4 +72,9 @@ run-server: server
 # Run genkey
 run-genkey: genkey
 	@echo "Running genkey..."
-	@$(BUILD_DIR)/$(GENKEY_BIN) 
+	@$(BUILD_DIR)/$(GENKEY_BIN)
+
+# Git commands
+git-reset:
+	@echo "Resetting git repository to last commit..."
+	git reset --hard HEAD && git clean -fd
