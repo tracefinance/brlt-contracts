@@ -23,7 +23,6 @@ const (
 	ChainTypeEthereum ChainType = "ethereum"
 	ChainTypePolygon  ChainType = "polygon"
 	ChainTypeBase     ChainType = "base"
-	ChainTypeTron     ChainType = "tron"
 )
 
 // TransactionType represents the type of transaction
