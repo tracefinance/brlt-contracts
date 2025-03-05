@@ -29,7 +29,8 @@ const (
 // KeyGenerator defines an interface for generating cryptographic keys
 type KeyGenerator interface {
 	// GenerateKeyPair generates a new key pair of the specified type
-	GenerateKeyPair(keyType KeyType) (privateKey, publicKey []byte, err error)
+	// For ECDSA keys, an optional curve can be provided. If nil, P-256 is used.
+	GenerateKeyPair(keyType KeyType, curve elliptic.Curve) (privateKey, publicKey []byte, err error)
 }
 
 // DefaultKeyGenerator implements the KeyGenerator interface
@@ -41,10 +42,11 @@ func NewKeyGenerator() *DefaultKeyGenerator {
 }
 
 // GenerateKeyPair generates a new key pair of the specified type
-func (kg *DefaultKeyGenerator) GenerateKeyPair(keyType KeyType) (privateKey, publicKey []byte, err error) {
+// For ECDSA keys, an optional curve can be provided. If nil, P-256 is used.
+func (kg *DefaultKeyGenerator) GenerateKeyPair(keyType KeyType, curve elliptic.Curve) (privateKey, publicKey []byte, err error) {
 	switch keyType {
 	case KeyTypeECDSA:
-		return kg.generateECDSAKeyPair()
+		return kg.generateECDSAKeyPair(curve)
 	case KeyTypeRSA:
 		return kg.generateRSAKeyPair()
 	case KeyTypeEd25519:
@@ -56,27 +58,52 @@ func (kg *DefaultKeyGenerator) GenerateKeyPair(keyType KeyType) (privateKey, pub
 	}
 }
 
-// generateECDSAKeyPair generates an ECDSA P-256 key pair
-func (kg *DefaultKeyGenerator) generateECDSAKeyPair() (privateKey, publicKey []byte, err error) {
-	// Generate ECDSA P-256 key pair
-	privateECDSA, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+// generateECDSAKeyPair generates an ECDSA key pair with the specified curve
+// If curve is nil, P-256 is used
+func (kg *DefaultKeyGenerator) generateECDSAKeyPair(curve elliptic.Curve) (privateKey, publicKey []byte, err error) {
+	// Use P-256 as the default curve if none is provided
+	if curve == nil {
+		curve = elliptic.P256()
+	}
+
+	// Generate ECDSA key pair with the specified curve
+	privateECDSA, err := ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Convert private key to DER format
-	privDER, err := x509.MarshalECPrivateKey(privateECDSA)
-	if err != nil {
-		return nil, nil, err
-	}
+	// Handle key marshalling based on curve type
+	var privDER, pubDER []byte
 
-	// Convert public key to DER format
-	pubDER, err := x509.MarshalPKIXPublicKey(&privateECDSA.PublicKey)
-	if err != nil {
-		return nil, nil, err
+	// Special handling for SECP256K1 curve
+	if curve == Secp256k1 {
+		// Use our custom marshalling for SECP256K1
+		privDER, err = marshalSecp256k1PrivateKey(privateECDSA)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal SECP256K1 private key: %w", err)
+		}
+
+		// Use custom marshalling for public key too
+		pubDER, err = marshalSecp256k1PublicKey(&privateECDSA.PublicKey)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal SECP256K1 public key: %w", err)
+		}
+	} else {
+		// For standard curves, use the regular EC marshalling
+		privDER, err = x509.MarshalECPrivateKey(privateECDSA)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Public key marshalling for standard curves
+		pubDER, err = x509.MarshalPKIXPublicKey(&privateECDSA.PublicKey)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// PEM encode the private key
+	// Use "EC PRIVATE KEY" for all curves to maintain compatibility
 	privateKey = pem.EncodeToMemory(&pem.Block{
 		Type:  "EC PRIVATE KEY",
 		Bytes: privDER,
