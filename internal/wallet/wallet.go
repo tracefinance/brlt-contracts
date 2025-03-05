@@ -71,8 +71,8 @@ type TransactionOptions struct {
 	GasPrice *big.Int
 	// GasLimit is the gas limit (for EVM chains)
 	GasLimit uint64
-	// Nonce is the transaction nonce (optional, will be fetched if not provided)
-	Nonce *uint64
+	// Nonce is the transaction nonce
+	Nonce uint64
 	// Data is additional transaction data
 	Data []byte
 }
@@ -85,24 +85,12 @@ type Wallet interface {
 	// DeriveAddress derives a wallet address from a public key
 	DeriveAddress(ctx context.Context, publicKey []byte) (string, error)
 
-	// GetBalance returns the native currency balance of an address
-	GetBalance(ctx context.Context, address string) (*big.Int, error)
+	// CreateNativeTransaction creates a native currency transaction without broadcasting
+	CreateNativeTransaction(ctx context.Context, fromAddress, toAddress string, amount *big.Int, options TransactionOptions) (*Transaction, error)
 
-	// GetTokenBalance returns the token balance of an address
-	GetTokenBalance(ctx context.Context, address, tokenAddress string) (*big.Int, error)
+	// CreateTokenTransaction creates an ERC20 token transaction without broadcasting
+	CreateTokenTransaction(ctx context.Context, fromAddress, tokenAddress, toAddress string, amount *big.Int, options TransactionOptions) (*Transaction, error)
 
-	// SendNative sends native currency
-	SendNative(ctx context.Context, keyID, toAddress string, amount *big.Int, options *TransactionOptions) (*Transaction, error)
-
-	// SendToken sends ERC20 tokens
-	SendToken(ctx context.Context, keyID, tokenAddress, toAddress string, amount *big.Int, options *TransactionOptions) (*Transaction, error)
-
-	// SignTransaction signs a transaction without broadcasting
+	// SignTransaction signs a transaction
 	SignTransaction(ctx context.Context, keyID string, tx *Transaction) ([]byte, error)
-
-	// BroadcastTransaction broadcasts a signed transaction
-	BroadcastTransaction(ctx context.Context, signedTx []byte) (*Transaction, error)
-
-	// GetTransaction retrieves a transaction by hash
-	GetTransaction(ctx context.Context, hash string) (*Transaction, error)
 }

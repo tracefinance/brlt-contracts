@@ -73,7 +73,7 @@ func (f *Factory) GetWallet(ctx context.Context, chainType ChainType) (Wallet, e
 		switch chainType {
 		case ChainTypeEthereum, ChainTypePolygon, ChainTypeBase:
 			// All EVM-compatible chains use the same implementation
-			return NewEthereumWallet(f.keyStore, chainType, config, f.appConfig)
+			return NewEVMWallet(f.keyStore, chainType, config, f.appConfig)
 		default:
 			return nil, fmt.Errorf("%w: %s", ErrUnsupportedChain, chainType)
 		}

@@ -76,39 +76,19 @@ func (m *MockWallet) DeriveAddress(ctx context.Context, publicKey []byte) (strin
 	return args.String(0), args.Error(1)
 }
 
-func (m *MockWallet) GetBalance(ctx context.Context, address string) (*big.Int, error) {
-	args := m.Called(ctx, address)
-	return args.Get(0).(*big.Int), args.Error(1)
-}
-
-func (m *MockWallet) GetTokenBalance(ctx context.Context, address, tokenAddress string) (*big.Int, error) {
-	args := m.Called(ctx, address, tokenAddress)
-	return args.Get(0).(*big.Int), args.Error(1)
-}
-
-func (m *MockWallet) SendNative(ctx context.Context, keyID, toAddress string, amount *big.Int, options *TransactionOptions) (*Transaction, error) {
-	args := m.Called(ctx, keyID, toAddress, amount, options)
+func (m *MockWallet) CreateNativeTransaction(ctx context.Context, fromAddress, toAddress string, amount *big.Int, options TransactionOptions) (*Transaction, error) {
+	args := m.Called(ctx, fromAddress, toAddress, amount, options)
 	return args.Get(0).(*Transaction), args.Error(1)
 }
 
-func (m *MockWallet) SendToken(ctx context.Context, keyID, tokenAddress, toAddress string, amount *big.Int, options *TransactionOptions) (*Transaction, error) {
-	args := m.Called(ctx, keyID, tokenAddress, toAddress, amount, options)
+func (m *MockWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tokenAddress, toAddress string, amount *big.Int, options TransactionOptions) (*Transaction, error) {
+	args := m.Called(ctx, fromAddress, tokenAddress, toAddress, amount, options)
 	return args.Get(0).(*Transaction), args.Error(1)
 }
 
 func (m *MockWallet) SignTransaction(ctx context.Context, keyID string, tx *Transaction) ([]byte, error) {
 	args := m.Called(ctx, keyID, tx)
 	return args.Get(0).([]byte), args.Error(1)
-}
-
-func (m *MockWallet) BroadcastTransaction(ctx context.Context, signedTx []byte) (*Transaction, error) {
-	args := m.Called(ctx, signedTx)
-	return args.Get(0).(*Transaction), args.Error(1)
-}
-
-func (m *MockWallet) GetTransaction(ctx context.Context, hash string) (*Transaction, error) {
-	args := m.Called(ctx, hash)
-	return args.Get(0).(*Transaction), args.Error(1)
 }
 
 // Helper functions for tests
@@ -260,30 +240,17 @@ func TestTransaction(t *testing.T) {
 func TestTransactionOptions(t *testing.T) {
 	t.Run("Create and validate TransactionOptions struct", func(t *testing.T) {
 		// Create transaction options
-		nonce := uint64(5)
-		options := &TransactionOptions{
+		options := TransactionOptions{
 			GasPrice: big.NewInt(25000000000), // 25 Gwei
 			GasLimit: 30000,
-			Nonce:    &nonce,
+			Nonce:    5,
 			Data:     []byte{1, 2, 3, 4},
 		}
 
 		// Validate fields
 		assert.Equal(t, big.NewInt(25000000000), options.GasPrice)
 		assert.Equal(t, uint64(30000), options.GasLimit)
-		assert.Equal(t, &nonce, options.Nonce)
+		assert.Equal(t, uint64(5), options.Nonce)
 		assert.Equal(t, []byte{1, 2, 3, 4}, options.Data)
-	})
-
-	t.Run("Create TransactionOptions with nil Nonce", func(t *testing.T) {
-		options := &TransactionOptions{
-			GasPrice: big.NewInt(20000000000),
-			GasLimit: 21000,
-			Nonce:    nil,
-			Data:     []byte{},
-		}
-
-		assert.Nil(t, options.Nonce)
-		assert.Equal(t, big.NewInt(20000000000), options.GasPrice)
 	})
 }

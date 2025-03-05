@@ -38,8 +38,7 @@ func TestSetConfig(t *testing.T) {
 		factory := NewFactory(keyStore, appConfig)
 
 		// Custom ethereum config
-		customConfig := &EthereumConfig{
-			RPCURL:          "https://custom-rpc-url.com",
+		customConfig := &EVMConfig{
 			ChainID:         big.NewInt(1),
 			DefaultGasLimit: 50000,
 			DefaultGasPrice: big.NewInt(30000000000),
@@ -118,8 +117,7 @@ func TestGetWallet(t *testing.T) {
 		factory := NewFactory(keyStore, appConfig)
 
 		// Set custom config
-		customConfig := &EthereumConfig{
-			RPCURL:          "https://custom-rpc-url.com",
+		customConfig := &EVMConfig{
 			ChainID:         big.NewInt(1),
 			DefaultGasLimit: 50000,
 			DefaultGasPrice: big.NewInt(30000000000),
@@ -131,7 +129,7 @@ func TestGetWallet(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
 
-		// We'd need to cast to EthereumWallet to verify the config was used,
+		// We'd need to cast to EVMWallet to verify the config was used,
 		// but this is implementation dependent and might not be reliable in a unit test
 		// Instead we just verify the chain type
 		assert.Equal(t, ChainTypeEthereum, wallet.ChainType())
