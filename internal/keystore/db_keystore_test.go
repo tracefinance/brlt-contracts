@@ -2,6 +2,7 @@ package keystore
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"testing"
 
@@ -279,30 +280,73 @@ func TestDBKeyStore_Sign(t *testing.T) {
 	ctx := context.Background()
 	data := []byte("test data to sign")
 
+	// Pre-hash data for digest tests
+	hasher := sha256.New()
+	hasher.Write(data)
+	hashedData := hasher.Sum(nil)
+
 	tests := []struct {
-		name    string
-		keyType keygen.KeyType
-		wantErr bool
+		name     string
+		keyType  keygen.KeyType
+		dataType DataType
+		testData []byte
+		wantErr  bool
 	}{
 		{
-			name:    "ECDSA",
-			keyType: keygen.KeyTypeECDSA,
-			wantErr: false,
+			name:     "ECDSA_Raw",
+			keyType:  keygen.KeyTypeECDSA,
+			dataType: DataTypeRaw,
+			testData: data,
+			wantErr:  false,
 		},
 		{
-			name:    "RSA",
-			keyType: keygen.KeyTypeRSA,
-			wantErr: false,
+			name:     "ECDSA_Digest",
+			keyType:  keygen.KeyTypeECDSA,
+			dataType: DataTypeDigest,
+			testData: hashedData,
+			wantErr:  false,
 		},
 		{
-			name:    "Ed25519",
-			keyType: keygen.KeyTypeEd25519,
-			wantErr: false,
+			name:     "RSA_Raw",
+			keyType:  keygen.KeyTypeRSA,
+			dataType: DataTypeRaw,
+			testData: data,
+			wantErr:  false,
 		},
 		{
-			name:    "Symmetric",
-			keyType: keygen.KeyTypeSymmetric,
-			wantErr: false,
+			name:     "RSA_Digest",
+			keyType:  keygen.KeyTypeRSA,
+			dataType: DataTypeDigest,
+			testData: hashedData,
+			wantErr:  false,
+		},
+		{
+			name:     "Ed25519_Raw",
+			keyType:  keygen.KeyTypeEd25519,
+			dataType: DataTypeRaw,
+			testData: data,
+			wantErr:  false,
+		},
+		{
+			name:     "Ed25519_Digest",
+			keyType:  keygen.KeyTypeEd25519,
+			dataType: DataTypeDigest,
+			testData: hashedData,
+			wantErr:  false,
+		},
+		{
+			name:     "Symmetric_Raw",
+			keyType:  keygen.KeyTypeSymmetric,
+			dataType: DataTypeRaw,
+			testData: data,
+			wantErr:  false,
+		},
+		{
+			name:     "Symmetric_Digest",
+			keyType:  keygen.KeyTypeSymmetric,
+			dataType: DataTypeDigest,
+			testData: hashedData,
+			wantErr:  false,
 		},
 	}
 
@@ -315,7 +359,7 @@ func TestDBKeyStore_Sign(t *testing.T) {
 			require.NotNil(t, key)
 
 			// Sign data
-			signature, err := keystore.Sign(ctx, keyID, data)
+			signature, err := keystore.Sign(ctx, keyID, tt.testData, tt.dataType)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -327,6 +371,41 @@ func TestDBKeyStore_Sign(t *testing.T) {
 			require.NotEmpty(t, signature)
 		})
 	}
+
+	t.Run("NonExistentKey", func(t *testing.T) {
+		// Try to sign with a non-existent key
+		_, err := keystore.Sign(ctx, "non-existent-key", data, DataTypeRaw)
+		require.Error(t, err)
+	})
+
+	// Test with pre-hashed data specifically
+	t.Run("PreHashedData", func(t *testing.T) {
+		// Create an ECDSA key
+		keyID := "test-sign-prehashed"
+		key, err := keystore.Create(ctx, keyID, "Test Pre-hashed Signing", keygen.KeyTypeECDSA, nil)
+		require.NoError(t, err)
+		require.NotNil(t, key)
+
+		// Hash the data manually
+		hasher := sha256.New()
+		hasher.Write(data)
+		hashedData := hasher.Sum(nil)
+
+		// Sign the pre-hashed data
+		signature, err := keystore.Sign(ctx, keyID, hashedData, DataTypeDigest)
+		require.NoError(t, err)
+		require.NotNil(t, signature)
+		require.NotEmpty(t, signature)
+
+		// Also test signing the raw data for comparison
+		signatureRaw, err := keystore.Sign(ctx, keyID, data, DataTypeRaw)
+		require.NoError(t, err)
+		require.NotNil(t, signatureRaw)
+		require.NotEmpty(t, signatureRaw)
+
+		// The signatures should be different because the input to the signing algorithm is different
+		require.NotEqual(t, signature, signatureRaw)
+	})
 }
 
 func TestDBKeyStore_Import(t *testing.T) {

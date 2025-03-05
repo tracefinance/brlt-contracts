@@ -253,7 +253,7 @@ func (w *EVMWallet) signEVMTransaction(ctx context.Context, keyID string, tx *ty
 	hash := signer.Hash(tx)
 
 	// Sign the hash with the keystore
-	signature, err := w.keyStore.Sign(ctx, keyID, hash.Bytes())
+	signature, err := w.keyStore.Sign(ctx, keyID, hash.Bytes(), keystore.DataTypeDigest)
 	if err != nil {
 		return nil, fmt.Errorf("keystore signing failed: %w", err)
 	}

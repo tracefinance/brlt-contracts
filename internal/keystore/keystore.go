@@ -16,6 +16,16 @@ var (
 	ErrDecryptionFailed = errors.New("decryption failed")
 )
 
+// DataType indicates how the data should be treated in cryptographic operations
+type DataType string
+
+const (
+	// DataTypeRaw indicates that data has not been hashed and requires hashing during operations
+	DataTypeRaw DataType = "raw"
+	// DataTypeDigest indicates that data is already hashed/digested
+	DataTypeDigest DataType = "digest"
+)
+
 // Key struct represents a cryptographic key.
 type Key struct {
 	// ID is the unique identifier for the key
@@ -46,7 +56,8 @@ type KeyStore interface {
 
 	// Sign signs the provided data using the key identified by id
 	// This method uses the private key internally without exposing it
-	Sign(ctx context.Context, id string, data []byte) ([]byte, error)
+	// The dataType parameter indicates whether the data needs to be hashed as part of the signing algorithm
+	Sign(ctx context.Context, id string, data []byte, dataType DataType) ([]byte, error)
 
 	// GetPublicKey retrieves only the public part of a key by its ID
 	GetPublicKey(ctx context.Context, id string) (*Key, error)

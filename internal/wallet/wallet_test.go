@@ -32,8 +32,8 @@ func (m *MockKeyStore) Import(ctx context.Context, id, name string, keyType keyg
 	return args.Get(0).(*keystore.Key), args.Error(1)
 }
 
-func (m *MockKeyStore) Sign(ctx context.Context, id string, data []byte) ([]byte, error) {
-	args := m.Called(ctx, id, data)
+func (m *MockKeyStore) Sign(ctx context.Context, id string, data []byte, dataType keystore.DataType) ([]byte, error) {
+	args := m.Called(ctx, id, data, dataType)
 	return args.Get(0).([]byte), args.Error(1)
 }
 

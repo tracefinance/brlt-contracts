@@ -6,6 +6,7 @@ import (
 	"encoding/asn1"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -324,7 +325,7 @@ func (ks *DBKeyStore) Close() error {
 
 // Sign signs the provided data using the key identified by id
 // This method never returns the private key material, only the signature
-func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte) ([]byte, error) {
+func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte, dataType DataType) ([]byte, error) {
 	var (
 		privateKeyBytes []byte
 		keyType         string
@@ -351,7 +352,7 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte) ([]byte,
 	}
 
 	// Sign the data based on the key type
-	signature, err := ks.signData(keygen.KeyType(keyType), decryptedPrivateKey, data)
+	signature, err := ks.signData(keygen.KeyType(keyType), decryptedPrivateKey, data, dataType)
 	if err != nil {
 		return nil, err
 	}
@@ -360,24 +361,24 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte) ([]byte,
 }
 
 // signData signs data using the appropriate algorithm based on the key type
-func (ks *DBKeyStore) signData(keyType keygen.KeyType, privateKeyBytes, data []byte) ([]byte, error) {
+func (ks *DBKeyStore) signData(keyType keygen.KeyType, privateKeyBytes, data []byte, dataType DataType) ([]byte, error) {
 	switch keyType {
 	case keygen.KeyTypeECDSA:
-		return ks.signWithECDSA(privateKeyBytes, data)
+		return ks.signWithECDSA(privateKeyBytes, data, dataType)
 	case keygen.KeyTypeRSA:
-		return ks.signWithRSA(privateKeyBytes, data)
+		return ks.signWithRSA(privateKeyBytes, data, dataType)
 	case keygen.KeyTypeEd25519:
-		return ks.signWithEd25519(privateKeyBytes, data)
+		return ks.signWithEd25519(privateKeyBytes, data, dataType)
 	case keygen.KeyTypeSymmetric:
 		// For symmetric keys, we use HMAC instead of digital signatures
-		return ks.signWithHMAC(privateKeyBytes, data)
+		return ks.signWithHMAC(privateKeyBytes, data, dataType)
 	default:
 		return nil, errors.New("unsupported key type for signing")
 	}
 }
 
 // signWithECDSA signs data using an ECDSA private key
-func (ks *DBKeyStore) signWithECDSA(privateKeyBytes, data []byte) ([]byte, error) {
+func (ks *DBKeyStore) signWithECDSA(privateKeyBytes, data []byte, dataType DataType) ([]byte, error) {
 	// Parse the PEM encoded private key
 	block, _ := pem.Decode(privateKeyBytes)
 	if block == nil {
@@ -390,11 +391,18 @@ func (ks *DBKeyStore) signWithECDSA(privateKeyBytes, data []byte) ([]byte, error
 		return nil, errors.New("failed to parse ECDSA private key: " + err.Error())
 	}
 
-	// Create a hash of the data
-	hash := sha256.Sum256(data)
+	var digest []byte
+	if dataType == DataTypeRaw {
+		// Create a hash of the data
+		hash := sha256.Sum256(data)
+		digest = hash[:]
+	} else {
+		// Use the data as-is (it's already hashed)
+		digest = data
+	}
 
 	// Sign the hash
-	r, s, err := ecdsa.Sign(rand.Reader, privateKey, hash[:])
+	r, s, err := ecdsa.Sign(rand.Reader, privateKey, digest)
 	if err != nil {
 		return nil, err
 	}
@@ -412,7 +420,7 @@ func (ks *DBKeyStore) signWithECDSA(privateKeyBytes, data []byte) ([]byte, error
 }
 
 // signWithRSA signs data using an RSA private key
-func (ks *DBKeyStore) signWithRSA(privateKeyBytes, data []byte) ([]byte, error) {
+func (ks *DBKeyStore) signWithRSA(privateKeyBytes, data []byte, dataType DataType) ([]byte, error) {
 	// Parse the PEM encoded private key
 	block, _ := pem.Decode(privateKeyBytes)
 	if block == nil {
@@ -425,11 +433,25 @@ func (ks *DBKeyStore) signWithRSA(privateKeyBytes, data []byte) ([]byte, error) 
 		return nil, errors.New("failed to parse RSA private key: " + err.Error())
 	}
 
-	// Create a hash of the data
-	hash := sha256.Sum256(data)
+	var digest []byte
+	var hashAlgo crypto.Hash = crypto.SHA256
+
+	if dataType == DataTypeRaw {
+		// Create a hash of the data
+		hash := sha256.Sum256(data)
+		digest = hash[:]
+	} else {
+		// Use the data as-is (it's already hashed)
+		// For RSA with pre-hashed data, the data must be exactly 32 bytes
+		// for SHA-256 hash algorithm
+		if len(data) != sha256.Size {
+			return nil, fmt.Errorf("pre-hashed data must be %d bytes for SHA-256", sha256.Size)
+		}
+		digest = data
+	}
 
 	// Sign the hash
-	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hash[:])
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, hashAlgo, digest)
 	if err != nil {
 		return nil, err
 	}
@@ -438,7 +460,7 @@ func (ks *DBKeyStore) signWithRSA(privateKeyBytes, data []byte) ([]byte, error) 
 }
 
 // signWithEd25519 signs data using an Ed25519 private key
-func (ks *DBKeyStore) signWithEd25519(privateKeyBytes, data []byte) ([]byte, error) {
+func (ks *DBKeyStore) signWithEd25519(privateKeyBytes, data []byte, dataType DataType) ([]byte, error) {
 	// Parse the PEM encoded private key
 	block, _ := pem.Decode(privateKeyBytes)
 	if block == nil {
@@ -457,22 +479,27 @@ func (ks *DBKeyStore) signWithEd25519(privateKeyBytes, data []byte) ([]byte, err
 		return nil, errors.New("private key is not an Ed25519 key")
 	}
 
-	// Sign the data directly (Ed25519 does not require pre-hashing)
+	// Ed25519 has special handling:
+	// - Ed25519 always uses the data as-is, as the algorithm has its own internal hashing
+	// - Regardless of dataType, we don't pre-hash for Ed25519
+
+	// Sign the data directly
 	signature := ed25519.Sign(edKey, data)
 	return signature, nil
 }
 
 // signWithHMAC creates an HMAC for symmetric keys
-func (ks *DBKeyStore) signWithHMAC(keyBytes, data []byte) ([]byte, error) {
+func (ks *DBKeyStore) signWithHMAC(keyBytes, data []byte, dataType DataType) ([]byte, error) {
 	// Create a new HMAC instance using SHA-256
-	hmac := hmac.New(sha256.New, keyBytes)
+	h := hmac.New(sha256.New, keyBytes)
 
-	// Write the data to the HMAC
-	_, err := hmac.Write(data)
+	// For HMAC, we always use the raw data regardless of dataType
+	// since HMAC already incorporates hashing
+	_, err := h.Write(data)
 	if err != nil {
 		return nil, err
 	}
 
 	// Compute the HMAC
-	return hmac.Sum(nil), nil
+	return h.Sum(nil), nil
 }
