@@ -337,7 +337,7 @@ func TestDBKeyStore_Import(t *testing.T) {
 
 	// Generate a key pair for import
 	keyGen := keygen.NewKeyGenerator()
-	privateKey, publicKey, err := keyGen.GenerateKeyPair(keygen.KeyTypeECDSA)
+	privateKey, publicKey, err := keyGen.GenerateKeyPair(keygen.KeyTypeECDSA, nil)
 	require.NoError(t, err)
 
 	// Import the key

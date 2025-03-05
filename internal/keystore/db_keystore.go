@@ -76,7 +76,7 @@ func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType keyge
 	}
 
 	// Generate cryptographic key material based on key type
-	privateKey, publicKey, err := ks.keyGenerator.GenerateKeyPair(keyType)
+	privateKey, publicKey, err := ks.keyGenerator.GenerateKeyPair(keyType, nil)
 	if err != nil {
 		return nil, err
 	}

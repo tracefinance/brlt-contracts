@@ -40,7 +40,7 @@ func (ks *MockKeyStore) Create(ctx context.Context, id, name string, keyType key
 	}
 
 	// Generate key pair
-	privateKey, publicKey, err := ks.keyGen.GenerateKeyPair(keyType)
+	privateKey, publicKey, err := ks.keyGen.GenerateKeyPair(keyType, nil)
 	if err != nil {
 		return nil, err
 	}
