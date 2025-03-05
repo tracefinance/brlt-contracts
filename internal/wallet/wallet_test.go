@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"vault0/internal/config"
+	"vault0/internal/keygen"
 	"vault0/internal/keystore"
 )
 
@@ -21,12 +22,12 @@ type MockKeyStore struct {
 	mock.Mock
 }
 
-func (m *MockKeyStore) Create(ctx context.Context, id, name string, keyType keystore.KeyType, tags map[string]string) (*keystore.Key, error) {
+func (m *MockKeyStore) Create(ctx context.Context, id, name string, keyType keygen.KeyType, tags map[string]string) (*keystore.Key, error) {
 	args := m.Called(ctx, id, name, keyType, tags)
 	return args.Get(0).(*keystore.Key), args.Error(1)
 }
 
-func (m *MockKeyStore) Import(ctx context.Context, id, name string, keyType keystore.KeyType, privateKey, publicKey []byte, tags map[string]string) (*keystore.Key, error) {
+func (m *MockKeyStore) Import(ctx context.Context, id, name string, keyType keygen.KeyType, privateKey, publicKey []byte, tags map[string]string) (*keystore.Key, error) {
 	args := m.Called(ctx, id, name, keyType, privateKey, publicKey, tags)
 	return args.Get(0).(*keystore.Key), args.Error(1)
 }

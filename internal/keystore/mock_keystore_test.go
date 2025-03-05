@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"vault0/internal/keygen"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,11 +21,11 @@ func TestMockKeyStore(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		// Create a key
-		key, err := mockKeyStore.Create(ctx, "test-key", "Test Key", KeyTypeECDSA, nil)
+		key, err := mockKeyStore.Create(ctx, "test-key", "Test Key", keygen.KeyTypeECDSA, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "test-key", key.ID)
 		assert.Equal(t, "Test Key", key.Name)
-		assert.Equal(t, KeyTypeECDSA, key.Type)
+		assert.Equal(t, keygen.KeyTypeECDSA, key.Type)
 		assert.NotNil(t, key.PublicKey)
 		assert.Nil(t, key.PrivateKey) // Public method should not expose private key
 	})
@@ -53,7 +55,7 @@ func TestMockKeyStore(t *testing.T) {
 
 	t.Run("List", func(t *testing.T) {
 		// Create a second key
-		_, err := mockKeyStore.Create(ctx, "test-key-2", "Test Key 2", KeyTypeRSA, nil)
+		_, err := mockKeyStore.Create(ctx, "test-key-2", "Test Key 2", keygen.KeyTypeRSA, nil)
 		require.NoError(t, err)
 
 		// List keys
@@ -93,16 +95,16 @@ func TestMockKeyStore(t *testing.T) {
 
 	t.Run("Import", func(t *testing.T) {
 		// Generate key material for import
-		keyGen := NewKeyGenerator()
-		privateKey, publicKey, err := keyGen.GenerateKeyPair(KeyTypeEd25519)
+		keyGen := keygen.NewKeyGenerator()
+		privateKey, publicKey, err := keyGen.GenerateKeyPair(keygen.KeyTypeEd25519)
 		require.NoError(t, err)
 
 		// Import the key
-		importedKey, err := mockKeyStore.Import(ctx, "imported-key", "Imported Key", KeyTypeEd25519, privateKey, publicKey, nil)
+		importedKey, err := mockKeyStore.Import(ctx, "imported-key", "Imported Key", keygen.KeyTypeEd25519, privateKey, publicKey, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "imported-key", importedKey.ID)
 		assert.Equal(t, "Imported Key", importedKey.Name)
-		assert.Equal(t, KeyTypeEd25519, importedKey.Type)
+		assert.Equal(t, keygen.KeyTypeEd25519, importedKey.Type)
 
 		// Verify we can sign with the imported key
 		signature, err := mockKeyStore.Sign(ctx, "imported-key", []byte("test data"))

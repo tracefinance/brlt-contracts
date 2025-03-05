@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"vault0/internal/config"
+	"vault0/internal/keygen"
 
 	"github.com/stretchr/testify/require"
 
@@ -15,7 +16,7 @@ import (
 // testConfig creates a config for testing purposes
 func testConfig() *config.Config {
 	// Generate a random encryption key for tests
-	encKey, _ := GenerateEncryptionKeyBase64(32)
+	encKey, _ := keygen.GenerateEncryptionKeyBase64(32)
 
 	return &config.Config{
 		DBPath:          ":memory:", // Use in-memory SQLite for tests

@@ -10,12 +10,14 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"vault0/internal/keygen"
 )
 
 // MockKeyStore provides a mock implementation of the KeyStore interface for testing
 type MockKeyStore struct {
 	keys   map[string]*Key
-	keyGen KeyGenerator
+	keyGen keygen.KeyGenerator
 	mutex  sync.RWMutex
 }
 
@@ -23,12 +25,12 @@ type MockKeyStore struct {
 func NewMockKeyStore() *MockKeyStore {
 	return &MockKeyStore{
 		keys:   make(map[string]*Key),
-		keyGen: NewKeyGenerator(),
+		keyGen: keygen.NewKeyGenerator(),
 	}
 }
 
 // Create creates a new key with the given ID, name, and type
-func (ks *MockKeyStore) Create(ctx context.Context, id, name string, keyType KeyType, tags map[string]string) (*Key, error) {
+func (ks *MockKeyStore) Create(ctx context.Context, id, name string, keyType keygen.KeyType, tags map[string]string) (*Key, error) {
 	ks.mutex.Lock()
 	defer ks.mutex.Unlock()
 
@@ -69,7 +71,7 @@ func (ks *MockKeyStore) Create(ctx context.Context, id, name string, keyType Key
 }
 
 // Import imports an existing key
-func (ks *MockKeyStore) Import(ctx context.Context, id, name string, keyType KeyType, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
+func (ks *MockKeyStore) Import(ctx context.Context, id, name string, keyType keygen.KeyType, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
 	ks.mutex.Lock()
 	defer ks.mutex.Unlock()
 
@@ -116,7 +118,7 @@ func (ks *MockKeyStore) Sign(ctx context.Context, id string, data []byte) ([]byt
 
 	// For mock implementation, we'll just do a simple ECDSA signing for all key types
 	// In a real implementation, you'd use the appropriate signing method based on key type
-	if key.Type == KeyTypeECDSA && len(key.PrivateKey) > 0 {
+	if key.Type == keygen.KeyTypeECDSA && len(key.PrivateKey) > 0 {
 		// Parse the PEM-encoded private key
 		block, _ := pem.Decode(key.PrivateKey)
 		if block == nil {

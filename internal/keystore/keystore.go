@@ -3,6 +3,8 @@ package keystore
 import (
 	"context"
 	"errors"
+
+	"vault0/internal/keygen"
 )
 
 // Common errors
@@ -14,17 +16,6 @@ var (
 	ErrDecryptionFailed = errors.New("decryption failed")
 )
 
-// KeyType denotes the type of cryptographic key
-type KeyType string
-
-// Supported key types
-const (
-	KeyTypeECDSA     KeyType = "ECDSA"
-	KeyTypeRSA       KeyType = "RSA"
-	KeyTypeEd25519   KeyType = "Ed25519"
-	KeyTypeSymmetric KeyType = "Symmetric"
-)
-
 // Key struct represents a cryptographic key.
 type Key struct {
 	// ID is the unique identifier for the key
@@ -32,7 +23,7 @@ type Key struct {
 	// Name is a human-readable name for the key
 	Name string
 	// Type is the type of cryptographic key
-	Type KeyType
+	Type keygen.KeyType
 	// Tags are optional metadata for the key
 	Tags map[string]string
 	// CreatedAt is the timestamp when the key was created
@@ -48,10 +39,10 @@ type Key struct {
 // KeyStore defines the interface for key management operations
 type KeyStore interface {
 	// Create creates a new key with the given ID, name, and type
-	Create(ctx context.Context, id, name string, keyType KeyType, tags map[string]string) (*Key, error)
+	Create(ctx context.Context, id, name string, keyType keygen.KeyType, tags map[string]string) (*Key, error)
 
 	// Import imports an existing key
-	Import(ctx context.Context, id, name string, keyType KeyType, privateKey, publicKey []byte, tags map[string]string) (*Key, error)
+	Import(ctx context.Context, id, name string, keyType keygen.KeyType, privateKey, publicKey []byte, tags map[string]string) (*Key, error)
 
 	// Sign signs the provided data using the key identified by id
 	// This method uses the private key internally without exposing it

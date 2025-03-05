@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"vault0/internal/keygen"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,9 +20,9 @@ func TestDBKeyStore_Create(t *testing.T) {
 	t.Run("Create_Valid_ECDSA_Key", func(t *testing.T) {
 		// Arrange
 		id := "test-key-1"
-		name := "Test Key 1"
-		keyType := KeyTypeECDSA
-		tags := map[string]string{"purpose": "signing", "env": "test"}
+		name := "Test ECDSA Key"
+		keyType := keygen.KeyTypeECDSA
+		tags := map[string]string{"purpose": "testing"}
 
 		// Act
 		key, err := keystore.Create(ctx, id, name, keyType, tags)
@@ -39,9 +41,9 @@ func TestDBKeyStore_Create(t *testing.T) {
 	t.Run("Create_Valid_RSA_Key", func(t *testing.T) {
 		// Arrange
 		id := "test-key-2"
-		name := "Test Key 2"
-		keyType := KeyTypeRSA
-		tags := map[string]string{"purpose": "encryption", "env": "test"}
+		name := "Test RSA Key"
+		keyType := keygen.KeyTypeRSA
+		tags := map[string]string{"purpose": "testing"}
 
 		// Act
 		key, err := keystore.Create(ctx, id, name, keyType, tags)
@@ -59,9 +61,9 @@ func TestDBKeyStore_Create(t *testing.T) {
 	t.Run("Create_Valid_Ed25519_Key", func(t *testing.T) {
 		// Arrange
 		id := "test-key-3"
-		name := "Test Key 3"
-		keyType := KeyTypeEd25519
-		tags := map[string]string{"purpose": "signing", "env": "test"}
+		name := "Test Ed25519 Key"
+		keyType := keygen.KeyTypeEd25519
+		tags := map[string]string{"purpose": "testing"}
 
 		// Act
 		key, err := keystore.Create(ctx, id, name, keyType, tags)
@@ -79,9 +81,9 @@ func TestDBKeyStore_Create(t *testing.T) {
 	t.Run("Create_Valid_Symmetric_Key", func(t *testing.T) {
 		// Arrange
 		id := "test-key-4"
-		name := "Test Key 4"
-		keyType := KeyTypeSymmetric
-		tags := map[string]string{"purpose": "encryption", "env": "test"}
+		name := "Test Symmetric Key"
+		keyType := keygen.KeyTypeSymmetric
+		tags := map[string]string{"purpose": "testing"}
 
 		// Act
 		key, err := keystore.Create(ctx, id, name, keyType, tags)
@@ -97,10 +99,10 @@ func TestDBKeyStore_Create(t *testing.T) {
 
 	t.Run("Create_DuplicateID", func(t *testing.T) {
 		// Arrange
-		id := "duplicate-key"
-		name := "Duplicate Key"
-		keyType := KeyTypeECDSA
-		tags := map[string]string{"purpose": "test"}
+		id := "test-key-duplicate"
+		name := "Test Duplicate Key"
+		keyType := keygen.KeyTypeECDSA
+		tags := map[string]string{"purpose": "testing"}
 
 		// First creation should succeed
 		_, err := keystore.Create(ctx, id, name, keyType, tags)
@@ -123,10 +125,10 @@ func TestDBKeyStore_GetPublicKey(t *testing.T) {
 
 	t.Run("GetPublicKey_ExistingKey", func(t *testing.T) {
 		// Arrange - Create a key
-		id := "get-key-1"
-		name := "Get Key 1"
-		keyType := KeyTypeECDSA
-		tags := map[string]string{"purpose": "signing", "env": "test"}
+		id := "test-key-get"
+		name := "Test Get Key"
+		keyType := keygen.KeyTypeECDSA
+		tags := map[string]string{"purpose": "testing"}
 
 		originalKey, err := keystore.Create(ctx, id, name, keyType, tags)
 		require.NoError(t, err)
@@ -176,7 +178,7 @@ func TestDBKeyStore_List(t *testing.T) {
 		keyIDs := []string{"list-key-1", "list-key-2", "list-key-3"}
 		for i, id := range keyIDs {
 			keyName := fmt.Sprintf("List Key %d", i)
-			_, err := keystore.Create(ctx, id, keyName, KeyTypeECDSA, nil)
+			_, err := keystore.Create(ctx, id, keyName, keygen.KeyTypeECDSA, nil)
 			require.NoError(t, err)
 		}
 
@@ -207,7 +209,7 @@ func TestDBKeyStore_Update(t *testing.T) {
 		originalName := "Original Name"
 		originalTags := map[string]string{"purpose": "original", "env": "test"}
 
-		originalKey, err := keystore.Create(ctx, id, originalName, KeyTypeECDSA, originalTags)
+		originalKey, err := keystore.Create(ctx, id, originalName, keygen.KeyTypeECDSA, originalTags)
 		require.NoError(t, err)
 
 		// Act - Update the key
@@ -245,7 +247,7 @@ func TestDBKeyStore_Delete(t *testing.T) {
 	t.Run("Delete_ExistingKey", func(t *testing.T) {
 		// Arrange - Create a key
 		id := "delete-key-1"
-		_, err := keystore.Create(ctx, id, "Delete Key", KeyTypeECDSA, nil)
+		_, err := keystore.Create(ctx, id, "Delete Key", keygen.KeyTypeECDSA, nil)
 		require.NoError(t, err)
 
 		// Act - Delete the key
@@ -279,27 +281,27 @@ func TestDBKeyStore_Sign(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		keyType KeyType
+		keyType keygen.KeyType
 		wantErr bool
 	}{
 		{
 			name:    "ECDSA",
-			keyType: KeyTypeECDSA,
+			keyType: keygen.KeyTypeECDSA,
 			wantErr: false,
 		},
 		{
 			name:    "RSA",
-			keyType: KeyTypeRSA,
+			keyType: keygen.KeyTypeRSA,
 			wantErr: false,
 		},
 		{
 			name:    "Ed25519",
-			keyType: KeyTypeEd25519,
+			keyType: keygen.KeyTypeEd25519,
 			wantErr: false,
 		},
 		{
 			name:    "Symmetric",
-			keyType: KeyTypeSymmetric,
+			keyType: keygen.KeyTypeSymmetric,
 			wantErr: false,
 		},
 	}
@@ -334,14 +336,14 @@ func TestDBKeyStore_Import(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate a key pair for import
-	keyGen := NewKeyGenerator()
-	privateKey, publicKey, err := keyGen.GenerateKeyPair(KeyTypeECDSA)
+	keyGen := keygen.NewKeyGenerator()
+	privateKey, publicKey, err := keyGen.GenerateKeyPair(keygen.KeyTypeECDSA)
 	require.NoError(t, err)
 
 	// Import the key
 	keyID := "imported-key"
 	keyName := "Imported ECDSA Key"
-	keyType := KeyTypeECDSA
+	keyType := keygen.KeyTypeECDSA
 	tags := map[string]string{"purpose": "imported"}
 
 	key, err := keystore.Import(ctx, keyID, keyName, keyType, privateKey, publicKey, tags)

@@ -19,13 +19,14 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"vault0/internal/config"
+	"vault0/internal/keygen"
 )
 
 // DBKeyStore implements the KeyStore interface using a local database
 type DBKeyStore struct {
 	db           *sql.DB
-	encryptor    Encryptor
-	keyGenerator KeyGenerator
+	encryptor    keygen.Encryptor
+	keyGenerator keygen.KeyGenerator
 }
 
 // NewDBKeyStore creates a new DBKeyStore instance
@@ -35,7 +36,7 @@ func NewDBKeyStore(db *sql.DB, cfg *config.Config) (*DBKeyStore, error) {
 	}
 
 	// Create the encryptor
-	encryptor, err := NewAESEncryptorFromBase64(cfg.DBEncryptionKey)
+	encryptor, err := keygen.NewAESEncryptorFromBase64(cfg.DBEncryptionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -43,12 +44,12 @@ func NewDBKeyStore(db *sql.DB, cfg *config.Config) (*DBKeyStore, error) {
 	return &DBKeyStore{
 		db:           db,
 		encryptor:    encryptor,
-		keyGenerator: NewKeyGenerator(),
+		keyGenerator: keygen.NewKeyGenerator(),
 	}, nil
 }
 
 // Create creates a new key with the given ID, name, and type
-func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType KeyType, tags map[string]string) (*Key, error) {
+func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType keygen.KeyType, tags map[string]string) (*Key, error) {
 	// Check if key with the same ID already exists
 	var count int
 	err := ks.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
@@ -110,7 +111,7 @@ func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType KeyTy
 }
 
 // Import imports an existing key
-func (ks *DBKeyStore) Import(ctx context.Context, id, name string, keyType KeyType, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
+func (ks *DBKeyStore) Import(ctx context.Context, id, name string, keyType keygen.KeyType, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
 	// Check if key with the same ID already exists
 	var count int
 	err := ks.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
@@ -192,7 +193,7 @@ func (ks *DBKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, error)
 	}
 
 	// Convert key type
-	key.Type = KeyType(keyType)
+	key.Type = keygen.KeyType(keyType)
 
 	// Parse tags JSON
 	if tagsJSON != "" {
@@ -243,7 +244,7 @@ func (ks *DBKeyStore) List(ctx context.Context) ([]*Key, error) {
 		}
 
 		// Convert key type
-		key.Type = KeyType(keyType)
+		key.Type = keygen.KeyType(keyType)
 
 		// Parse tags JSON
 		if tagsJSON != "" {
@@ -350,7 +351,7 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte) ([]byte,
 	}
 
 	// Sign the data based on the key type
-	signature, err := ks.signData(KeyType(keyType), decryptedPrivateKey, data)
+	signature, err := ks.signData(keygen.KeyType(keyType), decryptedPrivateKey, data)
 	if err != nil {
 		return nil, err
 	}
@@ -359,15 +360,15 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte) ([]byte,
 }
 
 // signData signs data using the appropriate algorithm based on the key type
-func (ks *DBKeyStore) signData(keyType KeyType, privateKeyBytes, data []byte) ([]byte, error) {
+func (ks *DBKeyStore) signData(keyType keygen.KeyType, privateKeyBytes, data []byte) ([]byte, error) {
 	switch keyType {
-	case KeyTypeECDSA:
+	case keygen.KeyTypeECDSA:
 		return ks.signWithECDSA(privateKeyBytes, data)
-	case KeyTypeRSA:
+	case keygen.KeyTypeRSA:
 		return ks.signWithRSA(privateKeyBytes, data)
-	case KeyTypeEd25519:
+	case keygen.KeyTypeEd25519:
 		return ks.signWithEd25519(privateKeyBytes, data)
-	case KeyTypeSymmetric:
+	case keygen.KeyTypeSymmetric:
 		// For symmetric keys, we use HMAC instead of digital signatures
 		return ks.signWithHMAC(privateKeyBytes, data)
 	default:

@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
 
+	"vault0/internal/keygen"
 	"vault0/internal/keystore"
 )
 
@@ -354,7 +355,7 @@ func TestEVMWallet_SignTransaction(t *testing.T) {
 		testKey := &keystore.Key{
 			ID:        keyID,
 			Name:      "Test Key",
-			Type:      keystore.KeyTypeECDSA,
+			Type:      keygen.KeyTypeECDSA,
 			PublicKey: crypto.FromECDSAPub(publicKey),
 		}
 

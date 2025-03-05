@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"vault0/internal/keystore"
+	"vault0/internal/keygen"
 
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -39,7 +39,7 @@ func generateEncryptionKey(keySize int, format string) {
 	}
 
 	// Generate the key
-	key, err := keystore.GenerateEncryptionKeyBase64(keySize)
+	key, err := keygen.GenerateEncryptionKeyBase64(keySize)
 	if err != nil {
 		fmt.Printf("Error generating encryption key: %v\n", err)
 		os.Exit(1)
