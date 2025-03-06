@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"vault0/internal/common"
 )
 
 func TestNewFactory(t *testing.T) {
@@ -35,11 +37,11 @@ func TestCreateWallet(t *testing.T) {
 		appConfig := createTestConfig()
 		factory := NewFactory(keyStore, appConfig)
 
-		wallet, err := factory.CreateWallet(ctx, ChainTypeEthereum)
+		wallet, err := factory.CreateWallet(ctx, common.ChainTypeEthereum)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
-		assert.Equal(t, ChainTypeEthereum, wallet.ChainType())
+		assert.Equal(t, common.ChainTypeEthereum, wallet.ChainType())
 	})
 
 	t.Run("Create Polygon wallet", func(t *testing.T) {
@@ -48,11 +50,11 @@ func TestCreateWallet(t *testing.T) {
 		appConfig := createTestConfig()
 		factory := NewFactory(keyStore, appConfig)
 
-		wallet, err := factory.CreateWallet(ctx, ChainTypePolygon)
+		wallet, err := factory.CreateWallet(ctx, common.ChainTypePolygon)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
-		assert.Equal(t, ChainTypePolygon, wallet.ChainType())
+		assert.Equal(t, common.ChainTypePolygon, wallet.ChainType())
 	})
 
 	t.Run("Create Base wallet", func(t *testing.T) {
@@ -61,11 +63,11 @@ func TestCreateWallet(t *testing.T) {
 		appConfig := createTestConfig()
 		factory := NewFactory(keyStore, appConfig)
 
-		wallet, err := factory.CreateWallet(ctx, ChainTypeBase)
+		wallet, err := factory.CreateWallet(ctx, common.ChainTypeBase)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
-		assert.Equal(t, ChainTypeBase, wallet.ChainType())
+		assert.Equal(t, common.ChainTypeBase, wallet.ChainType())
 	})
 
 	t.Run("Create wallet for unsupported chain", func(t *testing.T) {
@@ -74,7 +76,7 @@ func TestCreateWallet(t *testing.T) {
 		appConfig := createTestConfig()
 		factory := NewFactory(keyStore, appConfig)
 
-		unsupportedChainType := ChainType("unsupported")
+		unsupportedChainType := common.ChainType("unsupported")
 		wallet, err := factory.CreateWallet(ctx, unsupportedChainType)
 
 		assert.Error(t, err)

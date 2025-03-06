@@ -3,13 +3,14 @@ package blockchain
 import (
 	"fmt"
 	"sync"
+	"vault0/internal/common"
 	"vault0/internal/config"
 )
 
 // Factory creates blockchain implementations
 type Factory struct {
 	cfg        *config.Config
-	clients    map[ChainType]Blockchain
+	clients    map[common.ChainType]Blockchain
 	clientsMux sync.RWMutex
 }
 
@@ -17,13 +18,13 @@ type Factory struct {
 func NewFactory(cfg *config.Config) *Factory {
 	return &Factory{
 		cfg:     cfg,
-		clients: make(map[ChainType]Blockchain),
+		clients: make(map[common.ChainType]Blockchain),
 	}
 }
 
 // NewBlockchain creates a new blockchain implementation for the given chain type
 // or returns an existing instance if one has already been created (singleton pattern)
-func (f *Factory) NewBlockchain(chainType ChainType) (Blockchain, error) {
+func (f *Factory) NewBlockchain(chainType common.ChainType) (Blockchain, error) {
 	// Check if we already have a client for this chain type
 	f.clientsMux.RLock()
 	client, exists := f.clients[chainType]
@@ -46,13 +47,13 @@ func (f *Factory) NewBlockchain(chainType ChainType) (Blockchain, error) {
 	var chainName string
 
 	switch chainType {
-	case Ethereum:
+	case common.ChainTypeEthereum:
 		chainCfg = &f.cfg.Blockchains.Ethereum
 		chainName = "Ethereum"
-	case Polygon:
+	case common.ChainTypePolygon:
 		chainCfg = &f.cfg.Blockchains.Polygon
 		chainName = "Polygon"
-	case Base:
+	case common.ChainTypeBase:
 		chainCfg = &f.cfg.Blockchains.Base
 		chainName = "Base"
 	default:
@@ -90,15 +91,15 @@ func (f *Factory) CloseAll() {
 	for _, client := range f.clients {
 		client.Close()
 	}
-	f.clients = make(map[ChainType]Blockchain)
+	f.clients = make(map[common.ChainType]Blockchain)
 }
 
 // getChainSymbol returns the symbol for a given chain type
-func getChainSymbol(chainType ChainType) string {
+func getChainSymbol(chainType common.ChainType) string {
 	switch chainType {
-	case Ethereum, Base:
+	case common.ChainTypeEthereum, common.ChainTypeBase:
 		return "ETH"
-	case Polygon:
+	case common.ChainTypePolygon:
 		return "MATIC"
 	default:
 		return ""

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"vault0/internal/common"
 	"vault0/internal/config"
 	"vault0/internal/keystore"
 )
@@ -30,9 +31,9 @@ func NewFactory(keyStore keystore.KeyStore, appConfig *config.Config) *Factory {
 
 // CreateWallet creates a new wallet instance for the specified chain type.
 // The consumer is responsible for caching and lifecycle management.
-func (f *Factory) CreateWallet(ctx context.Context, chainType ChainType) (Wallet, error) {
+func (f *Factory) CreateWallet(ctx context.Context, chainType common.ChainType) (Wallet, error) {
 	switch chainType {
-	case ChainTypeEthereum, ChainTypePolygon, ChainTypeBase:
+	case common.ChainTypeEthereum, common.ChainTypePolygon, common.ChainTypeBase:
 		// All EVM-compatible chains use the same implementation
 		return NewEVMWallet(f.keyStore, chainType, f.appConfig)
 	default:

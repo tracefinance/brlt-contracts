@@ -8,12 +8,12 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"vault0/internal/wallet"
+	"vault0/internal/common"
 )
 
 // EVMClient implements Blockchain for EVM compatible chains
@@ -68,11 +68,11 @@ func (c *EVMClient) GetChainID(ctx context.Context) (int64, error) {
 
 // GetBalance implements Blockchain.GetBalance
 func (c *EVMClient) GetBalance(ctx context.Context, address string, blockNumber *big.Int) (*big.Int, error) {
-	if !common.IsHexAddress(address) {
+	if !ethcommon.IsHexAddress(address) {
 		return nil, fmt.Errorf("evm: invalid address format: %w", ErrInvalidAddress)
 	}
 
-	addr := common.HexToAddress(address)
+	addr := ethcommon.HexToAddress(address)
 	balance, err := c.client.BalanceAt(ctx, addr, blockNumber)
 	if err != nil {
 		return nil, fmt.Errorf("evm: failed to get balance: %w", err)
@@ -83,11 +83,11 @@ func (c *EVMClient) GetBalance(ctx context.Context, address string, blockNumber 
 
 // GetNonce implements Blockchain.GetNonce
 func (c *EVMClient) GetNonce(ctx context.Context, address string) (uint64, error) {
-	if !common.IsHexAddress(address) {
+	if !ethcommon.IsHexAddress(address) {
 		return 0, fmt.Errorf("evm: invalid address format: %w", ErrInvalidAddress)
 	}
 
-	nonce, err := c.client.PendingNonceAt(ctx, common.HexToAddress(address))
+	nonce, err := c.client.PendingNonceAt(ctx, ethcommon.HexToAddress(address))
 	if err != nil {
 		return 0, fmt.Errorf("evm: failed to get nonce: %w", err)
 	}
@@ -95,8 +95,8 @@ func (c *EVMClient) GetNonce(ctx context.Context, address string) (uint64, error
 	return nonce, nil
 }
 
-// convertTxToTransaction converts an Ethereum transaction to wallet.Transaction
-func (c *EVMClient) convertTxToTransaction(tx *types.Transaction, receipt *types.Receipt, blockNumber *big.Int, timestamp uint64) *wallet.Transaction {
+// convertTxToTransaction converts an Ethereum transaction to common.Transaction
+func (c *EVMClient) convertTxToTransaction(tx *types.Transaction, receipt *types.Receipt, blockNumber *big.Int, timestamp uint64) *common.Transaction {
 	var status string
 	if receipt != nil {
 		if receipt.Status == 1 {
@@ -119,20 +119,20 @@ func (c *EVMClient) convertTxToTransaction(tx *types.Transaction, receipt *types
 		to = tx.To().Hex()
 	}
 
-	// Convert chain type
-	var chainType wallet.ChainType
+	// Map chain type to common.ChainType
+	var chainType common.ChainType
 	switch c.chain.Type {
-	case Ethereum:
-		chainType = wallet.ChainType("ethereum")
-	case Polygon:
-		chainType = wallet.ChainType("polygon")
-	case Base:
-		chainType = wallet.ChainType("base")
+	case common.ChainTypeEthereum:
+		chainType = common.ChainTypeEthereum
+	case common.ChainTypePolygon:
+		chainType = common.ChainTypePolygon
+	case common.ChainTypeBase:
+		chainType = common.ChainTypeBase
 	default:
-		chainType = wallet.ChainType(string(c.chain.Type))
+		chainType = common.ChainType(string(c.chain.Type))
 	}
 
-	return &wallet.Transaction{
+	return &common.Transaction{
 		Chain:     chainType,
 		Hash:      tx.Hash().Hex(),
 		From:      from,
@@ -142,19 +142,19 @@ func (c *EVMClient) convertTxToTransaction(tx *types.Transaction, receipt *types
 		Nonce:     tx.Nonce(),
 		GasPrice:  tx.GasPrice(),
 		GasLimit:  tx.Gas(),
-		Type:      wallet.TransactionType("native"),
+		Type:      common.TransactionTypeNative,
 		Status:    status,
 		Timestamp: int64(timestamp),
 	}
 }
 
 // GetTransaction implements Blockchain.GetTransaction
-func (c *EVMClient) GetTransaction(ctx context.Context, hash string) (*wallet.Transaction, error) {
+func (c *EVMClient) GetTransaction(ctx context.Context, hash string) (*common.Transaction, error) {
 	if !strings.HasPrefix(hash, "0x") {
 		hash = "0x" + hash
 	}
 
-	txHash := common.HexToHash(hash)
+	txHash := ethcommon.HexToHash(hash)
 	tx, isPending, err := c.client.TransactionByHash(ctx, txHash)
 	if err != nil {
 		if errors.Is(err, ethereum.NotFound) {
@@ -187,33 +187,33 @@ func (c *EVMClient) GetTransaction(ctx context.Context, hash string) (*wallet.Tr
 }
 
 // convertLogsToBlockchainLogs converts EVM logs to our Log model
-func (c *EVMClient) convertLogsToBlockchainLogs(logs []*types.Log) []Log {
-	blockchainLogs := make([]Log, len(logs))
+func (c *EVMClient) convertLogsToBlockchainLogs(logs []*types.Log) []common.Log {
+	result := make([]common.Log, len(logs))
 	for i, log := range logs {
 		topics := make([]string, len(log.Topics))
 		for j, topic := range log.Topics {
 			topics[j] = topic.Hex()
 		}
 
-		blockchainLogs[i] = Log{
+		result[i] = common.Log{
 			Address:         log.Address.Hex(),
 			Topics:          topics,
 			Data:            log.Data,
 			BlockNumber:     big.NewInt(int64(log.BlockNumber)),
 			TransactionHash: log.TxHash.Hex(),
-			LogIndex:        uint(log.Index),
+			LogIndex:        log.Index,
 		}
 	}
-	return blockchainLogs
+	return result
 }
 
 // GetTransactionReceipt implements Blockchain.GetTransactionReceipt
-func (c *EVMClient) GetTransactionReceipt(ctx context.Context, hash string) (*TransactionReceipt, error) {
+func (c *EVMClient) GetTransactionReceipt(ctx context.Context, hash string) (*common.TransactionReceipt, error) {
 	if !strings.HasPrefix(hash, "0x") {
 		hash = "0x" + hash
 	}
 
-	receipt, err := c.client.TransactionReceipt(ctx, common.HexToHash(hash))
+	receipt, err := c.client.TransactionReceipt(ctx, ethcommon.HexToHash(hash))
 	if err != nil {
 		if errors.Is(err, ethereum.NotFound) {
 			return nil, fmt.Errorf("evm: transaction receipt not found: %w", err)
@@ -221,7 +221,7 @@ func (c *EVMClient) GetTransactionReceipt(ctx context.Context, hash string) (*Tr
 		return nil, fmt.Errorf("evm: failed to get transaction receipt: %w", err)
 	}
 
-	return &TransactionReceipt{
+	return &common.TransactionReceipt{
 		Hash:              receipt.TxHash.Hex(),
 		BlockNumber:       receipt.BlockNumber,
 		Status:            receipt.Status,
@@ -233,21 +233,21 @@ func (c *EVMClient) GetTransactionReceipt(ctx context.Context, hash string) (*Tr
 }
 
 // EstimateGas implements Blockchain.EstimateGas
-func (c *EVMClient) EstimateGas(ctx context.Context, tx *wallet.Transaction) (uint64, error) {
-	var from common.Address
+func (c *EVMClient) EstimateGas(ctx context.Context, tx *common.Transaction) (uint64, error) {
+	var from ethcommon.Address
 	if tx.From != "" {
-		if !common.IsHexAddress(tx.From) {
+		if !ethcommon.IsHexAddress(tx.From) {
 			return 0, fmt.Errorf("evm: invalid from address: %w", ErrInvalidAddress)
 		}
-		from = common.HexToAddress(tx.From)
+		from = ethcommon.HexToAddress(tx.From)
 	}
 
-	var to *common.Address
+	var to *ethcommon.Address
 	if tx.To != "" {
-		if !common.IsHexAddress(tx.To) {
+		if !ethcommon.IsHexAddress(tx.To) {
 			return 0, fmt.Errorf("evm: invalid to address: %w", ErrInvalidAddress)
 		}
-		addr := common.HexToAddress(tx.To)
+		addr := ethcommon.HexToAddress(tx.To)
 		to = &addr
 	}
 
@@ -277,18 +277,18 @@ func (c *EVMClient) GetGasPrice(ctx context.Context) (*big.Int, error) {
 
 // CallContract implements Blockchain.CallContract
 func (c *EVMClient) CallContract(ctx context.Context, from string, to string, data []byte) ([]byte, error) {
-	var fromAddress common.Address
+	var fromAddress ethcommon.Address
 	if from != "" {
-		if !common.IsHexAddress(from) {
+		if !ethcommon.IsHexAddress(from) {
 			return nil, fmt.Errorf("evm: invalid from address: %w", ErrInvalidAddress)
 		}
-		fromAddress = common.HexToAddress(from)
+		fromAddress = ethcommon.HexToAddress(from)
 	}
 
-	if !common.IsHexAddress(to) {
+	if !ethcommon.IsHexAddress(to) {
 		return nil, fmt.Errorf("evm: invalid to address: %w", ErrInvalidAddress)
 	}
-	toAddress := common.HexToAddress(to)
+	toAddress := ethcommon.HexToAddress(to)
 
 	callMsg := ethereum.CallMsg{
 		From: fromAddress,

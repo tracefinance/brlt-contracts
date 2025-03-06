@@ -7,10 +7,11 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/common"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"vault0/internal/common"
 	"vault0/internal/config"
 	"vault0/internal/keystore"
 )
@@ -31,7 +32,7 @@ type AppConfig interface {
 }
 
 // NewEVMConfig returns configuration for EVM based on chain type and app config
-func NewEVMConfig(chainType ChainType, appConfig AppConfig) *EVMConfig {
+func NewEVMConfig(chainType common.ChainType, appConfig AppConfig) (*EVMConfig, error) {
 	// Ensure appConfig is never nil
 	if appConfig == nil {
 		panic("appConfig must not be nil")
@@ -42,85 +43,103 @@ func NewEVMConfig(chainType ChainType, appConfig AppConfig) *EVMConfig {
 	// Get the blockchain config using the helper method
 	blockchainConfig := appConfig.GetBlockchainConfig(string(chainType))
 	if blockchainConfig == nil {
-		// Create a minimal default configuration if no specific config found
-		config.DefaultGasLimit = 21000                   // Standard ETH transfer gas limit
-		config.DefaultGasPrice = big.NewInt(20000000000) // 20 Gwei
-		return config
+		// Return an error instead of creating a default configuration
+		return nil, fmt.Errorf("blockchain configuration for %s not found: %w", chainType, ErrUnsupportedChain)
 	}
 
-	// Set configuration from blockchain config
-	config.ChainID = big.NewInt(blockchainConfig.ChainID)
-	config.DefaultGasLimit = blockchainConfig.DefaultGasLimit
-	// Convert Gwei to Wei (1 Gwei = 10^9 Wei)
-	config.DefaultGasPrice = big.NewInt(blockchainConfig.DefaultGasPrice * 1e9)
+	// Set chain ID from config if available
+	if blockchainConfig.ChainID != 0 {
+		config.ChainID = big.NewInt(blockchainConfig.ChainID)
+	} else {
+		return nil, fmt.Errorf("chain ID is required for %s", chainType)
+	}
 
-	return config
+	// Set gas limit from config if available
+	if blockchainConfig.DefaultGasLimit != 0 {
+		config.DefaultGasLimit = blockchainConfig.DefaultGasLimit
+	} else {
+		config.DefaultGasLimit = 21000 // Default gas limit for simple transfers
+	}
+
+	// Set gas price from config if available
+	if blockchainConfig.DefaultGasPrice != 0 {
+		config.DefaultGasPrice = big.NewInt(blockchainConfig.DefaultGasPrice)
+	} else {
+		config.DefaultGasPrice = big.NewInt(20000000000) // 20 Gwei default
+	}
+
+	return config, nil
 }
 
 // EVMWallet implements the Wallet interface for EVM-compatible chains
 type EVMWallet struct {
 	keyStore  keystore.KeyStore
-	chainType ChainType
+	chainType common.ChainType
 	config    *EVMConfig
 }
 
-// NewEVMWallet creates a new EVM wallet
-func NewEVMWallet(keyStore keystore.KeyStore, chainType ChainType, appConfig AppConfig) (*EVMWallet, error) {
-	// Ensure appConfig is never nil
-	if appConfig == nil {
-		return nil, fmt.Errorf("appConfig must not be nil")
+// NewEVMWallet creates a new EVMWallet instance
+func NewEVMWallet(keyStore keystore.KeyStore, chainType common.ChainType, appConfig AppConfig) (*EVMWallet, error) {
+	if keyStore == nil {
+		return nil, fmt.Errorf("keystore cannot be nil")
 	}
 
-	var evmConfig = NewEVMConfig(chainType, appConfig)
-
-	if evmConfig.ChainID == nil {
-		return nil, fmt.Errorf("chain id is required")
+	config, err := NewEVMConfig(chainType, appConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	return &EVMWallet{
 		keyStore:  keyStore,
 		chainType: chainType,
-		config:    evmConfig,
+		config:    config,
 	}, nil
 }
 
-// ChainType returns the blockchain type
-func (w *EVMWallet) ChainType() ChainType {
+// ChainType returns the wallet's blockchain type
+func (w *EVMWallet) ChainType() common.ChainType {
 	return w.chainType
 }
 
 // DeriveAddress derives a wallet address from a public key
 func (w *EVMWallet) DeriveAddress(ctx context.Context, publicKey []byte) (string, error) {
-	if len(publicKey) != 65 && len(publicKey) != 33 {
-		return "", fmt.Errorf("%w: invalid public key length", ErrInvalidAddress)
+	// For EVM chains, we need to convert the public key to an address
+	if len(publicKey) == 0 {
+		return "", fmt.Errorf("evm: empty public key: %w", ErrInvalidAddress)
 	}
 
+	// Check if the public key already has the 0x04 prefix
+	// This prefix indicates an uncompressed public key which is what EVM expects
 	var pubKey *ecdsa.PublicKey
 	var err error
 
-	// Check if the public key is compressed (33 bytes) or uncompressed (65 bytes)
-	if len(publicKey) == 33 {
-		// Decompress the public key
-		pubKey, err = crypto.DecompressPubkey(publicKey)
-		if err != nil {
-			return "", fmt.Errorf("failed to decompress public key: %w", err)
-		}
-	} else {
-		// Uncompressed public key
+	if len(publicKey) == 65 && publicKey[0] == 0x04 {
+		// Public key already has the right format
 		pubKey, err = crypto.UnmarshalPubkey(publicKey)
-		if err != nil {
-			return "", fmt.Errorf("failed to unmarshal public key: %w", err)
-		}
+	} else if len(publicKey) == 64 {
+		// Public key might be the raw 64 bytes without the prefix
+		// Add the 0x04 prefix for uncompressed public key
+		prefixedKey := append([]byte{0x04}, publicKey...)
+		pubKey, err = crypto.UnmarshalPubkey(prefixedKey)
+	} else if len(publicKey) == 33 && (publicKey[0] == 0x02 || publicKey[0] == 0x03) {
+		// Compressed public key, we need to decompress it
+		return "", fmt.Errorf("evm: compressed public keys not supported: %w", ErrInvalidAddress)
+	} else {
+		// Unknown format
+		return "", fmt.Errorf("evm: invalid public key format: %w", ErrInvalidAddress)
 	}
 
-	// Derive Ethereum address from public key
+	if err != nil {
+		return "", fmt.Errorf("evm: failed to parse public key: %w", err)
+	}
+
 	address := crypto.PubkeyToAddress(*pubKey)
 	return address.Hex(), nil
 }
 
 // CreateNativeTransaction creates a native currency transaction without broadcasting
-func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, fromAddress, toAddress string, amount *big.Int, options TransactionOptions) (*Transaction, error) {
-	if !common.IsHexAddress(toAddress) {
+func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, fromAddress, toAddress string, amount *big.Int, options common.TransactionOptions) (*common.Transaction, error) {
+	if !ethcommon.IsHexAddress(toAddress) {
 		return nil, fmt.Errorf("%w: %s", ErrInvalidAddress, toAddress)
 	}
 
@@ -140,7 +159,7 @@ func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, fromAddress, to
 	}
 
 	// Create the transaction
-	tx := &Transaction{
+	tx := &common.Transaction{
 		Chain:    w.chainType,
 		From:     fromAddress,
 		To:       toAddress,
@@ -149,15 +168,15 @@ func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, fromAddress, to
 		Nonce:    options.Nonce,
 		GasPrice: gasPrice,
 		GasLimit: gasLimit,
-		Type:     TransactionTypeNative,
+		Type:     common.TransactionTypeNative,
 	}
 
 	return tx, nil
 }
 
 // CreateTokenTransaction creates an ERC20 token transaction without broadcasting
-func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tokenAddress, toAddress string, amount *big.Int, options TransactionOptions) (*Transaction, error) {
-	if !common.IsHexAddress(toAddress) || !common.IsHexAddress(tokenAddress) {
+func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tokenAddress, toAddress string, amount *big.Int, options common.TransactionOptions) (*common.Transaction, error) {
+	if !ethcommon.IsHexAddress(toAddress) || !ethcommon.IsHexAddress(tokenAddress) {
 		return nil, fmt.Errorf("%w: invalid address format", ErrInvalidAddress)
 	}
 
@@ -171,8 +190,8 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tok
 	methodID := crypto.Keccak256([]byte(transferMethodSignature))[:4]
 
 	// Encode the transfer parameters
-	paddedAddress := common.LeftPadBytes(common.HexToAddress(toAddress).Bytes(), 32)
-	paddedAmount := common.LeftPadBytes(amount.Bytes(), 32)
+	paddedAddress := ethcommon.LeftPadBytes(ethcommon.HexToAddress(toAddress).Bytes(), 32)
+	paddedAmount := ethcommon.LeftPadBytes(amount.Bytes(), 32)
 
 	// Combine the data
 	data := append(methodID, append(paddedAddress, paddedAmount...)...)
@@ -189,7 +208,7 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tok
 	}
 
 	// Create the transaction
-	tx := &Transaction{
+	tx := &common.Transaction{
 		Chain:        w.chainType,
 		From:         fromAddress,
 		To:           tokenAddress,
@@ -198,15 +217,15 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tok
 		Nonce:        options.Nonce,
 		GasPrice:     gasPrice,
 		GasLimit:     gasLimit,
-		Type:         TransactionTypeERC20,
+		Type:         common.TransactionTypeERC20,
 		TokenAddress: tokenAddress,
 	}
 
 	return tx, nil
 }
 
-// SignTransaction signs a transaction without broadcasting
-func (w *EVMWallet) SignTransaction(ctx context.Context, keyID string, tx *Transaction) ([]byte, error) {
+// SignTransaction signs a transaction
+func (w *EVMWallet) SignTransaction(ctx context.Context, keyID string, tx *common.Transaction) ([]byte, error) {
 	// Get the public key
 	key, err := w.keyStore.GetPublicKey(ctx, keyID)
 	if err != nil {
@@ -225,7 +244,7 @@ func (w *EVMWallet) SignTransaction(ctx context.Context, keyID string, tx *Trans
 	}
 
 	// Create Ethereum transaction
-	toAddress := common.HexToAddress(tx.To)
+	toAddress := ethcommon.HexToAddress(tx.To)
 
 	// Create the appropriate transaction based on type
 	ethTx := types.NewTx(&types.LegacyTx{
