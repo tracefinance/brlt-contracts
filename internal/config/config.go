@@ -19,6 +19,8 @@ type BlockchainConfig struct {
 	DefaultGasPrice int64
 	// DefaultGasLimit is the default gas limit for transactions
 	DefaultGasLimit uint64
+	// ExplorerURL is the block explorer URL for the blockchain
+	ExplorerURL string
 }
 
 // BlockchainsConfig holds configuration for all supported blockchains
@@ -120,6 +122,7 @@ func loadEthereumConfig() BlockchainConfig {
 		ChainID:         parseEnvInt("ETHEREUM_CHAIN_ID", 1),
 		DefaultGasPrice: parseEnvInt("ETHEREUM_GAS_PRICE", 20), // Gwei
 		DefaultGasLimit: parseEnvUint("ETHEREUM_GAS_LIMIT", 21000),
+		ExplorerURL:     getEnv("ETHEREUM_EXPLORER_URL", "https://etherscan.io"),
 	}
 }
 
@@ -135,6 +138,7 @@ func loadPolygonConfig() BlockchainConfig {
 		ChainID:         parseEnvInt("POLYGON_CHAIN_ID", 137),
 		DefaultGasPrice: parseEnvInt("POLYGON_GAS_PRICE", 30), // Gwei
 		DefaultGasLimit: parseEnvUint("POLYGON_GAS_LIMIT", 21000),
+		ExplorerURL:     getEnv("POLYGON_EXPLORER_URL", "https://polygonscan.com"),
 	}
 }
 
@@ -150,6 +154,7 @@ func loadBaseConfig() BlockchainConfig {
 		ChainID:         parseEnvInt("BASE_CHAIN_ID", 8453),
 		DefaultGasPrice: parseEnvInt("BASE_GAS_PRICE", 10), // Gwei
 		DefaultGasLimit: parseEnvUint("BASE_GAS_LIMIT", 21000),
+		ExplorerURL:     getEnv("BASE_EXPLORER_URL", "https://basescan.org"),
 	}
 }
 
@@ -224,4 +229,13 @@ func loadEnvFiles() {
 
 	// If no .env file is found, just continue with the default values
 	fmt.Println("No .env file found, using default values")
+}
+
+// getEnv gets an environment variable or returns a default value
+func getEnv(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }
