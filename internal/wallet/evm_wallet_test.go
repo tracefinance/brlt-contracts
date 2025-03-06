@@ -9,9 +9,39 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
 
+	"vault0/internal/config"
 	"vault0/internal/keygen"
 	"vault0/internal/keystore"
 )
+
+// MockConfigWithoutChainID is a mock config where the GetBlockchainConfig always returns nil
+type MockConfigWithoutChainID struct {
+	*config.Config
+}
+
+func (m *MockConfigWithoutChainID) GetBlockchainConfig(chainType string) *config.BlockchainConfig {
+	return nil
+}
+
+// MockEVMWallet is a mock for testing that returns a nil ChainID
+type MockEVMWallet struct {
+	*EVMWallet
+}
+
+// MockAppConfig is a mock implementation of config.Config that allows testing nil ChainID scenario
+type MockAppConfig struct {
+	*config.Config
+}
+
+func (m *MockAppConfig) GetBlockchainConfig(chainType string) *config.BlockchainConfig {
+	return &config.BlockchainConfig{
+		// ChainID is intentionally set to 0 which will cause a nil big.Int when converted
+		ChainID:         0,
+		DefaultGasPrice: 20,
+		DefaultGasLimit: 21000,
+		RPCURL:          "https://mock-url",
+	}
+}
 
 // Test NewEVMWallet function
 func TestNewEVMWallet(t *testing.T) {
@@ -19,7 +49,7 @@ func TestNewEVMWallet(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, err := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, err := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
@@ -28,41 +58,22 @@ func TestNewEVMWallet(t *testing.T) {
 		assert.NotNil(t, wallet.config)
 	})
 
-	t.Run("Create EVM wallet with custom config", func(t *testing.T) {
-		keyStore := new(MockKeyStore)
-		appConfig := createTestConfig()
-
-		// Custom config
-		customConfig := &EVMConfig{
-			ChainID:         big.NewInt(1),
-			DefaultGasLimit: 50000,
-			DefaultGasPrice: big.NewInt(30000000000),
-		}
-
-		wallet, err := NewEVMWallet(keyStore, ChainTypeEthereum, customConfig, appConfig)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, wallet)
-		assert.Equal(t, ChainTypeEthereum, wallet.chainType)
-		assert.Equal(t, keyStore, wallet.keyStore)
-		assert.Equal(t, customConfig, wallet.config)
-	})
-
 	t.Run("Error when ChainID is not provided", func(t *testing.T) {
+		// Setup
 		keyStore := new(MockKeyStore)
-		appConfig := createTestConfig()
 
-		// Custom config without ChainID
-		customConfig := &EVMConfig{
-			DefaultGasLimit: 50000,
-			DefaultGasPrice: big.NewInt(30000000000),
-		}
+		// Create a mock config that will return nil blockchain config (thus no ChainID)
+		mockConfig := &MockConfigWithoutChainID{Config: createTestConfig()}
 
-		wallet, err := NewEVMWallet(keyStore, ChainTypeEthereum, customConfig, appConfig)
+		// Create the wallet using the mock config
+		// We're expecting this to fail since the mock's GetBlockchainConfig returns nil
+		// which leads to a nil ChainID
+		wallet, err := NewEVMWallet(keyStore, ChainTypeEthereum, mockConfig)
 
-		assert.Error(t, err)
-		assert.Nil(t, wallet)
-		assert.Contains(t, err.Error(), "Chain ID is required")
+		// Validate that we get an error when ChainID is missing
+		assert.Error(t, err, "Should return an error when ChainID is missing")
+		assert.Nil(t, wallet, "Wallet should be nil when creation fails due to missing ChainID")
+		assert.Contains(t, err.Error(), "chain id is required", "Error should mention chain ID is required")
 	})
 }
 
@@ -72,13 +83,13 @@ func TestEVMWallet_ChainType(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 		assert.Equal(t, ChainTypeEthereum, wallet.ChainType())
 
-		wallet, _ = NewEVMWallet(keyStore, ChainTypePolygon, nil, appConfig)
+		wallet, _ = NewEVMWallet(keyStore, ChainTypePolygon, appConfig)
 		assert.Equal(t, ChainTypePolygon, wallet.ChainType())
 
-		wallet, _ = NewEVMWallet(keyStore, ChainTypeBase, nil, appConfig)
+		wallet, _ = NewEVMWallet(keyStore, ChainTypeBase, appConfig)
 		assert.Equal(t, ChainTypeBase, wallet.ChainType())
 	})
 }
@@ -103,7 +114,7 @@ func TestEVMWallet_DeriveAddress(t *testing.T) {
 		// Create wallet
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		// Derive address
 		address, err := wallet.DeriveAddress(context.Background(), publicKeyBytes)
@@ -116,7 +127,7 @@ func TestEVMWallet_DeriveAddress(t *testing.T) {
 		// Create wallet
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		// Try to derive address from invalid public key
 		address, err := wallet.DeriveAddress(context.Background(), []byte("invalid public key"))
@@ -134,7 +145,7 @@ func TestEVMWallet_CreateNativeTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
@@ -165,7 +176,7 @@ func TestEVMWallet_CreateNativeTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
@@ -187,7 +198,7 @@ func TestEVMWallet_CreateNativeTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		toAddress := "invalid-address"
@@ -206,7 +217,7 @@ func TestEVMWallet_CreateNativeTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
@@ -228,7 +239,7 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC on Ethereum
@@ -260,7 +271,7 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC on Ethereum
@@ -283,7 +294,7 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC on Ethereum
@@ -303,7 +314,7 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		tokenAddress := "invalid-token-address"
@@ -323,7 +334,7 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC on Ethereum
@@ -375,7 +386,7 @@ func TestEVMWallet_SignTransaction(t *testing.T) {
 		keyStore.On("GetPublicKey", ctx, keyID).Return(testKey, nil)
 
 		// Create wallet
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		// Sign transaction should fail due to address mismatch
 		sig, err := wallet.SignTransaction(ctx, keyID, tx)
@@ -395,7 +406,7 @@ func TestEVMWallet_SignTransaction(t *testing.T) {
 		keyStore.On("GetPublicKey", ctx, keyID).Return((*keystore.Key)(nil), keystore.ErrKeyNotFound)
 
 		// Create wallet
-		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, nil, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, ChainTypeEthereum, appConfig)
 
 		// Create transaction
 		tx := createTestTransaction()

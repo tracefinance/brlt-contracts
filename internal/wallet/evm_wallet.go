@@ -25,8 +25,13 @@ type EVMConfig struct {
 	DefaultGasPrice *big.Int
 }
 
+// AppConfig is the interface for application configuration
+type AppConfig interface {
+	GetBlockchainConfig(chainType string) *config.BlockchainConfig
+}
+
 // NewEVMConfig returns configuration for EVM based on chain type and app config
-func NewEVMConfig(chainType ChainType, appConfig *config.Config) *EVMConfig {
+func NewEVMConfig(chainType ChainType, appConfig AppConfig) *EVMConfig {
 	// Ensure appConfig is never nil
 	if appConfig == nil {
 		panic("appConfig must not be nil")
@@ -60,26 +65,16 @@ type EVMWallet struct {
 }
 
 // NewEVMWallet creates a new EVM wallet
-func NewEVMWallet(keyStore keystore.KeyStore, chainType ChainType, config interface{}, appConfig *config.Config) (*EVMWallet, error) {
+func NewEVMWallet(keyStore keystore.KeyStore, chainType ChainType, appConfig AppConfig) (*EVMWallet, error) {
 	// Ensure appConfig is never nil
 	if appConfig == nil {
 		return nil, fmt.Errorf("appConfig must not be nil")
 	}
 
-	var evmConfig *EVMConfig
-
-	if config != nil {
-		var ok bool
-		evmConfig, ok = config.(*EVMConfig)
-		if !ok {
-			return nil, fmt.Errorf("invalid config type for EVM wallet")
-		}
-	} else {
-		evmConfig = NewEVMConfig(chainType, appConfig)
-	}
+	var evmConfig = NewEVMConfig(chainType, appConfig)
 
 	if evmConfig.ChainID == nil {
-		return nil, fmt.Errorf("Chain ID is required")
+		return nil, fmt.Errorf("chain id is required")
 	}
 
 	return &EVMWallet{
