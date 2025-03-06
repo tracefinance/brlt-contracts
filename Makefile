@@ -28,7 +28,11 @@ CONTRACTS_DIR = ./contracts
 # Package name
 PACKAGE = vault0
 
-.PHONY: all build clean server server-test server-test-coverage server-deps server-install genkey genkey-install server-dev server-clean git-reset git-status git-pull git-push ui ui-deps ui-dev ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon
+.PHONY: all build clean server server-test server-test-coverage server-deps server-install genkey genkey-install server-dev server-clean git-reset git-status git-pull git-push ui ui-deps ui-dev ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests
+
+# Count lines of code in the project
+count-lines:
+	@./scripts/count_lines.sh
 
 # Default target
 all: clean build
