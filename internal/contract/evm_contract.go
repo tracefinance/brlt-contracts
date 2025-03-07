@@ -1,4 +1,4 @@
-package smartcontract
+package contract
 
 import (
 	"context"
@@ -182,16 +182,9 @@ func (c *EVMContract) LoadArtifact(ctx context.Context, contractName string) (*A
 // DeployContract deploys a smart contract to the blockchain
 func (c *EVMContract) DeployContract(
 	ctx context.Context,
-	keyID string,
 	artifact *Artifact,
 	options DeploymentOptions,
 ) (*DeploymentResult, error) {
-	// Get the address from the keyID
-	fromAddress, err := c.wallet.DeriveAddress(ctx, keyID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get address for key: %w", err)
-	}
-
 	// Parse the ABI
 	parsedABI, err := abi.JSON(strings.NewReader(artifact.ABI))
 	if err != nil {
@@ -226,7 +219,6 @@ func (c *EVMContract) DeployContract(
 	// Create transaction - using a zero address as "to" for contract creation
 	tx, err := c.wallet.CreateNativeTransaction(
 		ctx,
-		fromAddress,
 		"", // Empty recipient for contract deployment
 		options.Value,
 		txOptions,
@@ -236,7 +228,7 @@ func (c *EVMContract) DeployContract(
 	}
 
 	// Sign the transaction
-	signedTx, err := c.wallet.SignTransaction(ctx, keyID, tx)
+	signedTx, err := c.wallet.SignTransaction(ctx, tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign deployment transaction: %w", err)
 	}
@@ -355,19 +347,12 @@ func (c *EVMContract) CallMethod(
 // ExecuteMethod executes a state-changing method on a deployed contract
 func (c *EVMContract) ExecuteMethod(
 	ctx context.Context,
-	keyID string,
 	contractAddress string,
 	artifact *Artifact,
 	method string,
 	options vtypes.TransactionOptions,
 	args ...any,
 ) (string, error) {
-	// Derive the from address from the key ID
-	fromAddress, err := c.wallet.DeriveAddress(ctx, keyID)
-	if err != nil {
-		return "", fmt.Errorf("failed to derive address from key ID: %w", err)
-	}
-
 	// Parse the ABI
 	parsedABI, err := abi.JSON(strings.NewReader(artifact.ABI))
 	if err != nil {
@@ -386,7 +371,6 @@ func (c *EVMContract) ExecuteMethod(
 	// Create the transaction
 	tx, err := c.wallet.CreateNativeTransaction(
 		ctx,
-		fromAddress,
 		contractAddress,
 		big.NewInt(0), // No value to send for normal method calls
 		options,
@@ -396,7 +380,7 @@ func (c *EVMContract) ExecuteMethod(
 	}
 
 	// Sign the transaction
-	signedTx, err := c.wallet.SignTransaction(ctx, keyID, tx)
+	signedTx, err := c.wallet.SignTransaction(ctx, tx)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign method transaction: %w", err)
 	}

@@ -1,4 +1,4 @@
-package smartcontract
+package contract
 
 import (
 	"context"
@@ -54,7 +54,6 @@ type Contract interface {
 	// DeployContract deploys a smart contract to the blockchain
 	DeployContract(
 		ctx context.Context,
-		keyID string,
 		artifact *Artifact,
 		options DeploymentOptions,
 	) (*DeploymentResult, error)
@@ -77,7 +76,6 @@ type Contract interface {
 	// ExecuteMethod executes a state-changing method on a deployed contract
 	ExecuteMethod(
 		ctx context.Context,
-		keyID string,
 		contractAddress string,
 		artifact *Artifact,
 		method string,

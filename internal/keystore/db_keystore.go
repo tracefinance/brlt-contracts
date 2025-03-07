@@ -317,8 +317,6 @@ func (ks *DBKeyStore) Delete(ctx context.Context, id string) error {
 	return err
 }
 
-
-
 // Sign signs the provided data using the key identified by id
 // This method never returns the private key material, only the signature
 func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte, dataType DataType) ([]byte, error) {
@@ -364,10 +362,10 @@ func (ks *DBKeyStore) signData(keyType keygen.KeyType, privateKeyBytes, data []b
 	case keygen.KeyTypeRSA:
 		return ks.signWithRSA(privateKeyBytes, data, dataType)
 	case keygen.KeyTypeEd25519:
-		return ks.signWithEd25519(privateKeyBytes, data, dataType)
+		return ks.signWithEd25519(privateKeyBytes, data)
 	case keygen.KeyTypeSymmetric:
 		// For symmetric keys, we use HMAC instead of digital signatures
-		return ks.signWithHMAC(privateKeyBytes, data, dataType)
+		return ks.signWithHMAC(privateKeyBytes, data)
 	default:
 		return nil, errors.New("unsupported key type for signing")
 	}
@@ -456,7 +454,7 @@ func (ks *DBKeyStore) signWithRSA(privateKeyBytes, data []byte, dataType DataTyp
 }
 
 // signWithEd25519 signs data using an Ed25519 private key
-func (ks *DBKeyStore) signWithEd25519(privateKeyBytes, data []byte, dataType DataType) ([]byte, error) {
+func (ks *DBKeyStore) signWithEd25519(privateKeyBytes, data []byte) ([]byte, error) {
 	// Parse the PEM encoded private key
 	block, _ := pem.Decode(privateKeyBytes)
 	if block == nil {
@@ -485,7 +483,7 @@ func (ks *DBKeyStore) signWithEd25519(privateKeyBytes, data []byte, dataType Dat
 }
 
 // signWithHMAC creates an HMAC for symmetric keys
-func (ks *DBKeyStore) signWithHMAC(keyBytes, data []byte, dataType DataType) ([]byte, error) {
+func (ks *DBKeyStore) signWithHMAC(keyBytes, data []byte) ([]byte, error) {
 	// Create a new HMAC instance using SHA-256
 	h := hmac.New(sha256.New, keyBytes)
 

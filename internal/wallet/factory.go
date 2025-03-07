@@ -10,8 +10,6 @@ import (
 )
 
 // Factory provides methods to create different wallet types.
-// Unlike the previous implementation, this factory is stateless and
-// only focused on creating wallet instances with the proper dependencies.
 type Factory struct {
 	keyStore  keystore.KeyStore
 	appConfig *config.Config
@@ -29,13 +27,16 @@ func NewFactory(keyStore keystore.KeyStore, appConfig *config.Config) *Factory {
 	}
 }
 
-// CreateWallet creates a new wallet instance for the specified chain type.
-// The consumer is responsible for caching and lifecycle management.
-func (f *Factory) CreateWallet(ctx context.Context, chainType types.ChainType) (Wallet, error) {
+// CreateWallet creates a new wallet instance for the specified chain type and key ID.
+func (f *Factory) CreateWallet(ctx context.Context, chainType types.ChainType, keyID string) (Wallet, error) {
+	if keyID == "" {
+		return nil, fmt.Errorf("keyID cannot be empty")
+	}
+
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
 		// All EVM-compatible chains use the same implementation
-		return NewEVMWallet(f.keyStore, chainType, f.appConfig)
+		return NewEVMWallet(f.keyStore, chainType, keyID, f.appConfig)
 	default:
 		return nil, fmt.Errorf("%w: %s", types.ErrUnsupportedChain, chainType)
 	}

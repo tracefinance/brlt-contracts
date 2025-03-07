@@ -76,12 +76,17 @@ type EVMWallet struct {
 	keyStore  keystore.KeyStore
 	chainType types.ChainType
 	config    *EVMConfig
+	keyID     string
 }
 
 // NewEVMWallet creates a new EVMWallet instance
-func NewEVMWallet(keyStore keystore.KeyStore, chainType types.ChainType, appConfig AppConfig) (*EVMWallet, error) {
+func NewEVMWallet(keyStore keystore.KeyStore, chainType types.ChainType, keyID string, appConfig AppConfig) (*EVMWallet, error) {
 	if keyStore == nil {
 		return nil, fmt.Errorf("keystore cannot be nil")
+	}
+
+	if keyID == "" {
+		return nil, fmt.Errorf("keyID cannot be empty")
 	}
 
 	config, err := NewEVMConfig(chainType, appConfig)
@@ -93,6 +98,7 @@ func NewEVMWallet(keyStore keystore.KeyStore, chainType types.ChainType, appConf
 		keyStore:  keyStore,
 		chainType: chainType,
 		config:    config,
+		keyID:     keyID,
 	}, nil
 }
 
@@ -101,12 +107,12 @@ func (w *EVMWallet) ChainType() types.ChainType {
 	return w.chainType
 }
 
-// DeriveAddress derives a wallet address from a key ID
-func (w *EVMWallet) DeriveAddress(ctx context.Context, keyID string) (string, error) {
+// DeriveAddress derives a wallet address using the wallet's keyID
+func (w *EVMWallet) DeriveAddress(ctx context.Context) (string, error) {
 	// Get the public key from the keystore
-	key, err := w.keyStore.GetPublicKey(ctx, keyID)
+	key, err := w.keyStore.GetPublicKey(ctx, w.keyID)
 	if err != nil {
-		return "", fmt.Errorf("evm: failed to get public key for key ID %s: %w", keyID, err)
+		return "", fmt.Errorf("evm: failed to get public key for key ID %s: %w", w.keyID, err)
 	}
 
 	publicKey := key.PublicKey
@@ -145,9 +151,9 @@ func (w *EVMWallet) DeriveAddress(ctx context.Context, keyID string) (string, er
 }
 
 // CreateNativeTransaction creates a native currency transaction without broadcasting
-func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, keyID string, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
-	// Derive the from address from the key ID
-	fromAddress, err := w.DeriveAddress(ctx, keyID)
+func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
+	// Derive the from address from the wallet's keyID
+	fromAddress, err := w.DeriveAddress(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive from address: %w", err)
 	}
@@ -188,9 +194,9 @@ func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, keyID string, t
 }
 
 // CreateTokenTransaction creates an ERC20 token transaction without broadcasting
-func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, keyID string, tokenAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
-	// Derive the from address from the key ID
-	fromAddress, err := w.DeriveAddress(ctx, keyID)
+func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, tokenAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
+	// Derive the from address from the wallet's keyID
+	fromAddress, err := w.DeriveAddress(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive from address: %w", err)
 	}
@@ -244,9 +250,9 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, keyID string, to
 }
 
 // SignTransaction signs a transaction
-func (w *EVMWallet) SignTransaction(ctx context.Context, keyID string, tx *types.Transaction) ([]byte, error) {
-	// Derive address from public key
-	fromAddress, err := w.DeriveAddress(ctx, keyID)
+func (w *EVMWallet) SignTransaction(ctx context.Context, tx *types.Transaction) ([]byte, error) {
+	// Derive address from public key using the wallet's keyID
+	fromAddress, err := w.DeriveAddress(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive address: %w", err)
 	}
@@ -270,17 +276,17 @@ func (w *EVMWallet) SignTransaction(ctx context.Context, keyID string, tx *types
 	})
 
 	// Sign the transaction
-	return w.signEVMTransaction(ctx, keyID, ethTx)
+	return w.signEVMTransaction(ctx, ethTx)
 }
 
 // signEVMTransaction signs an EVM transaction using the key store
-func (w *EVMWallet) signEVMTransaction(ctx context.Context, keyID string, tx *ethtypes.Transaction) ([]byte, error) {
+func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethtypes.Transaction) ([]byte, error) {
 	// Hash the transaction for signing
 	signer := ethtypes.NewEIP155Signer(w.config.ChainID)
 	hash := signer.Hash(tx)
 
 	// Sign the hash with the keystore
-	signature, err := w.keyStore.Sign(ctx, keyID, hash.Bytes(), keystore.DataTypeDigest)
+	signature, err := w.keyStore.Sign(ctx, w.keyID, hash.Bytes(), keystore.DataTypeDigest)
 	if err != nil {
 		return nil, fmt.Errorf("keystore signing failed: %w", err)
 	}
