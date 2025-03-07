@@ -73,7 +73,7 @@ func (f *Factory) NewBlockchain(chainType types.ChainType) (Blockchain, error) {
 		ExplorerUrl: chainCfg.ExplorerURL,
 	}
 
-	client, err := NewEVMClient(chain)
+	client, err := NewEVMBlockchain(chain)
 	if err != nil {
 		return nil, err
 	}

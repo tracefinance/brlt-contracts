@@ -2,7 +2,6 @@ package keystore
 
 import (
 	"database/sql"
-	"os"
 	"testing"
 
 	"vault0/internal/config"
@@ -67,13 +66,4 @@ func setupTestKeyStore(t *testing.T) (KeyStore, *sql.DB, func()) {
 	}
 
 	return dbKeyStore, db, cleanup
-}
-
-// TestMain is used for setup before running all tests
-func TestMain(m *testing.M) {
-	// Run tests
-	exitCode := m.Run()
-
-	// Exit with the same code
-	os.Exit(exitCode)
 }

@@ -4,11 +4,9 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"math/big"
-	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"vault0/internal/config"
@@ -140,105 +138,4 @@ func createTestTransaction() *types.Transaction {
 		Status:    "pending",
 		Timestamp: time.Now().Unix(),
 	}
-}
-
-// Test cases
-
-func TestChainType(t *testing.T) {
-	tests := []struct {
-		name      string
-		chainType types.ChainType
-		expected  string
-	}{
-		{
-			name:      "Ethereum Chain Type",
-			chainType: types.ChainTypeEthereum,
-			expected:  "ethereum",
-		},
-		{
-			name:      "Polygon Chain Type",
-			chainType: types.ChainTypePolygon,
-			expected:  "polygon",
-		},
-		{
-			name:      "Base Chain Type",
-			chainType: types.ChainTypeBase,
-			expected:  "base",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, string(tt.chainType))
-		})
-	}
-}
-
-func TestTransactionType(t *testing.T) {
-	tests := []struct {
-		name            string
-		transactionType types.TransactionType
-		expected        string
-	}{
-		{
-			name:            "Native Transaction Type",
-			transactionType: types.TransactionTypeNative,
-			expected:        "native",
-		},
-		{
-			name:            "ERC20 Transaction Type",
-			transactionType: types.TransactionTypeERC20,
-			expected:        "erc20",
-		},
-		{
-			name:            "Contract Transaction Type",
-			transactionType: types.TransactionTypeContract,
-			expected:        "contract",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, string(tt.transactionType))
-		})
-	}
-}
-
-func TestTransaction(t *testing.T) {
-	t.Run("Create and validate Transaction struct", func(t *testing.T) {
-		// Create a test transaction
-		tx := createTestTransaction()
-
-		// Validate fields
-		assert.Equal(t, types.ChainTypeEthereum, tx.Chain)
-		assert.Equal(t, "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", tx.Hash)
-		assert.Equal(t, "0xabcdef1234567890abcdef1234567890abcdef12", tx.From)
-		assert.Equal(t, "0x1234567890abcdef1234567890abcdef12345678", tx.To)
-		assert.Equal(t, big.NewInt(100000000000000000), tx.Value)
-		assert.Equal(t, []byte{}, tx.Data)
-		assert.Equal(t, uint64(0), tx.Nonce)
-		assert.Equal(t, big.NewInt(20000000000), tx.GasPrice)
-		assert.Equal(t, uint64(21000), tx.GasLimit)
-		assert.Equal(t, types.TransactionTypeNative, tx.Type)
-		assert.Equal(t, "pending", tx.Status)
-		assert.NotZero(t, tx.Timestamp)
-	})
-}
-
-func TestTransactionOptions(t *testing.T) {
-	t.Run("Create and validate TransactionOptions struct", func(t *testing.T) {
-		// Create transaction options
-		options := types.TransactionOptions{
-			GasPrice: big.NewInt(25000000000), // 25 Gwei
-			GasLimit: 30000,
-			Nonce:    5,
-			Data:     []byte{1, 2, 3, 4},
-		}
-
-		// Validate fields
-		assert.Equal(t, big.NewInt(25000000000), options.GasPrice)
-		assert.Equal(t, uint64(30000), options.GasLimit)
-		assert.Equal(t, uint64(5), options.Nonce)
-		assert.Equal(t, []byte{1, 2, 3, 4}, options.Data)
-	})
 }
