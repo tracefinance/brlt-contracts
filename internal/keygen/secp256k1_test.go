@@ -555,27 +555,72 @@ func TestInteropWithEthereumSecp256k1(t *testing.T) {
 		// Create a hash to sign
 		hash := sha256.Sum256([]byte("Test message"))
 
-		// Instead of using our implementation to sign, use Ethereum's implementation directly
-		ethPrivateKey := &ecdsa.PrivateKey{
-			PublicKey: ecdsa.PublicKey{
-				Curve: crypto.S256(),
-				X:     privateKey.PublicKey.X,
-				Y:     privateKey.PublicKey.Y,
-			},
-			D: privateKey.D,
-		}
-
-		// Sign with Ethereum's implementation
-		signature, err := crypto.Sign(hash[:], ethPrivateKey)
+		// Sign with our implementation
+		r, s, err := ecdsa.Sign(rand.Reader, privateKey, hash[:])
 		require.NoError(t, err)
+
+		// Verify with our implementation (sanity check)
+		valid := ecdsa.Verify(&privateKey.PublicKey, hash[:], r, s)
+		assert.True(t, valid, "Signature should be valid with our implementation")
+
+		// Format signature for Ethereum verification
+		// Ethereum expects signature in [R || S || V] format
+		// R and S need to be 32 bytes each, padded with leading zeros if needed
+		signature := make([]byte, 65)
+
+		// Properly pad R and S to ensure they're exactly 32 bytes
+		rBytes := padTo32Bytes(r.Bytes())
+		sBytes := padTo32Bytes(s.Bytes())
+
+		// Copy R and S into the signature
+		copy(signature[0:32], rBytes)
+		copy(signature[32:64], sBytes)
+
+		// For V (recovery ID), try both 0 and 1
+		// This is necessary because we don't implement recovery ID calculation
+		signature[64] = 0 // Try first with V=0
 
 		// Convert to Ethereum public key format for verification
 		ethPubKey := crypto.FromECDSAPub(&privateKey.PublicKey)
 
 		// Verify using Ethereum's crypto implementation
-		valid := crypto.VerifySignature(ethPubKey, hash[:], signature[:64])
+		valid = crypto.VerifySignature(ethPubKey, hash[:], signature[:64])
+
+		if !valid {
+			// Try with V=1 if V=0 didn't work
+			signature[64] = 1
+			valid = crypto.VerifySignature(ethPubKey, hash[:], signature[:64])
+		}
+
+		// If still not valid, try with V=27 and V=28 (older Ethereum format)
+		if !valid {
+			signature[64] = 27
+			valid = crypto.VerifySignature(ethPubKey, hash[:], signature[:64])
+		}
+
+		if !valid {
+			signature[64] = 28
+			valid = crypto.VerifySignature(ethPubKey, hash[:], signature[:64])
+		}
+
 		assert.True(t, valid, "Our signature should be verifiable by Ethereum's implementation")
 	})
+}
+
+// padTo32Bytes ensures that a byte slice is exactly 32 bytes by adding leading zeros if needed
+func padTo32Bytes(input []byte) []byte {
+	if len(input) == 32 {
+		return input
+	}
+
+	if len(input) > 32 {
+		return input[:32] // Truncate if longer (shouldn't happen with valid ECDSA params)
+	}
+
+	// Pad with leading zeros if shorter
+	result := make([]byte, 32)
+	copy(result[32-len(input):], input) // Copy to the end, leaving zeros at the beginning
+	return result
 }
 
 // TestSecp256k1AddressDerivation tests that derived Ethereum addresses match expected values
