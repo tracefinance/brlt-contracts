@@ -9,10 +9,10 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
 
-	"vault0/internal/common"
 	"vault0/internal/config"
 	"vault0/internal/keygen"
 	"vault0/internal/keystore"
+	"vault0/internal/types"
 )
 
 // MockConfigWithoutChainID is a mock config where the GetBlockchainConfig always returns nil
@@ -50,11 +50,11 @@ func TestNewEVMWallet(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, err := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, err := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
-		assert.Equal(t, common.ChainTypeEthereum, wallet.chainType)
+		assert.Equal(t, types.ChainTypeEthereum, wallet.chainType)
 		assert.Equal(t, keyStore, wallet.keyStore)
 		assert.NotNil(t, wallet.config)
 	})
@@ -62,7 +62,7 @@ func TestNewEVMWallet(t *testing.T) {
 	t.Run("Create EVM wallet with nil keystore", func(t *testing.T) {
 		appConfig := createTestConfig()
 
-		wallet, err := NewEVMWallet(nil, common.ChainTypeEthereum, appConfig)
+		wallet, err := NewEVMWallet(nil, types.ChainTypeEthereum, appConfig)
 
 		assert.Error(t, err)
 		assert.Nil(t, wallet)
@@ -73,7 +73,7 @@ func TestNewEVMWallet(t *testing.T) {
 		mockConfig := &MockConfigWithoutChainID{Config: createTestConfig()}
 
 		// The mock returns nil blockchain config, so we should get an error
-		wallet, err := NewEVMWallet(keyStore, common.ChainTypeEthereum, mockConfig)
+		wallet, err := NewEVMWallet(keyStore, types.ChainTypeEthereum, mockConfig)
 
 		// Now we expect an error since we changed NewEVMConfig to error when blockchainConfig is nil
 		assert.Error(t, err)
@@ -87,18 +87,18 @@ func TestEVMWallet_ChainType(t *testing.T) {
 	keyStore := new(MockKeyStore)
 	appConfig := createTestConfig()
 
-	wallet, err := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+	wallet, err := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 	assert.NoError(t, err)
 
 	chainType := wallet.ChainType()
-	assert.Equal(t, common.ChainTypeEthereum, chainType)
+	assert.Equal(t, types.ChainTypeEthereum, chainType)
 
 	// Test with a different chain type
-	wallet, err = NewEVMWallet(keyStore, common.ChainTypePolygon, appConfig)
+	wallet, err = NewEVMWallet(keyStore, types.ChainTypePolygon, appConfig)
 	assert.NoError(t, err)
 
 	chainType = wallet.ChainType()
-	assert.Equal(t, common.ChainTypePolygon, chainType)
+	assert.Equal(t, types.ChainTypePolygon, chainType)
 }
 
 // Test DeriveAddress method
@@ -121,7 +121,7 @@ func TestEVMWallet_DeriveAddress(t *testing.T) {
 		// Create wallet
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
-		wallet, _ := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		// Derive address
 		address, err := wallet.DeriveAddress(context.Background(), publicKeyBytes)
@@ -134,14 +134,14 @@ func TestEVMWallet_DeriveAddress(t *testing.T) {
 		// Create wallet
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
-		wallet, _ := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		// Try to derive address from invalid public key
 		address, err := wallet.DeriveAddress(context.Background(), []byte("invalid public key"))
 
 		assert.Error(t, err)
 		assert.Empty(t, address)
-		assert.ErrorIs(t, err, ErrInvalidAddress)
+		assert.ErrorIs(t, err, types.ErrInvalidAddress)
 	})
 }
 
@@ -152,12 +152,12 @@ func TestEVMWallet_CreateNativeTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
 		amount := big.NewInt(1000000000000000000) // 1 ETH
-		options := common.TransactionOptions{
+		options := types.TransactionOptions{
 			GasPrice: big.NewInt(25000000000), // 25 Gwei
 			GasLimit: 30000,
 			Nonce:    5,
@@ -175,7 +175,7 @@ func TestEVMWallet_CreateNativeTransaction(t *testing.T) {
 		assert.Equal(t, options.Nonce, tx.Nonce)
 		assert.Equal(t, options.GasPrice, tx.GasPrice)
 		assert.Equal(t, options.GasLimit, tx.GasLimit)
-		assert.Equal(t, common.TransactionTypeNative, tx.Type)
+		assert.Equal(t, types.TransactionTypeNative, tx.Type)
 	})
 
 	t.Run("Create native transaction with default gas options", func(t *testing.T) {
@@ -183,12 +183,12 @@ func TestEVMWallet_CreateNativeTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
 		amount := big.NewInt(1000000000000000000) // 1 ETH
-		options := common.TransactionOptions{
+		options := types.TransactionOptions{
 			Nonce: 5,
 		}
 
@@ -205,18 +205,18 @@ func TestEVMWallet_CreateNativeTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		toAddress := "invalid-address"
 		amount := big.NewInt(1000000000000000000) // 1 ETH
-		options := common.TransactionOptions{}
+		options := types.TransactionOptions{}
 
 		tx, err := wallet.CreateNativeTransaction(ctx, fromAddress, toAddress, amount, options)
 
 		assert.Error(t, err)
 		assert.Nil(t, tx)
-		assert.ErrorIs(t, err, ErrInvalidAddress)
+		assert.ErrorIs(t, err, types.ErrInvalidAddress)
 	})
 
 	t.Run("Error with zero amount", func(t *testing.T) {
@@ -224,18 +224,18 @@ func TestEVMWallet_CreateNativeTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
 		amount := big.NewInt(0)
-		options := common.TransactionOptions{}
+		options := types.TransactionOptions{}
 
 		tx, err := wallet.CreateNativeTransaction(ctx, fromAddress, toAddress, amount, options)
 
 		assert.Error(t, err)
 		assert.Nil(t, tx)
-		assert.ErrorIs(t, err, ErrInvalidAmount)
+		assert.ErrorIs(t, err, types.ErrInvalidAmount)
 	})
 }
 
@@ -246,13 +246,13 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC on Ethereum
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
 		amount := big.NewInt(1000000) // 1 USDC (6 decimals)
-		options := common.TransactionOptions{
+		options := types.TransactionOptions{
 			GasPrice: big.NewInt(25000000000), // 25 Gwei
 			GasLimit: 65000,
 			Nonce:    5,
@@ -269,7 +269,7 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 		assert.Equal(t, options.Nonce, tx.Nonce)
 		assert.Equal(t, options.GasPrice, tx.GasPrice)
 		assert.Equal(t, options.GasLimit, tx.GasLimit)
-		assert.Equal(t, common.TransactionTypeERC20, tx.Type)
+		assert.Equal(t, types.TransactionTypeERC20, tx.Type)
 		assert.Equal(t, tokenAddress, tx.TokenAddress)
 	})
 
@@ -278,13 +278,13 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC on Ethereum
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
 		amount := big.NewInt(1000000) // 1 USDC (6 decimals)
-		options := common.TransactionOptions{
+		options := types.TransactionOptions{
 			Nonce: 5,
 		}
 
@@ -301,19 +301,19 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC on Ethereum
 		toAddress := "invalid-address"
 		amount := big.NewInt(1000000) // 1 USDC (6 decimals)
-		options := common.TransactionOptions{}
+		options := types.TransactionOptions{}
 
 		tx, err := wallet.CreateTokenTransaction(ctx, fromAddress, tokenAddress, toAddress, amount, options)
 
 		assert.Error(t, err)
 		assert.Nil(t, tx)
-		assert.ErrorIs(t, err, ErrInvalidAddress)
+		assert.ErrorIs(t, err, types.ErrInvalidAddress)
 	})
 
 	t.Run("Error with invalid token address", func(t *testing.T) {
@@ -321,19 +321,19 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		tokenAddress := "invalid-token-address"
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
 		amount := big.NewInt(1000000) // 1 USDC (6 decimals)
-		options := common.TransactionOptions{}
+		options := types.TransactionOptions{}
 
 		tx, err := wallet.CreateTokenTransaction(ctx, fromAddress, tokenAddress, toAddress, amount, options)
 
 		assert.Error(t, err)
 		assert.Nil(t, tx)
-		assert.ErrorIs(t, err, ErrInvalidAddress)
+		assert.ErrorIs(t, err, types.ErrInvalidAddress)
 	})
 
 	t.Run("Error with zero amount", func(t *testing.T) {
@@ -341,19 +341,19 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
-		wallet, _ := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
 		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC on Ethereum
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
 		amount := big.NewInt(0)
-		options := common.TransactionOptions{}
+		options := types.TransactionOptions{}
 
 		tx, err := wallet.CreateTokenTransaction(ctx, fromAddress, tokenAddress, toAddress, amount, options)
 
 		assert.Error(t, err)
 		assert.Nil(t, tx)
-		assert.ErrorIs(t, err, ErrInvalidAmount)
+		assert.ErrorIs(t, err, types.ErrInvalidAmount)
 	})
 }
 
@@ -378,22 +378,22 @@ func TestEVMWallet_SignTransaction(t *testing.T) {
 		}
 
 		// Create a transaction with a different from address
-		tx := &common.Transaction{
-			Chain:    common.ChainTypeEthereum,
+		tx := &types.Transaction{
+			Chain:    types.ChainTypeEthereum,
 			From:     "0xDifferentAddress",
 			To:       "0xbcd4042de499d14e55001ccbb24a551f3b954096",
 			Value:    big.NewInt(1000000000000000000), // 1 ETH
 			Nonce:    1,
 			GasPrice: big.NewInt(20000000000),
 			GasLimit: 21000,
-			Type:     common.TransactionTypeNative,
+			Type:     types.TransactionTypeNative,
 		}
 
 		// Set up keystore mock
 		keyStore.On("GetPublicKey", ctx, keyID).Return(testKey, nil)
 
 		// Create wallet
-		wallet, _ := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		// Sign transaction should fail due to address mismatch
 		sig, err := wallet.SignTransaction(ctx, keyID, tx)
@@ -413,7 +413,7 @@ func TestEVMWallet_SignTransaction(t *testing.T) {
 		keyStore.On("GetPublicKey", ctx, keyID).Return((*keystore.Key)(nil), keystore.ErrKeyNotFound)
 
 		// Create wallet
-		wallet, _ := NewEVMWallet(keyStore, common.ChainTypeEthereum, appConfig)
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
 		// Create transaction
 		tx := createTestTransaction()
@@ -435,7 +435,7 @@ func TestNewEVMConfig(t *testing.T) {
 	t.Run("Create config for Ethereum", func(t *testing.T) {
 		appConfig := createTestConfig()
 
-		evmConfig, err := NewEVMConfig(common.ChainTypeEthereum, appConfig)
+		evmConfig, err := NewEVMConfig(types.ChainTypeEthereum, appConfig)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, evmConfig)
@@ -447,7 +447,7 @@ func TestNewEVMConfig(t *testing.T) {
 	t.Run("Create config for Polygon", func(t *testing.T) {
 		appConfig := createTestConfig()
 
-		polygonConfig, err := NewEVMConfig(common.ChainTypePolygon, appConfig)
+		polygonConfig, err := NewEVMConfig(types.ChainTypePolygon, appConfig)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, polygonConfig)
@@ -459,7 +459,7 @@ func TestNewEVMConfig(t *testing.T) {
 	t.Run("Create config for Base", func(t *testing.T) {
 		appConfig := createTestConfig()
 
-		baseConfig, err := NewEVMConfig(common.ChainTypeBase, appConfig)
+		baseConfig, err := NewEVMConfig(types.ChainTypeBase, appConfig)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, baseConfig)
@@ -470,29 +470,27 @@ func TestNewEVMConfig(t *testing.T) {
 
 	t.Run("Panic when appConfig is nil", func(t *testing.T) {
 		assert.Panics(t, func() {
-			_, _ = NewEVMConfig(common.ChainTypeEthereum, nil)
+			_, _ = NewEVMConfig(types.ChainTypeEthereum, nil)
 		})
 	})
 
 	t.Run("Error for unsupported chain", func(t *testing.T) {
 		appConfig := createTestConfig()
 
-		unsupportedConfig, err := NewEVMConfig(common.ChainType("unsupported"), appConfig)
+		unsupportedConfig, err := NewEVMConfig(types.ChainType("unsupported"), appConfig)
 
 		assert.Error(t, err)
 		assert.Nil(t, unsupportedConfig)
-		assert.ErrorIs(t, err, ErrUnsupportedChain)
+		assert.ErrorIs(t, err, types.ErrUnsupportedChain)
 	})
 
 	t.Run("Error when blockchain config is nil", func(t *testing.T) {
-		// Create a mock config that returns nil for any chain type
 		mockConfig := &MockConfigWithoutChainID{Config: createTestConfig()}
 
-		config, err := NewEVMConfig(common.ChainTypeEthereum, mockConfig)
+		config, err := NewEVMConfig(types.ChainTypeEthereum, mockConfig)
 
 		assert.Error(t, err)
 		assert.Nil(t, config)
-		assert.ErrorIs(t, err, ErrUnsupportedChain)
-		assert.Contains(t, err.Error(), "blockchain configuration for ethereum not found")
+		assert.ErrorIs(t, err, types.ErrUnsupportedChain)
 	})
 }

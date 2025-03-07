@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
-	"vault0/internal/common"
+	"vault0/internal/types"
 )
 
 // Blockchain errors
@@ -23,45 +23,40 @@ var (
 
 // Chain represents information about a specific blockchain
 type Chain struct {
-	ID          int64            // Chain ID
-	Type        common.ChainType // Chain type
-	Name        string           // Human-readable name
-	Symbol      string           // Native currency symbol
-	RPCUrl      string           // RPC URL for the chain
-	ExplorerUrl string           // Block explorer URL
+	ID          int64           // Chain ID
+	Type        types.ChainType // Chain type
+	Name        string          // Human-readable name
+	Symbol      string          // Native currency symbol
+	RPCUrl      string          // RPC URL for the chain
+	ExplorerUrl string          // Block explorer URL
 }
 
-// Blockchain defines the interface for interacting with blockchains
+// Blockchain defines methods for interacting with a blockchain
 type Blockchain interface {
-	// GetChainID returns the chain ID
-	GetChainID(ctx context.Context) (int64, error)
+	// GetTransaction retrieves transaction details by hash
+	GetTransaction(ctx context.Context, hash string) (*types.Transaction, error)
 
-	// GetBalance gets the balance for an address
-	// If blockNumber is nil, the latest block is used
-	GetBalance(ctx context.Context, address string, blockNumber *big.Int) (*big.Int, error)
+	// GetTransactionReceipt retrieves transaction receipt by hash
+	GetTransactionReceipt(ctx context.Context, hash string) (*types.TransactionReceipt, error)
 
-	// GetNonce gets the next nonce for an address
+	// EstimateGas estimates the gas needed to execute a transaction
+	EstimateGas(ctx context.Context, tx *types.Transaction) (uint64, error)
+
+	// BroadcastTransaction broadcasts a signed transaction to the network
+	BroadcastTransaction(ctx context.Context, signedTx []byte) (string, error)
+
+	// GetBalance retrieves the balance of an address
+	GetBalance(ctx context.Context, address string) (*big.Int, error)
+
+	// GetNonce retrieves the next nonce for an address
 	GetNonce(ctx context.Context, address string) (uint64, error)
 
-	// GetTransaction gets transaction information by hash
-	GetTransaction(ctx context.Context, hash string) (*common.Transaction, error)
-
-	// GetTransactionReceipt gets a transaction receipt by hash
-	GetTransactionReceipt(ctx context.Context, hash string) (*common.TransactionReceipt, error)
-
-	// EstimateGas estimates the gas required for a transaction
-	EstimateGas(ctx context.Context, tx *common.Transaction) (uint64, error)
-
-	// GetGasPrice gets the current gas price
+	// GetGasPrice retrieves the current gas price
 	GetGasPrice(ctx context.Context) (*big.Int, error)
 
-	// CallContract performs a contract call without creating a transaction
-	// from is optional and can be empty
+	// CallContract executes a read-only call to a smart contract
 	CallContract(ctx context.Context, from string, to string, data []byte) ([]byte, error)
 
-	// SendTransaction sends a transaction to the network
-	SendTransaction(ctx context.Context, rawTx []byte) (string, error)
-
-	// Close closes the client connection
+	// Close closes any open connections
 	Close()
 }

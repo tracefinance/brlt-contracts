@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"vault0/internal/common"
 	"vault0/internal/config"
 	"vault0/internal/keygen"
 	"vault0/internal/keystore"
+	"vault0/internal/types"
 )
 
 // MockKeyStore is a mock implementation of the KeyStore interface for testing
@@ -67,9 +67,9 @@ type MockWallet struct {
 	mock.Mock
 }
 
-func (m *MockWallet) ChainType() common.ChainType {
+func (m *MockWallet) ChainType() types.ChainType {
 	args := m.Called()
-	return args.Get(0).(common.ChainType)
+	return args.Get(0).(types.ChainType)
 }
 
 func (m *MockWallet) DeriveAddress(ctx context.Context, publicKey []byte) (string, error) {
@@ -77,17 +77,17 @@ func (m *MockWallet) DeriveAddress(ctx context.Context, publicKey []byte) (strin
 	return args.String(0), args.Error(1)
 }
 
-func (m *MockWallet) CreateNativeTransaction(ctx context.Context, fromAddress, toAddress string, amount *big.Int, options common.TransactionOptions) (*common.Transaction, error) {
+func (m *MockWallet) CreateNativeTransaction(ctx context.Context, fromAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
 	args := m.Called(ctx, fromAddress, toAddress, amount, options)
-	return args.Get(0).(*common.Transaction), args.Error(1)
+	return args.Get(0).(*types.Transaction), args.Error(1)
 }
 
-func (m *MockWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tokenAddress, toAddress string, amount *big.Int, options common.TransactionOptions) (*common.Transaction, error) {
+func (m *MockWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tokenAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
 	args := m.Called(ctx, fromAddress, tokenAddress, toAddress, amount, options)
-	return args.Get(0).(*common.Transaction), args.Error(1)
+	return args.Get(0).(*types.Transaction), args.Error(1)
 }
 
-func (m *MockWallet) SignTransaction(ctx context.Context, keyID string, tx *common.Transaction) ([]byte, error) {
+func (m *MockWallet) SignTransaction(ctx context.Context, keyID string, tx *types.Transaction) ([]byte, error) {
 	args := m.Called(ctx, keyID, tx)
 	return args.Get(0).([]byte), args.Error(1)
 }
@@ -125,9 +125,9 @@ func createTestConfig() *config.Config {
 	}
 }
 
-func createTestTransaction() *common.Transaction {
-	return &common.Transaction{
-		Chain:     common.ChainTypeEthereum,
+func createTestTransaction() *types.Transaction {
+	return &types.Transaction{
+		Chain:     types.ChainTypeEthereum,
 		Hash:      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 		From:      "0xabcdef1234567890abcdef1234567890abcdef12",
 		To:        "0x1234567890abcdef1234567890abcdef12345678",
@@ -136,7 +136,7 @@ func createTestTransaction() *common.Transaction {
 		Nonce:     0,
 		GasPrice:  big.NewInt(20000000000), // 20 Gwei
 		GasLimit:  21000,
-		Type:      common.TransactionTypeNative,
+		Type:      types.TransactionTypeNative,
 		Status:    "pending",
 		Timestamp: time.Now().Unix(),
 	}
@@ -147,22 +147,22 @@ func createTestTransaction() *common.Transaction {
 func TestChainType(t *testing.T) {
 	tests := []struct {
 		name      string
-		chainType common.ChainType
+		chainType types.ChainType
 		expected  string
 	}{
 		{
 			name:      "Ethereum Chain Type",
-			chainType: common.ChainTypeEthereum,
+			chainType: types.ChainTypeEthereum,
 			expected:  "ethereum",
 		},
 		{
 			name:      "Polygon Chain Type",
-			chainType: common.ChainTypePolygon,
+			chainType: types.ChainTypePolygon,
 			expected:  "polygon",
 		},
 		{
 			name:      "Base Chain Type",
-			chainType: common.ChainTypeBase,
+			chainType: types.ChainTypeBase,
 			expected:  "base",
 		},
 	}
@@ -177,22 +177,22 @@ func TestChainType(t *testing.T) {
 func TestTransactionType(t *testing.T) {
 	tests := []struct {
 		name            string
-		transactionType common.TransactionType
+		transactionType types.TransactionType
 		expected        string
 	}{
 		{
 			name:            "Native Transaction Type",
-			transactionType: common.TransactionTypeNative,
+			transactionType: types.TransactionTypeNative,
 			expected:        "native",
 		},
 		{
 			name:            "ERC20 Transaction Type",
-			transactionType: common.TransactionTypeERC20,
+			transactionType: types.TransactionTypeERC20,
 			expected:        "erc20",
 		},
 		{
 			name:            "Contract Transaction Type",
-			transactionType: common.TransactionTypeContract,
+			transactionType: types.TransactionTypeContract,
 			expected:        "contract",
 		},
 	}
@@ -210,7 +210,7 @@ func TestTransaction(t *testing.T) {
 		tx := createTestTransaction()
 
 		// Validate fields
-		assert.Equal(t, common.ChainTypeEthereum, tx.Chain)
+		assert.Equal(t, types.ChainTypeEthereum, tx.Chain)
 		assert.Equal(t, "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", tx.Hash)
 		assert.Equal(t, "0xabcdef1234567890abcdef1234567890abcdef12", tx.From)
 		assert.Equal(t, "0x1234567890abcdef1234567890abcdef12345678", tx.To)
@@ -219,7 +219,7 @@ func TestTransaction(t *testing.T) {
 		assert.Equal(t, uint64(0), tx.Nonce)
 		assert.Equal(t, big.NewInt(20000000000), tx.GasPrice)
 		assert.Equal(t, uint64(21000), tx.GasLimit)
-		assert.Equal(t, common.TransactionTypeNative, tx.Type)
+		assert.Equal(t, types.TransactionTypeNative, tx.Type)
 		assert.Equal(t, "pending", tx.Status)
 		assert.NotZero(t, tx.Timestamp)
 	})
@@ -228,7 +228,7 @@ func TestTransaction(t *testing.T) {
 func TestTransactionOptions(t *testing.T) {
 	t.Run("Create and validate TransactionOptions struct", func(t *testing.T) {
 		// Create transaction options
-		options := common.TransactionOptions{
+		options := types.TransactionOptions{
 			GasPrice: big.NewInt(25000000000), // 25 Gwei
 			GasLimit: 30000,
 			Nonce:    5,

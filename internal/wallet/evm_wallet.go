@@ -7,13 +7,13 @@ import (
 	"math/big"
 	"strings"
 
-	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/common"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"vault0/internal/common"
 	"vault0/internal/config"
 	"vault0/internal/keystore"
+	"vault0/internal/types"
 )
 
 // EVMConfig contains EVM chain specific configuration
@@ -32,7 +32,7 @@ type AppConfig interface {
 }
 
 // NewEVMConfig returns configuration for EVM based on chain type and app config
-func NewEVMConfig(chainType common.ChainType, appConfig AppConfig) (*EVMConfig, error) {
+func NewEVMConfig(chainType types.ChainType, appConfig AppConfig) (*EVMConfig, error) {
 	// Ensure appConfig is never nil
 	if appConfig == nil {
 		panic("appConfig must not be nil")
@@ -44,7 +44,7 @@ func NewEVMConfig(chainType common.ChainType, appConfig AppConfig) (*EVMConfig, 
 	blockchainConfig := appConfig.GetBlockchainConfig(string(chainType))
 	if blockchainConfig == nil {
 		// Return an error instead of creating a default configuration
-		return nil, fmt.Errorf("blockchain configuration for %s not found: %w", chainType, ErrUnsupportedChain)
+		return nil, fmt.Errorf("blockchain configuration for %s not found: %w", chainType, types.ErrUnsupportedChain)
 	}
 
 	// Set chain ID from config if available
@@ -74,12 +74,12 @@ func NewEVMConfig(chainType common.ChainType, appConfig AppConfig) (*EVMConfig, 
 // EVMWallet implements the Wallet interface for EVM-compatible chains
 type EVMWallet struct {
 	keyStore  keystore.KeyStore
-	chainType common.ChainType
+	chainType types.ChainType
 	config    *EVMConfig
 }
 
 // NewEVMWallet creates a new EVMWallet instance
-func NewEVMWallet(keyStore keystore.KeyStore, chainType common.ChainType, appConfig AppConfig) (*EVMWallet, error) {
+func NewEVMWallet(keyStore keystore.KeyStore, chainType types.ChainType, appConfig AppConfig) (*EVMWallet, error) {
 	if keyStore == nil {
 		return nil, fmt.Errorf("keystore cannot be nil")
 	}
@@ -97,7 +97,7 @@ func NewEVMWallet(keyStore keystore.KeyStore, chainType common.ChainType, appCon
 }
 
 // ChainType returns the wallet's blockchain type
-func (w *EVMWallet) ChainType() common.ChainType {
+func (w *EVMWallet) ChainType() types.ChainType {
 	return w.chainType
 }
 
@@ -105,7 +105,7 @@ func (w *EVMWallet) ChainType() common.ChainType {
 func (w *EVMWallet) DeriveAddress(ctx context.Context, publicKey []byte) (string, error) {
 	// For EVM chains, we need to convert the public key to an address
 	if len(publicKey) == 0 {
-		return "", fmt.Errorf("evm: empty public key: %w", ErrInvalidAddress)
+		return "", fmt.Errorf("evm: empty public key: %w", types.ErrInvalidAddress)
 	}
 
 	// Check if the public key already has the 0x04 prefix
@@ -123,10 +123,10 @@ func (w *EVMWallet) DeriveAddress(ctx context.Context, publicKey []byte) (string
 		pubKey, err = crypto.UnmarshalPubkey(prefixedKey)
 	} else if len(publicKey) == 33 && (publicKey[0] == 0x02 || publicKey[0] == 0x03) {
 		// Compressed public key, we need to decompress it
-		return "", fmt.Errorf("evm: compressed public keys not supported: %w", ErrInvalidAddress)
+		return "", fmt.Errorf("evm: compressed public keys not supported: %w", types.ErrInvalidAddress)
 	} else {
 		// Unknown format
-		return "", fmt.Errorf("evm: invalid public key format: %w", ErrInvalidAddress)
+		return "", fmt.Errorf("evm: invalid public key format: %w", types.ErrInvalidAddress)
 	}
 
 	if err != nil {
@@ -138,13 +138,13 @@ func (w *EVMWallet) DeriveAddress(ctx context.Context, publicKey []byte) (string
 }
 
 // CreateNativeTransaction creates a native currency transaction without broadcasting
-func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, fromAddress, toAddress string, amount *big.Int, options common.TransactionOptions) (*common.Transaction, error) {
-	if !ethcommon.IsHexAddress(toAddress) {
-		return nil, fmt.Errorf("%w: %s", ErrInvalidAddress, toAddress)
+func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, fromAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
+	if !common.IsHexAddress(toAddress) {
+		return nil, fmt.Errorf("%w: %s", types.ErrInvalidAddress, toAddress)
 	}
 
 	if amount == nil || amount.Cmp(big.NewInt(0)) <= 0 {
-		return nil, ErrInvalidAmount
+		return nil, types.ErrInvalidAmount
 	}
 
 	// Set default values if not provided
@@ -159,7 +159,7 @@ func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, fromAddress, to
 	}
 
 	// Create the transaction
-	tx := &common.Transaction{
+	tx := &types.Transaction{
 		Chain:    w.chainType,
 		From:     fromAddress,
 		To:       toAddress,
@@ -168,20 +168,20 @@ func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, fromAddress, to
 		Nonce:    options.Nonce,
 		GasPrice: gasPrice,
 		GasLimit: gasLimit,
-		Type:     common.TransactionTypeNative,
+		Type:     types.TransactionTypeNative,
 	}
 
 	return tx, nil
 }
 
 // CreateTokenTransaction creates an ERC20 token transaction without broadcasting
-func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tokenAddress, toAddress string, amount *big.Int, options common.TransactionOptions) (*common.Transaction, error) {
-	if !ethcommon.IsHexAddress(toAddress) || !ethcommon.IsHexAddress(tokenAddress) {
-		return nil, fmt.Errorf("%w: invalid address format", ErrInvalidAddress)
+func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tokenAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
+	if !common.IsHexAddress(toAddress) || !common.IsHexAddress(tokenAddress) {
+		return nil, fmt.Errorf("%w: invalid address format", types.ErrInvalidAddress)
 	}
 
 	if amount == nil || amount.Cmp(big.NewInt(0)) <= 0 {
-		return nil, ErrInvalidAmount
+		return nil, types.ErrInvalidAmount
 	}
 
 	// Create the token transfer data
@@ -190,8 +190,8 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tok
 	methodID := crypto.Keccak256([]byte(transferMethodSignature))[:4]
 
 	// Encode the transfer parameters
-	paddedAddress := ethcommon.LeftPadBytes(ethcommon.HexToAddress(toAddress).Bytes(), 32)
-	paddedAmount := ethcommon.LeftPadBytes(amount.Bytes(), 32)
+	paddedAddress := common.LeftPadBytes(common.HexToAddress(toAddress).Bytes(), 32)
+	paddedAmount := common.LeftPadBytes(amount.Bytes(), 32)
 
 	// Combine the data
 	data := append(methodID, append(paddedAddress, paddedAmount...)...)
@@ -208,7 +208,7 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tok
 	}
 
 	// Create the transaction
-	tx := &common.Transaction{
+	tx := &types.Transaction{
 		Chain:        w.chainType,
 		From:         fromAddress,
 		To:           tokenAddress,
@@ -217,7 +217,7 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tok
 		Nonce:        options.Nonce,
 		GasPrice:     gasPrice,
 		GasLimit:     gasLimit,
-		Type:         common.TransactionTypeERC20,
+		Type:         types.TransactionTypeERC20,
 		TokenAddress: tokenAddress,
 	}
 
@@ -225,7 +225,7 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tok
 }
 
 // SignTransaction signs a transaction
-func (w *EVMWallet) SignTransaction(ctx context.Context, keyID string, tx *common.Transaction) ([]byte, error) {
+func (w *EVMWallet) SignTransaction(ctx context.Context, keyID string, tx *types.Transaction) ([]byte, error) {
 	// Get the public key
 	key, err := w.keyStore.GetPublicKey(ctx, keyID)
 	if err != nil {
@@ -240,14 +240,14 @@ func (w *EVMWallet) SignTransaction(ctx context.Context, keyID string, tx *commo
 
 	// Verify that the from address matches the derived address
 	if !strings.EqualFold(fromAddress, tx.From) {
-		return nil, fmt.Errorf("%w: transaction from address does not match key", ErrInvalidAddress)
+		return nil, fmt.Errorf("%w: transaction from address does not match key", types.ErrInvalidAddress)
 	}
 
 	// Create Ethereum transaction
-	toAddress := ethcommon.HexToAddress(tx.To)
+	toAddress := common.HexToAddress(tx.To)
 
 	// Create the appropriate transaction based on type
-	ethTx := types.NewTx(&types.LegacyTx{
+	ethTx := ethtypes.NewTx(&ethtypes.LegacyTx{
 		Nonce:    tx.Nonce,
 		GasPrice: tx.GasPrice,
 		Gas:      tx.GasLimit,
@@ -261,9 +261,9 @@ func (w *EVMWallet) SignTransaction(ctx context.Context, keyID string, tx *commo
 }
 
 // signEVMTransaction signs an EVM transaction using the key store
-func (w *EVMWallet) signEVMTransaction(ctx context.Context, keyID string, tx *types.Transaction) ([]byte, error) {
+func (w *EVMWallet) signEVMTransaction(ctx context.Context, keyID string, tx *ethtypes.Transaction) ([]byte, error) {
 	// Hash the transaction for signing
-	signer := types.NewEIP155Signer(w.config.ChainID)
+	signer := ethtypes.NewEIP155Signer(w.config.ChainID)
 	hash := signer.Hash(tx)
 
 	// Sign the hash with the keystore

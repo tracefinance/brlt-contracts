@@ -3,14 +3,14 @@ package blockchain
 import (
 	"fmt"
 	"sync"
-	"vault0/internal/common"
 	"vault0/internal/config"
+	"vault0/internal/types"
 )
 
 // Factory creates blockchain implementations
 type Factory struct {
 	cfg        *config.Config
-	clients    map[common.ChainType]Blockchain
+	clients    map[types.ChainType]Blockchain
 	clientsMux sync.RWMutex
 }
 
@@ -18,13 +18,13 @@ type Factory struct {
 func NewFactory(cfg *config.Config) *Factory {
 	return &Factory{
 		cfg:     cfg,
-		clients: make(map[common.ChainType]Blockchain),
+		clients: make(map[types.ChainType]Blockchain),
 	}
 }
 
 // NewBlockchain creates a new blockchain implementation for the given chain type
 // or returns an existing instance if one has already been created (singleton pattern)
-func (f *Factory) NewBlockchain(chainType common.ChainType) (Blockchain, error) {
+func (f *Factory) NewBlockchain(chainType types.ChainType) (Blockchain, error) {
 	// Check if we already have a client for this chain type
 	f.clientsMux.RLock()
 	client, exists := f.clients[chainType]
@@ -47,13 +47,13 @@ func (f *Factory) NewBlockchain(chainType common.ChainType) (Blockchain, error) 
 	var chainName string
 
 	switch chainType {
-	case common.ChainTypeEthereum:
+	case types.ChainTypeEthereum:
 		chainCfg = &f.cfg.Blockchains.Ethereum
 		chainName = "Ethereum"
-	case common.ChainTypePolygon:
+	case types.ChainTypePolygon:
 		chainCfg = &f.cfg.Blockchains.Polygon
 		chainName = "Polygon"
-	case common.ChainTypeBase:
+	case types.ChainTypeBase:
 		chainCfg = &f.cfg.Blockchains.Base
 		chainName = "Base"
 	default:
@@ -91,15 +91,15 @@ func (f *Factory) CloseAll() {
 	for _, client := range f.clients {
 		client.Close()
 	}
-	f.clients = make(map[common.ChainType]Blockchain)
+	f.clients = make(map[types.ChainType]Blockchain)
 }
 
 // getChainSymbol returns the symbol for a given chain type
-func getChainSymbol(chainType common.ChainType) string {
+func getChainSymbol(chainType types.ChainType) string {
 	switch chainType {
-	case common.ChainTypeEthereum, common.ChainTypeBase:
+	case types.ChainTypeEthereum, types.ChainTypeBase:
 		return "ETH"
-	case common.ChainTypePolygon:
+	case types.ChainTypePolygon:
 		return "MATIC"
 	default:
 		return ""

@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"vault0/internal/common"
+	"vault0/internal/types"
 )
 
 func TestNewFactory(t *testing.T) {
@@ -37,11 +37,11 @@ func TestCreateWallet(t *testing.T) {
 		appConfig := createTestConfig()
 		factory := NewFactory(keyStore, appConfig)
 
-		wallet, err := factory.CreateWallet(ctx, common.ChainTypeEthereum)
+		wallet, err := factory.CreateWallet(ctx, types.ChainTypeEthereum)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
-		assert.Equal(t, common.ChainTypeEthereum, wallet.ChainType())
+		assert.Equal(t, types.ChainTypeEthereum, wallet.ChainType())
 	})
 
 	t.Run("Create Polygon wallet", func(t *testing.T) {
@@ -50,11 +50,11 @@ func TestCreateWallet(t *testing.T) {
 		appConfig := createTestConfig()
 		factory := NewFactory(keyStore, appConfig)
 
-		wallet, err := factory.CreateWallet(ctx, common.ChainTypePolygon)
+		wallet, err := factory.CreateWallet(ctx, types.ChainTypePolygon)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
-		assert.Equal(t, common.ChainTypePolygon, wallet.ChainType())
+		assert.Equal(t, types.ChainTypePolygon, wallet.ChainType())
 	})
 
 	t.Run("Create Base wallet", func(t *testing.T) {
@@ -63,11 +63,11 @@ func TestCreateWallet(t *testing.T) {
 		appConfig := createTestConfig()
 		factory := NewFactory(keyStore, appConfig)
 
-		wallet, err := factory.CreateWallet(ctx, common.ChainTypeBase)
+		wallet, err := factory.CreateWallet(ctx, types.ChainTypeBase)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
-		assert.Equal(t, common.ChainTypeBase, wallet.ChainType())
+		assert.Equal(t, types.ChainTypeBase, wallet.ChainType())
 	})
 
 	t.Run("Create wallet for unsupported chain", func(t *testing.T) {
@@ -76,7 +76,7 @@ func TestCreateWallet(t *testing.T) {
 		appConfig := createTestConfig()
 		factory := NewFactory(keyStore, appConfig)
 
-		unsupportedChainType := common.ChainType("unsupported")
+		unsupportedChainType := types.ChainType("unsupported")
 		wallet, err := factory.CreateWallet(ctx, unsupportedChainType)
 
 		assert.Error(t, err)
