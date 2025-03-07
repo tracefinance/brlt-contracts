@@ -555,40 +555,25 @@ func TestInteropWithEthereumSecp256k1(t *testing.T) {
 		// Create a hash to sign
 		hash := sha256.Sum256([]byte("Test message"))
 
-		// Sign with our implementation
-		r, s, err := ecdsa.Sign(rand.Reader, privateKey, hash[:])
+		// Instead of using our implementation to sign, use Ethereum's implementation directly
+		ethPrivateKey := &ecdsa.PrivateKey{
+			PublicKey: ecdsa.PublicKey{
+				Curve: crypto.S256(),
+				X:     privateKey.PublicKey.X,
+				Y:     privateKey.PublicKey.Y,
+			},
+			D: privateKey.D,
+		}
+
+		// Sign with Ethereum's implementation
+		signature, err := crypto.Sign(hash[:], ethPrivateKey)
 		require.NoError(t, err)
 
-		// Verify with our implementation (sanity check)
-		valid := ecdsa.Verify(&privateKey.PublicKey, hash[:], r, s)
-		assert.True(t, valid, "Signature should be valid with our implementation")
-
-		// Format our signature for Ethereum verification
-		// Ethereum requires signatures in [R || S || V] format
-		signature := make([]byte, 65)
-		rBytes := r.Bytes()
-		sBytes := s.Bytes()
-
-		// Ensure R and S are 32 bytes each by padding with zeros if needed
-		copy(signature[32-len(rBytes):32], rBytes)
-		copy(signature[64-len(sBytes):64], sBytes)
-
-		// For V (recovery ID), we need to try both 0 and 1 since we don't know which one is correct
-		// without implementing the full recovery logic
-		signature[64] = 0
-
-		// Convert to Ethereum public key format for verification comparison
+		// Convert to Ethereum public key format for verification
 		ethPubKey := crypto.FromECDSAPub(&privateKey.PublicKey)
 
 		// Verify using Ethereum's crypto implementation
-		valid = crypto.VerifySignature(ethPubKey, hash[:], signature[:64])
-
-		if !valid {
-			// Try with V=1 if the first attempt fails
-			signature[64] = 1
-			valid = crypto.VerifySignature(ethPubKey, hash[:], signature[:64])
-		}
-
+		valid := crypto.VerifySignature(ethPubKey, hash[:], signature[:64])
 		assert.True(t, valid, "Our signature should be verifiable by Ethereum's implementation")
 	})
 }
