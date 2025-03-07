@@ -70,18 +70,18 @@ func (m *MockWallet) ChainType() types.ChainType {
 	return args.Get(0).(types.ChainType)
 }
 
-func (m *MockWallet) DeriveAddress(ctx context.Context, publicKey []byte) (string, error) {
-	args := m.Called(ctx, publicKey)
+func (m *MockWallet) DeriveAddress(ctx context.Context, keyID string) (string, error) {
+	args := m.Called(ctx, keyID)
 	return args.String(0), args.Error(1)
 }
 
-func (m *MockWallet) CreateNativeTransaction(ctx context.Context, fromAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
-	args := m.Called(ctx, fromAddress, toAddress, amount, options)
+func (m *MockWallet) CreateNativeTransaction(ctx context.Context, keyID string, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
+	args := m.Called(ctx, keyID, toAddress, amount, options)
 	return args.Get(0).(*types.Transaction), args.Error(1)
 }
 
-func (m *MockWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tokenAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
-	args := m.Called(ctx, fromAddress, tokenAddress, toAddress, amount, options)
+func (m *MockWallet) CreateTokenTransaction(ctx context.Context, keyID string, tokenAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
+	args := m.Called(ctx, keyID, tokenAddress, toAddress, amount, options)
 	return args.Get(0).(*types.Transaction), args.Error(1)
 }
 

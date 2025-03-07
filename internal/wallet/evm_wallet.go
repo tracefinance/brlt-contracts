@@ -101,8 +101,16 @@ func (w *EVMWallet) ChainType() types.ChainType {
 	return w.chainType
 }
 
-// DeriveAddress derives a wallet address from a public key
-func (w *EVMWallet) DeriveAddress(ctx context.Context, publicKey []byte) (string, error) {
+// DeriveAddress derives a wallet address from a key ID
+func (w *EVMWallet) DeriveAddress(ctx context.Context, keyID string) (string, error) {
+	// Get the public key from the keystore
+	key, err := w.keyStore.GetPublicKey(ctx, keyID)
+	if err != nil {
+		return "", fmt.Errorf("evm: failed to get public key for key ID %s: %w", keyID, err)
+	}
+
+	publicKey := key.PublicKey
+
 	// For EVM chains, we need to convert the public key to an address
 	if len(publicKey) == 0 {
 		return "", fmt.Errorf("evm: empty public key: %w", types.ErrInvalidAddress)
@@ -111,7 +119,6 @@ func (w *EVMWallet) DeriveAddress(ctx context.Context, publicKey []byte) (string
 	// Check if the public key already has the 0x04 prefix
 	// This prefix indicates an uncompressed public key which is what EVM expects
 	var pubKey *ecdsa.PublicKey
-	var err error
 
 	if len(publicKey) == 65 && publicKey[0] == 0x04 {
 		// Public key already has the right format
@@ -138,7 +145,13 @@ func (w *EVMWallet) DeriveAddress(ctx context.Context, publicKey []byte) (string
 }
 
 // CreateNativeTransaction creates a native currency transaction without broadcasting
-func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, fromAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
+func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, keyID string, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
+	// Derive the from address from the key ID
+	fromAddress, err := w.DeriveAddress(ctx, keyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive from address: %w", err)
+	}
+
 	if !common.IsHexAddress(toAddress) {
 		return nil, fmt.Errorf("%w: %s", types.ErrInvalidAddress, toAddress)
 	}
@@ -175,7 +188,13 @@ func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, fromAddress, to
 }
 
 // CreateTokenTransaction creates an ERC20 token transaction without broadcasting
-func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tokenAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
+func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, keyID string, tokenAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
+	// Derive the from address from the key ID
+	fromAddress, err := w.DeriveAddress(ctx, keyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive from address: %w", err)
+	}
+
 	if !common.IsHexAddress(toAddress) || !common.IsHexAddress(tokenAddress) {
 		return nil, fmt.Errorf("%w: invalid address format", types.ErrInvalidAddress)
 	}
@@ -226,14 +245,8 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, fromAddress, tok
 
 // SignTransaction signs a transaction
 func (w *EVMWallet) SignTransaction(ctx context.Context, keyID string, tx *types.Transaction) ([]byte, error) {
-	// Get the public key
-	key, err := w.keyStore.GetPublicKey(ctx, keyID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get key: %w", err)
-	}
-
 	// Derive address from public key
-	fromAddress, err := w.DeriveAddress(ctx, key.PublicKey)
+	fromAddress, err := w.DeriveAddress(ctx, keyID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive address: %w", err)
 	}

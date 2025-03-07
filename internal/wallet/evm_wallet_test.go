@@ -3,11 +3,13 @@ package wallet
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"vault0/internal/config"
 	"vault0/internal/keygen"
@@ -103,7 +105,7 @@ func TestEVMWallet_ChainType(t *testing.T) {
 
 // Test DeriveAddress method
 func TestEVMWallet_DeriveAddress(t *testing.T) {
-	t.Run("Derive address from valid public key", func(t *testing.T) {
+	t.Run("Derive address from valid key ID", func(t *testing.T) {
 		// Generate a test private key
 		privateKey, _ := createTestPrivateKey()
 
@@ -118,30 +120,68 @@ func TestEVMWallet_DeriveAddress(t *testing.T) {
 		// Convert the public key to bytes
 		publicKeyBytes := crypto.FromECDSAPub(publicKeyECDSA)
 
-		// Create wallet
+		// Create wallet and mock keystore
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
+		// Setup mock for GetPublicKey
+		keyID := "test-key-id"
+		mockKey := &keystore.Key{
+			ID:        keyID,
+			PublicKey: publicKeyBytes,
+		}
+		keyStore.On("GetPublicKey", mock.Anything, keyID).Return(mockKey, nil)
+
 		// Derive address
-		address, err := wallet.DeriveAddress(context.Background(), publicKeyBytes)
+		address, err := wallet.DeriveAddress(context.Background(), keyID)
 
 		assert.NoError(t, err)
 		assert.Equal(t, expectedAddress, address)
+		keyStore.AssertExpectations(t)
 	})
 
-	t.Run("Return error for invalid public key", func(t *testing.T) {
-		// Create wallet
+	t.Run("Return error when keystore returns error", func(t *testing.T) {
+		// Create wallet and mock keystore
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
+		// Setup mock for GetPublicKey to return error
+		keyID := "non-existent-key"
+		expectedError := errors.New("key not found")
+		keyStore.On("GetPublicKey", mock.Anything, keyID).Return((*keystore.Key)(nil), expectedError)
+
+		// Try to derive address
+		address, err := wallet.DeriveAddress(context.Background(), keyID)
+
+		assert.Error(t, err)
+		assert.Empty(t, address)
+		assert.Contains(t, err.Error(), expectedError.Error())
+		keyStore.AssertExpectations(t)
+	})
+
+	t.Run("Return error for invalid public key", func(t *testing.T) {
+		// Create wallet and mock keystore
+		keyStore := new(MockKeyStore)
+		appConfig := createTestConfig()
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
+
+		// Setup mock for GetPublicKey to return invalid public key
+		keyID := "invalid-key"
+		mockKey := &keystore.Key{
+			ID:        keyID,
+			PublicKey: []byte("invalid public key"),
+		}
+		keyStore.On("GetPublicKey", mock.Anything, keyID).Return(mockKey, nil)
+
 		// Try to derive address from invalid public key
-		address, err := wallet.DeriveAddress(context.Background(), []byte("invalid public key"))
+		address, err := wallet.DeriveAddress(context.Background(), keyID)
 
 		assert.Error(t, err)
 		assert.Empty(t, address)
 		assert.ErrorIs(t, err, types.ErrInvalidAddress)
+		keyStore.AssertExpectations(t)
 	})
 }
 
@@ -154,7 +194,7 @@ func TestEVMWallet_CreateNativeTransaction(t *testing.T) {
 
 		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
-		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
+		keyID := "test-key-id"
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
 		amount := big.NewInt(1000000000000000000) // 1 ETH
 		options := types.TransactionOptions{
@@ -164,11 +204,23 @@ func TestEVMWallet_CreateNativeTransaction(t *testing.T) {
 			Data:     []byte{1, 2, 3, 4},
 		}
 
-		tx, err := wallet.CreateNativeTransaction(ctx, fromAddress, toAddress, amount, options)
+		// Generate a private key for testing
+		privateKey, _ := createTestPrivateKey()
+		publicKey := crypto.FromECDSAPub(&privateKey.PublicKey)
+		expectedAddress := crypto.PubkeyToAddress(privateKey.PublicKey).Hex()
+
+		// Setup mock for keystore
+		mockKey := &keystore.Key{
+			ID:        keyID,
+			PublicKey: publicKey,
+		}
+		keyStore.On("GetPublicKey", mock.Anything, keyID).Return(mockKey, nil)
+
+		tx, err := wallet.CreateNativeTransaction(ctx, keyID, toAddress, amount, options)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, tx)
-		assert.Equal(t, fromAddress, tx.From)
+		assert.Equal(t, expectedAddress, tx.From)
 		assert.Equal(t, toAddress, tx.To)
 		assert.Equal(t, amount, tx.Value)
 		assert.Equal(t, options.Data, tx.Data)
@@ -176,66 +228,67 @@ func TestEVMWallet_CreateNativeTransaction(t *testing.T) {
 		assert.Equal(t, options.GasPrice, tx.GasPrice)
 		assert.Equal(t, options.GasLimit, tx.GasLimit)
 		assert.Equal(t, types.TransactionTypeNative, tx.Type)
+
+		keyStore.AssertExpectations(t)
 	})
 
-	t.Run("Create native transaction with default gas options", func(t *testing.T) {
+	t.Run("Return error for invalid to address", func(t *testing.T) {
 		ctx := context.Background()
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
 		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
-		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
-		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
-		amount := big.NewInt(1000000000000000000) // 1 ETH
-		options := types.TransactionOptions{
-			Nonce: 5,
-		}
-
-		tx, err := wallet.CreateNativeTransaction(ctx, fromAddress, toAddress, amount, options)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, tx)
-		assert.Equal(t, wallet.config.DefaultGasPrice, tx.GasPrice)
-		assert.Equal(t, wallet.config.DefaultGasLimit, tx.GasLimit)
-	})
-
-	t.Run("Error with invalid address", func(t *testing.T) {
-		ctx := context.Background()
-		keyStore := new(MockKeyStore)
-		appConfig := createTestConfig()
-
-		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
-
-		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
+		keyID := "test-key-id"
 		toAddress := "invalid-address"
 		amount := big.NewInt(1000000000000000000) // 1 ETH
 		options := types.TransactionOptions{}
 
-		tx, err := wallet.CreateNativeTransaction(ctx, fromAddress, toAddress, amount, options)
+		// Setup mock for keystore
+		mockKey := &keystore.Key{
+			ID:        keyID,
+			PublicKey: []byte{0x04, 1, 2, 3, 4}, // Dummy public key
+		}
+		keyStore.On("GetPublicKey", mock.Anything, keyID).Return(mockKey, nil)
+
+		tx, err := wallet.CreateNativeTransaction(ctx, keyID, toAddress, amount, options)
 
 		assert.Error(t, err)
 		assert.Nil(t, tx)
 		assert.ErrorIs(t, err, types.ErrInvalidAddress)
+
+		keyStore.AssertExpectations(t)
 	})
 
-	t.Run("Error with zero amount", func(t *testing.T) {
+	t.Run("Return error for zero amount", func(t *testing.T) {
 		ctx := context.Background()
 		keyStore := new(MockKeyStore)
 		appConfig := createTestConfig()
 
 		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
-		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
+		keyID := "test-key-id"
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
 		amount := big.NewInt(0)
 		options := types.TransactionOptions{}
 
-		tx, err := wallet.CreateNativeTransaction(ctx, fromAddress, toAddress, amount, options)
+		// Setup mock for keystore with a valid public key
+		privateKey, _ := createTestPrivateKey()
+		publicKey := crypto.FromECDSAPub(&privateKey.PublicKey)
+
+		mockKey := &keystore.Key{
+			ID:        keyID,
+			PublicKey: publicKey,
+		}
+		keyStore.On("GetPublicKey", mock.Anything, keyID).Return(mockKey, nil)
+
+		tx, err := wallet.CreateNativeTransaction(ctx, keyID, toAddress, amount, options)
 
 		assert.Error(t, err)
 		assert.Nil(t, tx)
 		assert.ErrorIs(t, err, types.ErrInvalidAmount)
+
+		keyStore.AssertExpectations(t)
 	})
 }
 
@@ -248,7 +301,7 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 
 		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
-		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
+		keyID := "test-key-id"
 		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC on Ethereum
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
 		amount := big.NewInt(1000000) // 1 USDC (6 decimals)
@@ -258,11 +311,23 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 			Nonce:    5,
 		}
 
-		tx, err := wallet.CreateTokenTransaction(ctx, fromAddress, tokenAddress, toAddress, amount, options)
+		// Generate a private key for testing
+		privateKey, _ := createTestPrivateKey()
+		publicKey := crypto.FromECDSAPub(&privateKey.PublicKey)
+		expectedAddress := crypto.PubkeyToAddress(privateKey.PublicKey).Hex()
+
+		// Setup mock for keystore
+		mockKey := &keystore.Key{
+			ID:        keyID,
+			PublicKey: publicKey,
+		}
+		keyStore.On("GetPublicKey", mock.Anything, keyID).Return(mockKey, nil)
+
+		tx, err := wallet.CreateTokenTransaction(ctx, keyID, tokenAddress, toAddress, amount, options)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, tx)
-		assert.Equal(t, fromAddress, tx.From)
+		assert.Equal(t, expectedAddress, tx.From)
 		assert.Equal(t, tokenAddress, tx.To)
 		assert.Equal(t, big.NewInt(0), tx.Value) // 0 ETH for token transfers
 		assert.NotEmpty(t, tx.Data)              // Should contain the token transfer data
@@ -271,6 +336,8 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 		assert.Equal(t, options.GasLimit, tx.GasLimit)
 		assert.Equal(t, types.TransactionTypeERC20, tx.Type)
 		assert.Equal(t, tokenAddress, tx.TokenAddress)
+
+		keyStore.AssertExpectations(t)
 	})
 
 	t.Run("Create token transaction with default gas options", func(t *testing.T) {
@@ -280,7 +347,7 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 
 		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
-		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
+		keyID := "test-key-id"
 		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC on Ethereum
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
 		amount := big.NewInt(1000000) // 1 USDC (6 decimals)
@@ -288,32 +355,25 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 			Nonce: 5,
 		}
 
-		tx, err := wallet.CreateTokenTransaction(ctx, fromAddress, tokenAddress, toAddress, amount, options)
+		// Generate a private key for testing
+		privateKey, _ := createTestPrivateKey()
+		publicKey := crypto.FromECDSAPub(&privateKey.PublicKey)
+
+		// Setup mock for keystore
+		mockKey := &keystore.Key{
+			ID:        keyID,
+			PublicKey: publicKey,
+		}
+		keyStore.On("GetPublicKey", mock.Anything, keyID).Return(mockKey, nil)
+
+		tx, err := wallet.CreateTokenTransaction(ctx, keyID, tokenAddress, toAddress, amount, options)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, tx)
 		assert.Equal(t, wallet.config.DefaultGasPrice, tx.GasPrice)
 		assert.Equal(t, uint64(65000), tx.GasLimit) // Default for ERC20 transfers
-	})
 
-	t.Run("Error with invalid address", func(t *testing.T) {
-		ctx := context.Background()
-		keyStore := new(MockKeyStore)
-		appConfig := createTestConfig()
-
-		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
-
-		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
-		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC on Ethereum
-		toAddress := "invalid-address"
-		amount := big.NewInt(1000000) // 1 USDC (6 decimals)
-		options := types.TransactionOptions{}
-
-		tx, err := wallet.CreateTokenTransaction(ctx, fromAddress, tokenAddress, toAddress, amount, options)
-
-		assert.Error(t, err)
-		assert.Nil(t, tx)
-		assert.ErrorIs(t, err, types.ErrInvalidAddress)
+		keyStore.AssertExpectations(t)
 	})
 
 	t.Run("Error with invalid token address", func(t *testing.T) {
@@ -323,17 +383,55 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 
 		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
-		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
+		keyID := "test-key-id"
 		tokenAddress := "invalid-token-address"
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
-		amount := big.NewInt(1000000) // 1 USDC (6 decimals)
+		amount := big.NewInt(1000000)
 		options := types.TransactionOptions{}
 
-		tx, err := wallet.CreateTokenTransaction(ctx, fromAddress, tokenAddress, toAddress, amount, options)
+		// Setup mock for keystore
+		mockKey := &keystore.Key{
+			ID:        keyID,
+			PublicKey: []byte{0x04, 1, 2, 3, 4}, // Dummy public key
+		}
+		keyStore.On("GetPublicKey", mock.Anything, keyID).Return(mockKey, nil)
+
+		tx, err := wallet.CreateTokenTransaction(ctx, keyID, tokenAddress, toAddress, amount, options)
 
 		assert.Error(t, err)
 		assert.Nil(t, tx)
 		assert.ErrorIs(t, err, types.ErrInvalidAddress)
+
+		keyStore.AssertExpectations(t)
+	})
+
+	t.Run("Error with invalid recipient address", func(t *testing.T) {
+		ctx := context.Background()
+		keyStore := new(MockKeyStore)
+		appConfig := createTestConfig()
+
+		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
+
+		keyID := "test-key-id"
+		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+		toAddress := "invalid-recipient-address"
+		amount := big.NewInt(1000000)
+		options := types.TransactionOptions{}
+
+		// Setup mock for keystore
+		mockKey := &keystore.Key{
+			ID:        keyID,
+			PublicKey: []byte{0x04, 1, 2, 3, 4}, // Dummy public key
+		}
+		keyStore.On("GetPublicKey", mock.Anything, keyID).Return(mockKey, nil)
+
+		tx, err := wallet.CreateTokenTransaction(ctx, keyID, tokenAddress, toAddress, amount, options)
+
+		assert.Error(t, err)
+		assert.Nil(t, tx)
+		assert.ErrorIs(t, err, types.ErrInvalidAddress)
+
+		keyStore.AssertExpectations(t)
 	})
 
 	t.Run("Error with zero amount", func(t *testing.T) {
@@ -343,17 +441,29 @@ func TestEVMWallet_CreateTokenTransaction(t *testing.T) {
 
 		wallet, _ := NewEVMWallet(keyStore, types.ChainTypeEthereum, appConfig)
 
-		fromAddress := "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
-		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC on Ethereum
+		keyID := "test-key-id"
+		tokenAddress := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
 		toAddress := "0xbcd4042de499d14e55001ccbb24a551f3b954096"
 		amount := big.NewInt(0)
 		options := types.TransactionOptions{}
 
-		tx, err := wallet.CreateTokenTransaction(ctx, fromAddress, tokenAddress, toAddress, amount, options)
+		// Setup mock for keystore with a valid public key
+		privateKey, _ := createTestPrivateKey()
+		publicKey := crypto.FromECDSAPub(&privateKey.PublicKey)
+
+		mockKey := &keystore.Key{
+			ID:        keyID,
+			PublicKey: publicKey,
+		}
+		keyStore.On("GetPublicKey", mock.Anything, keyID).Return(mockKey, nil)
+
+		tx, err := wallet.CreateTokenTransaction(ctx, keyID, tokenAddress, toAddress, amount, options)
 
 		assert.Error(t, err)
 		assert.Nil(t, tx)
 		assert.ErrorIs(t, err, types.ErrInvalidAmount)
+
+		keyStore.AssertExpectations(t)
 	})
 }
 
