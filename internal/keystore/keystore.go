@@ -70,7 +70,4 @@ type KeyStore interface {
 
 	// Delete deletes a key by its ID
 	Delete(ctx context.Context, id string) error
-
-	// Close releases any resources used by the key store
-	Close() error
 }

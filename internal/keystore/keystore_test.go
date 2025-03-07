@@ -61,7 +61,7 @@ func setupTestKeyStore(t *testing.T) (KeyStore, *sql.DB, func()) {
 	require.NoError(t, err)
 
 	cleanup := func() {
-		dbKeyStore.Close()
+		// No need to close the keystore anymore
 		dbCleanup()
 	}
 

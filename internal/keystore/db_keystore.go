@@ -317,11 +317,7 @@ func (ks *DBKeyStore) Delete(ctx context.Context, id string) error {
 	return err
 }
 
-// Close releases any resources used by the key store
-func (ks *DBKeyStore) Close() error {
-	// No resources to release
-	return nil
-}
+
 
 // Sign signs the provided data using the key identified by id
 // This method never returns the private key material, only the signature

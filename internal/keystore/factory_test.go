@@ -26,7 +26,6 @@ func TestFactory_Create(t *testing.T) {
 		// Create a DB keystore
 		keystore, err := factory.Create(KeyStoreTypeDB)
 		require.NoError(t, err)
-		defer keystore.Close()
 
 		// Validate it's a DBKeyStore
 		_, ok := keystore.(*DBKeyStore)
@@ -37,7 +36,6 @@ func TestFactory_Create(t *testing.T) {
 		// Create a default keystore (should be DB)
 		keystore, err := factory.CreateDefault()
 		require.NoError(t, err)
-		defer keystore.Close()
 
 		// Validate it's a DBKeyStore
 		_, ok := keystore.(*DBKeyStore)
