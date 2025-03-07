@@ -563,9 +563,14 @@ func TestInteropWithEthereumSecp256k1(t *testing.T) {
 		valid := ecdsa.Verify(&privateKey.PublicKey, hash[:], r, s)
 		assert.True(t, valid, "Signature should be valid with our implementation")
 
+		// Normalize the S value to comply with Ethereum's EIP-2
+		s = normalizeS(s, Secp256k1)
+
+		// Calculate the recovery ID (v) based on public key
+		v := calculateRecoveryID(&privateKey.PublicKey)
+
 		// Format signature for Ethereum verification
 		// Ethereum expects signature in [R || S || V] format
-		// R and S need to be 32 bytes each, padded with leading zeros if needed
 		signature := make([]byte, 65)
 
 		// Properly pad R and S to ensure they're exactly 32 bytes
@@ -575,33 +580,13 @@ func TestInteropWithEthereumSecp256k1(t *testing.T) {
 		// Copy R and S into the signature
 		copy(signature[0:32], rBytes)
 		copy(signature[32:64], sBytes)
-
-		// For V (recovery ID), try both 0 and 1
-		// This is necessary because we don't implement recovery ID calculation
-		signature[64] = 0 // Try first with V=0
+		signature[64] = v
 
 		// Convert to Ethereum public key format for verification
 		ethPubKey := crypto.FromECDSAPub(&privateKey.PublicKey)
 
 		// Verify using Ethereum's crypto implementation
 		valid = crypto.VerifySignature(ethPubKey, hash[:], signature[:64])
-
-		if !valid {
-			// Try with V=1 if V=0 didn't work
-			signature[64] = 1
-			valid = crypto.VerifySignature(ethPubKey, hash[:], signature[:64])
-		}
-
-		// If still not valid, try with V=27 and V=28 (older Ethereum format)
-		if !valid {
-			signature[64] = 27
-			valid = crypto.VerifySignature(ethPubKey, hash[:], signature[:64])
-		}
-
-		if !valid {
-			signature[64] = 28
-			valid = crypto.VerifySignature(ethPubKey, hash[:], signature[:64])
-		}
 
 		assert.True(t, valid, "Our signature should be verifiable by Ethereum's implementation")
 	})
@@ -621,6 +606,34 @@ func padTo32Bytes(input []byte) []byte {
 	result := make([]byte, 32)
 	copy(result[32-len(input):], input) // Copy to the end, leaving zeros at the beginning
 	return result
+}
+
+// normalizeS ensures that the signature's S value is in the lower half of the curve order
+// as per Ethereum's requirements from EIP-2
+func normalizeS(s *big.Int, curve *secp256k1Curve) *big.Int {
+	// Create a copy of s to avoid modifying the original
+	result := new(big.Int).Set(s)
+
+	// Calculate the half point of the curve order
+	halfN := new(big.Int).Rsh(curve.N, 1) // N/2
+
+	// If s > N/2, set s = N - s
+	if result.Cmp(halfN) > 0 {
+		result = new(big.Int).Sub(curve.N, result)
+	}
+
+	return result
+}
+
+// calculateRecoveryID computes the Ethereum signature recovery ID (v) based on
+// whether the Y coordinate of the public key is odd or even
+// returns 0 if Y is even, 1 if Y is odd
+func calculateRecoveryID(publicKey *ecdsa.PublicKey) byte {
+	// In Ethereum, v = 0 if y is even, v = 1 if y is odd
+	if publicKey.Y.Bit(0) == 1 {
+		return 1 // Y is odd
+	}
+	return 0 // Y is even
 }
 
 // TestSecp256k1AddressDerivation tests that derived Ethereum addresses match expected values
