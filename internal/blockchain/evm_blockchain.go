@@ -322,3 +322,8 @@ func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethtypes.Tra
 		Timestamp: int64(timestamp),
 	}
 }
+
+// ChainType returns the type of the blockchain
+func (c *EVMBlockchain) ChainType() types.ChainType {
+	return c.chain.Type
+}

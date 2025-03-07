@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"vault0/internal/types"
 
 	"github.com/joho/godotenv"
 )
@@ -45,6 +46,8 @@ type Config struct {
 	MigrationsPath string
 	// DBEncryptionKey is the base64-encoded key used for encrypting sensitive data in the database
 	DBEncryptionKey string
+	// SmartContractsPath is the path to the compiled smart contract artifacts
+	SmartContractsPath string
 
 	// Blockchains holds configuration for all supported blockchains
 	Blockchains BlockchainsConfig
@@ -93,6 +96,12 @@ func LoadConfig() *Config {
 	dbEncryptionKey := os.Getenv("DB_ENCRYPTION_KEY")
 	// No default for encryption key, it must be provided
 
+	// Get Smart Contracts path from environment
+	smartContractsPath := os.Getenv("SMART_CONTRACTS_PATH")
+	if smartContractsPath == "" {
+		smartContractsPath = filepath.Join(baseDir, "contracts", "artifacts")
+	}
+
 	// Load blockchain configurations
 	blockchains := BlockchainsConfig{
 		Ethereum: loadEthereumConfig(),
@@ -101,12 +110,13 @@ func LoadConfig() *Config {
 	}
 
 	return &Config{
-		DBPath:          dbPath,
-		Port:            port,
-		UIPath:          uiPath,
-		MigrationsPath:  migrationsPath,
-		DBEncryptionKey: dbEncryptionKey,
-		Blockchains:     blockchains,
+		DBPath:             dbPath,
+		Port:               port,
+		UIPath:             uiPath,
+		MigrationsPath:     migrationsPath,
+		DBEncryptionKey:    dbEncryptionKey,
+		SmartContractsPath: smartContractsPath,
+		Blockchains:        blockchains,
 	}
 }
 
@@ -188,18 +198,23 @@ func parseEnvUint(key string, defaultValue uint64) uint64 {
 	return value
 }
 
-// GetBlockchainConfig returns the configuration for a specific blockchain by its type
+// GetBlockchainConfig returns the blockchain configuration for the specified chain type
 func (c *Config) GetBlockchainConfig(chainType string) *BlockchainConfig {
 	switch chainType {
-	case "ethereum":
+	case string(types.ChainTypeEthereum):
 		return &c.Blockchains.Ethereum
-	case "polygon":
+	case string(types.ChainTypePolygon):
 		return &c.Blockchains.Polygon
-	case "base":
+	case string(types.ChainTypeBase):
 		return &c.Blockchains.Base
 	default:
 		return nil
 	}
+}
+
+// GetSmartContractsPath returns the path to the compiled smart contract artifacts
+func (c *Config) GetSmartContractsPath() string {
+	return c.SmartContractsPath
 }
 
 // loadEnvFiles tries to load environment variables from .env files in multiple locations

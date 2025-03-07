@@ -57,6 +57,9 @@ type Blockchain interface {
 	// CallContract executes a read-only call to a smart contract
 	CallContract(ctx context.Context, from string, to string, data []byte) ([]byte, error)
 
+	// ChainType returns the type of the blockchain
+	ChainType() types.ChainType
+
 	// Close closes any open connections
 	Close()
 }
