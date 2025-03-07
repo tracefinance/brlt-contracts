@@ -18,7 +18,6 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/pem"
 	"vault0/internal/config"
 	"vault0/internal/keygen"
 )
@@ -373,14 +372,8 @@ func (ks *DBKeyStore) signData(keyType keygen.KeyType, privateKeyBytes, data []b
 
 // signWithECDSA signs data using an ECDSA private key
 func (ks *DBKeyStore) signWithECDSA(privateKeyBytes, data []byte, dataType DataType) ([]byte, error) {
-	// Parse the PEM encoded private key
-	block, _ := pem.Decode(privateKeyBytes)
-	if block == nil {
-		return nil, errors.New("failed to decode PEM block containing ECDSA private key")
-	}
-
-	// Parse the private key
-	privateKey, err := x509.ParseECPrivateKey(block.Bytes)
+	// Parse the DER encoded private key directly (no PEM decoding needed)
+	privateKey, err := x509.ParseECPrivateKey(privateKeyBytes)
 	if err != nil {
 		return nil, errors.New("failed to parse ECDSA private key: " + err.Error())
 	}
@@ -415,14 +408,8 @@ func (ks *DBKeyStore) signWithECDSA(privateKeyBytes, data []byte, dataType DataT
 
 // signWithRSA signs data using an RSA private key
 func (ks *DBKeyStore) signWithRSA(privateKeyBytes, data []byte, dataType DataType) ([]byte, error) {
-	// Parse the PEM encoded private key
-	block, _ := pem.Decode(privateKeyBytes)
-	if block == nil {
-		return nil, errors.New("failed to decode PEM block containing RSA private key")
-	}
-
-	// Parse the private key
-	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	// Parse the DER encoded private key directly (no PEM decoding needed)
+	privateKey, err := x509.ParsePKCS1PrivateKey(privateKeyBytes)
 	if err != nil {
 		return nil, errors.New("failed to parse RSA private key: " + err.Error())
 	}
@@ -455,14 +442,8 @@ func (ks *DBKeyStore) signWithRSA(privateKeyBytes, data []byte, dataType DataTyp
 
 // signWithEd25519 signs data using an Ed25519 private key
 func (ks *DBKeyStore) signWithEd25519(privateKeyBytes, data []byte) ([]byte, error) {
-	// Parse the PEM encoded private key
-	block, _ := pem.Decode(privateKeyBytes)
-	if block == nil {
-		return nil, errors.New("failed to decode PEM block containing Ed25519 private key")
-	}
-
-	// Parse the private key
-	privateKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	// Parse the DER encoded private key directly (no PEM decoding needed)
+	privateKey, err := x509.ParsePKCS8PrivateKey(privateKeyBytes)
 	if err != nil {
 		return nil, errors.New("failed to parse Ed25519 private key: " + err.Error())
 	}

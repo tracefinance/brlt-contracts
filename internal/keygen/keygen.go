@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io"
 )
@@ -72,48 +71,32 @@ func (kg *DefaultKeyGenerator) generateECDSAKeyPair(curve elliptic.Curve) (priva
 		return nil, nil, err
 	}
 
-	// Handle key marshalling based on curve type
-	var privDER, pubDER []byte
-
 	// Special handling for SECP256K1 curve
 	if curve == Secp256k1 {
 		// Use our custom marshalling for SECP256K1
-		privDER, err = marshalSecp256k1PrivateKey(privateECDSA)
+		privateKey, err = marshalSecp256k1PrivateKey(privateECDSA)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to marshal SECP256K1 private key: %w", err)
 		}
 
 		// Use custom marshalling for public key too
-		pubDER, err = marshalSecp256k1PublicKey(&privateECDSA.PublicKey)
+		publicKey, err = marshalSecp256k1PublicKey(&privateECDSA.PublicKey)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to marshal SECP256K1 public key: %w", err)
 		}
 	} else {
 		// For standard curves, use the regular EC marshalling
-		privDER, err = x509.MarshalECPrivateKey(privateECDSA)
+		privateKey, err = x509.MarshalECPrivateKey(privateECDSA)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		// Public key marshalling for standard curves
-		pubDER, err = x509.MarshalPKIXPublicKey(&privateECDSA.PublicKey)
+		publicKey, err = x509.MarshalPKIXPublicKey(&privateECDSA.PublicKey)
 		if err != nil {
 			return nil, nil, err
 		}
 	}
-
-	// PEM encode the private key
-	// Use "EC PRIVATE KEY" for all curves to maintain compatibility
-	privateKey = pem.EncodeToMemory(&pem.Block{
-		Type:  "EC PRIVATE KEY",
-		Bytes: privDER,
-	})
-
-	// PEM encode the public key
-	publicKey = pem.EncodeToMemory(&pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: pubDER,
-	})
 
 	return privateKey, publicKey, nil
 }
@@ -127,25 +110,13 @@ func (kg *DefaultKeyGenerator) generateRSAKeyPair() (privateKey, publicKey []byt
 	}
 
 	// Convert private key to PKCS#1 DER format
-	privDER := x509.MarshalPKCS1PrivateKey(privateRSA)
+	privateKey = x509.MarshalPKCS1PrivateKey(privateRSA)
 
 	// Convert public key to PKIX DER format
-	pubDER, err := x509.MarshalPKIXPublicKey(&privateRSA.PublicKey)
+	publicKey, err = x509.MarshalPKIXPublicKey(&privateRSA.PublicKey)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	// PEM encode the private key
-	privateKey = pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: privDER,
-	})
-
-	// PEM encode the public key
-	publicKey = pem.EncodeToMemory(&pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: pubDER,
-	})
 
 	return privateKey, publicKey, nil
 }
@@ -164,11 +135,8 @@ func (kg *DefaultKeyGenerator) generateEd25519KeyPair() (privateKey, publicKey [
 		return nil, nil, err
 	}
 
-	// PEM encode the private key
-	privateKey = pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: pkcs8Key,
-	})
+	// Use the PKCS8 DER encoding for the private key
+	privateKey = pkcs8Key
 
 	// Convert public key to DER format
 	pubDER, err := x509.MarshalPKIXPublicKey(pubKey)
@@ -176,11 +144,8 @@ func (kg *DefaultKeyGenerator) generateEd25519KeyPair() (privateKey, publicKey [
 		return nil, nil, err
 	}
 
-	// PEM encode the public key
-	publicKey = pem.EncodeToMemory(&pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: pubDER,
-	})
+	// Return the DER-encoded keys directly instead of PEM encoding them
+	publicKey = pubDER
 
 	return privateKey, publicKey, nil
 }
