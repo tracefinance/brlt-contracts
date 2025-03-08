@@ -259,16 +259,15 @@ func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethtypes.Transac
 	if err != nil {
 		return nil, fmt.Errorf("failed to get public key: %w", err)
 	}
-	expectedPubKey, err := crypto.UnmarshalPubkey(key.PublicKey)
+	publicKey, err := crypto.UnmarshalPubkey(key.PublicKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal public key: %w", err)
 	}
 
-	// Test recovery ID (v = 27 or 28) to find the correct one
-	for recID := 0; recID <= 1; recID++ {
-		v := byte(recID)
+	// Test recovery ID {0, 1} to find the correct v
+	for recoveryID := 0; recoveryID <= 1; recoveryID++ {
 		testSig := append(rBytes, sBytes...)
-		testSig = append(testSig, v)
+		testSig = append(testSig, byte(recoveryID))
 
 		// Attempt to recover the public key
 		recoveredPubKeyBytes, err := crypto.Ecrecover(hash.Bytes(), testSig)
@@ -281,12 +280,13 @@ func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethtypes.Transac
 		}
 
 		// Check if the recovered public key matches the expected one
-		if recoveredPubKey.X.Cmp(expectedPubKey.X) == 0 && recoveredPubKey.Y.Cmp(expectedPubKey.Y) == 0 {
-			// Adjust v for EIP-155: v = 35 + 2*chainID + recID
-			vAdjusted := new(big.Int).Mul(w.config.ChainID, big.NewInt(2))
-			vAdjusted.Add(vAdjusted, big.NewInt(35+int64(recID)))
+		if recoveredPubKey.X.Cmp(publicKey.X) == 0 && recoveredPubKey.Y.Cmp(publicKey.Y) == 0 {
+			// Adjust v for EIP-155: v = 35 + 2*chainID + recoveryID
+			v := new(big.Int).Mul(w.config.ChainID, big.NewInt(2))
+			v.Add(v, big.NewInt(35+int64(recoveryID)))
+			// Build the final signature with the adjusted v value
 			finalSig := append(rBytes, sBytes...)
-			finalSig = append(finalSig, byte(vAdjusted.Uint64()))
+			finalSig = append(finalSig, byte(v.Uint64()))
 
 			// Apply the signature to the transaction
 			signedTx, err := tx.WithSignature(signer, finalSig)
