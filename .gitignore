@@ -49,3 +49,6 @@ __debug_bin
 # Build artifacts
 /dist/
 /build/
+
+# Text files
+*.txt

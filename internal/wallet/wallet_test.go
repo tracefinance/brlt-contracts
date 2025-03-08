@@ -55,11 +55,6 @@ func (m *MockKeyStore) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
-func (m *MockKeyStore) Close() error {
-	args := m.Called()
-	return args.Error(0)
-}
-
 // MockWallet is a mock implementation of the Wallet interface for testing
 type MockWallet struct {
 	mock.Mock

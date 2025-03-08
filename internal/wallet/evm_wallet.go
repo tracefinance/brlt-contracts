@@ -279,36 +279,36 @@ func (w *EVMWallet) SignTransaction(ctx context.Context, tx *types.Transaction) 
 	return w.signEVMTransaction(ctx, ethTx)
 }
 
-// signEVMTransaction signs an EVM transaction using the key store
+// signEVMTransaction signs an EVM transaction using the keystore
 func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethtypes.Transaction) ([]byte, error) {
-	// Hash the transaction for signing
+	// Create the signer with the wallet's chain ID
 	signer := ethtypes.NewEIP155Signer(w.config.ChainID)
 	hash := signer.Hash(tx)
 
-	// Sign the hash with the keystore
-	signature, err := w.keyStore.Sign(ctx, w.keyID, hash.Bytes(), keystore.DataTypeDigest)
+	// Sign the transaction hash with the keystore
+	signature, err := w.keyStore.Sign(ctx, w.keyID, hash.Bytes(), "digest")
 	if err != nil {
 		return nil, fmt.Errorf("keystore signing failed: %w", err)
 	}
 
-	// The signature needs to have the recovery ID as the last byte
-	// Ethereum expects this in a specific format with v = 27 + recovery_id
+	// Ensure signature is 65 bytes (r, s, v)
 	if len(signature) != 65 {
-		return nil, fmt.Errorf("invalid signature length: %d", len(signature))
+		return nil, fmt.Errorf("invalid signature length: expected 65, got %d", len(signature))
 	}
 
-	// Adjust v according to EIP-155
-	v := signature[64]
-	signature[64] = v + byte(w.config.ChainID.Uint64()*2+35)
+	// Extract r, s, and initial v (recID)
+	recID := signature[64]
 
-	// Create a signed transaction
-	r := new(big.Int).SetBytes(signature[:32])
-	s := new(big.Int).SetBytes(signature[32:64])
-	v_int := new(big.Int).SetBytes([]byte{signature[64]})
+	// Adjust v for EIP-155: v = recID + 35 + 2 * chainID
+	vAdjusted := big.NewInt(int64(recID)).Add(big.NewInt(int64(recID)), big.NewInt(35))
+	chainIDMul := new(big.Int).Mul(w.config.ChainID, big.NewInt(2))
+	vAdjusted.Add(vAdjusted, chainIDMul)
+	signature[64] = byte(vAdjusted.Uint64())
 
-	signedTx, err := tx.WithSignature(signer, append(append(r.Bytes(), s.Bytes()...), v_int.Bytes()...))
+	// Apply the signature to the transaction
+	signedTx, err := tx.WithSignature(signer, signature)
 	if err != nil {
-		return nil, fmt.Errorf("failed to add signature to transaction: %w", err)
+		return nil, fmt.Errorf("failed to apply signature: %w", err)
 	}
 
 	// Encode the signed transaction
