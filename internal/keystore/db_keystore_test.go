@@ -2,6 +2,7 @@ package keystore
 
 import (
 	"context"
+	"crypto/elliptic"
 	"crypto/sha256"
 	"fmt"
 	"testing"
@@ -18,15 +19,62 @@ func TestDBKeyStore_Create(t *testing.T) {
 
 	ctx := context.Background()
 
+	t.Run("Create_Valid_ECDSA_P256_Key", func(t *testing.T) {
+		// Arrange
+		id := "test-key-p256"
+		name := "Test ECDSA P-256 Key"
+		keyType := keygen.KeyTypeECDSA
+		curve := elliptic.P256()
+		tags := map[string]string{"purpose": "testing"}
+
+		// Act
+		key, err := keystore.Create(ctx, id, name, keyType, curve, tags)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, id, key.ID)
+		assert.Equal(t, name, key.Name)
+		assert.Equal(t, keyType, key.Type)
+		assert.Equal(t, tags, key.Tags)
+		assert.NotNil(t, key.PublicKey)
+		assert.NotEmpty(t, key.PublicKey)
+		assert.True(t, key.CreatedAt > 0)
+		assert.Equal(t, curve, key.Curve)
+	})
+
+	t.Run("Create_Valid_ECDSA_Secp256k1_Key", func(t *testing.T) {
+		// Arrange
+		id := "test-key-secp256k1"
+		name := "Test ECDSA secp256k1 Key"
+		keyType := keygen.KeyTypeECDSA
+		curve := keygen.Secp256k1Curve
+		tags := map[string]string{"purpose": "testing"}
+
+		// Act
+		key, err := keystore.Create(ctx, id, name, keyType, curve, tags)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, id, key.ID)
+		assert.Equal(t, name, key.Name)
+		assert.Equal(t, keyType, key.Type)
+		assert.Equal(t, tags, key.Tags)
+		assert.NotNil(t, key.PublicKey)
+		assert.NotEmpty(t, key.PublicKey)
+		assert.True(t, key.CreatedAt > 0)
+		assert.Equal(t, curve, key.Curve)
+	})
+
 	t.Run("Create_Valid_ECDSA_Key", func(t *testing.T) {
 		// Arrange
 		id := "test-key-1"
 		name := "Test ECDSA Key"
 		keyType := keygen.KeyTypeECDSA
+		curve := elliptic.P256() // Default to P-256 for backward compatibility
 		tags := map[string]string{"purpose": "testing"}
 
 		// Act
-		key, err := keystore.Create(ctx, id, name, keyType, tags)
+		key, err := keystore.Create(ctx, id, name, keyType, curve, tags)
 
 		// Assert
 		require.NoError(t, err)
@@ -47,7 +95,7 @@ func TestDBKeyStore_Create(t *testing.T) {
 		tags := map[string]string{"purpose": "testing"}
 
 		// Act
-		key, err := keystore.Create(ctx, id, name, keyType, tags)
+		key, err := keystore.Create(ctx, id, name, keyType, nil, tags)
 
 		// Assert
 		require.NoError(t, err)
@@ -67,7 +115,7 @@ func TestDBKeyStore_Create(t *testing.T) {
 		tags := map[string]string{"purpose": "testing"}
 
 		// Act
-		key, err := keystore.Create(ctx, id, name, keyType, tags)
+		key, err := keystore.Create(ctx, id, name, keyType, nil, tags)
 
 		// Assert
 		require.NoError(t, err)
@@ -87,7 +135,7 @@ func TestDBKeyStore_Create(t *testing.T) {
 		tags := map[string]string{"purpose": "testing"}
 
 		// Act
-		key, err := keystore.Create(ctx, id, name, keyType, tags)
+		key, err := keystore.Create(ctx, id, name, keyType, nil, tags)
 
 		// Assert
 		require.NoError(t, err)
@@ -103,18 +151,35 @@ func TestDBKeyStore_Create(t *testing.T) {
 		id := "test-key-duplicate"
 		name := "Test Duplicate Key"
 		keyType := keygen.KeyTypeECDSA
+		curve := elliptic.P256()
 		tags := map[string]string{"purpose": "testing"}
 
 		// First creation should succeed
-		_, err := keystore.Create(ctx, id, name, keyType, tags)
+		_, err := keystore.Create(ctx, id, name, keyType, curve, tags)
 		require.NoError(t, err)
 
 		// Act - Second creation with same ID should fail
-		_, err = keystore.Create(ctx, id, "Another Key", keyType, tags)
+		_, err = keystore.Create(ctx, id, "Another Key", keyType, curve, tags)
 
 		// Assert
 		assert.Error(t, err)
 		assert.Equal(t, ErrKeyAlreadyExists, err)
+	})
+
+	t.Run("Create_ECDSA_NilCurve", func(t *testing.T) {
+		// Arrange
+		id := "test-key-nil-curve"
+		name := "Test ECDSA Key with Nil Curve"
+		keyType := keygen.KeyTypeECDSA
+		tags := map[string]string{"purpose": "testing"}
+
+		// Act
+		key, err := keystore.Create(ctx, id, name, keyType, nil, tags)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotNil(t, key)
+		assert.Equal(t, elliptic.P256(), key.Curve) // Should default to P-256
 	})
 }
 
@@ -124,14 +189,67 @@ func TestDBKeyStore_GetPublicKey(t *testing.T) {
 
 	ctx := context.Background()
 
+	t.Run("GetPublicKey_ECDSA_P256", func(t *testing.T) {
+		// Arrange - Create a P-256 key
+		id := "test-key-get-p256"
+		name := "Test Get P-256 Key"
+		keyType := keygen.KeyTypeECDSA
+		curve := elliptic.P256()
+		tags := map[string]string{"purpose": "testing"}
+
+		originalKey, err := keystore.Create(ctx, id, name, keyType, curve, tags)
+		require.NoError(t, err)
+
+		// Act
+		retrievedKey, err := keystore.GetPublicKey(ctx, id)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, originalKey.ID, retrievedKey.ID)
+		assert.Equal(t, originalKey.Name, retrievedKey.Name)
+		assert.Equal(t, originalKey.Type, retrievedKey.Type)
+		assert.Equal(t, originalKey.Tags, retrievedKey.Tags)
+		assert.Equal(t, originalKey.CreatedAt, retrievedKey.CreatedAt)
+		assert.Equal(t, originalKey.PublicKey, retrievedKey.PublicKey)
+		assert.Equal(t, curve, retrievedKey.Curve)
+		assert.Nil(t, retrievedKey.PrivateKey)
+	})
+
+	t.Run("GetPublicKey_ECDSA_Secp256k1", func(t *testing.T) {
+		// Arrange - Create a secp256k1 key
+		id := "test-key-get-secp256k1"
+		name := "Test Get secp256k1 Key"
+		keyType := keygen.KeyTypeECDSA
+		curve := keygen.Secp256k1Curve
+		tags := map[string]string{"purpose": "testing"}
+
+		originalKey, err := keystore.Create(ctx, id, name, keyType, curve, tags)
+		require.NoError(t, err)
+
+		// Act
+		retrievedKey, err := keystore.GetPublicKey(ctx, id)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, originalKey.ID, retrievedKey.ID)
+		assert.Equal(t, originalKey.Name, retrievedKey.Name)
+		assert.Equal(t, originalKey.Type, retrievedKey.Type)
+		assert.Equal(t, originalKey.Tags, retrievedKey.Tags)
+		assert.Equal(t, originalKey.CreatedAt, retrievedKey.CreatedAt)
+		assert.Equal(t, originalKey.PublicKey, retrievedKey.PublicKey)
+		assert.Equal(t, curve, retrievedKey.Curve)
+		assert.Nil(t, retrievedKey.PrivateKey)
+	})
+
 	t.Run("GetPublicKey_ExistingKey", func(t *testing.T) {
 		// Arrange - Create a key
 		id := "test-key-get"
 		name := "Test Get Key"
 		keyType := keygen.KeyTypeECDSA
+		curve := elliptic.P256()
 		tags := map[string]string{"purpose": "testing"}
 
-		originalKey, err := keystore.Create(ctx, id, name, keyType, tags)
+		originalKey, err := keystore.Create(ctx, id, name, keyType, curve, tags)
 		require.NoError(t, err)
 
 		// Act
@@ -179,7 +297,7 @@ func TestDBKeyStore_List(t *testing.T) {
 		keyIDs := []string{"list-key-1", "list-key-2", "list-key-3"}
 		for i, id := range keyIDs {
 			keyName := fmt.Sprintf("List Key %d", i)
-			_, err := keystore.Create(ctx, id, keyName, keygen.KeyTypeECDSA, nil)
+			_, err := keystore.Create(ctx, id, keyName, keygen.KeyTypeECDSA, elliptic.P256(), nil)
 			require.NoError(t, err)
 		}
 
@@ -210,7 +328,7 @@ func TestDBKeyStore_Update(t *testing.T) {
 		originalName := "Original Name"
 		originalTags := map[string]string{"purpose": "original", "env": "test"}
 
-		originalKey, err := keystore.Create(ctx, id, originalName, keygen.KeyTypeECDSA, originalTags)
+		originalKey, err := keystore.Create(ctx, id, originalName, keygen.KeyTypeECDSA, elliptic.P256(), originalTags)
 		require.NoError(t, err)
 
 		// Act - Update the key
@@ -248,7 +366,7 @@ func TestDBKeyStore_Delete(t *testing.T) {
 	t.Run("Delete_ExistingKey", func(t *testing.T) {
 		// Arrange - Create a key
 		id := "delete-key-1"
-		_, err := keystore.Create(ctx, id, "Delete Key", keygen.KeyTypeECDSA, nil)
+		_, err := keystore.Create(ctx, id, "Delete Key", keygen.KeyTypeECDSA, elliptic.P256(), nil)
 		require.NoError(t, err)
 
 		// Act - Delete the key
@@ -288,6 +406,7 @@ func TestDBKeyStore_Sign(t *testing.T) {
 	tests := []struct {
 		name     string
 		keyType  keygen.KeyType
+		curve    elliptic.Curve
 		dataType DataType
 		testData []byte
 		wantErr  bool
@@ -295,6 +414,7 @@ func TestDBKeyStore_Sign(t *testing.T) {
 		{
 			name:     "ECDSA_Raw",
 			keyType:  keygen.KeyTypeECDSA,
+			curve:    elliptic.P256(),
 			dataType: DataTypeRaw,
 			testData: data,
 			wantErr:  false,
@@ -302,6 +422,7 @@ func TestDBKeyStore_Sign(t *testing.T) {
 		{
 			name:     "ECDSA_Digest",
 			keyType:  keygen.KeyTypeECDSA,
+			curve:    elliptic.P256(),
 			dataType: DataTypeDigest,
 			testData: hashedData,
 			wantErr:  false,
@@ -309,6 +430,7 @@ func TestDBKeyStore_Sign(t *testing.T) {
 		{
 			name:     "RSA_Raw",
 			keyType:  keygen.KeyTypeRSA,
+			curve:    nil,
 			dataType: DataTypeRaw,
 			testData: data,
 			wantErr:  false,
@@ -316,6 +438,7 @@ func TestDBKeyStore_Sign(t *testing.T) {
 		{
 			name:     "RSA_Digest",
 			keyType:  keygen.KeyTypeRSA,
+			curve:    nil,
 			dataType: DataTypeDigest,
 			testData: hashedData,
 			wantErr:  false,
@@ -323,6 +446,7 @@ func TestDBKeyStore_Sign(t *testing.T) {
 		{
 			name:     "Ed25519_Raw",
 			keyType:  keygen.KeyTypeEd25519,
+			curve:    nil,
 			dataType: DataTypeRaw,
 			testData: data,
 			wantErr:  false,
@@ -330,6 +454,7 @@ func TestDBKeyStore_Sign(t *testing.T) {
 		{
 			name:     "Ed25519_Digest",
 			keyType:  keygen.KeyTypeEd25519,
+			curve:    nil,
 			dataType: DataTypeDigest,
 			testData: hashedData,
 			wantErr:  false,
@@ -337,6 +462,7 @@ func TestDBKeyStore_Sign(t *testing.T) {
 		{
 			name:     "Symmetric_Raw",
 			keyType:  keygen.KeyTypeSymmetric,
+			curve:    nil,
 			dataType: DataTypeRaw,
 			testData: data,
 			wantErr:  false,
@@ -344,6 +470,7 @@ func TestDBKeyStore_Sign(t *testing.T) {
 		{
 			name:     "Symmetric_Digest",
 			keyType:  keygen.KeyTypeSymmetric,
+			curve:    nil,
 			dataType: DataTypeDigest,
 			testData: hashedData,
 			wantErr:  false,
@@ -354,7 +481,7 @@ func TestDBKeyStore_Sign(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a key
 			keyID := "test-sign-key-" + tt.name
-			key, err := keystore.Create(ctx, keyID, "Test Signing Key "+tt.name, tt.keyType, map[string]string{"purpose": "signing"})
+			key, err := keystore.Create(ctx, keyID, "Test Signing Key "+tt.name, tt.keyType, tt.curve, map[string]string{"purpose": "signing"})
 			require.NoError(t, err)
 			require.NotNil(t, key)
 
@@ -382,7 +509,7 @@ func TestDBKeyStore_Sign(t *testing.T) {
 	t.Run("PreHashedData", func(t *testing.T) {
 		// Create an ECDSA key
 		keyID := "test-sign-prehashed"
-		key, err := keystore.Create(ctx, keyID, "Test Pre-hashed Signing", keygen.KeyTypeECDSA, nil)
+		key, err := keystore.Create(ctx, keyID, "Test Pre-hashed Signing", keygen.KeyTypeECDSA, elliptic.P256(), nil)
 		require.NoError(t, err)
 		require.NotNil(t, key)
 
@@ -406,6 +533,48 @@ func TestDBKeyStore_Sign(t *testing.T) {
 		// The signatures should be different because the input to the signing algorithm is different
 		require.NotEqual(t, signature, signatureRaw)
 	})
+
+	t.Run("Sign_ECDSA_P256", func(t *testing.T) {
+		// Arrange - Create a P-256 key
+		id := "sign-key-p256"
+		_, err := keystore.Create(ctx, id, "Test P-256 Key", keygen.KeyTypeECDSA, elliptic.P256(), nil)
+		require.NoError(t, err)
+
+		// Test data
+		data := []byte("test data")
+		hash := sha256.Sum256(data)
+
+		// Act - Sign raw data
+		signature1, err := keystore.Sign(ctx, id, data, DataTypeRaw)
+		require.NoError(t, err)
+		assert.NotEmpty(t, signature1)
+
+		// Act - Sign pre-hashed data
+		signature2, err := keystore.Sign(ctx, id, hash[:], DataTypeDigest)
+		require.NoError(t, err)
+		assert.NotEmpty(t, signature2)
+	})
+
+	t.Run("Sign_ECDSA_Secp256k1", func(t *testing.T) {
+		// Arrange - Create a secp256k1 key
+		id := "sign-key-secp256k1"
+		_, err := keystore.Create(ctx, id, "Test secp256k1 Key", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, nil)
+		require.NoError(t, err)
+
+		// Test data
+		data := []byte("test data")
+		hash := sha256.Sum256(data)
+
+		// Act - Sign raw data
+		signature1, err := keystore.Sign(ctx, id, data, DataTypeRaw)
+		require.NoError(t, err)
+		assert.NotEmpty(t, signature1)
+
+		// Act - Sign pre-hashed data
+		signature2, err := keystore.Sign(ctx, id, hash[:], DataTypeDigest)
+		require.NoError(t, err)
+		assert.NotEmpty(t, signature2)
+	})
 }
 
 func TestDBKeyStore_Import(t *testing.T) {
@@ -414,23 +583,26 @@ func TestDBKeyStore_Import(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Generate a key pair for import
-	keyGen := keygen.NewKeyGenerator()
-	privateKey, publicKey, err := keyGen.GenerateKeyPair(keygen.KeyTypeECDSA, nil)
-	require.NoError(t, err)
+	t.Run("Import_ECDSA_Key", func(t *testing.T) {
+		// Arrange
+		id := "import-key-1"
+		name := "Imported ECDSA Key"
+		keyType := keygen.KeyTypeECDSA
+		curve := elliptic.P256()
+		privateKey := []byte("test-private-key")
+		publicKey := []byte("test-public-key")
+		tags := map[string]string{"purpose": "testing"}
 
-	// Import the key
-	keyID := "imported-key"
-	keyName := "Imported ECDSA Key"
-	keyType := keygen.KeyTypeECDSA
-	tags := map[string]string{"purpose": "imported"}
+		// Act
+		key, err := keystore.Import(ctx, id, name, keyType, curve, privateKey, publicKey, tags)
 
-	key, err := keystore.Import(ctx, keyID, keyName, keyType, privateKey, publicKey, tags)
-
-	require.NoError(t, err)
-	require.NotNil(t, key)
-	require.Equal(t, keyID, key.ID)
-	require.Equal(t, keyName, key.Name)
-	require.Equal(t, keyType, key.Type)
-	require.Equal(t, tags, key.Tags)
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, id, key.ID)
+		assert.Equal(t, name, key.Name)
+		assert.Equal(t, keyType, key.Type)
+		assert.Equal(t, tags, key.Tags)
+		assert.NotNil(t, key.PublicKey)
+		assert.Equal(t, publicKey, key.PublicKey)
+	})
 }

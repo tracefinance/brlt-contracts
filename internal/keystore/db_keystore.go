@@ -13,6 +13,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
@@ -48,8 +49,20 @@ func NewDBKeyStore(db *sql.DB, cfg *config.Config) (*DBKeyStore, error) {
 	}, nil
 }
 
+// curveByName returns the elliptic.Curve instance for a given curve name
+func curveByName(name string) (elliptic.Curve, error) {
+	switch name {
+	case "P-256":
+		return elliptic.P256(), nil
+	case "secp256k1":
+		return keygen.Secp256k1Curve, nil
+	default:
+		return nil, fmt.Errorf("unsupported curve: %s", name)
+	}
+}
+
 // Create creates a new key with the given ID, name, and type
-func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType keygen.KeyType, tags map[string]string) (*Key, error) {
+func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*Key, error) {
 	// Check if key with the same ID already exists
 	var count int
 	err := ks.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
@@ -58,6 +71,13 @@ func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType keyge
 	}
 	if count > 0 {
 		return nil, ErrKeyAlreadyExists
+	}
+
+	// Validate curve for ECDSA keys
+	if keyType == keygen.KeyTypeECDSA {
+		if curve == nil {
+			curve = elliptic.P256() // Default to P-256 if no curve is specified
+		}
 	}
 
 	// Convert tags to JSON
@@ -73,10 +93,11 @@ func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType keyge
 		Type:      keyType,
 		Tags:      tags,
 		CreatedAt: time.Now().Unix(),
+		Curve:     curve,
 	}
 
 	// Generate cryptographic key material based on key type
-	privateKey, publicKey, err := ks.keyGenerator.GenerateKeyPair(keyType, nil)
+	privateKey, publicKey, err := ks.keyGenerator.GenerateKeyPair(keyType, curve)
 	if err != nil {
 		return nil, err
 	}
@@ -91,13 +112,20 @@ func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType keyge
 	key.PrivateKey = encryptedPrivateKey
 	key.PublicKey = publicKey
 
+	// Get curve name if applicable
+	var curveName string
+	if curve != nil {
+		curveName = curve.Params().Name
+	}
+
 	// Insert the key into the database
 	_, err = ks.db.ExecContext(
 		ctx,
-		"INSERT INTO keys (id, name, key_type, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO keys (id, name, key_type, curve, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 		key.ID,
 		key.Name,
 		string(key.Type),
+		curveName,
 		string(tagsJSON),
 		key.CreatedAt,
 		key.PrivateKey,
@@ -111,7 +139,7 @@ func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType keyge
 }
 
 // Import imports an existing key
-func (ks *DBKeyStore) Import(ctx context.Context, id, name string, keyType keygen.KeyType, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
+func (ks *DBKeyStore) Import(ctx context.Context, id, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
 	// Check if key with the same ID already exists
 	var count int
 	err := ks.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
@@ -134,6 +162,17 @@ func (ks *DBKeyStore) Import(ctx context.Context, id, name string, keyType keyge
 		return nil, err
 	}
 
+	// Get curve name if applicable
+	var curveName string
+	if keyType == keygen.KeyTypeECDSA {
+		if curve == nil {
+			curve = elliptic.P256() // Default to P-256 if no curve is specified
+		}
+		curveName = curve.Params().Name
+	} else if curve != nil {
+		curveName = curve.Params().Name
+	}
+
 	// Create the key
 	key := &Key{
 		ID:         id,
@@ -143,15 +182,17 @@ func (ks *DBKeyStore) Import(ctx context.Context, id, name string, keyType keyge
 		CreatedAt:  time.Now().Unix(),
 		PrivateKey: encryptedPrivateKey,
 		PublicKey:  publicKey,
+		Curve:      curve,
 	}
 
 	// Insert the key into the database
 	_, err = ks.db.ExecContext(
 		ctx,
-		"INSERT INTO keys (id, name, key_type, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO keys (id, name, key_type, curve, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 		key.ID,
 		key.Name,
 		string(key.Type),
+		curveName,
 		string(tagsJSON),
 		key.CreatedAt,
 		key.PrivateKey,
@@ -167,20 +208,22 @@ func (ks *DBKeyStore) Import(ctx context.Context, id, name string, keyType keyge
 // GetPublicKey retrieves only the public part of a key by its ID
 func (ks *DBKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, error) {
 	var (
-		key      Key
-		keyType  string
-		tagsJSON string
+		key       Key
+		keyType   string
+		tagsJSON  string
+		curveName string
 	)
 
 	// Query the database
 	err := ks.db.QueryRowContext(
 		ctx,
-		"SELECT id, name, key_type, tags, created_at, public_key FROM keys WHERE id = ?",
+		"SELECT id, name, key_type, curve, tags, created_at, public_key FROM keys WHERE id = ?",
 		id,
 	).Scan(
 		&key.ID,
 		&key.Name,
 		&keyType,
+		&curveName,
 		&tagsJSON,
 		&key.CreatedAt,
 		&key.PublicKey,
@@ -194,6 +237,15 @@ func (ks *DBKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, error)
 
 	// Convert key type
 	key.Type = keygen.KeyType(keyType)
+
+	// Convert curve name to curve instance
+	if curveName != "" {
+		curve, err := curveByName(curveName)
+		if err != nil {
+			return nil, err
+		}
+		key.Curve = curve
+	}
 
 	// Parse tags JSON
 	if tagsJSON != "" {
@@ -215,7 +267,7 @@ func (ks *DBKeyStore) List(ctx context.Context) ([]*Key, error) {
 	// Query the database
 	rows, err := ks.db.QueryContext(
 		ctx,
-		"SELECT id, name, key_type, tags, created_at, NULL, public_key FROM keys",
+		"SELECT id, name, key_type, curve, tags, created_at, NULL, public_key FROM keys",
 	)
 	if err != nil {
 		return nil, err
@@ -225,15 +277,17 @@ func (ks *DBKeyStore) List(ctx context.Context) ([]*Key, error) {
 	var keys []*Key
 	for rows.Next() {
 		var (
-			key      Key
-			keyType  string
-			tagsJSON string
+			key       Key
+			keyType   string
+			tagsJSON  string
+			curveName string
 		)
 
 		err := rows.Scan(
 			&key.ID,
 			&key.Name,
 			&keyType,
+			&curveName,
 			&tagsJSON,
 			&key.CreatedAt,
 			&key.PrivateKey, // Will be NULL
@@ -245,6 +299,15 @@ func (ks *DBKeyStore) List(ctx context.Context) ([]*Key, error) {
 
 		// Convert key type
 		key.Type = keygen.KeyType(keyType)
+
+		// Convert curve name to curve instance
+		if curveName != "" {
+			curve, err := curveByName(curveName)
+			if err != nil {
+				return nil, err
+			}
+			key.Curve = curve
+		}
 
 		// Parse tags JSON
 		if tagsJSON != "" {
@@ -258,7 +321,7 @@ func (ks *DBKeyStore) List(ctx context.Context) ([]*Key, error) {
 		keys = append(keys, &key)
 	}
 
-	if err := rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -322,14 +385,15 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte, dataType
 	var (
 		privateKeyBytes []byte
 		keyType         string
+		curveName       string
 	)
 
-	// Query the database for the private key and key type
+	// Query the database for the private key, key type and curve
 	err := ks.db.QueryRowContext(
 		ctx,
-		"SELECT private_key, key_type FROM keys WHERE id = ?",
+		"SELECT private_key, key_type, curve FROM keys WHERE id = ?",
 		id,
-	).Scan(&privateKeyBytes, &keyType)
+	).Scan(&privateKeyBytes, &keyType, &curveName)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -345,7 +409,7 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte, dataType
 	}
 
 	// Sign the data based on the key type
-	signature, err := ks.signData(keygen.KeyType(keyType), decryptedPrivateKey, data, dataType)
+	signature, err := ks.signData(keygen.KeyType(keyType), decryptedPrivateKey, data, dataType, curveName)
 	if err != nil {
 		return nil, err
 	}
@@ -354,10 +418,10 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte, dataType
 }
 
 // signData signs data using the appropriate algorithm based on the key type
-func (ks *DBKeyStore) signData(keyType keygen.KeyType, privateKeyBytes, data []byte, dataType DataType) ([]byte, error) {
+func (ks *DBKeyStore) signData(keyType keygen.KeyType, privateKeyBytes, data []byte, dataType DataType, curveName string) ([]byte, error) {
 	switch keyType {
 	case keygen.KeyTypeECDSA:
-		return ks.signWithECDSA(privateKeyBytes, data, dataType)
+		return ks.signWithECDSA(privateKeyBytes, data, dataType, curveName)
 	case keygen.KeyTypeRSA:
 		return ks.signWithRSA(privateKeyBytes, data, dataType)
 	case keygen.KeyTypeEd25519:
@@ -371,11 +435,22 @@ func (ks *DBKeyStore) signData(keyType keygen.KeyType, privateKeyBytes, data []b
 }
 
 // signWithECDSA signs data using an ECDSA private key
-func (ks *DBKeyStore) signWithECDSA(privateKeyBytes, data []byte, dataType DataType) ([]byte, error) {
-	// Parse the DER encoded private key directly (no PEM decoding needed)
-	privateKey, err := x509.ParseECPrivateKey(privateKeyBytes)
-	if err != nil {
-		return nil, errors.New("failed to parse ECDSA private key: " + err.Error())
+func (ks *DBKeyStore) signWithECDSA(privateKeyBytes, data []byte, dataType DataType, curveName string) ([]byte, error) {
+	var privateKey *ecdsa.PrivateKey
+	var err error
+
+	// Use specialized unmarshal for secp256k1 curve
+	if curveName == "secp256k1" {
+		privateKey, err = keygen.UnmarshalPrivateKey(privateKeyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal secp256k1 private key: %w", err)
+		}
+	} else {
+		// For other curves, use standard x509 parsing
+		privateKey, err = x509.ParseECPrivateKey(privateKeyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse ECDSA private key: %w", err)
+		}
 	}
 
 	var digest []byte
@@ -400,7 +475,7 @@ func (ks *DBKeyStore) signWithECDSA(privateKeyBytes, data []byte, dataType DataT
 	}
 	signature, err := asn1.Marshal(ECDSASignature{R: r, S: s})
 	if err != nil {
-		return nil, errors.New("failed to marshal ECDSA signature: " + err.Error())
+		return nil, fmt.Errorf("failed to marshal ECDSA signature: %w", err)
 	}
 
 	return signature, nil

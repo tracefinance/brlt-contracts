@@ -35,6 +35,7 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
 			key_type TEXT NOT NULL,
+			curve TEXT,
 			tags TEXT,
 			private_key BLOB,
 			public_key BLOB,
