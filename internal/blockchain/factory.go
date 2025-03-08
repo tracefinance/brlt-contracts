@@ -22,9 +22,9 @@ func NewFactory(cfg *config.Config) *Factory {
 	}
 }
 
-// NewBlockchain creates a new blockchain implementation for the given chain type
+// Create creates a new blockchain implementation for the given chain type
 // or returns an existing instance if one has already been created (singleton pattern)
-func (f *Factory) NewBlockchain(chainType types.ChainType) (Blockchain, error) {
+func (f *Factory) Create(chainType types.ChainType) (Blockchain, error) {
 	// Check if we already have a client for this chain type
 	f.clientsMux.RLock()
 	client, exists := f.clients[chainType]
