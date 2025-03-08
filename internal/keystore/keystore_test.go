@@ -5,8 +5,9 @@ import (
 	"testing"
 
 	"vault0/internal/config"
-	"vault0/internal/keygen"
+	"vault0/internal/crypto"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -15,7 +16,7 @@ import (
 // testConfig creates a config for testing purposes
 func testConfig() *config.Config {
 	// Generate a random encryption key for tests
-	encKey, _ := keygen.GenerateEncryptionKeyBase64(32)
+	encKey, _ := crypto.GenerateEncryptionKeyBase64(32)
 
 	return &config.Config{
 		DBPath:          ":memory:", // Use in-memory SQLite for tests
@@ -67,4 +68,22 @@ func setupTestKeyStore(t *testing.T) (KeyStore, *sql.DB, func()) {
 	}
 
 	return dbKeyStore, db, cleanup
+}
+
+func TestConfig(t *testing.T) {
+	t.Run("Create config with valid encryption key", func(t *testing.T) {
+		// Generate a valid encryption key
+		key, err := crypto.GenerateEncryptionKeyBase64(32)
+		assert.NoError(t, err)
+
+		// Create config
+		cfg := &config.Config{
+			DBPath:          ":memory:",
+			DBEncryptionKey: key,
+		}
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, ":memory:", cfg.DBPath)
+		assert.Equal(t, key, cfg.DBEncryptionKey)
+	})
 }

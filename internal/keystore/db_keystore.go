@@ -20,14 +20,16 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"vault0/internal/config"
+	vcrypto "vault0/internal/crypto"
 	"vault0/internal/keygen"
 )
 
 // DBKeyStore implements the KeyStore interface using a local database
 type DBKeyStore struct {
 	db           *sql.DB
-	encryptor    keygen.Encryptor
+	encryptor    vcrypto.Encryptor
 	keyGenerator keygen.KeyGenerator
+	initialized  bool
 }
 
 // NewDBKeyStore creates a new DBKeyStore instance
@@ -37,7 +39,7 @@ func NewDBKeyStore(db *sql.DB, cfg *config.Config) (*DBKeyStore, error) {
 	}
 
 	// Create the encryptor
-	encryptor, err := keygen.NewAESEncryptorFromBase64(cfg.DBEncryptionKey)
+	encryptor, err := vcrypto.NewAESEncryptorFromBase64(cfg.DBEncryptionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -46,6 +48,7 @@ func NewDBKeyStore(db *sql.DB, cfg *config.Config) (*DBKeyStore, error) {
 		db:           db,
 		encryptor:    encryptor,
 		keyGenerator: keygen.NewKeyGenerator(),
+		initialized:  true,
 	}, nil
 }
 

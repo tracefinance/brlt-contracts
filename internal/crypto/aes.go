@@ -1,4 +1,4 @@
-package keygen
+package crypto
 
 import (
 	"crypto/aes"
