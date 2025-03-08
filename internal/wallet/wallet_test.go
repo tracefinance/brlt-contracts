@@ -2,58 +2,13 @@ package wallet
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"math/big"
-	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/mock"
 
 	"vault0/internal/config"
-	"vault0/internal/keygen"
-	"vault0/internal/keystore"
 	"vault0/internal/types"
 )
-
-// MockKeyStore is a mock implementation of the KeyStore interface for testing
-type MockKeyStore struct {
-	mock.Mock
-}
-
-func (m *MockKeyStore) Create(ctx context.Context, id, name string, keyType keygen.KeyType, tags map[string]string) (*keystore.Key, error) {
-	args := m.Called(ctx, id, name, keyType, tags)
-	return args.Get(0).(*keystore.Key), args.Error(1)
-}
-
-func (m *MockKeyStore) Import(ctx context.Context, id, name string, keyType keygen.KeyType, privateKey, publicKey []byte, tags map[string]string) (*keystore.Key, error) {
-	args := m.Called(ctx, id, name, keyType, privateKey, publicKey, tags)
-	return args.Get(0).(*keystore.Key), args.Error(1)
-}
-
-func (m *MockKeyStore) Sign(ctx context.Context, id string, data []byte, dataType keystore.DataType) ([]byte, error) {
-	args := m.Called(ctx, id, data, dataType)
-	return args.Get(0).([]byte), args.Error(1)
-}
-
-func (m *MockKeyStore) GetPublicKey(ctx context.Context, id string) (*keystore.Key, error) {
-	args := m.Called(ctx, id)
-	return args.Get(0).(*keystore.Key), args.Error(1)
-}
-
-func (m *MockKeyStore) List(ctx context.Context) ([]*keystore.Key, error) {
-	args := m.Called(ctx)
-	return args.Get(0).([]*keystore.Key), args.Error(1)
-}
-
-func (m *MockKeyStore) Update(ctx context.Context, id string, name string, tags map[string]string) (*keystore.Key, error) {
-	args := m.Called(ctx, id, name, tags)
-	return args.Get(0).(*keystore.Key), args.Error(1)
-}
-
-func (m *MockKeyStore) Delete(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
-	return args.Error(0)
-}
 
 // MockWallet is a mock implementation of the Wallet interface for testing
 type MockWallet struct {
@@ -85,11 +40,6 @@ func (m *MockWallet) SignTransaction(ctx context.Context, keyID string, tx *type
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-// Helper functions for tests
-func createTestPrivateKey() (*ecdsa.PrivateKey, error) {
-	return crypto.GenerateKey()
-}
-
 func createTestConfig() *config.Config {
 	return &config.Config{
 		Blockchains: config.BlockchainsConfig{
@@ -115,22 +65,5 @@ func createTestConfig() *config.Config {
 				ExplorerURL:     "https://basescan.org",
 			},
 		},
-	}
-}
-
-func createTestTransaction() *types.Transaction {
-	return &types.Transaction{
-		Chain:     types.ChainTypeEthereum,
-		Hash:      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-		From:      "0xabcdef1234567890abcdef1234567890abcdef12",
-		To:        "0x1234567890abcdef1234567890abcdef12345678",
-		Value:     big.NewInt(100000000000000000), // 0.1 ETH
-		Data:      []byte{},
-		Nonce:     0,
-		GasPrice:  big.NewInt(20000000000), // 20 Gwei
-		GasLimit:  21000,
-		Type:      types.TransactionTypeNative,
-		Status:    "pending",
-		Timestamp: time.Now().Unix(),
 	}
 }

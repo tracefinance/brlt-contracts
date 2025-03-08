@@ -564,7 +564,7 @@ func TestInteropWithEthereumSecp256k1(t *testing.T) {
 		assert.True(t, valid, "Signature should be valid with our implementation")
 
 		// Normalize the S value to comply with Ethereum's EIP-2
-		s = normalizeS(s, Secp256k1Curve)
+		s = normalizeS(s)
 
 		// Calculate the recovery ID (v) based on public key
 		v := calculateRecoveryID(&privateKey.PublicKey)
@@ -610,16 +610,16 @@ func padTo32Bytes(input []byte) []byte {
 
 // normalizeS ensures that the signature's S value is in the lower half of the curve order
 // as per Ethereum's requirements from EIP-2
-func normalizeS(s *big.Int, curve *secp256k1Curve) *big.Int {
+func normalizeS(s *big.Int) *big.Int {
 	// Create a copy of s to avoid modifying the original
 	result := new(big.Int).Set(s)
 
 	// Calculate the half point of the curve order
-	halfN := new(big.Int).Rsh(curve.N, 1) // N/2
+	halfN := new(big.Int).Rsh(Secp256k1Curve.N, 1) // N/2
 
 	// If s > N/2, set s = N - s
 	if result.Cmp(halfN) > 0 {
-		result = new(big.Int).Sub(curve.N, result)
+		result = new(big.Int).Sub(Secp256k1Curve.N, s)
 	}
 
 	return result

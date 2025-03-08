@@ -11,7 +11,7 @@ import (
 
 func TestNewFactory(t *testing.T) {
 	t.Run("Create new factory with valid parameters", func(t *testing.T) {
-		keyStore := new(MockKeyStore)
+		keyStore := &MockKeyStore{}
 		appConfig := createTestConfig()
 
 		factory := NewFactory(keyStore, appConfig)
@@ -22,7 +22,7 @@ func TestNewFactory(t *testing.T) {
 	})
 
 	t.Run("Create new factory with nil config should panic", func(t *testing.T) {
-		keyStore := new(MockKeyStore)
+		keyStore := &MockKeyStore{}
 
 		assert.Panics(t, func() {
 			NewFactory(keyStore, nil)
@@ -33,7 +33,7 @@ func TestNewFactory(t *testing.T) {
 func TestCreateWallet(t *testing.T) {
 	t.Run("Create Ethereum wallet", func(t *testing.T) {
 		ctx := context.Background()
-		keyStore := new(MockKeyStore)
+		keyStore := &MockKeyStore{}
 		appConfig := createTestConfig()
 		factory := NewFactory(keyStore, appConfig)
 
@@ -48,7 +48,7 @@ func TestCreateWallet(t *testing.T) {
 
 	t.Run("Create Polygon wallet", func(t *testing.T) {
 		ctx := context.Background()
-		keyStore := new(MockKeyStore)
+		keyStore := &MockKeyStore{}
 		appConfig := createTestConfig()
 		factory := NewFactory(keyStore, appConfig)
 
@@ -63,7 +63,7 @@ func TestCreateWallet(t *testing.T) {
 
 	t.Run("Create Base wallet", func(t *testing.T) {
 		ctx := context.Background()
-		keyStore := new(MockKeyStore)
+		keyStore := &MockKeyStore{}
 		appConfig := createTestConfig()
 		factory := NewFactory(keyStore, appConfig)
 
@@ -78,7 +78,7 @@ func TestCreateWallet(t *testing.T) {
 
 	t.Run("Create wallet for unsupported chain", func(t *testing.T) {
 		ctx := context.Background()
-		keyStore := new(MockKeyStore)
+		keyStore := &MockKeyStore{}
 		appConfig := createTestConfig()
 		factory := NewFactory(keyStore, appConfig)
 

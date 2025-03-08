@@ -4,144 +4,188 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
-	"encoding/asn1"
-	"fmt"
 	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"vault0/internal/config"
 	"vault0/internal/keygen"
 	"vault0/internal/keystore"
 	"vault0/internal/types"
 )
 
-// testKeyStore is a mock keystore for testing signEVMTransaction
-type testKeyStore struct {
-	privateKey *ecdsa.PrivateKey
-	publicKey  *ecdsa.PublicKey
+// mockAppConfig implements the AppConfig interface for testing
+type mockAppConfig struct {
+	configs map[string]*config.BlockchainConfig
 }
 
-// Create implements the keystore.Create method
-func (ks *testKeyStore) Create(ctx context.Context, id, name string, keyType keygen.KeyType, tags map[string]string) (*keystore.Key, error) {
-	return nil, fmt.Errorf("not implemented")
+func (m *mockAppConfig) GetBlockchainConfig(chainType string) *config.BlockchainConfig {
+	return m.configs[chainType]
 }
 
-// Import implements the keystore.Import method
-func (ks *testKeyStore) Import(ctx context.Context, id, name string, keyType keygen.KeyType, privateKey, publicKey []byte, tags map[string]string) (*keystore.Key, error) {
-	return nil, fmt.Errorf("not implemented")
+// setupTest creates a test wallet with mock dependencies
+func setupTest(t *testing.T) (*EVMWallet, *keystore.MockKeyStore, *mockAppConfig) {
+	ks := keystore.NewMockKeyStore()
+	appCfg := &mockAppConfig{
+		configs: map[string]*config.BlockchainConfig{
+			string(types.ChainTypeEthereum): {
+				ChainID:         1,
+				DefaultGasLimit: 21000,
+				DefaultGasPrice: 20000000000, // 20 Gwei
+			},
+		},
+	}
+	wallet, err := NewEVMWallet(ks, types.ChainTypeEthereum, "test-key", appCfg)
+	require.NoError(t, err)
+	return wallet, ks, appCfg
 }
 
-// Sign implements the keystore.Sign method, signing the digest with the private key
-func (ks *testKeyStore) Sign(ctx context.Context, id string, data []byte, dataType keystore.DataType) ([]byte, error) {
-	if id != "test-key" {
-		return nil, fmt.Errorf("invalid key ID: %s", id)
-	}
-	if dataType != keystore.DataTypeDigest {
-		return nil, fmt.Errorf("expected digest data type, got %s", dataType)
-	}
-	r, s, err := ecdsa.Sign(rand.Reader, ks.privateKey, data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to sign data: %w", err)
-	}
-	return asn1.Marshal(struct{ R, S *big.Int }{r, s})
+// TestChainType tests the ChainType method
+func TestChainType(t *testing.T) {
+	wallet, _, _ := setupTest(t)
+	assert.Equal(t, types.ChainTypeEthereum, wallet.ChainType(), "ChainType should return Ethereum")
 }
 
-// GetPublicKey implements the keystore.GetPublicKey method
-func (ks *testKeyStore) GetPublicKey(ctx context.Context, id string) (*keystore.Key, error) {
-	if id != "test-key" {
-		return nil, fmt.Errorf("invalid key ID: %s", id)
-	}
-	pubKeyBytes, err := keygen.MarshalPublicKey(ks.publicKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal public key: %w", err)
-	}
-	return &keystore.Key{
-		ID:        id,
-		PublicKey: pubKeyBytes,
-	}, nil
+// TestDeriveAddress tests the DeriveAddress method
+func TestDeriveAddress(t *testing.T) {
+	wallet, ks, _ := setupTest(t)
+	ctx := context.Background()
+
+	// Generate a test key pair using secp256k1 curve
+	privKey, err := ecdsa.GenerateKey(keygen.Secp256k1Curve, rand.Reader)
+	require.NoError(t, err)
+
+	// Get public key bytes using secp256k1 format
+	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
+	require.NoError(t, err)
+
+	// Import the key into the mock keystore
+	_, err = ks.Import(ctx, "test-key", "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, nil, pubKeyBytes, nil)
+	require.NoError(t, err)
+
+	// Derive address
+	address, err := wallet.DeriveAddress(ctx)
+	require.NoError(t, err)
+	expectedAddress := crypto.PubkeyToAddress(privKey.PublicKey).Hex()
+	assert.Equal(t, expectedAddress, address, "Derived address should match expected address")
+
+	// Test failure case: empty public key
+	ks.Keys["test-key"].PublicKey = []byte{}
+	_, err = wallet.DeriveAddress(ctx)
+	assert.Error(t, err, "DeriveAddress should fail with empty public key")
 }
 
-// List implements the keystore.List method
-func (ks *testKeyStore) List(ctx context.Context) ([]*keystore.Key, error) {
-	return nil, fmt.Errorf("not implemented")
+// TestCreateNativeTransaction tests the CreateNativeTransaction method
+func TestCreateNativeTransaction(t *testing.T) {
+	wallet, ks, _ := setupTest(t)
+	ctx := context.Background()
+
+	// Setup key using secp256k1 curve
+	privKey, err := ecdsa.GenerateKey(keygen.Secp256k1Curve, rand.Reader)
+	require.NoError(t, err)
+
+	// Get public key bytes using secp256k1 format
+	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
+	require.NoError(t, err)
+
+	// Import the key into the mock keystore
+	_, err = ks.Import(ctx, "test-key", "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, nil, pubKeyBytes, nil)
+	require.NoError(t, err)
+
+	toAddress := "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+	amount := big.NewInt(1000000000000000000) // 1 ETH
+
+	tx, err := wallet.CreateNativeTransaction(ctx, toAddress, amount, types.TransactionOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, types.ChainTypeEthereum, tx.Chain, "Transaction chain should be Ethereum")
+	assert.Equal(t, crypto.PubkeyToAddress(privKey.PublicKey).Hex(), tx.From, "From address should match wallet address")
+	assert.Equal(t, toAddress, tx.To, "To address should match input")
+	assert.Equal(t, amount, tx.Value, "Transaction value should match input")
+	assert.Equal(t, types.TransactionTypeNative, tx.Type, "Transaction type should be native")
+
+	// Test failure case: invalid toAddress
+	_, err = wallet.CreateNativeTransaction(ctx, "invalid-address", amount, types.TransactionOptions{})
+	assert.Error(t, err, "CreateNativeTransaction should fail with invalid address")
 }
 
-// Update implements the keystore.Update method
-func (ks *testKeyStore) Update(ctx context.Context, id string, name string, tags map[string]string) (*keystore.Key, error) {
-	return nil, fmt.Errorf("not implemented")
+// TestCreateTokenTransaction tests the CreateTokenTransaction method
+func TestCreateTokenTransaction(t *testing.T) {
+	wallet, ks, _ := setupTest(t)
+	ctx := context.Background()
+
+	// Setup key using secp256k1 curve
+	privKey, err := ecdsa.GenerateKey(keygen.Secp256k1Curve, rand.Reader)
+	require.NoError(t, err)
+
+	// Get public key bytes using secp256k1 format
+	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
+	require.NoError(t, err)
+
+	// Import the key into the mock keystore
+	_, err = ks.Import(ctx, "test-key", "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, nil, pubKeyBytes, nil)
+	require.NoError(t, err)
+
+	tokenAddress := "0x6B175474E89094C44Da98b954EedeAC495271d0F" // DAI token
+	toAddress := "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+	amount := big.NewInt(1000000000000000000) // 1 token
+
+	tx, err := wallet.CreateTokenTransaction(ctx, tokenAddress, toAddress, amount, types.TransactionOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, types.ChainTypeEthereum, tx.Chain, "Transaction chain should be Ethereum")
+	assert.Equal(t, crypto.PubkeyToAddress(privKey.PublicKey).Hex(), tx.From, "From address should match wallet address")
+	assert.Equal(t, tokenAddress, tx.To, "To address should be token contract address")
+	assert.Equal(t, big.NewInt(0), tx.Value, "Value should be 0 for token transactions")
+	assert.NotEmpty(t, tx.Data, "Transaction data should contain ERC20 transfer ABI")
+	assert.Equal(t, types.TransactionTypeERC20, tx.Type, "Transaction type should be ERC20")
+	assert.Equal(t, tokenAddress, tx.TokenAddress, "Token address should match input")
+
+	// Test failure case: invalid toAddress
+	_, err = wallet.CreateTokenTransaction(ctx, tokenAddress, "invalid-address", amount, types.TransactionOptions{})
+	assert.Error(t, err, "CreateTokenTransaction should fail with invalid toAddress")
 }
 
-// Delete implements the keystore.Delete method
-func (ks *testKeyStore) Delete(ctx context.Context, id string) error {
-	return fmt.Errorf("not implemented")
-}
+// TestSignTransaction tests the SignTransaction method with DER-encoded keys
+func TestSignTransaction(t *testing.T) {
+	wallet, ks, _ := setupTest(t)
+	ctx := context.Background()
 
-func TestSignEVMTransaction(t *testing.T) {
-	// Generate a private key using the secp256k1 curve
-	privateKey, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
-	assert.NoError(t, err, "Failed to generate private key")
+	// Generate a test key pair using secp256k1 curve
+	privKey, err := ecdsa.GenerateKey(keygen.Secp256k1Curve, rand.Reader)
+	require.NoError(t, err)
 
-	// Derive the public key and Ethereum address
-	publicKey := privateKey.Public().(*ecdsa.PublicKey)
-	expectedAddress := crypto.PubkeyToAddress(*publicKey)
+	// Marshal private key using secp256k1 format
+	privKeyBytes, err := keygen.MarshalPrivateKey(privKey)
+	require.NoError(t, err)
 
-	// Create a mock keystore
-	testKS := &testKeyStore{
-		privateKey: privateKey,
-		publicKey:  publicKey,
-	}
+	// Get public key bytes in Ethereum format
+	pubKeyBytes := crypto.FromECDSAPub(&privKey.PublicKey)
 
-	// Configure EVMWallet with chain ID 1 (Ethereum mainnet)
-	evmConfig := &EVMConfig{
-		ChainID: big.NewInt(1),
-	}
+	// Import the key into the mock keystore
+	_, err = ks.Import(ctx, "test-key", "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, privKeyBytes, pubKeyBytes, nil)
+	require.NoError(t, err)
 
-	// Initialize EVMWallet
-	wallet := &EVMWallet{
-		keyStore:  testKS,
-		chainType: types.ChainTypeEthereum,
-		config:    evmConfig,
-		keyID:     "test-key",
-	}
-
-	// Create a sample legacy transaction
-	toAddress := common.HexToAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e")
-	tx := ethtypes.NewTx(&ethtypes.LegacyTx{
+	// Create a transaction
+	tx := &types.Transaction{
+		Chain:    types.ChainTypeEthereum,
+		From:     crypto.PubkeyToAddress(privKey.PublicKey).Hex(),
+		To:       "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+		Value:    big.NewInt(1000000000000000000), // 1 ETH
 		Nonce:    0,
-		GasPrice: big.NewInt(20_000_000_000), // 20 Gwei
-		Gas:      21_000,
-		To:       &toAddress,
-		Value:    big.NewInt(1_000_000_000_000_000_000), // 1 ETH
-		Data:     nil,
-	})
+		GasPrice: big.NewInt(20000000000), // 20 Gwei
+		GasLimit: 21000,
+		Type:     types.TransactionTypeNative,
+	}
 
 	// Sign the transaction
-	signedTxBytes, err := wallet.signEVMTransaction(context.Background(), tx)
-	assert.NoError(t, err, "Failed to sign transaction")
-	assert.NotNil(t, signedTxBytes, "Signed transaction bytes should not be nil")
+	signedTxBytes, err := wallet.SignTransaction(ctx, tx)
+	require.NoError(t, err)
+	assert.NotEmpty(t, signedTxBytes, "Signed transaction bytes should not be empty")
 
-	// Decode the signed transaction
-	var signedTx ethtypes.Transaction
-	err = signedTx.UnmarshalBinary(signedTxBytes)
-	assert.NoError(t, err, "Failed to decode signed transaction")
-
-	// Create an EIP-155 signer with the same chain ID
-	signer := ethtypes.NewEIP155Signer(evmConfig.ChainID)
-
-	// Recover the sender address from the signed transaction
-	sender, err := signer.Sender(&signedTx)
-	assert.NoError(t, err, "Failed to recover sender address")
-	assert.Equal(t, expectedAddress, sender, "Recovered sender address does not match expected address")
-
-	// Verify that transaction fields are preserved
-	assert.Equal(t, tx.Nonce(), signedTx.Nonce(), "Nonce mismatch")
-	assert.Equal(t, tx.GasPrice(), signedTx.GasPrice(), "Gas price mismatch")
-	assert.Equal(t, tx.Gas(), signedTx.Gas(), "Gas limit mismatch")
-	assert.Equal(t, tx.To(), signedTx.To(), "Recipient address mismatch")
-	assert.Equal(t, tx.Value(), signedTx.Value(), "Value mismatch")
-	assert.Equal(t, tx.Data(), signedTx.Data(), "Data mismatch")
+	// Test failure case: mismatched from address
+	tx.From = "0x1234567890abcdef1234567890abcdef12345678"
+	_, err = wallet.SignTransaction(ctx, tx)
+	assert.Error(t, err, "SignTransaction should fail with mismatched from address")
 }

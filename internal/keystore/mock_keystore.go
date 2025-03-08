@@ -3,11 +3,13 @@ package keystore
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/pem"
+	"encoding/asn1"
 	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
@@ -16,7 +18,7 @@ import (
 
 // MockKeyStore provides a mock implementation of the KeyStore interface for testing
 type MockKeyStore struct {
-	keys   map[string]*Key
+	Keys   map[string]*Key
 	keyGen keygen.KeyGenerator
 	mutex  sync.RWMutex
 }
@@ -24,23 +26,30 @@ type MockKeyStore struct {
 // NewMockKeyStore creates a new instance of the MockKeyStore
 func NewMockKeyStore() *MockKeyStore {
 	return &MockKeyStore{
-		keys:   make(map[string]*Key),
+		Keys:   make(map[string]*Key),
 		keyGen: keygen.NewKeyGenerator(),
 	}
 }
 
 // Create creates a new key with the given ID, name, and type
-func (ks *MockKeyStore) Create(ctx context.Context, id, name string, keyType keygen.KeyType, tags map[string]string) (*Key, error) {
+func (ks *MockKeyStore) Create(ctx context.Context, id, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*Key, error) {
 	ks.mutex.Lock()
 	defer ks.mutex.Unlock()
 
 	// Check if key with same ID already exists
-	if _, exists := ks.keys[id]; exists {
+	if _, exists := ks.Keys[id]; exists {
 		return nil, ErrKeyAlreadyExists
 	}
 
+	// For ECDSA keys, default to P-256 if no curve is specified
+	if keyType == keygen.KeyTypeECDSA {
+		if curve == nil {
+			curve = elliptic.P256()
+		}
+	}
+
 	// Generate key pair
-	privateKey, publicKey, err := ks.keyGen.GenerateKeyPair(keyType, nil)
+	privateKey, publicKey, err := ks.keyGen.GenerateKeyPair(keyType, curve)
 	if err != nil {
 		return nil, err
 	}
@@ -54,10 +63,11 @@ func (ks *MockKeyStore) Create(ctx context.Context, id, name string, keyType key
 		CreatedAt:  time.Now().Unix(),
 		PrivateKey: privateKey,
 		PublicKey:  publicKey,
+		Curve:      curve,
 	}
 
 	// Store the key
-	ks.keys[id] = key
+	ks.Keys[id] = key
 
 	// Return a copy of the key without the private key material
 	return &Key{
@@ -67,17 +77,25 @@ func (ks *MockKeyStore) Create(ctx context.Context, id, name string, keyType key
 		Tags:      key.Tags,
 		CreatedAt: key.CreatedAt,
 		PublicKey: key.PublicKey,
+		Curve:     key.Curve,
 	}, nil
 }
 
 // Import imports an existing key
-func (ks *MockKeyStore) Import(ctx context.Context, id, name string, keyType keygen.KeyType, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
+func (ks *MockKeyStore) Import(ctx context.Context, id, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
 	ks.mutex.Lock()
 	defer ks.mutex.Unlock()
 
 	// Check if key with same ID already exists
-	if _, exists := ks.keys[id]; exists {
+	if _, exists := ks.Keys[id]; exists {
 		return nil, ErrKeyAlreadyExists
+	}
+
+	// For ECDSA keys, default to P-256 if no curve is specified
+	if keyType == keygen.KeyTypeECDSA {
+		if curve == nil {
+			curve = elliptic.P256()
+		}
 	}
 
 	// Create the key
@@ -89,10 +107,11 @@ func (ks *MockKeyStore) Import(ctx context.Context, id, name string, keyType key
 		CreatedAt:  time.Now().Unix(),
 		PrivateKey: privateKey,
 		PublicKey:  publicKey,
+		Curve:      curve,
 	}
 
 	// Store the key
-	ks.keys[id] = key
+	ks.Keys[id] = key
 
 	// Return a copy of the key without the private key material
 	return &Key{
@@ -102,46 +121,65 @@ func (ks *MockKeyStore) Import(ctx context.Context, id, name string, keyType key
 		Tags:      key.Tags,
 		CreatedAt: key.CreatedAt,
 		PublicKey: key.PublicKey,
+		Curve:     key.Curve,
 	}, nil
 }
 
 // Sign signs the provided data using the key identified by id
-func (ks *MockKeyStore) Sign(ctx context.Context, id string, data []byte) ([]byte, error) {
+func (ks *MockKeyStore) Sign(ctx context.Context, id string, data []byte, dataType DataType) ([]byte, error) {
 	ks.mutex.RLock()
 	defer ks.mutex.RUnlock()
 
 	// Get the key
-	key, exists := ks.keys[id]
+	key, exists := ks.Keys[id]
 	if !exists {
 		return nil, ErrKeyNotFound
 	}
 
-	// For mock implementation, we'll just do a simple ECDSA signing for all key types
-	// In a real implementation, you'd use the appropriate signing method based on key type
+	// For ECDSA keys, use proper signing
 	if key.Type == keygen.KeyTypeECDSA && len(key.PrivateKey) > 0 {
-		// Parse the PEM-encoded private key
-		block, _ := pem.Decode(key.PrivateKey)
-		if block == nil {
-			return nil, fmt.Errorf("failed to decode PEM block containing private key")
+		var privateKey *ecdsa.PrivateKey
+		var err error
+
+		// Handle secp256k1 curve specially
+		if key.Curve == keygen.Secp256k1Curve {
+			privateKey, err = keygen.UnmarshalPrivateKey(key.PrivateKey)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal secp256k1 private key: %w", err)
+			}
+		} else {
+			// For other curves, use standard x509 parsing
+			privateKey, err = x509.ParseECPrivateKey(key.PrivateKey)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse ECDSA private key: %w", err)
+			}
 		}
 
-		// Parse the private key
-		privateKey, err := x509.ParseECPrivateKey(block.Bytes)
-		if err != nil {
-			return nil, err
+		var digest []byte
+		if dataType == DataTypeRaw {
+			// Create a hash of the data
+			hash := sha256.Sum256(data)
+			digest = hash[:]
+		} else {
+			// Use the data as-is (it's already hashed)
+			digest = data
 		}
-
-		// Hash the data
-		hash := sha256.Sum256(data)
 
 		// Sign the hash
-		r, s, err := ecdsa.Sign(rand.Reader, privateKey, hash[:])
+		r, s, err := ecdsa.Sign(rand.Reader, privateKey, digest)
 		if err != nil {
 			return nil, err
 		}
 
-		// Concatenate r and s
-		signature := append(r.Bytes(), s.Bytes()...)
+		// ASN.1 DER encoding for ECDSA signatures
+		type ECDSASignature struct {
+			R, S *big.Int
+		}
+		signature, err := asn1.Marshal(ECDSASignature{R: r, S: s})
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal ECDSA signature: %w", err)
+		}
+
 		return signature, nil
 	}
 
@@ -160,7 +198,7 @@ func (ks *MockKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, erro
 	defer ks.mutex.RUnlock()
 
 	// Get the key
-	key, exists := ks.keys[id]
+	key, exists := ks.Keys[id]
 	if !exists {
 		return nil, ErrKeyNotFound
 	}
@@ -173,6 +211,7 @@ func (ks *MockKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, erro
 		Tags:      key.Tags,
 		CreatedAt: key.CreatedAt,
 		PublicKey: key.PublicKey,
+		Curve:     key.Curve,
 	}, nil
 }
 
@@ -182,8 +221,8 @@ func (ks *MockKeyStore) List(ctx context.Context) ([]*Key, error) {
 	defer ks.mutex.RUnlock()
 
 	// Create a list of keys without private key material
-	keys := make([]*Key, 0, len(ks.keys))
-	for _, key := range ks.keys {
+	keys := make([]*Key, 0, len(ks.Keys))
+	for _, key := range ks.Keys {
 		keys = append(keys, &Key{
 			ID:        key.ID,
 			Name:      key.Name,
@@ -191,6 +230,7 @@ func (ks *MockKeyStore) List(ctx context.Context) ([]*Key, error) {
 			Tags:      key.Tags,
 			CreatedAt: key.CreatedAt,
 			PublicKey: key.PublicKey,
+			Curve:     key.Curve,
 		})
 	}
 
@@ -203,7 +243,7 @@ func (ks *MockKeyStore) Update(ctx context.Context, id string, name string, tags
 	defer ks.mutex.Unlock()
 
 	// Get the key
-	key, exists := ks.keys[id]
+	key, exists := ks.Keys[id]
 	if !exists {
 		return nil, ErrKeyNotFound
 	}
@@ -220,6 +260,7 @@ func (ks *MockKeyStore) Update(ctx context.Context, id string, name string, tags
 		Tags:      key.Tags,
 		CreatedAt: key.CreatedAt,
 		PublicKey: key.PublicKey,
+		Curve:     key.Curve,
 	}, nil
 }
 
@@ -229,17 +270,11 @@ func (ks *MockKeyStore) Delete(ctx context.Context, id string) error {
 	defer ks.mutex.Unlock()
 
 	// Check if key exists
-	if _, exists := ks.keys[id]; !exists {
+	if _, exists := ks.Keys[id]; !exists {
 		return ErrKeyNotFound
 	}
 
 	// Delete the key
-	delete(ks.keys, id)
-	return nil
-}
-
-// Close releases any resources used by the key store
-func (ks *MockKeyStore) Close() error {
-	// No resources to release in the mock implementation
+	delete(ks.Keys, id)
 	return nil
 }
