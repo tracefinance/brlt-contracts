@@ -204,7 +204,7 @@ func (c *EVMBlockchain) GetGasPrice(ctx context.Context) (*big.Int, error) {
 // CallContract implements Blockchain.CallContract
 func (c *EVMBlockchain) CallContract(ctx context.Context, from string, to string, data []byte) ([]byte, error) {
 	var fromAddress common.Address
-	if from != "" {
+	if from != "" && from != types.ZeroAddress {
 		if !common.IsHexAddress(from) {
 			return nil, fmt.Errorf("evm: invalid from address: %w", ErrInvalidAddress)
 		}

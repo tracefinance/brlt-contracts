@@ -98,12 +98,23 @@ func TestCreateNativeTransaction(t *testing.T) {
 	toAddress := "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
 	amount := big.NewInt(1000000000000000000) // 1 ETH
 
+	// Test regular native transaction
 	tx, err := wallet.CreateNativeTransaction(ctx, toAddress, amount, types.TransactionOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, types.ChainTypeEthereum, tx.Chain, "Transaction chain should be Ethereum")
 	assert.Equal(t, crypto.PubkeyToAddress(privKey.PublicKey).Hex(), tx.From, "From address should match wallet address")
 	assert.Equal(t, toAddress, tx.To, "To address should match input")
 	assert.Equal(t, amount, tx.Value, "Transaction value should match input")
+	assert.Equal(t, types.TransactionTypeNative, tx.Type, "Transaction type should be native")
+
+	// Test contract deployment (zero address)
+	deployData := []byte{0x60, 0x80, 0x60, 0x40} // Some dummy contract bytecode
+	tx, err = wallet.CreateNativeTransaction(ctx, types.ZeroAddress, big.NewInt(0), types.TransactionOptions{
+		Data: deployData,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, types.ZeroAddress, tx.To, "To address should be zero address for contract deployment")
+	assert.Equal(t, deployData, tx.Data, "Transaction data should contain contract bytecode")
 	assert.Equal(t, types.TransactionTypeNative, tx.Type, "Transaction type should be native")
 
 	// Test failure case: invalid toAddress

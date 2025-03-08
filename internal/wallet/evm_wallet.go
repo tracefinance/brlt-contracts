@@ -16,6 +16,11 @@ import (
 	"vault0/internal/types"
 )
 
+const (
+	// ERC20TransferMethodSignature is the ERC20 transfer method signature
+	ERC20TransferMethodSignature = "transfer(address,uint256)"
+)
+
 type EVMConfig struct {
 	ChainID         *big.Int
 	DefaultGasLimit uint64
@@ -117,11 +122,13 @@ func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, toAddress strin
 		return nil, fmt.Errorf("failed to derive from address: %w", err)
 	}
 
-	if !common.IsHexAddress(toAddress) {
+	// Allow zero address for contract creation, otherwise validate address
+	if toAddress != types.ZeroAddress && !common.IsHexAddress(toAddress) {
 		return nil, fmt.Errorf("%w: %s", types.ErrInvalidAddress, toAddress)
 	}
 
-	if amount == nil || amount.Cmp(big.NewInt(0)) <= 0 {
+	// For contract deployment (zero address), allow zero amount
+	if amount == nil || (toAddress != types.ZeroAddress && amount.Cmp(big.NewInt(0)) <= 0) {
 		return nil, types.ErrInvalidAmount
 	}
 
@@ -164,8 +171,7 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, tokenAddress, to
 		return nil, types.ErrInvalidAmount
 	}
 
-	const transferMethodSignature = "transfer(address,uint256)"
-	methodID := crypto.Keccak256([]byte(transferMethodSignature))[:4]
+	methodID := crypto.Keccak256([]byte(ERC20TransferMethodSignature))[:4]
 	paddedAddress := common.LeftPadBytes(common.HexToAddress(toAddress).Bytes(), 32)
 	paddedAmount := common.LeftPadBytes(amount.Bytes(), 32)
 	data := append(methodID, append(paddedAddress, paddedAmount...)...)

@@ -219,7 +219,7 @@ func (c *EVMSmartContract) Deploy(
 	// Create transaction - using a zero address as "to" for contract creation
 	tx, err := c.wallet.CreateNativeTransaction(
 		ctx,
-		"", // Empty recipient for contract deployment
+		vtypes.ZeroAddress, // Use zero address for contract deployment
 		options.Value,
 		txOptions,
 	)
