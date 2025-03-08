@@ -44,11 +44,11 @@ var (
 )
 
 // Secp256k1 is the global instance of the secp256k1 curve.
-var Secp256k1 *secp256k1Curve
+var Secp256k1Curve *secp256k1Curve
 
 // init initializes the Secp256k1 curve with its parameters.
 func init() {
-	Secp256k1 = &secp256k1Curve{
+	Secp256k1Curve = &secp256k1Curve{
 		CurveParams: &elliptic.CurveParams{
 			P:       p,
 			N:       n,

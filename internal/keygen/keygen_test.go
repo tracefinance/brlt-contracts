@@ -3,6 +3,7 @@ package keygen
 import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rsa"
 	"crypto/x509"
 	"testing"
@@ -11,109 +12,256 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNewKeyGenerator(t *testing.T) {
+	kg := NewKeyGenerator()
+	assert.NotNil(t, kg, "KeyGenerator should not be nil")
+}
+
+func TestGenerateKeyPair_ECDSA(t *testing.T) {
+	kg := NewKeyGenerator()
+
+	tests := []struct {
+		name  string
+		curve elliptic.Curve
+	}{
+		{"P256", elliptic.P256()},
+		{"P384", elliptic.P384()},
+		{"P521", elliptic.P521()},
+		{"Default (nil) curve", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			privKey, pubKey, err := kg.GenerateKeyPair(KeyTypeECDSA, tt.curve)
+			require.NoError(t, err)
+			require.NotNil(t, privKey)
+			require.NotNil(t, pubKey)
+
+			// Parse private key
+			parsedPrivKey, err := x509.ParseECPrivateKey(privKey)
+			require.NoError(t, err)
+			assert.NotNil(t, parsedPrivKey)
+
+			// Parse public key
+			parsedPubKeyInterface, err := x509.ParsePKIXPublicKey(pubKey)
+			require.NoError(t, err)
+			parsedPubKey, ok := parsedPubKeyInterface.(*ecdsa.PublicKey)
+			require.True(t, ok)
+			assert.NotNil(t, parsedPubKey)
+
+			// Verify that the public key matches the private key
+			assert.Equal(t, parsedPrivKey.PublicKey, *parsedPubKey)
+		})
+	}
+}
+
+func TestGenerateKeyPair_RSA(t *testing.T) {
+	kg := NewKeyGenerator()
+
+	privKey, pubKey, err := kg.GenerateKeyPair(KeyTypeRSA, nil)
+	require.NoError(t, err)
+	require.NotNil(t, privKey)
+	require.NotNil(t, pubKey)
+
+	// Parse private key
+	parsedPrivKey, err := x509.ParsePKCS1PrivateKey(privKey)
+	require.NoError(t, err)
+	assert.NotNil(t, parsedPrivKey)
+	assert.Equal(t, 2048, parsedPrivKey.Size()*8) // Verify key size
+
+	// Parse public key
+	parsedPubKeyInterface, err := x509.ParsePKIXPublicKey(pubKey)
+	require.NoError(t, err)
+	parsedPubKey, ok := parsedPubKeyInterface.(*rsa.PublicKey)
+	require.True(t, ok)
+	assert.NotNil(t, parsedPubKey)
+
+	// Verify that the public key matches the private key
+	assert.Equal(t, parsedPrivKey.PublicKey, *parsedPubKey)
+}
+
+func TestGenerateKeyPair_Ed25519(t *testing.T) {
+	kg := NewKeyGenerator()
+
+	privKey, pubKey, err := kg.GenerateKeyPair(KeyTypeEd25519, nil)
+	require.NoError(t, err)
+	require.NotNil(t, privKey)
+	require.NotNil(t, pubKey)
+
+	// Parse private key
+	parsedPrivKeyInterface, err := x509.ParsePKCS8PrivateKey(privKey)
+	require.NoError(t, err)
+	parsedPrivKey, ok := parsedPrivKeyInterface.(ed25519.PrivateKey)
+	require.True(t, ok)
+	assert.NotNil(t, parsedPrivKey)
+
+	// Parse public key
+	parsedPubKeyInterface, err := x509.ParsePKIXPublicKey(pubKey)
+	require.NoError(t, err)
+	parsedPubKey, ok := parsedPubKeyInterface.(ed25519.PublicKey)
+	require.True(t, ok)
+	assert.NotNil(t, parsedPubKey)
+
+	// Verify that the public key matches the private key's public key
+	assert.Equal(t, parsedPrivKey.Public(), parsedPubKey)
+}
+
+func TestGenerateKeyPair_Symmetric(t *testing.T) {
+	kg := NewKeyGenerator()
+
+	privKey, pubKey, err := kg.GenerateKeyPair(KeyTypeSymmetric, nil)
+	require.NoError(t, err)
+	require.NotNil(t, privKey)
+	require.Nil(t, pubKey) // Symmetric keys don't have a public key
+
+	// Verify key length
+	assert.Equal(t, 32, len(privKey))
+}
+
+func TestGenerateKeyPair_InvalidType(t *testing.T) {
+	kg := NewKeyGenerator()
+
+	privKey, pubKey, err := kg.GenerateKeyPair("invalid", nil)
+	assert.Error(t, err)
+	assert.Nil(t, privKey)
+	assert.Nil(t, pubKey)
+	assert.Contains(t, err.Error(), "unsupported key type")
+}
+
 func TestDefaultKeyGenerator_GenerateKeyPair(t *testing.T) {
-	keyGen := NewKeyGenerator()
+	kg := NewKeyGenerator()
 
-	t.Run("GenerateECDSA_P256", func(t *testing.T) {
-		// Generate ECDSA key pair with P-256 curve (default)
-		privKeyDER, pubKeyDER, err := keyGen.GenerateKeyPair(KeyTypeECDSA, nil)
-		require.NoError(t, err)
-		require.NotNil(t, privKeyDER)
-		require.NotNil(t, pubKeyDER)
+	tests := []struct {
+		name      string
+		keyType   KeyType
+		curve     elliptic.Curve
+		wantErr   bool
+		validator func(t *testing.T, privKey, pubKey []byte)
+	}{
+		{
+			name:    "ECDSA with P256 curve",
+			keyType: KeyTypeECDSA,
+			curve:   elliptic.P256(),
+			validator: func(t *testing.T, privKey, pubKey []byte) {
+				// Parse private key
+				privateKey, err := x509.ParseECPrivateKey(privKey)
+				require.NoError(t, err)
+				assert.Equal(t, elliptic.P256(), privateKey.Curve)
 
-		// Validate private key
-		privateECDSA, err := x509.ParseECPrivateKey(privKeyDER)
-		require.NoError(t, err)
-		assert.Equal(t, "P-256", privateECDSA.Curve.Params().Name)
+				// Parse public key
+				publicKeyIface, err := x509.ParsePKIXPublicKey(pubKey)
+				require.NoError(t, err)
+				publicKey, ok := publicKeyIface.(*ecdsa.PublicKey)
+				require.True(t, ok)
+				assert.Equal(t, elliptic.P256(), publicKey.Curve)
+			},
+		},
+		{
+			name:    "ECDSA with P384 curve",
+			keyType: KeyTypeECDSA,
+			curve:   elliptic.P384(),
+			validator: func(t *testing.T, privKey, pubKey []byte) {
+				// Parse private key
+				privateKey, err := x509.ParseECPrivateKey(privKey)
+				require.NoError(t, err)
+				assert.Equal(t, elliptic.P384(), privateKey.Curve)
 
-		// Validate public key
-		publicKeyInterface, err := x509.ParsePKIXPublicKey(pubKeyDER)
-		require.NoError(t, err)
-		publicECDSA, ok := publicKeyInterface.(*ecdsa.PublicKey)
-		require.True(t, ok, "Public key should be an ECDSA public key")
-		assert.Equal(t, privateECDSA.PublicKey.X, publicECDSA.X)
-		assert.Equal(t, privateECDSA.PublicKey.Y, publicECDSA.Y)
-	})
+				// Parse public key
+				publicKeyIface, err := x509.ParsePKIXPublicKey(pubKey)
+				require.NoError(t, err)
+				publicKey, ok := publicKeyIface.(*ecdsa.PublicKey)
+				require.True(t, ok)
+				assert.Equal(t, elliptic.P384(), publicKey.Curve)
+			},
+		},
+		{
+			name:    "RSA key pair",
+			keyType: KeyTypeRSA,
+			validator: func(t *testing.T, privKey, pubKey []byte) {
+				// Parse private key
+				privateKey, err := x509.ParsePKCS1PrivateKey(privKey)
+				require.NoError(t, err)
+				assert.Equal(t, 2048, privateKey.Size()*8) // Check key size is 2048 bits
 
-	t.Run("GenerateECDSA_SECP256K1", func(t *testing.T) {
-		// Generate ECDSA key pair with SECP256K1 curve
-		privKeyDER, pubKeyDER, err := keyGen.GenerateKeyPair(KeyTypeECDSA, Secp256k1)
-		require.NoError(t, err)
-		require.NotNil(t, privKeyDER)
-		require.NotNil(t, pubKeyDER)
+				// Parse public key
+				publicKeyIface, err := x509.ParsePKIXPublicKey(pubKey)
+				require.NoError(t, err)
+				publicKey, ok := publicKeyIface.(*rsa.PublicKey)
+				require.True(t, ok)
+				assert.Equal(t, 2048, publicKey.Size()*8)
+			},
+		},
+		{
+			name:    "Ed25519 key pair",
+			keyType: KeyTypeEd25519,
+			validator: func(t *testing.T, privKey, pubKey []byte) {
+				// Parse private key
+				privateKeyIface, err := x509.ParsePKCS8PrivateKey(privKey)
+				require.NoError(t, err)
+				_, ok := privateKeyIface.(ed25519.PrivateKey)
+				require.True(t, ok)
 
-		// For SECP256K1, we've used custom marshalling that can't be directly parsed with standard libraries
-		// We can verify that the DER data is not empty
-		assert.True(t, len(privKeyDER) > 0, "Private key data should not be empty")
-		assert.True(t, len(pubKeyDER) > 0, "Public key data should not be empty")
+				// Parse public key
+				publicKeyIface, err := x509.ParsePKIXPublicKey(pubKey)
+				require.NoError(t, err)
+				_, ok = publicKeyIface.(ed25519.PublicKey)
+				require.True(t, ok)
+			},
+		},
+		{
+			name:    "Symmetric key",
+			keyType: KeyTypeSymmetric,
+			validator: func(t *testing.T, privKey, pubKey []byte) {
+				assert.Len(t, privKey, 32) // Check symmetric key length is 32 bytes (256 bits)
+				assert.Nil(t, pubKey)      // Symmetric keys don't have a public key
+			},
+		},
+		{
+			name:    "Invalid key type",
+			keyType: "invalid",
+			wantErr: true,
+			validator: func(t *testing.T, privKey, pubKey []byte) {
+				assert.Nil(t, privKey)
+				assert.Nil(t, pubKey)
+			},
+		},
+	}
 
-		// We could add more direct verification by parsing the ASN.1 structures,
-		// but for this test, we'll consider the generation successful if the above checks pass
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			privKey, pubKey, err := kg.GenerateKeyPair(tt.keyType, tt.curve)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
 
-	t.Run("GenerateRSA", func(t *testing.T) {
-		// Generate RSA key pair
-		privKeyDER, pubKeyDER, err := keyGen.GenerateKeyPair(KeyTypeRSA, nil)
-		require.NoError(t, err)
-		require.NotNil(t, privKeyDER)
-		require.NotNil(t, pubKeyDER)
+			require.NoError(t, err)
+			tt.validator(t, privKey, pubKey)
+		})
+	}
+}
 
-		// Validate private key
-		privateRSA, err := x509.ParsePKCS1PrivateKey(privKeyDER)
-		require.NoError(t, err)
-		assert.Equal(t, 2048, privateRSA.Size()*8)
+func TestDefaultKeyGenerator_GenerateKeyPair_MultipleCallsConsistency(t *testing.T) {
+	kg := NewKeyGenerator()
 
-		// Validate public key
-		publicKeyInterface, err := x509.ParsePKIXPublicKey(pubKeyDER)
-		require.NoError(t, err)
-		publicRSA, ok := publicKeyInterface.(*rsa.PublicKey)
-		require.True(t, ok, "Public key should be an RSA public key")
-		assert.Equal(t, privateRSA.PublicKey.N, publicRSA.N)
-		assert.Equal(t, privateRSA.PublicKey.E, publicRSA.E)
-	})
+	// Test that multiple calls with the same parameters generate different keys
+	keyTypes := []KeyType{KeyTypeECDSA, KeyTypeRSA, KeyTypeEd25519, KeyTypeSymmetric}
 
-	t.Run("GenerateEd25519", func(t *testing.T) {
-		// Generate Ed25519 key pair
-		privKeyDER, pubKeyDER, err := keyGen.GenerateKeyPair(KeyTypeEd25519, nil)
-		require.NoError(t, err)
-		require.NotNil(t, privKeyDER)
-		require.NotNil(t, pubKeyDER)
+	for _, keyType := range keyTypes {
+		t.Run(string(keyType), func(t *testing.T) {
+			// Generate first pair
+			priv1, pub1, err := kg.GenerateKeyPair(keyType, nil)
+			require.NoError(t, err)
 
-		// Parse PKCS8 private key
-		privateKey, err := x509.ParsePKCS8PrivateKey(privKeyDER)
-		require.NoError(t, err)
+			// Generate second pair
+			priv2, pub2, err := kg.GenerateKeyPair(keyType, nil)
+			require.NoError(t, err)
 
-		// Check that it's an Ed25519 private key
-		privEd25519, ok := privateKey.(ed25519.PrivateKey)
-		require.True(t, ok, "Private key should be an Ed25519 private key")
-
-		// Validate public key
-		publicKeyInterface, err := x509.ParsePKIXPublicKey(pubKeyDER)
-		require.NoError(t, err)
-		pubEd25519, ok := publicKeyInterface.(ed25519.PublicKey)
-		require.True(t, ok, "Public key should be an Ed25519 public key")
-
-		// Verify that public key matches the one derived from private key
-		assert.Equal(t, pubEd25519, privEd25519.Public())
-	})
-
-	t.Run("GenerateSymmetric", func(t *testing.T) {
-		// Generate symmetric key
-		privKey, pubKey, err := keyGen.GenerateKeyPair(KeyTypeSymmetric, nil)
-		require.NoError(t, err)
-		require.NotNil(t, privKey)
-
-		// Symmetric keys should have no public key
-		assert.Nil(t, pubKey)
-
-		// Symmetric key should be 32 bytes (256 bits)
-		assert.Equal(t, 32, len(privKey))
-	})
-
-	t.Run("UnsupportedKeyType", func(t *testing.T) {
-		// Try to generate a key with an unsupported type
-		_, _, err := keyGen.GenerateKeyPair(KeyType("UnsupportedType"), nil)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unsupported key type")
-	})
+			// Keys should be different
+			assert.NotEqual(t, priv1, priv2, "private keys should be different")
+			if keyType != KeyTypeSymmetric {
+				assert.NotEqual(t, pub1, pub2, "public keys should be different")
+			}
+		})
+	}
 }

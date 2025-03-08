@@ -101,19 +101,19 @@ func (curve *badSecp256k1Curve) doubleUnsafe(x1, y1 *big.Int) (*big.Int, *big.In
 
 func TestSecp256k1Initialization(t *testing.T) {
 	// Verify the curve was initialized correctly
-	assert.NotNil(t, Secp256k1, "Secp256k1 should be initialized")
-	assert.Equal(t, "secp256k1", Secp256k1.Name, "Curve name should be secp256k1")
-	assert.Equal(t, 256, Secp256k1.BitSize, "Curve bit size should be 256")
+	assert.NotNil(t, Secp256k1Curve, "Secp256k1 should be initialized")
+	assert.Equal(t, "secp256k1", Secp256k1Curve.Name, "Curve name should be secp256k1")
+	assert.Equal(t, 256, Secp256k1Curve.BitSize, "Curve bit size should be 256")
 
 	// Check curve parameters
-	assert.Equal(t, p, Secp256k1.P, "Incorrect P parameter")
-	assert.Equal(t, n, Secp256k1.N, "Incorrect N parameter")
-	assert.Equal(t, b, Secp256k1.B, "Incorrect B parameter")
-	assert.Equal(t, gx, Secp256k1.Gx, "Incorrect Gx parameter")
-	assert.Equal(t, gy, Secp256k1.Gy, "Incorrect Gy parameter")
+	assert.Equal(t, p, Secp256k1Curve.P, "Incorrect P parameter")
+	assert.Equal(t, n, Secp256k1Curve.N, "Incorrect N parameter")
+	assert.Equal(t, b, Secp256k1Curve.B, "Incorrect B parameter")
+	assert.Equal(t, gx, Secp256k1Curve.Gx, "Incorrect Gx parameter")
+	assert.Equal(t, gy, Secp256k1Curve.Gy, "Incorrect Gy parameter")
 
 	// Verify base point is on the curve
-	assert.True(t, Secp256k1.IsOnCurve(Secp256k1.Gx, Secp256k1.Gy), "Base point should be on the curve")
+	assert.True(t, Secp256k1Curve.IsOnCurve(Secp256k1Curve.Gx, Secp256k1Curve.Gy), "Base point should be on the curve")
 }
 
 func TestIsOnCurve(t *testing.T) {
@@ -125,8 +125,8 @@ func TestIsOnCurve(t *testing.T) {
 	}{
 		{
 			name: "Base point G",
-			x:    Secp256k1.Gx,
-			y:    Secp256k1.Gy,
+			x:    Secp256k1Curve.Gx,
+			y:    Secp256k1Curve.Gy,
 			want: true,
 		},
 		{
@@ -144,19 +144,19 @@ func TestIsOnCurve(t *testing.T) {
 		{
 			name: "Invalid x coordinate",
 			x:    new(big.Int).Add(p, big.NewInt(1)), // x > p
-			y:    Secp256k1.Gy,
+			y:    Secp256k1Curve.Gy,
 			want: false,
 		},
 		{
 			name: "Invalid y coordinate",
-			x:    Secp256k1.Gx,
+			x:    Secp256k1Curve.Gx,
 			y:    new(big.Int).Add(p, big.NewInt(1)), // y > p
 			want: false,
 		},
 		{
 			name: "Negative x coordinate",
-			x:    new(big.Int).Neg(Secp256k1.Gx),
-			y:    Secp256k1.Gy,
+			x:    new(big.Int).Neg(Secp256k1Curve.Gx),
+			y:    Secp256k1Curve.Gy,
 			want: false,
 		},
 		{
@@ -169,7 +169,7 @@ func TestIsOnCurve(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := Secp256k1.IsOnCurve(tc.x, tc.y)
+			got := Secp256k1Curve.IsOnCurve(tc.x, tc.y)
 			assert.Equal(t, tc.want, got)
 		})
 	}
@@ -177,23 +177,23 @@ func TestIsOnCurve(t *testing.T) {
 
 func TestDouble(t *testing.T) {
 	// Test doubling a point
-	x3, y3 := Secp256k1.Double(testPointX, testPointY)
+	x3, y3 := Secp256k1Curve.Double(testPointX, testPointY)
 
 	assert.Equal(t, 0, doubleX.Cmp(x3), "Incorrect x-coordinate after doubling")
 	assert.Equal(t, 0, doubleY.Cmp(y3), "Incorrect y-coordinate after doubling")
 
 	// The resulting point should be on the curve
-	assert.True(t, Secp256k1.IsOnCurve(x3, y3), "Result of doubling should be on the curve")
+	assert.True(t, Secp256k1Curve.IsOnCurve(x3, y3), "Result of doubling should be on the curve")
 
 	// Test doubling the point at infinity
-	x3, y3 = Secp256k1.Double(new(big.Int), new(big.Int))
+	x3, y3 = Secp256k1Curve.Double(new(big.Int), new(big.Int))
 	assert.Equal(t, 0, x3.Sign(), "Doubling point at infinity should return point at infinity (x)")
 	assert.Equal(t, 0, y3.Sign(), "Doubling point at infinity should return point at infinity (y)")
 
 	// Test doubling a point with y=0 (should return point at infinity)
 	x := big.NewInt(1)
 	y := big.NewInt(0)
-	x3, y3 = Secp256k1.Double(x, y)
+	x3, y3 = Secp256k1Curve.Double(x, y)
 	assert.Equal(t, 0, x3.Sign(), "Doubling point with y=0 should return point at infinity (x)")
 	assert.Equal(t, 0, y3.Sign(), "Doubling point with y=0 should return point at infinity (y)")
 }
@@ -252,28 +252,28 @@ func TestAdd(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			resultX, resultY := Secp256k1.Add(tc.x1, tc.y1, tc.x2, tc.y2)
+			resultX, resultY := Secp256k1Curve.Add(tc.x1, tc.y1, tc.x2, tc.y2)
 
 			assert.Equal(t, 0, tc.wantX.Cmp(resultX), "Incorrect x-coordinate after addition")
 			assert.Equal(t, 0, tc.wantY.Cmp(resultY), "Incorrect y-coordinate after addition")
 
 			// Check if the result should be on the curve
-			isOnCurve := Secp256k1.IsOnCurve(resultX, resultY)
+			isOnCurve := Secp256k1Curve.IsOnCurve(resultX, resultY)
 			assert.Equal(t, tc.wantOnCurve, isOnCurve)
 		})
 	}
 
 	// Additional test: add two different valid points
 	// First get G + G = 2G
-	doubleX, doubleY := Secp256k1.Double(Secp256k1.Gx, Secp256k1.Gy)
+	doubleX, doubleY := Secp256k1Curve.Double(Secp256k1Curve.Gx, Secp256k1Curve.Gy)
 	// Then calculate 2G + G = 3G
-	tripleX, tripleY := Secp256k1.Add(doubleX, doubleY, Secp256k1.Gx, Secp256k1.Gy)
+	tripleX, tripleY := Secp256k1Curve.Add(doubleX, doubleY, Secp256k1Curve.Gx, Secp256k1Curve.Gy)
 
 	// 3G should be on the curve
-	assert.True(t, Secp256k1.IsOnCurve(tripleX, tripleY), "3G should be on the curve")
+	assert.True(t, Secp256k1Curve.IsOnCurve(tripleX, tripleY), "3G should be on the curve")
 
 	// Now calculate G + 2G (should equal 3G)
-	altTripleX, altTripleY := Secp256k1.Add(Secp256k1.Gx, Secp256k1.Gy, doubleX, doubleY)
+	altTripleX, altTripleY := Secp256k1Curve.Add(Secp256k1Curve.Gx, Secp256k1Curve.Gy, doubleX, doubleY)
 
 	// Results should be the same
 	assert.Equal(t, 0, tripleX.Cmp(altTripleX), "Addition should be commutative (x)")
@@ -283,31 +283,31 @@ func TestAdd(t *testing.T) {
 func TestScalarMult(t *testing.T) {
 	// Test scalar multiplication by k=0 (should return point at infinity)
 	zeroK := make([]byte, 32)
-	x, y := Secp256k1.ScalarMult(testPointX, testPointY, zeroK)
+	x, y := Secp256k1Curve.ScalarMult(testPointX, testPointY, zeroK)
 	assert.Equal(t, 0, x.Sign(), "Scalar multiplication by 0 should return point at infinity (x)")
 	assert.Equal(t, 0, y.Sign(), "Scalar multiplication by 0 should return point at infinity (y)")
 
 	// Test scalar multiplication by k=1 (should return the same point)
 	oneK := make([]byte, 32)
 	oneK[31] = 1
-	x, y = Secp256k1.ScalarMult(testPointX, testPointY, oneK)
+	x, y = Secp256k1Curve.ScalarMult(testPointX, testPointY, oneK)
 	assert.Equal(t, 0, testPointX.Cmp(x), "Scalar multiplication by 1 should return the original point (x)")
 	assert.Equal(t, 0, testPointY.Cmp(y), "Scalar multiplication by 1 should return the original point (y)")
 
 	// Test scalar multiplication by k=2 (should equal doubling)
 	twoK := make([]byte, 32)
 	twoK[31] = 2
-	x, y = Secp256k1.ScalarMult(testPointX, testPointY, twoK)
+	x, y = Secp256k1Curve.ScalarMult(testPointX, testPointY, twoK)
 	assert.Equal(t, 0, doubleX.Cmp(x), "Scalar multiplication by 2 should equal point doubling (x)")
 	assert.Equal(t, 0, doubleY.Cmp(y), "Scalar multiplication by 2 should equal point doubling (y)")
 
 	// Test with a known scalar (k=7)
 	k7 := make([]byte, 32)
 	k7[31] = 7
-	xG, yG := Secp256k1.ScalarMult(Secp256k1.Gx, Secp256k1.Gy, k7)
+	xG, yG := Secp256k1Curve.ScalarMult(Secp256k1Curve.Gx, Secp256k1Curve.Gy, k7)
 
 	// Verify the result is on the curve
-	assert.True(t, Secp256k1.IsOnCurve(xG, yG), "Result of scalar multiplication should be on the curve")
+	assert.True(t, Secp256k1Curve.IsOnCurve(xG, yG), "Result of scalar multiplication should be on the curve")
 
 	// Test with large scalar
 	largeSeed := make([]byte, 32)
@@ -316,33 +316,33 @@ func TestScalarMult(t *testing.T) {
 
 	// Ensure scalar is > N to test modular reduction
 	largeK := new(big.Int).SetBytes(largeSeed)
-	largeK.Add(largeK, Secp256k1.N)
+	largeK.Add(largeK, Secp256k1Curve.N)
 
 	// Perform scalar multiplication
-	xLarge, yLarge := Secp256k1.ScalarMult(Secp256k1.Gx, Secp256k1.Gy, largeK.Bytes())
+	xLarge, yLarge := Secp256k1Curve.ScalarMult(Secp256k1Curve.Gx, Secp256k1Curve.Gy, largeK.Bytes())
 
 	// Result should be on the curve
-	assert.True(t, Secp256k1.IsOnCurve(xLarge, yLarge), "Result with large scalar should be on the curve")
+	assert.True(t, Secp256k1Curve.IsOnCurve(xLarge, yLarge), "Result with large scalar should be on the curve")
 }
 
 func TestScalarBaseMult(t *testing.T) {
 	// Test with zero scalar
 	zeroK := make([]byte, 32)
-	x, y := Secp256k1.ScalarBaseMult(zeroK)
+	x, y := Secp256k1Curve.ScalarBaseMult(zeroK)
 	assert.Equal(t, 0, x.Sign(), "Scalar base multiplication by 0 should return point at infinity (x)")
 	assert.Equal(t, 0, y.Sign(), "Scalar base multiplication by 0 should return point at infinity (y)")
 
 	// Test with scalar=1 (should return base point G)
 	oneK := make([]byte, 32)
 	oneK[31] = 1
-	x, y = Secp256k1.ScalarBaseMult(oneK)
-	assert.Equal(t, 0, Secp256k1.Gx.Cmp(x), "Scalar base multiplication by 1 should return G (x)")
-	assert.Equal(t, 0, Secp256k1.Gy.Cmp(y), "Scalar base multiplication by 1 should return G (y)")
+	x, y = Secp256k1Curve.ScalarBaseMult(oneK)
+	assert.Equal(t, 0, Secp256k1Curve.Gx.Cmp(x), "Scalar base multiplication by 1 should return G (x)")
+	assert.Equal(t, 0, Secp256k1Curve.Gy.Cmp(y), "Scalar base multiplication by 1 should return G (y)")
 
 	// Test with known scalar k=7 and known result
 	k7 := make([]byte, 32)
 	k7[31] = 7
-	x, y = Secp256k1.ScalarBaseMult(k7)
+	x, y = Secp256k1Curve.ScalarBaseMult(k7)
 
 	// Convert result to hex strings for easier comparison with test vectors
 	resultX := new(big.Int).Set(x)
@@ -352,22 +352,22 @@ func TestScalarBaseMult(t *testing.T) {
 	assert.Equal(t, 0, testScalarBaseMultY.Cmp(resultY), "Incorrect y-coordinate for 7*G")
 
 	// Result should be on the curve
-	assert.True(t, Secp256k1.IsOnCurve(x, y), "Result of scalar base multiplication should be on the curve")
+	assert.True(t, Secp256k1Curve.IsOnCurve(x, y), "Result of scalar base multiplication should be on the curve")
 
 	// Verify ScalarBaseMult and ScalarMult with base point give identical results
 	randomK := make([]byte, 32)
 	_, err := rand.Read(randomK)
 	require.NoError(t, err, "Failed to generate random bytes")
 
-	x1, y1 := Secp256k1.ScalarBaseMult(randomK)
-	x2, y2 := Secp256k1.ScalarMult(Secp256k1.Gx, Secp256k1.Gy, randomK)
+	x1, y1 := Secp256k1Curve.ScalarBaseMult(randomK)
+	x2, y2 := Secp256k1Curve.ScalarMult(Secp256k1Curve.Gx, Secp256k1Curve.Gy, randomK)
 
 	assert.Equal(t, 0, x1.Cmp(x2), "ScalarBaseMult and ScalarMult should return the same x-coordinate")
 	assert.Equal(t, 0, y1.Cmp(y2), "ScalarBaseMult and ScalarMult should return the same y-coordinate")
 }
 
 func TestParams(t *testing.T) {
-	params := Secp256k1.Params()
+	params := Secp256k1Curve.Params()
 
 	assert.Equal(t, "secp256k1", params.Name, "Incorrect curve name")
 	assert.Equal(t, 256, params.BitSize, "Incorrect bit size")
@@ -383,21 +383,21 @@ func TestParams(t *testing.T) {
 func BenchmarkIsOnCurve(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Secp256k1.IsOnCurve(testPointX, testPointY)
+		Secp256k1Curve.IsOnCurve(testPointX, testPointY)
 	}
 }
 
 func BenchmarkAdd(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Secp256k1.Add(testPointX, testPointY, doubleX, doubleY)
+		Secp256k1Curve.Add(testPointX, testPointY, doubleX, doubleY)
 	}
 }
 
 func BenchmarkDouble(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Secp256k1.Double(testPointX, testPointY)
+		Secp256k1Curve.Double(testPointX, testPointY)
 	}
 }
 
@@ -405,7 +405,7 @@ func BenchmarkScalarMult(b *testing.B) {
 	k := testK.Bytes()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Secp256k1.ScalarMult(testPointX, testPointY, k)
+		Secp256k1Curve.ScalarMult(testPointX, testPointY, k)
 	}
 }
 
@@ -413,7 +413,7 @@ func BenchmarkScalarBaseMult(b *testing.B) {
 	k := testK.Bytes()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Secp256k1.ScalarBaseMult(k)
+		Secp256k1Curve.ScalarBaseMult(k)
 	}
 }
 
@@ -436,7 +436,7 @@ func TestAddErrorCase(t *testing.T) {
 		}
 	}()
 
-	x3, y3 := Secp256k1.Add(x, y1, x, y2)
+	x3, y3 := Secp256k1Curve.Add(x, y1, x, y2)
 
 	// Result should be point at infinity
 	assert.Equal(t, 0, x3.Sign(), "Should return point at infinity (x)")
@@ -459,7 +459,7 @@ func TestDoubleErrorCase(t *testing.T) {
 		}
 	}()
 
-	x3, y3 := Secp256k1.Double(x, y)
+	x3, y3 := Secp256k1Curve.Double(x, y)
 
 	// Result should be point at infinity
 	assert.Equal(t, 0, x3.Sign(), "Should return point at infinity (x)")
@@ -467,7 +467,7 @@ func TestDoubleErrorCase(t *testing.T) {
 }
 
 func TestAddPanic(t *testing.T) {
-	badCurve := &badSecp256k1Curve{Secp256k1}
+	badCurve := &badSecp256k1Curve{Secp256k1Curve}
 
 	// Create a test point
 	x := big.NewInt(42)
@@ -489,7 +489,7 @@ func TestAddPanic(t *testing.T) {
 }
 
 func TestDoublePanic(t *testing.T) {
-	badCurve := &badSecp256k1Curve{Secp256k1}
+	badCurve := &badSecp256k1Curve{Secp256k1Curve}
 
 	// Create a test point
 	x := big.NewInt(42)
@@ -529,7 +529,7 @@ func TestInteropWithEthereumSecp256k1(t *testing.T) {
 
 		// Convert Ethereum public key to our format
 		ourPubKey := new(ecdsa.PublicKey)
-		ourPubKey.Curve = Secp256k1
+		ourPubKey.Curve = Secp256k1Curve
 		ourPubKey.X = ethPrivKey.PublicKey.X
 		ourPubKey.Y = ethPrivKey.PublicKey.Y
 
@@ -549,7 +549,7 @@ func TestInteropWithEthereumSecp256k1(t *testing.T) {
 	// Test 2: Create a key with our implementation and verify with Ethereum
 	t.Run("CustomToEthereum", func(t *testing.T) {
 		// Generate a key using our implementation
-		privateKey, err := ecdsa.GenerateKey(Secp256k1, rand.Reader)
+		privateKey, err := ecdsa.GenerateKey(Secp256k1Curve, rand.Reader)
 		require.NoError(t, err)
 
 		// Create a hash to sign
@@ -564,7 +564,7 @@ func TestInteropWithEthereumSecp256k1(t *testing.T) {
 		assert.True(t, valid, "Signature should be valid with our implementation")
 
 		// Normalize the S value to comply with Ethereum's EIP-2
-		s = normalizeS(s, Secp256k1)
+		s = normalizeS(s, Secp256k1Curve)
 
 		// Calculate the recovery ID (v) based on public key
 		v := calculateRecoveryID(&privateKey.PublicKey)

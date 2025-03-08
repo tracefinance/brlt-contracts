@@ -72,15 +72,15 @@ func (kg *DefaultKeyGenerator) generateECDSAKeyPair(curve elliptic.Curve) (priva
 	}
 
 	// Special handling for SECP256K1 curve
-	if curve == Secp256k1 {
+	if curve == Secp256k1Curve {
 		// Use our custom marshalling for SECP256K1
-		privateKey, err = marshalSecp256k1PrivateKey(privateECDSA)
+		privateKey, err = MarshalPrivateKey(privateECDSA)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to marshal SECP256K1 private key: %w", err)
 		}
 
 		// Use custom marshalling for public key too
-		publicKey, err = marshalSecp256k1PublicKey(&privateECDSA.PublicKey)
+		publicKey, err = MarshalPublicKey(&privateECDSA.PublicKey)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to marshal SECP256K1 public key: %w", err)
 		}

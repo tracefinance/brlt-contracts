@@ -2,87 +2,107 @@ package keygen
 
 import (
 	"crypto/ecdsa"
-	"encoding/asn1"
+	"errors"
+	"fmt"
+	"math/big"
 )
 
-// ASN.1 structure for EC private key
-type ecPrivateKey struct {
-	Version       int
-	PrivateKey    []byte
-	NamedCurveOID asn1.ObjectIdentifier `asn1:"optional,explicit,tag:0"`
-	PublicKey     asn1.BitString        `asn1:"optional,explicit,tag:1"`
-}
-
-// marshalSecp256k1PrivateKey serializes a secp256k1 private key to DER format
-func marshalSecp256k1PrivateKey(privateKey *ecdsa.PrivateKey) ([]byte, error) {
-	// Secp256k1 OID (1.3.132.0.10)
-	// This is the standard OID for secp256k1 curve
-	oid := asn1.ObjectIdentifier{1, 3, 132, 0, 10}
-
-	// Convert private key to bytes (big-endian)
-	privateKeyBytes := privateKey.D.Bytes()
-	// Pad to 32 bytes if necessary
-	paddedPrivateKey := make([]byte, 32)
-	copy(paddedPrivateKey[32-len(privateKeyBytes):], privateKeyBytes)
-
-	// Manually construct public key bytes
-	// For secp256k1, we need to manually create the compressed format
-	// since we can't use ecdh with a custom curve
-	publicKeyBytes := make([]byte, 65)
-	publicKeyBytes[0] = 4 // uncompressed point format
-	xBytes := privateKey.PublicKey.X.Bytes()
-	yBytes := privateKey.PublicKey.Y.Bytes()
-	copy(publicKeyBytes[1+32-len(xBytes):33], xBytes)
-	copy(publicKeyBytes[33+32-len(yBytes):], yBytes)
-
-	// Create ASN.1 structure
-	key := ecPrivateKey{
-		Version:       1,
-		PrivateKey:    paddedPrivateKey,
-		NamedCurveOID: oid,
-		PublicKey:     asn1.BitString{Bytes: publicKeyBytes},
+// MarshalPrivateKey marshals a SECP256K1 private key to bytes
+func MarshalPrivateKey(key *ecdsa.PrivateKey) ([]byte, error) {
+	if key == nil {
+		return nil, errors.New("nil private key")
 	}
 
-	return asn1.Marshal(key)
-}
-
-// marshalSecp256k1PublicKey serializes a secp256k1 public key to DER format
-func marshalSecp256k1PublicKey(publicKey *ecdsa.PublicKey) ([]byte, error) {
-	// Create SubjectPublicKeyInfo structure
-	// OID for id-ecPublicKey is 1.2.840.10045.2.1
-	algorithmIdentifier := []byte{
-		0x30, 0x10, // SEQUENCE (16 bytes)
-		0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, // OID for id-ecPublicKey
-		0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x0a, // OID for secp256k1 (1.3.132.0.10)
+	// Verify the key is using secp256k1 curve
+	if key.Curve != Secp256k1Curve {
+		return nil, fmt.Errorf("invalid curve: expected secp256k1")
 	}
 
-	// Manually construct the public key bytes
-	// We can't use ecdh for custom curves like secp256k1
-	publicKeyBytes := make([]byte, 65)
-	publicKeyBytes[0] = 4 // uncompressed point format
-	xBytes := publicKey.X.Bytes()
-	yBytes := publicKey.Y.Bytes()
-	copy(publicKeyBytes[1+32-len(xBytes):33], xBytes)
-	copy(publicKeyBytes[33+32-len(yBytes):], yBytes)
+	// Verify the private key scalar is within valid range
+	if key.D.Cmp(Secp256k1Curve.Params().N) >= 0 {
+		return nil, fmt.Errorf("private key scalar is too large")
+	}
 
-	// Build DER sequence
-	size := len(algorithmIdentifier) + 2 + len(publicKeyBytes)
-	result := make([]byte, size+4)
+	// Return the private key scalar as bytes
+	return key.D.Bytes(), nil
+}
 
-	// Overall SEQUENCE
-	result[0] = 0x30 // SEQUENCE tag
-	result[1] = byte(size)
+// UnmarshalPrivateKey unmarshals a SECP256K1 private key from bytes
+func UnmarshalPrivateKey(data []byte) (*ecdsa.PrivateKey, error) {
+	if len(data) == 0 {
+		return nil, errors.New("empty private key data")
+	}
 
-	// Copy algorithm identifier
-	copy(result[2:], algorithmIdentifier)
+	// Convert bytes to scalar
+	d := new(big.Int).SetBytes(data)
 
-	// BIT STRING for public key
-	result[2+len(algorithmIdentifier)] = 0x03 // BIT STRING tag
-	result[2+len(algorithmIdentifier)+1] = byte(len(publicKeyBytes) + 1)
-	result[2+len(algorithmIdentifier)+2] = 0x00 // No unused bits
+	// Verify the scalar is within valid range
+	if d.Cmp(Secp256k1Curve.Params().N) >= 0 {
+		return nil, fmt.Errorf("private key scalar is too large")
+	}
 
-	// Copy public key bytes
-	copy(result[2+len(algorithmIdentifier)+3:], publicKeyBytes)
+	// Create private key
+	priv := new(ecdsa.PrivateKey)
+	priv.Curve = Secp256k1Curve
+	priv.D = d
 
-	return result, nil
+	// Calculate public key
+	priv.PublicKey.X, priv.PublicKey.Y = Secp256k1Curve.ScalarBaseMult(data)
+
+	return priv, nil
+}
+
+// MarshalPublicKey serializes an ECDSA public key into Ethereum's uncompressed format.
+// Format: 0x04 || 32-byte X coordinate || 32-byte Y coordinate (65 bytes total).
+func MarshalPublicKey(pub *ecdsa.PublicKey) ([]byte, error) {
+	if pub == nil || pub.X == nil || pub.Y == nil {
+		return nil, errors.New("invalid public key")
+	}
+
+	// Get X and Y coordinates as byte slices
+	xBytes := pub.X.Bytes()
+	yBytes := pub.Y.Bytes()
+
+	// Ensure coordinates are not larger than 32 bytes
+	if len(xBytes) > 32 || len(yBytes) > 32 {
+		return nil, errors.New("public key coordinates exceed 32 bytes")
+	}
+
+	// Pad coordinates to 32 bytes (left-pad with zeros if necessary)
+	xPadded := make([]byte, 32)
+	yPadded := make([]byte, 32)
+	copy(xPadded[32-len(xBytes):], xBytes)
+	copy(yPadded[32-len(yBytes):], yBytes)
+
+	// Construct uncompressed format: 0x04 || X || Y
+	return append([]byte{0x04}, append(xPadded, yPadded...)...), nil
+}
+
+// UnmarshalPublicKey unmarshals a SECP256K1 public key from bytes
+func UnmarshalPublicKey(data []byte) (*ecdsa.PublicKey, error) {
+	// Validate input length and prefix
+	if len(data) != 65 || data[0] != 0x04 {
+		return nil, errors.New("invalid uncompressed public key format")
+	}
+
+	// Check length
+	byteLen := (Secp256k1Curve.Params().BitSize + 7) / 8
+	if len(data) != 1+2*byteLen {
+		return nil, fmt.Errorf("invalid public key length")
+	}
+	// Extract X and Y coordinates
+	x := new(big.Int).SetBytes(data[1:33])  // First 32 bytes after 0x04
+	y := new(big.Int).SetBytes(data[33:65]) // Next 32 bytes
+
+	// Verify point is on curve
+	if !Secp256k1Curve.IsOnCurve(x, y) {
+		return nil, fmt.Errorf("point is not on secp256k1 curve")
+	}
+
+	// Construct the public key
+	return &ecdsa.PublicKey{
+		Curve: Secp256k1Curve,
+		X:     x,
+		Y:     y,
+	}, nil
 }
