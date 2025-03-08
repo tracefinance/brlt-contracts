@@ -1,9 +1,8 @@
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL UNIQUE,
-    password TEXT NOT NULL,
-    private_key TEXT
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT
 );
 
 -- Add index on username for faster lookups
