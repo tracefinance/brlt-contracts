@@ -1,15 +1,13 @@
 package main
 
 import (
-	"crypto/ecdsa"
 	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
 
-	vcrypto "vault0/internal/crypto"
-
-	"github.com/ethereum/go-ethereum/crypto"
+	"vault0/internal/crypto"
+	"vault0/internal/keygen"
 )
 
 func main() {
@@ -39,7 +37,7 @@ func generateEncryptionKey(keySize int, format string) {
 	}
 
 	// Generate the key
-	key, err := vcrypto.GenerateEncryptionKeyBase64(keySize)
+	key, err := crypto.GenerateEncryptionKeyBase64(keySize)
 	if err != nil {
 		fmt.Printf("Error generating encryption key: %v\n", err)
 		os.Exit(1)
@@ -57,43 +55,33 @@ func generateEncryptionKey(keySize int, format string) {
 
 // generateKeypair generates a new ECDSA keypair for blockchain use
 func generateKeypair(format string) {
-	// Generate a new private key
-	privateKey, err := crypto.GenerateKey()
+	// Create a key generator
+	keyGen := keygen.NewKeyGenerator()
+
+	// Generate ECDSA key pair with secp256k1 curve
+	privateKey, publicKey, err := keyGen.GenerateKeyPair(keygen.KeyTypeECDSA, keygen.Secp256k1Curve)
 	if err != nil {
 		fmt.Printf("Error generating keypair: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Get the public key
-	publicKey := privateKey.Public().(*ecdsa.PublicKey)
-
-	// Convert to various formats
-	privateKeyBytes := crypto.FromECDSA(privateKey)
-	privateKeyHex := hex.EncodeToString(privateKeyBytes)
-
-	publicKeyBytes := crypto.FromECDSAPub(publicKey)
-	publicKeyHex := hex.EncodeToString(publicKeyBytes)
-
-	// Derive Ethereum address
-	address := crypto.PubkeyToAddress(*publicKey)
+	// Convert to hex format
+	privateKeyHex := hex.EncodeToString(privateKey)
+	publicKeyHex := hex.EncodeToString(publicKey)
 
 	// Print the keys based on format
 	if format == "env" {
 		fmt.Printf("PRIVATE_KEY='%s'\n", privateKeyHex)
 		fmt.Printf("PUBLIC_KEY='%s'\n", publicKeyHex)
-		fmt.Printf("ADDRESS='%s'\n", address.Hex())
 	} else {
-		fmt.Println("Generated EVM-compatible ECDSA keypair:")
+		fmt.Println("Generated ECDSA keypair:")
 		fmt.Println("\nPrivate Key (hex):")
 		fmt.Println(privateKeyHex)
 		fmt.Println("\nPublic Key (hex):")
 		fmt.Println(publicKeyHex)
-		fmt.Println("\nEthereum Address:")
-		fmt.Println(address.Hex())
 
 		fmt.Println("\nTo export as environment variables:")
 		fmt.Printf("export PRIVATE_KEY='%s'\n", privateKeyHex)
 		fmt.Printf("export PUBLIC_KEY='%s'\n", publicKeyHex)
-		fmt.Printf("export ADDRESS='%s'\n", address.Hex())
 	}
 }
