@@ -27,8 +27,8 @@ func NewFactory(keyStore keystore.KeyStore, appConfig *config.Config) *Factory {
 	}
 }
 
-// CreateWallet creates a new wallet instance for the specified chain type and key ID.
-func (f *Factory) CreateWallet(ctx context.Context, chainType types.ChainType, keyID string) (Wallet, error) {
+// Create creates a new wallet instance for the specified chain type and key ID.
+func (f *Factory) Create(ctx context.Context, chainType types.ChainType, keyID string) (Wallet, error) {
 	if keyID == "" {
 		return nil, fmt.Errorf("keyID cannot be empty")
 	}

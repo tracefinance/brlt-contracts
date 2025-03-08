@@ -25,8 +25,8 @@ type AppConfig interface {
 	GetSmartContractsPath() string
 }
 
-// EVMContract implements the SmartContract interface for EVM compatible chains
-type EVMContract struct {
+// EVMSmartContract implements the SmartContract interface for EVM compatible chains
+type EVMSmartContract struct {
 	// chainType is the type of blockchain
 	chainType vtypes.ChainType
 	// blockchain is the blockchain client
@@ -37,12 +37,12 @@ type EVMContract struct {
 	config AppConfig
 }
 
-// NewEVMContract creates a new EVM contract manager
-func NewEVMContract(
+// NewEVMSmartContract creates a new EVM contract manager
+func NewEVMSmartContract(
 	blockchain blockchain.Blockchain,
 	wallet wallet.Wallet,
 	config AppConfig,
-) (*EVMContract, error) {
+) (*EVMSmartContract, error) {
 	// Get chain type from wallet
 	chainType := wallet.ChainType()
 
@@ -53,7 +53,7 @@ func NewEVMContract(
 		return nil, fmt.Errorf("unsupported chain type: %s", chainType)
 	}
 
-	return &EVMContract{
+	return &EVMSmartContract{
 		chainType:  chainType,
 		blockchain: blockchain,
 		wallet:     wallet,
@@ -62,12 +62,12 @@ func NewEVMContract(
 }
 
 // ChainType returns the blockchain type
-func (c *EVMContract) ChainType() vtypes.ChainType {
+func (c *EVMSmartContract) ChainType() vtypes.ChainType {
 	return c.wallet.ChainType()
 }
 
 // LoadArtifact loads a contract artifact from the filesystem
-func (c *EVMContract) LoadArtifact(ctx context.Context, contractName string) (*Artifact, error) {
+func (c *EVMSmartContract) LoadArtifact(ctx context.Context, contractName string) (*Artifact, error) {
 	// Get the path to the smart contracts directory
 	contractsPath := c.config.GetSmartContractsPath()
 
@@ -179,8 +179,8 @@ func (c *EVMContract) LoadArtifact(ctx context.Context, contractName string) (*A
 	}, nil
 }
 
-// DeployContract deploys a smart contract to the blockchain
-func (c *EVMContract) DeployContract(
+// Deploy deploys a smart contract to the blockchain
+func (c *EVMSmartContract) Deploy(
 	ctx context.Context,
 	artifact *Artifact,
 	options DeploymentOptions,
@@ -246,7 +246,7 @@ func (c *EVMContract) DeployContract(
 }
 
 // WaitForDeployment waits for a contract deployment to complete
-func (c *EVMContract) WaitForDeployment(
+func (c *EVMSmartContract) WaitForDeployment(
 	ctx context.Context,
 	transactionHash string,
 ) (*DeploymentResult, error) {
@@ -289,7 +289,7 @@ func (c *EVMContract) WaitForDeployment(
 }
 
 // CallMethod calls a read-only method on a deployed contract
-func (c *EVMContract) CallMethod(
+func (c *EVMSmartContract) CallMethod(
 	ctx context.Context,
 	contractAddress string,
 	artifact *Artifact,
@@ -345,7 +345,7 @@ func (c *EVMContract) CallMethod(
 }
 
 // ExecuteMethod executes a state-changing method on a deployed contract
-func (c *EVMContract) ExecuteMethod(
+func (c *EVMSmartContract) ExecuteMethod(
 	ctx context.Context,
 	contractAddress string,
 	artifact *Artifact,

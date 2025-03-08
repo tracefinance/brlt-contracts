@@ -46,13 +46,13 @@ type DeploymentOptions struct {
 	ConstructorArgs []any
 }
 
-// Contract defines methods for interacting with smart contracts
-type Contract interface {
+// SmartContract defines methods for interacting with smart contracts
+type SmartContract interface {
 	// LoadArtifact loads a contract artifact from the filesystem
 	LoadArtifact(ctx context.Context, contractName string) (*Artifact, error)
 
-	// DeployContract deploys a smart contract to the blockchain
-	DeployContract(
+	// Deploy deploys a smart contract to the blockchain
+	Deploy(
 		ctx context.Context,
 		artifact *Artifact,
 		options DeploymentOptions,
