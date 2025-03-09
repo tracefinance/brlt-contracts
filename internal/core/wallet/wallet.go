@@ -3,7 +3,7 @@ package wallet
 import (
 	"context"
 	"math/big"
-	"vault0/internal/blockchain"
+	"vault0/internal/core/blockchain"
 	"vault0/internal/types"
 )
 

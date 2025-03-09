@@ -22,8 +22,8 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"vault0/internal/config"
-	vcrypto "vault0/internal/crypto"
-	"vault0/internal/keygen"
+	vcrypto "vault0/internal/core/crypto"
+	"vault0/internal/core/keygen"
 )
 
 // DBKeyStore implements the KeyStore interface using a local database

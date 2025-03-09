@@ -50,16 +50,17 @@ Follow these rules when you write code:
 The backend follows a three-layer architecture:
 
 ### Layer 1: Core/Infrastructure Layer
-Composed of foundational modules that serve as building blocks for the entire system:
+Composed of foundational modules that serve as building blocks for the entire system, organized in the `internal/core` directory:
 - **Database Access**: Provides database connectivity and query execution
 - **Wallet Operations**: Low-level wallet functionality
 - **Keystore**: Secure storage and retrieval of cryptographic keys
 - **Blockchain Interaction**: Core blockchain communication
 - **Cryptography Utilities**: Encryption, decryption, and hashing functions
-- **Configuration Management**: Application configuration
+- **Contract Interaction**: Smart contract operation abstraction
+- **Key Generation**: Cryptographic key generation utilities
 
 ### Layer 2: Service Layer
-Contains business logic modules organized by domain, each encapsulating:
+Contains business logic modules organized by domain in the `internal/services` directory, each encapsulating:
 - Domain-specific data models
 - Business operations and validation rules
 - Repository interfaces for data access
@@ -72,7 +73,7 @@ Services include:
 - Blockchain service integration
 
 ### Layer 3: Communication Layer
-Exposes the service layer functionality externally:
+Exposes the service layer functionality externally through the `internal/api` directory:
 - RESTful API endpoints
 - Request/response handling
 - Middleware (authentication, logging, error handling)
@@ -95,24 +96,53 @@ vault0/
 │   │   │   ├── user/                   # User-related endpoints
 │   │   │   │   ├── handler.go          # User handler implementation
 │   │   │   │   ├── dto.go              # User request/response structures
-│   │   │   │   └── routes.go           # User routes configuration
+│   │   │   │   └── route.go            # User routes configuration
 │   │   │   ├── wallet/                 # Wallet-related endpoints
 │   │   │   │   ├── handler.go          # Wallet handler implementation
 │   │   │   │   ├── dto.go              # Wallet request/response structures
-│   │   │   │   └── routes.go           # Wallet routes configuration
+│   │   │   │   └── route.go            # Wallet routes configuration
 │   │   │   ├── auth/                   # Authentication endpoints
 │   │   │   │   ├── handler.go          # Auth handler implementation
 │   │   │   │   ├── dto.go              # Auth request/response structures
-│   │   │   │   └── routes.go           # Auth routes configuration
+│   │   │   │   └── route.go            # Auth routes configuration
 │   │   │   └── transaction/            # Transaction endpoints
 │   │   │       ├── handler.go          # Transaction handler implementation
 │   │   │       ├── dto.go              # Transaction request/response structures
-│   │   │       └── routes.go           # Transaction routes configuration
+│   │   │       └── route.go            # Transaction routes configuration
 │   │   ├── middleware/                 # Request middleware components
 │   │   │   ├── auth.go                 # Authentication middleware
 │   │   │   ├── logging.go              # Request logging middleware
 │   │   │   └── errors.go               # Error handling middleware
 │   │   └── server.go                   # API server setup and configuration
+│   ├── core/                           # Core/Infrastructure Layer (Layer 1)
+│   │   ├── blockchain/                 # Blockchain interaction
+│   │   │   ├── blockchain.go           # Blockchain interface definitions
+│   │   │   ├── evm_blockchain.go       # Ethereum Virtual Machine implementation
+│   │   │   └── factory.go              # Blockchain factory
+│   │   ├── contract/                   # Smart contract interaction
+│   │   │   ├── contract.go             # Contract interface definitions
+│   │   │   ├── evm_contract.go         # EVM contract implementation
+│   │   │   └── factory.go              # Contract factory
+│   │   ├── crypto/                     # Cryptography utilities
+│   │   │   ├── aes.go                  # AES encryption/decryption
+│   │   │   ├── hash.go                 # Hashing functions
+│   │   │   └── random.go               # Random number generation
+│   │   ├── db/                         # Database access
+│   │   │   ├── db.go                   # Database connection and management
+│   │   │   ├── migrations.go           # Database migration handling
+│   │   │   └── query.go                # SQL query execution utilities
+│   │   ├── keygen/                     # Key generation utilities
+│   │   │   ├── keygen.go               # Key generator interface
+│   │   │   └── secp256k1.go            # secp256k1 curve implementation
+│   │   ├── keystore/                   # Key management
+│   │   │   ├── keystore.go             # Keystore interface definition
+│   │   │   ├── db_keystore.go          # Database-backed keystore implementation
+│   │   │   ├── mock_keystore.go        # Mock implementation for testing
+│   │   │   └── factory.go              # Keystore factory
+│   │   └── wallet/                     # Wallet operations
+│   │       ├── wallet.go               # Wallet interface and implementation
+│   │       ├── evm_wallet.go           # Ethereum wallet implementation
+│   │       └── factory.go              # Wallet factory
 │   ├── services/                       # Service Layer (Layer 2)
 │   │   ├── user/                       # User management domain
 │   │   │   ├── model.go                # User data models
@@ -134,29 +164,10 @@ vault0/
 │   │       ├── model.go                # Transaction data models
 │   │       ├── service.go              # Transaction service implementation
 │   │       └── repository.go           # Transaction data access interface and implementation
-│   ├── db/                             # Core Layer (Layer 1) - Database access
-│   │   ├── db.go                       # Database connection and management
-│   │   ├── migrations.go               # Database migration handling
-│   │   └── query.go                    # SQL query execution utilities
-│   ├── keystore/                       # Core Layer (Layer 1) - Key management
-│   │   ├── keystore.go                 # Keystore interface definition
-│   │   ├── encrypted.go                # Encrypted keystore implementation
-│   │   └── memory.go                   # In-memory keystore implementation (for testing)
-│   ├── blockchain/                     # Core Layer (Layer 1) - Blockchain interaction
-│   │   ├── client.go                   # Blockchain client interface
-│   │   ├── ethclient.go                # Ethereum client implementation
-│   │   └── contract.go                 # Smart contract interaction utilities
-│   ├── crypto/                         # Core Layer (Layer 1) - Cryptography utilities
-│   │   ├── aes.go                      # AES encryption/decryption
-│   │   ├── hash.go                     # Hashing functions
-│   │   └── random.go                   # Random number generation
-│   ├── wallet/                         # Core Layer (Layer 1) - Wallet operations
-│   │   ├── wallet.go                   # Wallet interface and implementation
-│   │   ├── address.go                  # Address utilities
-│   │   └── transaction.go              # Transaction building utilities
-│   ├── config/                         # Core Layer (Layer 1) - Configuration
+│   ├── config/                         # Configuration management
 │   │   ├── config.go                   # Configuration structure and loading
 │   │   └── env.go                      # Environment variable handling
+│   ├── oauth2/                         # OAuth2 implementation
 │   └── types/                          # Shared type definitions
 │       ├── errors.go                   # Error types and constants
 │       └── common.go                   # Common type definitions
@@ -181,8 +192,8 @@ package user
 import (
     "context"
     "fmt"
-    "vault0/internal/db"
-    "vault0/internal/keystore"
+    "vault0/internal/core/db"
+    "vault0/internal/core/keystore"
 )
 
 // Service defines the user service interface
@@ -260,7 +271,7 @@ package user
 import (
     "context"
     "fmt"
-    "vault0/internal/db"
+    "vault0/internal/core/db"
 )
 
 // Repository defines the user data access interface
@@ -377,7 +388,7 @@ func (h *Handler) GetUser(c *gin.Context) {
 
 ### Routes Configuration Pattern
 
-Each handler module should have a dedicated `routes.go` file that sets up and registers routes for that specific domain. This file should:
+Each handler module should have a dedicated `route.go` file that sets up and registers routes for that specific domain. This file should:
 
 1. Create all necessary dependencies (repositories, services)
 2. Instantiate the handler with these dependencies
@@ -386,15 +397,15 @@ Each handler module should have a dedicated `routes.go` file that sets up and re
 Here's the recommended pattern for route configuration:
 
 ```go
-// internal/api/handlers/user/routes.go
+// internal/api/handlers/user/route.go
 package user
 
 import (
     "github.com/gin-gonic/gin"
 
     "vault0/internal/config"
-    "vault0/internal/db"
-    "vault0/internal/keystore"
+    "vault0/internal/core/db"
+    "vault0/internal/core/keystore"
     userService "vault0/internal/services/user"
 )
 

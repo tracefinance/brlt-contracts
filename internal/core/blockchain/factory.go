@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"vault0/internal/config"
-	"vault0/internal/keygen"
+	"vault0/internal/core/keygen"
 	"vault0/internal/types"
 )
 

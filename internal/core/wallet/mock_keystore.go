@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/elliptic"
 
-	"vault0/internal/keygen"
-	"vault0/internal/keystore"
+	"vault0/internal/core/keygen"
+	"vault0/internal/core/keystore"
 )
 
 // MockKeyStore is a mock implementation of the keystore.KeyStore interface for testing

@@ -6,7 +6,7 @@ import (
 	"crypto/sha256"
 	"testing"
 
-	"vault0/internal/keygen"
+	"vault0/internal/core/keygen"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

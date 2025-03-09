@@ -2,7 +2,7 @@ package oauth2
 
 import (
 	"time"
-	"vault0/internal/db"
+	"vault0/internal/core/db"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-oauth2/oauth2/v4"

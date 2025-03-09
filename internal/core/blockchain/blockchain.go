@@ -5,7 +5,7 @@ import (
 	"crypto/elliptic"
 	"errors"
 	"math/big"
-	"vault0/internal/keygen"
+	"vault0/internal/core/keygen"
 	"vault0/internal/types"
 )
 

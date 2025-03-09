@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"vault0/internal/config"
-	"vault0/internal/crypto"
+	"vault0/internal/core/crypto"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

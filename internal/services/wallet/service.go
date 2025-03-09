@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 
-	"vault0/internal/blockchain"
 	"vault0/internal/config"
-	"vault0/internal/keystore"
+	"vault0/internal/core/blockchain"
+	"vault0/internal/core/keystore"
+	coreWallet "vault0/internal/core/wallet"
 	"vault0/internal/types"
-	coreWallet "vault0/internal/wallet"
 )
 
 // Common service errors

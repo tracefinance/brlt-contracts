@@ -13,10 +13,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 
-	"vault0/internal/blockchain"
 	"vault0/internal/config"
+	"vault0/internal/core/blockchain"
+	"vault0/internal/core/wallet"
 	vtypes "vault0/internal/types"
-	"vault0/internal/wallet"
 )
 
 // AppConfig is the interface for application configuration

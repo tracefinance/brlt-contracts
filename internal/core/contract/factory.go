@@ -3,10 +3,10 @@ package contract
 import (
 	"fmt"
 
-	"vault0/internal/blockchain"
 	"vault0/internal/config"
+	"vault0/internal/core/blockchain"
+	"vault0/internal/core/wallet"
 	"vault0/internal/types"
-	"vault0/internal/wallet"
 )
 
 // Factory creates SmartContract instances for different chains

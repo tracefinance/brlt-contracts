@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"vault0/internal/config"
-	"vault0/internal/keygen"
+	"vault0/internal/core/keygen"
 	"vault0/internal/types"
 )
 

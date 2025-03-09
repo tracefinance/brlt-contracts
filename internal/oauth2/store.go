@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
-	"vault0/internal/db"
+	"vault0/internal/core/db"
 
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/models"

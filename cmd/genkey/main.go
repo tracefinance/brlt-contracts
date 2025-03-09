@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"vault0/internal/crypto"
-	"vault0/internal/keygen"
+	"vault0/internal/core/crypto"
+	"vault0/internal/core/keygen"
 )
 
 func main() {

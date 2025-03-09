@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"vault0/internal/keygen"
+	"vault0/internal/core/keygen"
 )
 
 // MockKeyStore provides a mock implementation of the KeyStore interface for testing

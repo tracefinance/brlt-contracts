@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"vault0/internal/blockchain"
 	"vault0/internal/config"
-	"vault0/internal/keystore"
+	"vault0/internal/core/blockchain"
+	"vault0/internal/core/keystore"
 	"vault0/internal/types"
 )
 

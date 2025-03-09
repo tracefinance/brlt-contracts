@@ -5,7 +5,7 @@ import (
 	"crypto/elliptic"
 	"errors"
 
-	"vault0/internal/keygen"
+	"vault0/internal/core/keygen"
 )
 
 // Common errors

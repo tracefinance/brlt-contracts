@@ -36,16 +36,17 @@ The core of Vault0 is the `MultiSigWallet.sol` contract, which:
 The Go backend follows a three-layer architecture:
 
 #### Layer 1: Core/Infrastructure Layer
-Composed of foundational modules that serve as building blocks for the entire system:
+Composed of foundational modules that serve as building blocks for the entire system, organized in the `internal/core` directory:
 - **Database Access**: Provides database connectivity and query execution
 - **Wallet Operations**: Low-level wallet functionality
 - **Keystore**: Secure storage and retrieval of cryptographic keys
 - **Blockchain Interaction**: Core blockchain communication
 - **Cryptography Utilities**: Encryption, decryption, and hashing functions
-- **Configuration Management**: Application configuration
+- **Contract Interaction**: Smart contract operation abstraction
+- **Key Generation**: Cryptographic key generation utilities
 
 #### Layer 2: Service Layer
-Contains business logic modules organized by domain, each encapsulating:
+Contains business logic modules organized by domain in the `internal/services` directory, each encapsulating:
 - Domain-specific data models
 - Business operations and validation rules
 - Repository interfaces for data access
@@ -58,7 +59,7 @@ Services include:
 - Blockchain service integration
 
 #### Layer 3: Communication Layer
-Exposes the service layer functionality externally:
+Exposes the service layer functionality externally through the `internal/api` directory:
 - RESTful API endpoints
 - Request/response handling
 - Middleware (authentication, logging, error handling)
@@ -68,6 +69,7 @@ The backend also provides:
 - Database integration for transaction history
 - Secure key management with AES-GCM encryption
 - Modular architecture for multiple key storage mechanisms
+- OAuth2 support for secure authentication
 
 ### Frontend (React/Next.js)
 
@@ -136,24 +138,50 @@ vault0/
 │   │   │   ├── user/                   # User-related endpoints
 │   │   │   │   ├── handler.go          # User handler implementation
 │   │   │   │   ├── dto.go              # User request/response structures
-│   │   │   │   └── routes.go           # User routes configuration
+│   │   │   │   └── route.go            # User routes configuration
 │   │   │   ├── wallet/                 # Wallet-related endpoints
 │   │   │   │   ├── handler.go          # Wallet handler implementation
 │   │   │   │   ├── dto.go              # Wallet request/response structures
-│   │   │   │   └── routes.go           # Wallet routes configuration
+│   │   │   │   └── route.go            # Wallet routes configuration
 │   │   │   ├── auth/                   # Authentication endpoints
 │   │   │   │   ├── handler.go          # Auth handler implementation
 │   │   │   │   ├── dto.go              # Auth request/response structures
-│   │   │   │   └── routes.go           # Auth routes configuration
+│   │   │   │   └── route.go            # Auth routes configuration
 │   │   │   └── transaction/            # Transaction endpoints
 │   │   │       ├── handler.go          # Transaction handler implementation
 │   │   │       ├── dto.go              # Transaction request/response structures
-│   │   │       └── routes.go           # Transaction routes configuration
+│   │   │       └── route.go            # Transaction routes configuration
 │   │   ├── middleware/                 # Request middleware components
 │   │   │   ├── auth.go                 # Authentication middleware
 │   │   │   ├── logging.go              # Request logging middleware
 │   │   │   └── errors.go               # Error handling middleware
 │   │   └── server.go                   # API server setup and configuration
+│   ├── core/                           # Core/Infrastructure Layer (Layer 1)
+│   │   ├── blockchain/                 # Blockchain interaction
+│   │   │   ├── blockchain.go           # Blockchain interface definitions
+│   │   │   ├── evm_blockchain.go       # Ethereum Virtual Machine implementation
+│   │   │   └── factory.go              # Blockchain factory
+│   │   ├── contract/                   # Smart contract interaction
+│   │   │   ├── contract.go             # Contract interface definitions
+│   │   │   ├── evm_contract.go         # EVM contract implementation
+│   │   │   └── factory.go              # Contract factory
+│   │   ├── crypto/                     # Cryptography utilities
+│   │   │   └── aes.go                  # AES encryption/decryption
+│   │   ├── db/                         # Database access
+│   │   │   ├── db.go                   # Database connection and management
+│   │   │   └── migrations.go           # Database migration handling
+│   │   ├── keygen/                     # Key generation utilities
+│   │   │   ├── keygen.go               # Key generator interface
+│   │   │   └── secp256k1.go            # secp256k1 curve implementation
+│   │   ├── keystore/                   # Key management
+│   │   │   ├── keystore.go             # Keystore interface
+│   │   │   ├── db_keystore.go          # Database-backed keystore implementation
+│   │   │   ├── mock_keystore.go        # Mock implementation for testing
+│   │   │   └── factory.go              # Keystore factory
+│   │   └── wallet/                     # Wallet operations
+│   │       ├── wallet.go               # Wallet interface
+│   │       ├── evm_wallet.go           # EVM wallet implementation
+│   │       └── factory.go              # Wallet factory
 │   ├── services/                       # Service Layer (Layer 2)
 │   │   ├── user/                       # User management domain
 │   │   │   ├── model.go                # User data models
@@ -175,12 +203,8 @@ vault0/
 │   │       ├── model.go                # Transaction data models
 │   │       ├── service.go              # Transaction service implementation
 │   │       └── repository.go           # Transaction data access interface and implementation
-│   ├── db/                             # Core Layer (Layer 1) - Database access
-│   ├── keystore/                       # Core Layer (Layer 1) - Key management
-│   ├── blockchain/                     # Core Layer (Layer 1) - Blockchain interaction
-│   ├── crypto/                         # Core Layer (Layer 1) - Cryptography utilities
-│   ├── wallet/                         # Core Layer (Layer 1) - Wallet operations
-│   ├── config/                         # Core Layer (Layer 1) - Configuration
+│   ├── config/                         # Configuration management
+│   ├── oauth2/                         # OAuth2 implementation
 │   └── types/                          # Shared type definitions
 ├── migrations/                         # Database migrations
 ├── contracts/                          # Smart contract codebase

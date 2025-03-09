@@ -7,8 +7,8 @@ import (
 
 	"vault0/internal/api/handlers/wallet"
 	"vault0/internal/config"
-	"vault0/internal/db"
-	"vault0/internal/keystore"
+	"vault0/internal/core/db"
+	"vault0/internal/core/keystore"
 
 	"github.com/gin-gonic/gin"
 )

@@ -8,8 +8,8 @@ import (
 
 	"vault0/internal/api"
 	"vault0/internal/config"
-	"vault0/internal/db"
-	"vault0/internal/keystore"
+	"vault0/internal/core/db"
+	"vault0/internal/core/keystore"
 )
 
 func main() {

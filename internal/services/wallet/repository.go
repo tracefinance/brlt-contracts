@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"vault0/internal/db"
+	"vault0/internal/core/db"
 )
 
 // Repository defines the interface for wallet data access

@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"crypto/elliptic"
-	"vault0/internal/blockchain"
 	"vault0/internal/config"
-	"vault0/internal/keygen"
-	"vault0/internal/keystore"
+	"vault0/internal/core/blockchain"
+	"vault0/internal/core/keygen"
+	"vault0/internal/core/keystore"
+	coreWallet "vault0/internal/core/wallet"
 	"vault0/internal/types"
-	coreWallet "vault0/internal/wallet"
 )
 
 // MockRepository is a mock implementation of the Repository interface
