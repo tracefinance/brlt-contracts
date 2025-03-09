@@ -52,25 +52,13 @@ func (f *Factory) NewBlockchain(chainType types.ChainType) (Blockchain, error) {
 
 // NewChain creates a Chain struct for the specified chain type
 func (f *Factory) NewChain(chainType types.ChainType) (Chain, error) {
-	var chainCfg *config.BlockchainConfig
-	var chainName string
-
-	switch chainType {
-	case types.ChainTypeEthereum:
-		chainCfg = &f.cfg.Blockchains.Ethereum
-		chainName = "Ethereum"
-	case types.ChainTypePolygon:
-		chainCfg = &f.cfg.Blockchains.Polygon
-		chainName = "Polygon"
-	case types.ChainTypeBase:
-		chainCfg = &f.cfg.Blockchains.Base
-		chainName = "Base"
-	default:
-		return Chain{}, fmt.Errorf("unsupported chain type %s: %w", chainType, ErrChainNotSupported)
+	chainCfg, err := f.getChainConfig(chainType)
+	if err != nil {
+		return Chain{}, err
 	}
 
 	if chainCfg.RPCURL == "" {
-		return Chain{}, fmt.Errorf("missing RPC URL for %s: %w", chainName, ErrRPCConnectionFailed)
+		return Chain{}, fmt.Errorf("missing RPC URL for %s: %w", chainType, ErrRPCConnectionFailed)
 	}
 
 	// Determine the key type and curve for the chain
@@ -79,7 +67,7 @@ func (f *Factory) NewChain(chainType types.ChainType) (Chain, error) {
 	return Chain{
 		ID:          chainCfg.ChainID,
 		Type:        chainType,
-		Name:        chainName,
+		Name:        getChainName(chainType),
 		Symbol:      getChainSymbol(chainType),
 		RPCUrl:      chainCfg.RPCURL,
 		ExplorerUrl: chainCfg.ExplorerURL,
@@ -88,16 +76,35 @@ func (f *Factory) NewChain(chainType types.ChainType) (Chain, error) {
 	}, nil
 }
 
-// getChainCryptoParams returns the appropriate key type and elliptic curve for a given blockchain
-func getChainCryptoParams(chainType types.ChainType) (keygen.KeyType, elliptic.Curve) {
+// getChainConfig returns the configuration for a given chain type
+func (f *Factory) getChainConfig(chainType types.ChainType) (*config.BlockchainConfig, error) {
+	var chainCfg *config.BlockchainConfig
+
 	switch chainType {
-	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
-		// All EVM-compatible chains use ECDSA with secp256k1
-		return keygen.KeyTypeECDSA, keygen.Secp256k1Curve
-	// Add more chain types as needed
+	case types.ChainTypeEthereum:
+		chainCfg = &f.cfg.Blockchains.Ethereum
+	case types.ChainTypePolygon:
+		chainCfg = &f.cfg.Blockchains.Polygon
+	case types.ChainTypeBase:
+		chainCfg = &f.cfg.Blockchains.Base
 	default:
-		// For unknown chains, default to ECDSA with P-256
-		return keygen.KeyTypeECDSA, elliptic.P256()
+		return nil, fmt.Errorf("unsupported chain type %s: %w", chainType, ErrChainNotSupported)
+	}
+
+	return chainCfg, nil
+}
+
+// getChainName returns the human-readable name for a given blockchain
+func getChainName(chainType types.ChainType) string {
+	switch chainType {
+	case types.ChainTypeEthereum:
+		return "Ethereum"
+	case types.ChainTypePolygon:
+		return "Polygon"
+	case types.ChainTypeBase:
+		return "Base"
+	default:
+		return "Unknown"
 	}
 }
 
@@ -112,5 +119,17 @@ func getChainSymbol(chainType types.ChainType) string {
 		return "ETH"
 	default:
 		return "UNKNOWN"
+	}
+}
+
+// getChainCryptoParams returns the appropriate key type and elliptic curve for a given blockchain
+func getChainCryptoParams(chainType types.ChainType) (keygen.KeyType, elliptic.Curve) {
+	switch chainType {
+	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
+		// All EVM-compatible chains use ECDSA with secp256k1
+		return keygen.KeyTypeECDSA, keygen.Secp256k1Curve
+	default:
+		// For unknown chains, default to ECDSA with P-256
+		return keygen.KeyTypeECDSA, elliptic.P256()
 	}
 }
