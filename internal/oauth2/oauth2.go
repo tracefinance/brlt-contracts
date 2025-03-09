@@ -105,4 +105,7 @@ func (s *Service) RegisterRoutes(r *gin.Engine) {
 	oauth.GET("/authorize", handlers.AuthorizeHandler)
 	oauth.POST("/token", handlers.TokenHandler)
 	oauth.GET("/userinfo", handlers.UserInfoHandler)
+
+	// Add the login handler
+	oauth.POST("/login", handlers.LoginHandler)
 }
