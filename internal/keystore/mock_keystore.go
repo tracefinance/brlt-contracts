@@ -32,97 +32,73 @@ func NewMockKeyStore() *MockKeyStore {
 }
 
 // Create creates a new key with the given ID, name, and type
-func (ks *MockKeyStore) Create(ctx context.Context, id, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*Key, error) {
+func (ks *MockKeyStore) Create(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*Key, error) {
 	ks.mutex.Lock()
 	defer ks.mutex.Unlock()
 
-	// Check if key with same ID already exists
+	// Use a simple ID generation for mocks
+	id := fmt.Sprintf("key-%d", len(ks.Keys)+1)
+
+	// Check if key exists
 	if _, exists := ks.Keys[id]; exists {
 		return nil, ErrKeyAlreadyExists
 	}
 
-	// For ECDSA keys, default to P-256 if no curve is specified
-	if keyType == keygen.KeyTypeECDSA {
-		if curve == nil {
-			curve = elliptic.P256()
-		}
+	// Create key
+	key := &Key{
+		ID:        id,
+		Name:      name,
+		Type:      keyType,
+		Curve:     curve,
+		Tags:      tags,
+		CreatedAt: time.Now().Unix(),
 	}
 
-	// Generate key pair
+	// Generate key material
 	privateKey, publicKey, err := ks.keyGen.GenerateKeyPair(keyType, curve)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create the key
-	key := &Key{
-		ID:         id,
-		Name:       name,
-		Type:       keyType,
-		Tags:       tags,
-		CreatedAt:  time.Now().Unix(),
-		PrivateKey: privateKey,
-		PublicKey:  publicKey,
-		Curve:      curve,
-	}
+	// Store key material (in mock we don't encrypt)
+	key.PrivateKey = privateKey
+	key.PublicKey = publicKey
 
-	// Store the key
+	// Save key
 	ks.Keys[id] = key
 
-	// Return a copy of the key without the private key material
-	return &Key{
-		ID:        key.ID,
-		Name:      key.Name,
-		Type:      key.Type,
-		Tags:      key.Tags,
-		CreatedAt: key.CreatedAt,
-		PublicKey: key.PublicKey,
-		Curve:     key.Curve,
-	}, nil
+	return key, nil
 }
 
 // Import imports an existing key
-func (ks *MockKeyStore) Import(ctx context.Context, id, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
+func (ks *MockKeyStore) Import(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
 	ks.mutex.Lock()
 	defer ks.mutex.Unlock()
 
-	// Check if key with same ID already exists
+	// Use a simple ID generation for mocks
+	id := fmt.Sprintf("key-%d", len(ks.Keys)+1)
+
+	// Check if key exists
 	if _, exists := ks.Keys[id]; exists {
 		return nil, ErrKeyAlreadyExists
 	}
 
-	// For ECDSA keys, default to P-256 if no curve is specified
-	if keyType == keygen.KeyTypeECDSA {
-		if curve == nil {
-			curve = elliptic.P256()
-		}
-	}
-
-	// Create the key
+	// Create key
 	key := &Key{
 		ID:         id,
 		Name:       name,
 		Type:       keyType,
+		Curve:      curve,
 		Tags:       tags,
 		CreatedAt:  time.Now().Unix(),
-		PrivateKey: privateKey,
+		PrivateKey: privateKey, // In mock we store unencrypted
 		PublicKey:  publicKey,
-		Curve:      curve,
 	}
 
-	// Store the key
+	// Save key
 	ks.Keys[id] = key
 
-	// Return a copy of the key without the private key material
-	return &Key{
-		ID:        key.ID,
-		Name:      key.Name,
-		Type:      key.Type,
-		Tags:      key.Tags,
-		CreatedAt: key.CreatedAt,
-		PublicKey: key.PublicKey,
-		Curve:     key.Curve,
-	}, nil
+	return key, nil
 }
 
 // Sign signs the provided data using the key identified by id

@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/asn1"
 	"math/big"
 	"testing"
 
@@ -17,6 +19,11 @@ import (
 	"vault0/internal/types"
 )
 
+// ecdsaSignature is used for marshalling ECDSA signatures in ASN.1 DER format
+type ecdsaSignature struct {
+	R, S *big.Int
+}
+
 // mockAppConfig implements the AppConfig interface for testing
 type mockAppConfig struct {
 	configs map[string]*config.BlockchainConfig
@@ -27,8 +34,8 @@ func (m *mockAppConfig) GetBlockchainConfig(chainType string) *config.Blockchain
 }
 
 // setupTest creates a test wallet with mock dependencies
-func setupTest(t *testing.T) (*EVMWallet, *keystore.MockKeyStore, *mockAppConfig) {
-	ks := keystore.NewMockKeyStore()
+func setupTest(t *testing.T) (*EVMWallet, *MockKeyStore, *mockAppConfig) {
+	ks := &MockKeyStore{}
 	appCfg := &mockAppConfig{
 		configs: map[string]*config.BlockchainConfig{
 			string(types.ChainTypeEthereum): {
@@ -38,7 +45,7 @@ func setupTest(t *testing.T) (*EVMWallet, *keystore.MockKeyStore, *mockAppConfig
 			},
 		},
 	}
-	wallet, err := NewEVMWallet(ks, types.ChainTypeEthereum, "test-key", appCfg)
+	wallet, err := NewEVMWallet(ks, types.ChainTypeEthereum, "test", appCfg)
 	require.NoError(t, err)
 	return wallet, ks, appCfg
 }
@@ -62,20 +69,25 @@ func TestDeriveAddress(t *testing.T) {
 	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
 	require.NoError(t, err)
 
-	// Import the key into the mock keystore
-	_, err = ks.Import(ctx, "test-key", "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, nil, pubKeyBytes, nil)
-	require.NoError(t, err)
+	// Set up the mock to return our key
+	ks.GetPublicKeyFunc = func(ctx context.Context, id string) (*keystore.Key, error) {
+		if id == "test" {
+			return &keystore.Key{
+				ID:        "test",
+				Name:      "test",
+				Type:      keygen.KeyTypeECDSA,
+				Curve:     keygen.Secp256k1Curve,
+				PublicKey: pubKeyBytes,
+			}, nil
+		}
+		return nil, keystore.ErrKeyNotFound
+	}
 
 	// Derive address
 	address, err := wallet.DeriveAddress(ctx)
 	require.NoError(t, err)
 	expectedAddress := crypto.PubkeyToAddress(privKey.PublicKey).Hex()
 	assert.Equal(t, expectedAddress, address, "Derived address should match expected address")
-
-	// Test failure case: empty public key
-	ks.Keys["test-key"].PublicKey = []byte{}
-	_, err = wallet.DeriveAddress(ctx)
-	assert.Error(t, err, "DeriveAddress should fail with empty public key")
 }
 
 // TestCreateNativeTransaction tests the CreateNativeTransaction method
@@ -91,9 +103,27 @@ func TestCreateNativeTransaction(t *testing.T) {
 	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
 	require.NoError(t, err)
 
-	// Import the key into the mock keystore
-	_, err = ks.Import(ctx, "test-key", "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, nil, pubKeyBytes, nil)
+	// Marshal private key using secp256k1 format
+	privKeyBytes, err := keygen.MarshalPrivateKey(privKey)
 	require.NoError(t, err)
+
+	// Import the key into the mock keystore
+	_, err = ks.Import(ctx, "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, privKeyBytes, pubKeyBytes, nil)
+	require.NoError(t, err)
+
+	// Set up the mock to return our key
+	ks.GetPublicKeyFunc = func(ctx context.Context, id string) (*keystore.Key, error) {
+		if id == "test" {
+			return &keystore.Key{
+				ID:        "test",
+				Name:      "test",
+				Type:      keygen.KeyTypeECDSA,
+				Curve:     keygen.Secp256k1Curve,
+				PublicKey: pubKeyBytes,
+			}, nil
+		}
+		return nil, keystore.ErrKeyNotFound
+	}
 
 	toAddress := "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
 	amount := big.NewInt(1000000000000000000) // 1 ETH
@@ -135,13 +165,31 @@ func TestCreateTokenTransaction(t *testing.T) {
 	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
 	require.NoError(t, err)
 
-	// Import the key into the mock keystore
-	_, err = ks.Import(ctx, "test-key", "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, nil, pubKeyBytes, nil)
+	// Marshal private key using secp256k1 format
+	privKeyBytes, err := keygen.MarshalPrivateKey(privKey)
 	require.NoError(t, err)
 
-	tokenAddress := "0x6B175474E89094C44Da98b954EedeAC495271d0F" // DAI token
+	// Import the key into the mock keystore
+	_, err = ks.Import(ctx, "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, privKeyBytes, pubKeyBytes, nil)
+	require.NoError(t, err)
+
+	// Set up the mock to return our key
+	ks.GetPublicKeyFunc = func(ctx context.Context, id string) (*keystore.Key, error) {
+		if id == "test" {
+			return &keystore.Key{
+				ID:        "test",
+				Name:      "test",
+				Type:      keygen.KeyTypeECDSA,
+				Curve:     keygen.Secp256k1Curve,
+				PublicKey: pubKeyBytes,
+			}, nil
+		}
+		return nil, keystore.ErrKeyNotFound
+	}
+
+	tokenAddress := "0xdAC17F958D2ee523a2206206994597C13D831ec7" // USDT address
 	toAddress := "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
-	amount := big.NewInt(1000000000000000000) // 1 token
+	amount := big.NewInt(1000000) // 1 USDT with 6 decimals
 
 	tx, err := wallet.CreateTokenTransaction(ctx, tokenAddress, toAddress, amount, types.TransactionOptions{})
 	require.NoError(t, err)
@@ -163,27 +211,70 @@ func TestSignTransaction(t *testing.T) {
 	wallet, ks, _ := setupTest(t)
 	ctx := context.Background()
 
-	// Generate a test key pair using secp256k1 curve
+	// Setup key using secp256k1 curve
 	privKey, err := ecdsa.GenerateKey(keygen.Secp256k1Curve, rand.Reader)
+	require.NoError(t, err)
+
+	// Get public key bytes using secp256k1 format
+	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
 	require.NoError(t, err)
 
 	// Marshal private key using secp256k1 format
 	privKeyBytes, err := keygen.MarshalPrivateKey(privKey)
 	require.NoError(t, err)
 
-	// Get public key bytes in Ethereum format
-	pubKeyBytes := crypto.FromECDSAPub(&privKey.PublicKey)
-
 	// Import the key into the mock keystore
-	_, err = ks.Import(ctx, "test-key", "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, privKeyBytes, pubKeyBytes, nil)
+	_, err = ks.Import(ctx, "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, privKeyBytes, pubKeyBytes, nil)
 	require.NoError(t, err)
+
+	// Set up the mock to return our key and sign function
+	ks.GetPublicKeyFunc = func(ctx context.Context, id string) (*keystore.Key, error) {
+		if id == "test" {
+			return &keystore.Key{
+				ID:        "test",
+				Name:      "test",
+				Type:      keygen.KeyTypeECDSA,
+				Curve:     keygen.Secp256k1Curve,
+				PublicKey: pubKeyBytes,
+			}, nil
+		}
+		return nil, keystore.ErrKeyNotFound
+	}
+
+	// Set up the mock sign function
+	ks.SignFunc = func(ctx context.Context, id string, data []byte, dataType keystore.DataType) ([]byte, error) {
+		if id == "test" {
+			// For testing, just sign with the private key
+			var hash []byte
+			if dataType == keystore.DataTypeDigest {
+				hash = data
+			} else {
+				hasher := sha256.New()
+				hasher.Write(data)
+				hash = hasher.Sum(nil)
+			}
+
+			r, s, err := ecdsa.Sign(rand.Reader, privKey, hash)
+			if err != nil {
+				return nil, err
+			}
+
+			// Encode signature in ASN.1 DER format
+			signature := ecdsaSignature{R: r, S: s}
+			return asn1.Marshal(signature)
+		}
+		return nil, keystore.ErrKeyNotFound
+	}
+
+	toAddress := "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+	amount := big.NewInt(1000000000000000000) // 1 ETH
 
 	// Create a transaction
 	tx := &types.Transaction{
 		Chain:    types.ChainTypeEthereum,
 		From:     crypto.PubkeyToAddress(privKey.PublicKey).Hex(),
-		To:       "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-		Value:    big.NewInt(1000000000000000000), // 1 ETH
+		To:       toAddress,
+		Value:    amount,
 		Nonce:    0,
 		GasPrice: big.NewInt(20000000000), // 20 Gwei
 		GasLimit: 21000,

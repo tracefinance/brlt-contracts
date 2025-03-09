@@ -11,9 +11,13 @@ import (
 // MockKeyStore is a mock implementation of the keystore.KeyStore interface for testing
 type MockKeyStore struct {
 	GetPublicKeyFunc func(ctx context.Context, id string) (*keystore.Key, error)
+	SignFunc         func(ctx context.Context, id string, data []byte, dataType keystore.DataType) ([]byte, error)
 }
 
-func (m *MockKeyStore) Create(ctx context.Context, id, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
+func (m *MockKeyStore) Create(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
+	// Generate a mock ID
+	id := "mock-key-id"
+
 	return &keystore.Key{
 		ID:    id,
 		Name:  name,
@@ -23,7 +27,10 @@ func (m *MockKeyStore) Create(ctx context.Context, id, name string, keyType keyg
 	}, nil
 }
 
-func (m *MockKeyStore) Import(ctx context.Context, id, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*keystore.Key, error) {
+func (m *MockKeyStore) Import(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*keystore.Key, error) {
+	// Generate a mock ID
+	id := "mock-key-id"
+
 	return &keystore.Key{
 		ID:        id,
 		Name:      name,
@@ -54,5 +61,8 @@ func (m *MockKeyStore) Delete(ctx context.Context, id string) error {
 }
 
 func (m *MockKeyStore) Sign(ctx context.Context, id string, data []byte, dataType keystore.DataType) ([]byte, error) {
+	if m.SignFunc != nil {
+		return m.SignFunc(ctx, id, data, dataType)
+	}
 	return nil, nil
 }

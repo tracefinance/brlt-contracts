@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strconv"
+	"strings"
 	"time"
 
 	"crypto"
@@ -64,18 +66,8 @@ func curveByName(name string) (elliptic.Curve, error) {
 	}
 }
 
-// Create creates a new key with the given ID, name, and type
-func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*Key, error) {
-	// Check if key with the same ID already exists
-	var count int
-	err := ks.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
-	if err != nil {
-		return nil, err
-	}
-	if count > 0 {
-		return nil, ErrKeyAlreadyExists
-	}
-
+// Create creates a new key with the given name and type
+func (ks *DBKeyStore) Create(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*Key, error) {
 	// Validate curve for ECDSA keys
 	if keyType == keygen.KeyTypeECDSA {
 		if curve == nil {
@@ -91,7 +83,6 @@ func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType keyge
 
 	// Create the key
 	key := &Key{
-		ID:        id,
 		Name:      name,
 		Type:      keyType,
 		Tags:      tags,
@@ -122,10 +113,9 @@ func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType keyge
 	}
 
 	// Insert the key into the database
-	_, err = ks.db.ExecContext(
+	result, err := ks.db.ExecContext(
 		ctx,
-		"INSERT INTO keys (id, name, key_type, curve, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-		key.ID,
+		"INSERT INTO keys (name, key_type, curve, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		key.Name,
 		string(key.Type),
 		curveName,
@@ -135,24 +125,27 @@ func (ks *DBKeyStore) Create(ctx context.Context, id, name string, keyType keyge
 		key.PublicKey,
 	)
 	if err != nil {
+		// Check for UNIQUE constraint violation on name
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return nil, ErrKeyAlreadyExists
+		}
 		return nil, err
 	}
+
+	// Get the auto-generated ID
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	// Set the ID in the key
+	key.ID = strconv.FormatInt(id, 10)
 
 	return key, nil
 }
 
 // Import imports an existing key
-func (ks *DBKeyStore) Import(ctx context.Context, id, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
-	// Check if key with the same ID already exists
-	var count int
-	err := ks.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE id = ?", id).Scan(&count)
-	if err != nil {
-		return nil, err
-	}
-	if count > 0 {
-		return nil, ErrKeyAlreadyExists
-	}
-
+func (ks *DBKeyStore) Import(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
 	// Convert tags to JSON
 	tagsJSON, err := json.Marshal(tags)
 	if err != nil {
@@ -178,7 +171,6 @@ func (ks *DBKeyStore) Import(ctx context.Context, id, name string, keyType keyge
 
 	// Create the key
 	key := &Key{
-		ID:         id,
 		Name:       name,
 		Type:       keyType,
 		Tags:       tags,
@@ -189,10 +181,9 @@ func (ks *DBKeyStore) Import(ctx context.Context, id, name string, keyType keyge
 	}
 
 	// Insert the key into the database
-	_, err = ks.db.ExecContext(
+	result, err := ks.db.ExecContext(
 		ctx,
-		"INSERT INTO keys (id, name, key_type, curve, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-		key.ID,
+		"INSERT INTO keys (name, key_type, curve, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		key.Name,
 		string(key.Type),
 		curveName,
@@ -202,8 +193,21 @@ func (ks *DBKeyStore) Import(ctx context.Context, id, name string, keyType keyge
 		key.PublicKey,
 	)
 	if err != nil {
+		// Check for UNIQUE constraint violation on name
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return nil, ErrKeyAlreadyExists
+		}
 		return nil, err
 	}
+
+	// Get the auto-generated ID
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	// Set the ID in the key
+	key.ID = strconv.FormatInt(id, 10)
 
 	return key, nil
 }
@@ -217,7 +221,6 @@ func (ks *DBKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, error)
 		curveName string
 	)
 
-	// Query the database
 	err := ks.db.QueryRowContext(
 		ctx,
 		"SELECT id, name, key_type, curve, tags, created_at, public_key FROM keys WHERE id = ?",
@@ -349,7 +352,7 @@ func (ks *DBKeyStore) Update(ctx context.Context, id string, name string, tags m
 		return nil, err
 	}
 
-	// Update the key
+	// Update the key - support numeric IDs
 	_, err = ks.db.ExecContext(
 		ctx,
 		"UPDATE keys SET name = ?, tags = ? WHERE id = ?",
@@ -377,7 +380,7 @@ func (ks *DBKeyStore) Delete(ctx context.Context, id string) error {
 		return ErrKeyNotFound
 	}
 
-	// Delete the key
+	// Delete the key by ID
 	_, err = ks.db.ExecContext(ctx, "DELETE FROM keys WHERE id = ?", id)
 	return err
 }
@@ -391,7 +394,7 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte, dataType
 		curveName       string
 	)
 
-	// Query the database for the private key, key type and curve
+	// Query the database for the private key, key type and curve by ID
 	err := ks.db.QueryRowContext(
 		ctx,
 		"SELECT private_key, key_type, curve FROM keys WHERE id = ?",
@@ -400,7 +403,7 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte, dataType
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("key not found")
+			return nil, ErrKeyNotFound
 		}
 		return nil, err
 	}
