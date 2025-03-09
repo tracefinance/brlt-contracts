@@ -43,18 +43,18 @@ func NewEVMSmartContract(
 	wallet wallet.Wallet,
 	config AppConfig,
 ) (*EVMSmartContract, error) {
-	// Get chain type from wallet
-	chainType := wallet.ChainType()
+	// Get chain information from wallet
+	chain := wallet.Chain()
 
 	// Validate chain type
-	if chainType != vtypes.ChainTypeEthereum &&
-		chainType != vtypes.ChainTypePolygon &&
-		chainType != vtypes.ChainTypeBase {
-		return nil, fmt.Errorf("unsupported chain type: %s", chainType)
+	if chain.Type != vtypes.ChainTypeEthereum &&
+		chain.Type != vtypes.ChainTypePolygon &&
+		chain.Type != vtypes.ChainTypeBase {
+		return nil, fmt.Errorf("unsupported chain type: %s", chain.Type)
 	}
 
 	return &EVMSmartContract{
-		chainType:  chainType,
+		chainType:  chain.Type,
 		blockchain: blockchain,
 		wallet:     wallet,
 		config:     config,
@@ -63,7 +63,7 @@ func NewEVMSmartContract(
 
 // ChainType returns the blockchain type
 func (c *EVMSmartContract) ChainType() vtypes.ChainType {
-	return c.wallet.ChainType()
+	return c.wallet.Chain().Type
 }
 
 // LoadArtifact loads a contract artifact from the filesystem

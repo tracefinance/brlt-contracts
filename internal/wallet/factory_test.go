@@ -19,6 +19,7 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory)
 		assert.Equal(t, keyStore, factory.keyStore)
 		assert.Equal(t, appConfig, factory.appConfig)
+		assert.NotNil(t, factory.blockchainFactory, "blockchainFactory should be initialized")
 	})
 
 	t.Run("Create new factory with nil config should panic", func(t *testing.T) {
@@ -43,7 +44,10 @@ func TestNewWallet(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
-		assert.Equal(t, types.ChainTypeEthereum, wallet.ChainType())
+		chain := wallet.Chain()
+		assert.Equal(t, types.ChainTypeEthereum, chain.Type)
+		assert.Equal(t, "Ethereum", chain.Name)
+		assert.Equal(t, "ETH", chain.Symbol)
 	})
 
 	t.Run("Create Polygon wallet", func(t *testing.T) {
@@ -58,7 +62,10 @@ func TestNewWallet(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
-		assert.Equal(t, types.ChainTypePolygon, wallet.ChainType())
+		chain := wallet.Chain()
+		assert.Equal(t, types.ChainTypePolygon, chain.Type)
+		assert.Equal(t, "Polygon", chain.Name)
+		assert.Equal(t, "MATIC", chain.Symbol)
 	})
 
 	t.Run("Create Base wallet", func(t *testing.T) {
@@ -73,7 +80,10 @@ func TestNewWallet(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
-		assert.Equal(t, types.ChainTypeBase, wallet.ChainType())
+		chain := wallet.Chain()
+		assert.Equal(t, types.ChainTypeBase, chain.Type)
+		assert.Equal(t, "Base", chain.Name)
+		assert.Equal(t, "ETH", chain.Symbol)
 	})
 
 	t.Run("Create wallet for unsupported chain", func(t *testing.T) {

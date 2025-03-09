@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
+	"vault0/internal/blockchain"
 	"vault0/internal/config"
 	"vault0/internal/types"
 )
@@ -15,9 +16,9 @@ type MockWallet struct {
 	mock.Mock
 }
 
-func (m *MockWallet) ChainType() types.ChainType {
+func (m *MockWallet) Chain() blockchain.Chain {
 	args := m.Called()
-	return args.Get(0).(types.ChainType)
+	return args.Get(0).(blockchain.Chain)
 }
 
 func (m *MockWallet) DeriveAddress(ctx context.Context, keyID string) (string, error) {

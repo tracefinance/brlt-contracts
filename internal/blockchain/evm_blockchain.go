@@ -23,38 +23,37 @@ type EVMBlockchain struct {
 	chain     Chain
 }
 
-// NewEVMBlockchain creates a new EVM blockchain client for the specified chain
+// NewEVMBlockchain creates a new EVM blockchain client
 func NewEVMBlockchain(chain Chain) (*EVMBlockchain, error) {
 	if chain.RPCUrl == "" {
-		return nil, fmt.Errorf("evm: RPC URL is required: %w", ErrRPCConnectionFailed)
+		return nil, fmt.Errorf("RPC URL is required for %s", chain.Name)
 	}
 
+	// Create a new Ethereum RPC client
 	rpcClient, err := rpc.Dial(chain.RPCUrl)
 	if err != nil {
-		return nil, fmt.Errorf("evm: failed to connect to RPC: %w", err)
+		return nil, fmt.Errorf("failed to connect to RPC endpoint: %w", err)
 	}
 
+	// Create an Ethereum client from the RPC client
 	client := ethclient.NewClient(rpcClient)
 
-	// Verify the connection with a chain ID check
-	chainID, err := client.ChainID(context.Background())
-	if err != nil {
-		rpcClient.Close()
-		return nil, fmt.Errorf("evm: failed to get chain ID: %w", err)
-	}
-
-	// Verify that the chain ID matches what we expect
-	if chain.ID != 0 && chain.ID != chainID.Int64() {
-		rpcClient.Close()
-		return nil, fmt.Errorf("evm: chain ID mismatch, expected %d, got %d: %w",
-			chain.ID, chainID.Int64(), ErrChainNotSupported)
-	}
-
-	return &EVMBlockchain{
+	// Create the EVM blockchain client
+	evm := &EVMBlockchain{
 		client:    client,
 		rpcClient: rpcClient,
 		chain:     chain,
-	}, nil
+	}
+
+	// Try to get the chain ID to verify the connection
+	_, err = evm.GetChainID(context.Background())
+	if err != nil {
+		// Close the connections before returning
+		evm.Close()
+		return nil, fmt.Errorf("evm: failed to get chain ID: %w", err)
+	}
+
+	return evm, nil
 }
 
 // GetChainID implements Blockchain.GetChainID
@@ -323,7 +322,7 @@ func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethtypes.Tra
 	}
 }
 
-// ChainType returns the type of the blockchain
-func (c *EVMBlockchain) ChainType() types.ChainType {
-	return c.chain.Type
+// Chain returns the chain information
+func (c *EVMBlockchain) Chain() Chain {
+	return c.chain
 }

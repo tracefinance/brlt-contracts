@@ -27,22 +27,22 @@ func NewFactory(
 
 // NewSmartContract returns a SmartContract instance for the specified chain type
 func (f *Factory) NewSmartContract(blockchain blockchain.Blockchain, wallet wallet.Wallet) (SmartContract, error) {
-	// Get the chain type from the blockchain
-	blockchainType := blockchain.ChainType()
-	walletType := wallet.ChainType()
+	// Get the chain information from the blockchain and wallet
+	blockchainChain := blockchain.Chain()
+	walletChain := wallet.Chain()
 
 	// Validate that the wallet and blockchain have matching chain types
-	if blockchainType != walletType {
+	if blockchainChain.Type != walletChain.Type {
 		return nil, fmt.Errorf("blockchain chain type %s does not match wallet chain type %s: %w",
-			blockchainType, walletType, types.ErrUnsupportedChain)
+			blockchainChain.Type, walletChain.Type, types.ErrUnsupportedChain)
 	}
 
 	// Create the appropriate implementation based on chain type
-	switch blockchainType {
+	switch blockchainChain.Type {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
 		// These are all EVM-compatible chains, so use EVMSmartContract
 		return NewEVMSmartContract(blockchain, wallet, &f.config)
 	default:
-		return nil, fmt.Errorf("unsupported chain type: %s: %w", blockchainType, types.ErrUnsupportedChain)
+		return nil, fmt.Errorf("unsupported chain type: %s: %w", blockchainChain.Type, types.ErrUnsupportedChain)
 	}
 }

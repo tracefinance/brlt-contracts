@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"math/big"
+	"vault0/internal/blockchain"
 	"vault0/internal/types"
 )
 
@@ -18,8 +19,8 @@ type WalletInfo struct {
 
 // Wallet is the interface for interacting with blockchain wallets
 type Wallet interface {
-	// ChainType returns the blockchain type
-	ChainType() types.ChainType
+	// Chain returns the blockchain chain information
+	Chain() blockchain.Chain
 
 	// DeriveAddress derives a wallet address
 	DeriveAddress(ctx context.Context) (string, error)

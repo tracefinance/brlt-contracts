@@ -2,8 +2,10 @@ package blockchain
 
 import (
 	"context"
+	"crypto/elliptic"
 	"errors"
 	"math/big"
+	"vault0/internal/keygen"
 	"vault0/internal/types"
 )
 
@@ -29,6 +31,8 @@ type Chain struct {
 	Symbol      string          // Native currency symbol
 	RPCUrl      string          // RPC URL for the chain
 	ExplorerUrl string          // Block explorer URL
+	Curve       elliptic.Curve  // Elliptic curve for key generation
+	KeyType     keygen.KeyType  // Key type for the blockchain
 }
 
 // Blockchain defines methods for interacting with a blockchain
@@ -57,8 +61,8 @@ type Blockchain interface {
 	// CallContract executes a read-only call to a smart contract
 	CallContract(ctx context.Context, from string, to string, data []byte) ([]byte, error)
 
-	// ChainType returns the type of the blockchain
-	ChainType() types.ChainType
+	// Chain returns the chain information
+	Chain() Chain
 
 	// Close closes any open connections
 	Close()

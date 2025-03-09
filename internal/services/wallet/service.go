@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"vault0/internal/blockchain"
 	"vault0/internal/config"
-	"vault0/internal/keygen"
 	"vault0/internal/keystore"
 	"vault0/internal/types"
 	coreWallet "vault0/internal/wallet"
@@ -43,7 +43,7 @@ type WalletFactory interface {
 	NewWallet(ctx context.Context, chainType types.ChainType, keyID string) (coreWallet.Wallet, error)
 }
 
-// DefaultService is the default implementation of the wallet service
+// DefaultService implements the Service interface
 type DefaultService struct {
 	repository    Repository
 	walletFactory WalletFactory
@@ -71,8 +71,16 @@ func (s *DefaultService) CreateWallet(ctx context.Context, chainType types.Chain
 		return nil, fmt.Errorf("%w: name cannot be empty", ErrInvalidInput)
 	}
 
-	// Create the key in the keystore - for EVM chains, we use ECDSA keys with the secp256k1 curve
-	key, err := s.keystore.Create(ctx, name, keygen.KeyTypeECDSA, keygen.Secp256k1Curve, tags)
+	// Get chain information first to determine the appropriate key type and curve
+	// Create a blockchain factory to get the chain information
+	blockchainFactory := blockchain.NewFactory(s.config)
+	chain, err := blockchainFactory.NewChain(chainType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chain information: %w", err)
+	}
+
+	// Create the key in the keystore using the chain's specified key type and curve
+	key, err := s.keystore.Create(ctx, name, chain.KeyType, chain.Curve, tags)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create key: %w", err)
 	}
@@ -92,7 +100,7 @@ func (s *DefaultService) CreateWallet(ctx context.Context, chainType types.Chain
 	// Store the wallet info in the database
 	wallet := &Wallet{
 		KeyID:     key.ID,
-		ChainType: chainType,
+		ChainType: chain.Type,
 		Address:   address,
 		Name:      name,
 		Tags:      tags,

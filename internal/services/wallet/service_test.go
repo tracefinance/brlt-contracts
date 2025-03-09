@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"crypto/elliptic"
+	"vault0/internal/blockchain"
 	"vault0/internal/config"
 	"vault0/internal/keygen"
 	"vault0/internal/keystore"
@@ -73,9 +74,9 @@ type MockWallet struct {
 	mock.Mock
 }
 
-func (m *MockWallet) ChainType() types.ChainType {
+func (m *MockWallet) Chain() blockchain.Chain {
 	args := m.Called()
-	return args.Get(0).(types.ChainType)
+	return args.Get(0).(blockchain.Chain)
 }
 
 func (m *MockWallet) Create(ctx context.Context, name string, tags map[string]string) (*coreWallet.WalletInfo, error) {
@@ -164,19 +165,58 @@ func (m *MockKeyStore) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
+// MockBlockchainFactory mocks the blockchain.Factory
+type MockBlockchainFactory struct {
+	mock.Mock
+}
+
+func (m *MockBlockchainFactory) NewChain(chainType types.ChainType) (blockchain.Chain, error) {
+	args := m.Called(chainType)
+	return args.Get(0).(blockchain.Chain), args.Error(1)
+}
+
+// createTestConfig creates a test configuration with supported blockchains
+func createTestConfig() *config.Config {
+	return &config.Config{
+		Blockchains: config.BlockchainsConfig{
+			Ethereum: config.BlockchainConfig{
+				RPCURL:          "https://mainnet.infura.io/v3/your-api-key",
+				ChainID:         1,
+				DefaultGasPrice: 20,
+				DefaultGasLimit: 21000,
+				ExplorerURL:     "https://etherscan.io",
+			},
+			Polygon: config.BlockchainConfig{
+				RPCURL:          "https://polygon-mainnet.infura.io/v3/your-api-key",
+				ChainID:         137,
+				DefaultGasPrice: 30,
+				DefaultGasLimit: 21000,
+				ExplorerURL:     "https://polygonscan.com",
+			},
+			Base: config.BlockchainConfig{
+				RPCURL:          "https://mainnet.base.org",
+				ChainID:         8453,
+				DefaultGasPrice: 10,
+				DefaultGasLimit: 21000,
+				ExplorerURL:     "https://basescan.org",
+			},
+		},
+	}
+}
+
 func TestCreateWallet(t *testing.T) {
 	ctx := context.Background()
 	repo := new(MockRepository)
 	mockWallet := new(MockWallet)
-	cfg := &config.Config{}
+	cfg := createTestConfig() // Use a real config for testing
 
-	// Create a mock factory that we control directly
+	// Create a mock wallet factory
 	mockFactory := new(MockWalletFactory)
 
 	// Create a mock keystore
 	mockKeyStore := new(MockKeyStore)
 
-	// Create a service with our mocked factory but manually inject it
+	// Create the service
 	service := &DefaultService{
 		repository:    repo,
 		walletFactory: mockFactory,

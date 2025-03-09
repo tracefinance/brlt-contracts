@@ -11,7 +11,9 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"vault0/internal/blockchain"
 	"vault0/internal/config"
+	"vault0/internal/keygen"
 	"vault0/internal/keystore"
 	"vault0/internal/types"
 )
@@ -64,13 +66,13 @@ func NewEVMConfig(chainType types.ChainType, appConfig AppConfig) (*EVMConfig, e
 }
 
 type EVMWallet struct {
-	keyStore  keystore.KeyStore
-	chainType types.ChainType
-	config    *EVMConfig
-	keyID     string
+	keyStore keystore.KeyStore
+	chain    blockchain.Chain
+	config   *EVMConfig
+	keyID    string
 }
 
-func NewEVMWallet(keyStore keystore.KeyStore, chainType types.ChainType, keyID string, appConfig AppConfig) (*EVMWallet, error) {
+func NewEVMWallet(keyStore keystore.KeyStore, chain blockchain.Chain, keyID string, appConfig AppConfig) (*EVMWallet, error) {
 	if keyStore == nil {
 		return nil, fmt.Errorf("keystore cannot be nil")
 	}
@@ -79,21 +81,31 @@ func NewEVMWallet(keyStore keystore.KeyStore, chainType types.ChainType, keyID s
 		return nil, fmt.Errorf("keyID cannot be empty")
 	}
 
-	config, err := NewEVMConfig(chainType, appConfig)
+	// Validate that the chain has the correct crypto parameters for EVM wallets
+	if chain.KeyType != keygen.KeyTypeECDSA {
+		return nil, fmt.Errorf("invalid key type for EVM wallet: %s", chain.KeyType)
+	}
+
+	// EVM chains require secp256k1 curve
+	if chain.Curve != keygen.Secp256k1Curve {
+		return nil, fmt.Errorf("invalid curve for EVM wallet: %s", chain.Curve.Params().Name)
+	}
+
+	config, err := NewEVMConfig(chain.Type, appConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	return &EVMWallet{
-		keyStore:  keyStore,
-		chainType: chainType,
-		config:    config,
-		keyID:     keyID,
+		keyStore: keyStore,
+		chain:    chain,
+		config:   config,
+		keyID:    keyID,
 	}, nil
 }
 
-func (w *EVMWallet) ChainType() types.ChainType {
-	return w.chainType
+func (w *EVMWallet) Chain() blockchain.Chain {
+	return w.chain
 }
 
 func (w *EVMWallet) DeriveAddress(ctx context.Context) (string, error) {
@@ -143,7 +155,7 @@ func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, toAddress strin
 	}
 
 	tx := &types.Transaction{
-		Chain:    w.chainType,
+		Chain:    w.chain.Type,
 		From:     fromAddress,
 		To:       toAddress,
 		Value:    amount,
@@ -187,7 +199,7 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, tokenAddress, to
 	}
 
 	tx := &types.Transaction{
-		Chain:        w.chainType,
+		Chain:        w.chain.Type,
 		From:         fromAddress,
 		To:           tokenAddress,
 		Value:        big.NewInt(0),

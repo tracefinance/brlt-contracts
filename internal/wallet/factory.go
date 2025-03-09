@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"vault0/internal/blockchain"
 	"vault0/internal/config"
 	"vault0/internal/keystore"
 	"vault0/internal/types"
@@ -11,8 +12,9 @@ import (
 
 // Factory provides methods to create different wallet types.
 type Factory struct {
-	keyStore  keystore.KeyStore
-	appConfig *config.Config
+	keyStore          keystore.KeyStore
+	appConfig         *config.Config
+	blockchainFactory *blockchain.Factory
 }
 
 // NewFactory creates a new wallet factory.
@@ -22,8 +24,9 @@ func NewFactory(keyStore keystore.KeyStore, appConfig *config.Config) *Factory {
 	}
 
 	return &Factory{
-		keyStore:  keyStore,
-		appConfig: appConfig,
+		keyStore:          keyStore,
+		appConfig:         appConfig,
+		blockchainFactory: blockchain.NewFactory(appConfig),
 	}
 }
 
@@ -31,8 +34,14 @@ func NewFactory(keyStore keystore.KeyStore, appConfig *config.Config) *Factory {
 func (f *Factory) NewWallet(ctx context.Context, chainType types.ChainType, keyID string) (Wallet, error) {
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
+		// Get chain struct from blockchain factory
+		chain, err := f.blockchainFactory.NewChain(chainType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create chain: %w", err)
+		}
+
 		// All EVM-compatible chains use the same implementation
-		return NewEVMWallet(f.keyStore, chainType, keyID, f.appConfig)
+		return NewEVMWallet(f.keyStore, chain, keyID, f.appConfig)
 	default:
 		return nil, fmt.Errorf("%w: %s", types.ErrUnsupportedChain, chainType)
 	}

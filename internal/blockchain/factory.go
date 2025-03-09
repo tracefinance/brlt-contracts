@@ -1,9 +1,11 @@
 package blockchain
 
 import (
+	"crypto/elliptic"
 	"fmt"
 	"sync"
 	"vault0/internal/config"
+	"vault0/internal/keygen"
 	"vault0/internal/types"
 )
 
@@ -22,27 +24,34 @@ func NewFactory(cfg *config.Config) *Factory {
 	}
 }
 
-// NewBlockchain creates a new blockchain implementation for the given chain type
-// or returns an existing instance if one has already been created (singleton pattern)
+// NewBlockchain creates a new blockchain client for the specified chain type
 func (f *Factory) NewBlockchain(chainType types.ChainType) (Blockchain, error) {
-	// Check if we already have a client for this chain type
-	f.clientsMux.RLock()
-	client, exists := f.clients[chainType]
-	f.clientsMux.RUnlock()
-
-	if exists {
-		return client, nil
-	}
-
-	// If no client exists, create a new one with write lock
 	f.clientsMux.Lock()
 	defer f.clientsMux.Unlock()
 
-	// Double-check in case another goroutine created the client while we were waiting
+	// Check if we already have a client for this chain type
 	if client, exists := f.clients[chainType]; exists {
 		return client, nil
 	}
 
+	// Create a new client
+	chain, err := f.NewChain(chainType)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := NewEVMBlockchain(chain)
+	if err != nil {
+		return nil, err
+	}
+
+	// Store the client in the map for future use
+	f.clients[chainType] = client
+	return client, nil
+}
+
+// NewChain creates a Chain struct for the specified chain type
+func (f *Factory) NewChain(chainType types.ChainType) (Chain, error) {
 	var chainCfg *config.BlockchainConfig
 	var chainName string
 
@@ -57,51 +66,51 @@ func (f *Factory) NewBlockchain(chainType types.ChainType) (Blockchain, error) {
 		chainCfg = &f.cfg.Blockchains.Base
 		chainName = "Base"
 	default:
-		return nil, fmt.Errorf("unsupported chain type %s: %w", chainType, ErrChainNotSupported)
+		return Chain{}, fmt.Errorf("unsupported chain type %s: %w", chainType, ErrChainNotSupported)
 	}
 
 	if chainCfg.RPCURL == "" {
-		return nil, fmt.Errorf("missing RPC URL for %s: %w", chainName, ErrRPCConnectionFailed)
+		return Chain{}, fmt.Errorf("missing RPC URL for %s: %w", chainName, ErrRPCConnectionFailed)
 	}
 
-	chain := Chain{
+	// Determine the key type and curve for the chain
+	keyType, curve := getChainCryptoParams(chainType)
+
+	return Chain{
 		ID:          chainCfg.ChainID,
 		Type:        chainType,
 		Name:        chainName,
 		Symbol:      getChainSymbol(chainType),
 		RPCUrl:      chainCfg.RPCURL,
 		ExplorerUrl: chainCfg.ExplorerURL,
-	}
-
-	client, err := NewEVMBlockchain(chain)
-	if err != nil {
-		return nil, err
-	}
-
-	// Store the client in the map for future use
-	f.clients[chainType] = client
-	return client, nil
+		KeyType:     keyType,
+		Curve:       curve,
+	}, nil
 }
 
-// CloseAll closes all blockchain client connections
-func (f *Factory) CloseAll() {
-	f.clientsMux.Lock()
-	defer f.clientsMux.Unlock()
-
-	for _, client := range f.clients {
-		client.Close()
+// getChainCryptoParams returns the appropriate key type and elliptic curve for a given blockchain
+func getChainCryptoParams(chainType types.ChainType) (keygen.KeyType, elliptic.Curve) {
+	switch chainType {
+	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
+		// All EVM-compatible chains use ECDSA with secp256k1
+		return keygen.KeyTypeECDSA, keygen.Secp256k1Curve
+	// Add more chain types as needed
+	default:
+		// For unknown chains, default to ECDSA with P-256
+		return keygen.KeyTypeECDSA, elliptic.P256()
 	}
-	f.clients = make(map[types.ChainType]Blockchain)
 }
 
-// getChainSymbol returns the symbol for a given chain type
+// getChainSymbol returns the native currency symbol for a given blockchain
 func getChainSymbol(chainType types.ChainType) string {
 	switch chainType {
-	case types.ChainTypeEthereum, types.ChainTypeBase:
+	case types.ChainTypeEthereum:
 		return "ETH"
 	case types.ChainTypePolygon:
 		return "MATIC"
+	case types.ChainTypeBase:
+		return "ETH"
 	default:
-		return ""
+		return "UNKNOWN"
 	}
 }

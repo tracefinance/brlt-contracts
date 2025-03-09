@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/asn1"
 	"math/big"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"vault0/internal/blockchain"
 	"vault0/internal/config"
 	"vault0/internal/keygen"
 	"vault0/internal/keystore"
@@ -44,15 +46,31 @@ func setupTest(t *testing.T) (*EVMWallet, *MockKeyStore, *mockAppConfig) {
 			},
 		},
 	}
-	wallet, err := NewEVMWallet(ks, types.ChainTypeEthereum, "test", appCfg)
+
+	// Create a chain struct
+	chain := blockchain.Chain{
+		ID:          1,
+		Type:        types.ChainTypeEthereum,
+		Name:        "Ethereum",
+		Symbol:      "ETH",
+		RPCUrl:      "https://mainnet.infura.io",
+		ExplorerUrl: "https://etherscan.io",
+		KeyType:     keygen.KeyTypeECDSA,
+		Curve:       keygen.Secp256k1Curve,
+	}
+
+	wallet, err := NewEVMWallet(ks, chain, "test", appCfg)
 	require.NoError(t, err)
 	return wallet, ks, appCfg
 }
 
-// TestChainType tests the ChainType method
-func TestChainType(t *testing.T) {
+// TestChain tests the Chain method
+func TestChain(t *testing.T) {
 	wallet, _, _ := setupTest(t)
-	assert.Equal(t, types.ChainTypeEthereum, wallet.ChainType(), "ChainType should return Ethereum")
+	chain := wallet.Chain()
+	assert.Equal(t, types.ChainTypeEthereum, chain.Type, "Chain.Type should be Ethereum")
+	assert.Equal(t, int64(1), chain.ID, "Chain.ID should be 1")
+	assert.Equal(t, "Ethereum", chain.Name, "Chain.Name should be Ethereum")
 }
 
 // TestDeriveAddress tests the DeriveAddress method
@@ -280,4 +298,53 @@ func TestSignTransaction(t *testing.T) {
 	_, err = wallet.SignTransaction(ctx, tx)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "transaction from address does not match key")
+}
+
+func TestNewEVMWalletValidation(t *testing.T) {
+	ks := &MockKeyStore{}
+	appCfg := &mockAppConfig{
+		configs: map[string]*config.BlockchainConfig{
+			string(types.ChainTypeEthereum): {
+				ChainID:         1,
+				DefaultGasLimit: 21000,
+				DefaultGasPrice: 20000000000,
+			},
+		},
+	}
+
+	t.Run("Invalid key type", func(t *testing.T) {
+		chain := blockchain.Chain{
+			ID:          1,
+			Type:        types.ChainTypeEthereum,
+			Name:        "Ethereum",
+			Symbol:      "ETH",
+			RPCUrl:      "https://mainnet.infura.io",
+			ExplorerUrl: "https://etherscan.io",
+			KeyType:     keygen.KeyTypeEd25519, // Invalid key type for EVM
+			Curve:       keygen.Secp256k1Curve,
+		}
+
+		wallet, err := NewEVMWallet(ks, chain, "test", appCfg)
+		assert.Error(t, err)
+		assert.Nil(t, wallet)
+		assert.Contains(t, err.Error(), "invalid key type for EVM wallet")
+	})
+
+	t.Run("Invalid curve", func(t *testing.T) {
+		chain := blockchain.Chain{
+			ID:          1,
+			Type:        types.ChainTypeEthereum,
+			Name:        "Ethereum",
+			Symbol:      "ETH",
+			RPCUrl:      "https://mainnet.infura.io",
+			ExplorerUrl: "https://etherscan.io",
+			KeyType:     keygen.KeyTypeECDSA,
+			Curve:       elliptic.P256(), // Invalid curve for EVM
+		}
+
+		wallet, err := NewEVMWallet(ks, chain, "test", appCfg)
+		assert.Error(t, err)
+		assert.Nil(t, wallet)
+		assert.Contains(t, err.Error(), "invalid curve for EVM wallet")
+	})
 }
