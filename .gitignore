@@ -47,8 +47,8 @@ debug
 __debug_bin
 
 # Build artifacts
-/dist/
-/build/
+dist/
+build/
 
 # Text files
 *.txt
