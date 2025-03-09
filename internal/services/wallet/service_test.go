@@ -11,7 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"crypto/elliptic"
 	"vault0/internal/config"
+	"vault0/internal/keygen"
+	"vault0/internal/keystore"
 	"vault0/internal/types"
 	coreWallet "vault0/internal/wallet"
 )
@@ -109,6 +112,58 @@ func (m *MockWallet) SignTransaction(ctx context.Context, tx *types.Transaction)
 	return args.Get(0).([]byte), args.Error(1)
 }
 
+// MockKeyStore is a mock implementation of the KeyStore interface
+type MockKeyStore struct {
+	mock.Mock
+}
+
+func (m *MockKeyStore) Create(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
+	args := m.Called(ctx, name, keyType, curve, tags)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*keystore.Key), args.Error(1)
+}
+
+func (m *MockKeyStore) Import(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*keystore.Key, error) {
+	args := m.Called(ctx, name, keyType, curve, privateKey, publicKey, tags)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*keystore.Key), args.Error(1)
+}
+
+func (m *MockKeyStore) Sign(ctx context.Context, id string, data []byte, dataType keystore.DataType) ([]byte, error) {
+	args := m.Called(ctx, id, data, dataType)
+	return args.Get(0).([]byte), args.Error(1)
+}
+
+func (m *MockKeyStore) GetPublicKey(ctx context.Context, id string) (*keystore.Key, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*keystore.Key), args.Error(1)
+}
+
+func (m *MockKeyStore) List(ctx context.Context) ([]*keystore.Key, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]*keystore.Key), args.Error(1)
+}
+
+func (m *MockKeyStore) Update(ctx context.Context, id string, name string, tags map[string]string) (*keystore.Key, error) {
+	args := m.Called(ctx, id, name, tags)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*keystore.Key), args.Error(1)
+}
+
+func (m *MockKeyStore) Delete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
 func TestCreateWallet(t *testing.T) {
 	ctx := context.Background()
 	repo := new(MockRepository)
@@ -118,38 +173,50 @@ func TestCreateWallet(t *testing.T) {
 	// Create a mock factory that we control directly
 	mockFactory := new(MockWalletFactory)
 
+	// Create a mock keystore
+	mockKeyStore := new(MockKeyStore)
+
 	// Create a service with our mocked factory but manually inject it
 	service := &DefaultService{
 		repository:    repo,
 		walletFactory: mockFactory,
 		config:        cfg,
+		keystore:      mockKeyStore,
 	}
 
 	// Test successful wallet creation
 	t.Run("success", func(t *testing.T) {
-		walletInfo := &coreWallet.WalletInfo{
-			KeyID:     "key123",
-			Address:   "0x1234567890abcdef",
-			ChainType: types.ChainTypeBase,
-		}
+		// Mock keystore.Create to return a key
+		expectedKeyID := "key123"
+		mockKeyStore.On("Create", ctx, "Test Wallet", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, map[string]string{"tag1": "value1"}).
+			Return(&keystore.Key{
+				ID:   expectedKeyID,
+				Name: "Test Wallet",
+				Type: keygen.KeyTypeECDSA,
+				Tags: map[string]string{"tag1": "value1"},
+			}, nil).Once()
 
-		// Setup the mock factory to return our mock wallet
-		mockFactory.On("NewWallet", ctx, types.ChainTypeBase, "").Return(mockWallet, nil).Once()
-		mockWallet.On("Create", ctx, "Test Wallet", map[string]string{"tag1": "value1"}).Return(walletInfo, nil).Once()
+		// Setup the mock factory to return our mock wallet with the expected key ID
+		mockFactory.On("NewWallet", ctx, types.ChainTypeBase, expectedKeyID).Return(mockWallet, nil).Once()
+
+		// Mock wallet.DeriveAddress to return an address
+		expectedAddress := "0x1234567890abcdef"
+		mockWallet.On("DeriveAddress", ctx).Return(expectedAddress, nil).Once()
 
 		// The wallet should be saved to the repository
 		repo.On("Create", ctx, mock.MatchedBy(func(w *Wallet) bool {
-			return w.KeyID == walletInfo.KeyID && w.Address == walletInfo.Address && w.ChainType == walletInfo.ChainType
+			return w.KeyID == expectedKeyID && w.Address == expectedAddress && w.ChainType == types.ChainTypeBase
 		})).Return(nil).Once()
 
 		wallet, err := service.CreateWallet(ctx, types.ChainTypeBase, "Test Wallet", map[string]string{"tag1": "value1"})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
-		assert.Equal(t, walletInfo.KeyID, wallet.KeyID)
-		assert.Equal(t, walletInfo.Address, wallet.Address)
-		assert.Equal(t, walletInfo.ChainType, wallet.ChainType)
+		assert.Equal(t, expectedKeyID, wallet.KeyID)
+		assert.Equal(t, expectedAddress, wallet.Address)
+		assert.Equal(t, types.ChainTypeBase, wallet.ChainType)
 
+		mockKeyStore.AssertExpectations(t)
 		mockFactory.AssertExpectations(t)
 		mockWallet.AssertExpectations(t)
 		repo.AssertExpectations(t)
@@ -162,6 +229,19 @@ func TestCreateWallet(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, wallet)
 		assert.True(t, errors.Is(err, ErrInvalidInput))
+	})
+
+	// Test with key creation error
+	t.Run("key_creation_error", func(t *testing.T) {
+		mockKeyStore.On("Create", ctx, "Test Wallet", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, map[string]string{}).
+			Return(nil, errors.New("key creation failed")).Once()
+
+		wallet, err := service.CreateWallet(ctx, types.ChainTypeBase, "Test Wallet", map[string]string{})
+
+		assert.Error(t, err)
+		assert.Nil(t, wallet)
+		assert.Contains(t, err.Error(), "failed to create key")
+		mockKeyStore.AssertExpectations(t)
 	})
 }
 

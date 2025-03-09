@@ -29,10 +29,6 @@ func NewFactory(keyStore keystore.KeyStore, appConfig *config.Config) *Factory {
 
 // NewWallet creates a new wallet instance for the specified chain type and key ID.
 func (f *Factory) NewWallet(ctx context.Context, chainType types.ChainType, keyID string) (Wallet, error) {
-	if keyID == "" {
-		return nil, fmt.Errorf("keyID cannot be empty")
-	}
-
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
 		// All EVM-compatible chains use the same implementation

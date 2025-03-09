@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"vault0/internal/config"
+	"vault0/internal/keygen"
 	"vault0/internal/keystore"
 	"vault0/internal/types"
 	coreWallet "vault0/internal/wallet"
@@ -70,23 +71,29 @@ func (s *DefaultService) CreateWallet(ctx context.Context, chainType types.Chain
 		return nil, fmt.Errorf("%w: name cannot be empty", ErrInvalidInput)
 	}
 
-	// Create the wallet in the wallet module
-	w, err := s.walletFactory.NewWallet(ctx, chainType, "")
+	// Create the key in the keystore - for EVM chains, we use ECDSA keys with the secp256k1 curve
+	key, err := s.keystore.Create(ctx, name, keygen.KeyTypeECDSA, keygen.Secp256k1Curve, tags)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create key: %w", err)
+	}
+
+	// Create a wallet instance using the factory
+	w, err := s.walletFactory.NewWallet(ctx, chainType, key.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create wallet: %w", err)
 	}
 
-	// Create the wallet in the wallet module
-	walletInfo, err := w.Create(ctx, name, tags)
+	// Derive the wallet address
+	address, err := w.DeriveAddress(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create wallet: %w", err)
+		return nil, fmt.Errorf("failed to derive address: %w", err)
 	}
 
 	// Store the wallet info in the database
 	wallet := &Wallet{
-		KeyID:     walletInfo.KeyID,
-		ChainType: walletInfo.ChainType,
-		Address:   walletInfo.Address,
+		KeyID:     key.ID,
+		ChainType: chainType,
+		Address:   address,
 		Name:      name,
 		Tags:      tags,
 	}

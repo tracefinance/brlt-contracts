@@ -3,12 +3,9 @@ package wallet
 import (
 	"context"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/asn1"
 	"math/big"
-	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -213,15 +210,13 @@ func TestSignTransaction(t *testing.T) {
 	wallet, ks, _ := setupTest(t)
 	ctx := context.Background()
 
-	// Setup key using secp256k1 curve
+	// Generate a test key pair
 	privKey, err := ecdsa.GenerateKey(keygen.Secp256k1Curve, rand.Reader)
 	require.NoError(t, err)
 
-	// Get public key bytes using secp256k1 format
 	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
 	require.NoError(t, err)
 
-	// Marshal private key using secp256k1 format
 	privKeyBytes, err := keygen.MarshalPrivateKey(privKey)
 	require.NoError(t, err)
 
@@ -229,191 +224,60 @@ func TestSignTransaction(t *testing.T) {
 	_, err = ks.Import(ctx, "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, privKeyBytes, pubKeyBytes, nil)
 	require.NoError(t, err)
 
-	// Set up the mock to return our key and sign function
+	// Set up the mock
+	address := crypto.PubkeyToAddress(privKey.PublicKey).Hex()
 	ks.GetPublicKeyFunc = func(ctx context.Context, id string) (*keystore.Key, error) {
-		if id == "test" {
-			return &keystore.Key{
-				ID:        "test",
-				Name:      "test",
-				Type:      keygen.KeyTypeECDSA,
-				Curve:     keygen.Secp256k1Curve,
-				PublicKey: pubKeyBytes,
-			}, nil
-		}
-		return nil, keystore.ErrKeyNotFound
-	}
-
-	// Set up the mock sign function
-	ks.SignFunc = func(ctx context.Context, id string, data []byte, dataType keystore.DataType) ([]byte, error) {
-		if id == "test" {
-			// For testing, just sign with the private key
-			var hash []byte
-			if dataType == keystore.DataTypeDigest {
-				hash = data
-			} else {
-				hasher := sha256.New()
-				hasher.Write(data)
-				hash = hasher.Sum(nil)
-			}
-
-			r, s, err := ecdsa.Sign(rand.Reader, privKey, hash)
-			if err != nil {
-				return nil, err
-			}
-
-			// Encode signature in ASN.1 DER format
-			signature := ecdsaSignature{R: r, S: s}
-			return asn1.Marshal(signature)
-		}
-		return nil, keystore.ErrKeyNotFound
-	}
-
-	toAddress := "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
-	amount := big.NewInt(1000000000000000000) // 1 ETH
-
-	// Create a transaction
-	tx := &types.Transaction{
-		Chain:    types.ChainTypeEthereum,
-		From:     crypto.PubkeyToAddress(privKey.PublicKey).Hex(),
-		To:       toAddress,
-		Value:    amount,
-		Nonce:    0,
-		GasPrice: big.NewInt(20000000000), // 20 Gwei
-		GasLimit: 21000,
-		Type:     types.TransactionTypeNative,
-	}
-
-	// Sign the transaction
-	signedTxBytes, err := wallet.SignTransaction(ctx, tx)
-	require.NoError(t, err)
-	assert.NotEmpty(t, signedTxBytes, "Signed transaction bytes should not be empty")
-
-	// Test failure case: mismatched from address
-	tx.From = "0x1234567890abcdef1234567890abcdef12345678"
-	_, err = wallet.SignTransaction(ctx, tx)
-	assert.Error(t, err, "SignTransaction should fail with mismatched from address")
-}
-
-func TestCreate(t *testing.T) {
-	// Setup
-	wallet, ks, _ := setupTest(t)
-	ctx := context.Background()
-
-	// Generate a test key pair
-	privKey, err := ecdsa.GenerateKey(keygen.Secp256k1Curve, rand.Reader)
-	require.NoError(t, err)
-
-	// Get public key bytes using secp256k1 format
-	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
-	require.NoError(t, err)
-
-	// Set up the CreateFunc to return our mock key
-	expectedKeyID := "mock-key-id"
-	ks.CreateFunc = func(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
 		return &keystore.Key{
-			ID:        expectedKeyID,
-			Name:      name,
-			Type:      keyType,
-			Curve:     curve,
-			Tags:      tags,
+			ID:        "test",
+			Type:      keygen.KeyTypeECDSA,
+			Curve:     keygen.Secp256k1Curve,
 			PublicKey: pubKeyBytes,
 		}, nil
 	}
 
-	// Set up the GetPublicKeyFunc to return our key
-	ks.GetPublicKeyFunc = func(ctx context.Context, id string) (*keystore.Key, error) {
-		if id == expectedKeyID {
-			return &keystore.Key{
-				ID:        expectedKeyID,
-				Type:      keygen.KeyTypeECDSA,
-				Curve:     keygen.Secp256k1Curve,
-				PublicKey: pubKeyBytes,
-			}, nil
+	// Set up the SignFunc to directly sign with the Ethereum signing format
+	ks.SignFunc = func(ctx context.Context, id string, data []byte, dataType keystore.DataType) ([]byte, error) {
+		if id != "test" {
+			return nil, keystore.ErrKeyNotFound
 		}
-		return nil, keystore.ErrKeyNotFound
+
+		// For Ethereum, we need to sign the hash directly
+		// Create an ECDSA signature with the private key
+		r, s, err := ecdsa.Sign(rand.Reader, privKey, data)
+		if err != nil {
+			return nil, err
+		}
+
+		// Encode signature in ASN.1 DER format for the keystore interface
+		signature, err := asn1.Marshal(ecdsaSignature{R: r, S: s})
+		if err != nil {
+			return nil, err
+		}
+
+		return signature, nil
 	}
 
-	// Set expectations
-	keyName := "test-wallet"
-	keyTags := map[string]string{"purpose": "testing", "env": "unit-test"}
-
-	// Execute
-	walletInfo, err := wallet.Create(ctx, keyName, keyTags)
-
-	// Verify
-	assert.NoError(t, err)
-	assert.NotNil(t, walletInfo)
-	assert.Equal(t, expectedKeyID, walletInfo.KeyID)
-	assert.NotEmpty(t, walletInfo.Address)
-	assert.True(t, strings.HasPrefix(walletInfo.Address, "0x"), "Address should start with 0x")
-	assert.Equal(t, wallet.chainType, walletInfo.ChainType)
-}
-
-func TestCreateWithErrors(t *testing.T) {
-	// Setup
-	ks := &MockKeyStore{
-		// Override the Create method to return an error
-		CreateFunc: func(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
-			return nil, assert.AnError
-		},
+	// Create a transaction to sign
+	tx := &types.Transaction{
+		Chain:    types.ChainTypeEthereum,
+		From:     address,
+		To:       "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+		Nonce:    1,
+		Value:    big.NewInt(1000000000000000000), // 1 ETH
+		GasLimit: 21000,
+		GasPrice: big.NewInt(20000000000), // 20 Gwei
+		Data:     nil,
 	}
 
-	appCfg := &mockAppConfig{
-		configs: map[string]*config.BlockchainConfig{
-			string(types.ChainTypeEthereum): {
-				ChainID:         1,
-				DefaultGasLimit: 21000,
-				DefaultGasPrice: 20000000000, // 20 Gwei
-			},
-		},
-	}
-
-	wallet, err := NewEVMWallet(ks, types.ChainTypeEthereum, "test", appCfg)
+	// Sign the transaction
+	signedTx, err := wallet.SignTransaction(ctx, tx)
 	require.NoError(t, err)
+	assert.NotNil(t, signedTx)
+	assert.Greater(t, len(signedTx), 0)
 
-	ctx := context.Background()
-	keyName := "test-wallet"
-	keyTags := map[string]string{"purpose": "testing"}
-
-	// Execute
-	walletInfo, err := wallet.Create(ctx, keyName, keyTags)
-
-	// Verify
+	// Test error case: transaction from address doesn't match wallet
+	tx.From = "0x0000000000000000000000000000000000000000"
+	_, err = wallet.SignTransaction(ctx, tx)
 	assert.Error(t, err)
-	assert.Nil(t, walletInfo)
-	assert.Contains(t, err.Error(), "failed to create key")
-}
-
-func TestCreateWithDeriveAddressError(t *testing.T) {
-	// Setup - create a wallet with a mock keystore
-	wallet, ks, _ := setupTest(t)
-	ctx := context.Background()
-
-	// Set up the CreateFunc to return a valid key
-	mockKeyID := "test-key-id"
-	ks.CreateFunc = func(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
-		return &keystore.Key{
-			ID:    mockKeyID,
-			Name:  name,
-			Type:  keyType,
-			Curve: curve,
-			Tags:  tags,
-		}, nil
-	}
-
-	// Override the GetPublicKeyFunc in the mock keystore to return an error
-	ks.GetPublicKeyFunc = func(ctx context.Context, id string) (*keystore.Key, error) {
-		return nil, assert.AnError
-	}
-
-	keyName := "test-wallet"
-	keyTags := map[string]string{"purpose": "testing"}
-
-	// Execute
-	walletInfo, err := wallet.Create(ctx, keyName, keyTags)
-
-	// Verify
-	assert.Error(t, err)
-	assert.Nil(t, walletInfo)
-	assert.Contains(t, err.Error(), "failed to derive address")
+	assert.Contains(t, err.Error(), "transaction from address does not match key")
 }
