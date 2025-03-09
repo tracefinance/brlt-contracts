@@ -45,25 +45,307 @@ Follow these rules when you write code:
 - Structure your code in maintainable, testable packages.
 - Implement appropriate middleware for cross-cutting concerns.
 
+## Project Architecture
+
+The backend follows a three-layer architecture:
+
+### Layer 1: Core/Infrastructure Layer
+Composed of foundational modules that serve as building blocks for the entire system:
+- **Database Access**: Provides database connectivity and query execution
+- **Wallet Operations**: Low-level wallet functionality
+- **Keystore**: Secure storage and retrieval of cryptographic keys
+- **Blockchain Interaction**: Core blockchain communication
+- **Cryptography Utilities**: Encryption, decryption, and hashing functions
+- **Configuration Management**: Application configuration
+
+### Layer 2: Service Layer
+Contains business logic modules organized by domain, each encapsulating:
+- Domain-specific data models
+- Business operations and validation rules
+- Repository interfaces for data access
+
+Services include:
+- User management
+- Wallet administration
+- Authentication and authorization
+- Transaction processing
+- Blockchain service integration
+
+### Layer 3: Communication Layer
+Exposes the service layer functionality externally:
+- RESTful API endpoints
+- Request/response handling
+- Middleware (authentication, logging, error handling)
+- Route management
+
 ## Project Structure
 
-The project follows a standard Go application layout:
+The project follows this detailed layout:
 
-- **cmd/**: Entry points for the application
-  - **server/**: Main server application
-    - `main.go`: Application entry point
-- **internal/**: Private application code
-  - **api/**: HTTP API implementation using Gin framework
-    - **handlers/**: Request handlers
-    - **middleware/**: Custom middleware
-    - **routes/**: Route definitions
-  - **db/**: Database operations and migrations
-  - **config/**: Configuration managemendels/**: Data models and validation
-  - **services/**: Business logic
-  - **validation/**: Validation rules and helpers
-- **migrations/**: SQL migration files
-- **contracts/**: Smart contract related code (separate from Go code)
-- **pkg/**: Public packages that can be used by external applications
+```
+vault0/
+├── cmd/                                # Command-line applications
+│   ├── server/                         # Main server application
+│   │   └── main.go                     # Application entry point
+│   └── genkey/                         # Encryption key generation utility
+│       └── main.go                     # Key generation entry point
+├── internal/                           # Private application code
+│   ├── api/                            # Communication Layer (Layer 3)
+│   │   ├── handlers/                   # API request handlers by domain
+│   │   │   ├── user/                   # User-related endpoints
+│   │   │   │   ├── handler.go          # User handler implementation
+│   │   │   │   └── dto.go              # User request/response structures
+│   │   │   ├── wallet/                 # Wallet-related endpoints
+│   │   │   │   ├── handler.go          # Wallet handler implementation
+│   │   │   │   └── dto.go              # Wallet request/response structures
+│   │   │   ├── auth/                   # Authentication endpoints
+│   │   │   │   ├── handler.go          # Auth handler implementation
+│   │   │   │   └── dto.go              # Auth request/response structures
+│   │   │   └── transaction/            # Transaction endpoints
+│   │   │       ├── handler.go          # Transaction handler implementation
+│   │   │       └── dto.go              # Transaction request/response structures
+│   │   ├── middleware/                 # Request middleware components
+│   │   │   ├── auth.go                 # Authentication middleware
+│   │   │   ├── logging.go              # Request logging middleware
+│   │   │   └── errors.go               # Error handling middleware
+│   │   └── server.go                   # API server setup and configuration
+│   ├── services/                       # Service Layer (Layer 2)
+│   │   ├── user/                       # User management domain
+│   │   │   ├── model.go                # User data models
+│   │   │   ├── service.go              # User service implementation
+│   │   │   └── repository.go           # User data access interface and implementation
+│   │   ├── wallet/                     # Wallet operations domain
+│   │   │   ├── model.go                # Wallet data models
+│   │   │   ├── service.go              # Wallet service implementation
+│   │   │   └── repository.go           # Wallet data access interface and implementation
+│   │   ├── auth/                       # Authentication domain
+│   │   │   ├── model.go                # Auth data models
+│   │   │   ├── service.go              # Auth service implementation
+│   │   │   └── jwt.go                  # JWT token utilities
+│   │   ├── blockchain/                 # Blockchain operations domain
+│   │   │   ├── model.go                # Blockchain data models
+│   │   │   ├── service.go              # Blockchain service implementation
+│   │   │   └── client.go               # Blockchain client interactions
+│   │   └── transaction/                # Transaction processing domain
+│   │       ├── model.go                # Transaction data models
+│   │       ├── service.go              # Transaction service implementation
+│   │       └── repository.go           # Transaction data access interface and implementation
+│   ├── db/                             # Core Layer (Layer 1) - Database access
+│   │   ├── db.go                       # Database connection and management
+│   │   ├── migrations.go               # Database migration handling
+│   │   └── query.go                    # SQL query execution utilities
+│   ├── keystore/                       # Core Layer (Layer 1) - Key management
+│   │   ├── keystore.go                 # Keystore interface definition
+│   │   ├── encrypted.go                # Encrypted keystore implementation
+│   │   └── memory.go                   # In-memory keystore implementation (for testing)
+│   ├── blockchain/                     # Core Layer (Layer 1) - Blockchain interaction
+│   │   ├── client.go                   # Blockchain client interface
+│   │   ├── ethclient.go                # Ethereum client implementation
+│   │   └── contract.go                 # Smart contract interaction utilities
+│   ├── crypto/                         # Core Layer (Layer 1) - Cryptography utilities
+│   │   ├── aes.go                      # AES encryption/decryption
+│   │   ├── hash.go                     # Hashing functions
+│   │   └── random.go                   # Random number generation
+│   ├── wallet/                         # Core Layer (Layer 1) - Wallet operations
+│   │   ├── wallet.go                   # Wallet interface and implementation
+│   │   ├── address.go                  # Address utilities
+│   │   └── transaction.go              # Transaction building utilities
+│   ├── config/                         # Core Layer (Layer 1) - Configuration
+│   │   ├── config.go                   # Configuration structure and loading
+│   │   └── env.go                      # Environment variable handling
+│   └── types/                          # Shared type definitions
+│       ├── errors.go                   # Error types and constants
+│       └── common.go                   # Common type definitions
+├── migrations/                         # Database migrations
+│   ├── 000001_create_users_table.up.sql    # Create users table migration
+│   ├── 000001_create_users_table.down.sql  # Drop users table migration
+│   ├── 000002_create_wallets_table.up.sql  # Create wallets table migration
+│   └── 000002_create_wallets_table.down.sql # Drop wallets table migration
+```
+
+## Implementation Patterns
+
+### Service Layer Pattern
+
+Each service module should follow this structure:
+
+1. **Service Interface and Implementation**:
+```go
+// service.go
+package user
+
+import (
+    "context"
+    "fmt"
+    "vault0/internal/db"
+    "vault0/internal/keystore"
+)
+
+// Service defines the user service interface
+type Service interface {
+    GetUser(ctx context.Context, id string) (*User, error)
+    CreateUser(ctx context.Context, user *CreateUserRequest) (*User, error)
+    UpdateUser(ctx context.Context, id string, update *UpdateUserRequest) (*User, error)
+    DeleteUser(ctx context.Context, id string) error
+    // Other user-related operations
+}
+
+// service implements the Service interface
+type service struct {
+    repository Repository
+    keystore   keystore.KeyStore
+    // Other dependencies
+}
+
+// NewService creates a new user service
+func NewService(repository Repository, keystore keystore.KeyStore) Service {
+    return &service{
+        repository: repository,
+        keystore:   keystore,
+    }
+}
+
+// Implementation of Service interface methods
+func (s *service) GetUser(ctx context.Context, id string) (*User, error) {
+    // Implementation
+    user, err := s.repository.FindByID(ctx, id)
+    if err != nil {
+        return nil, fmt.Errorf("failed to get user: %w", err)
+    }
+    return user, nil
+}
+
+// Other method implementations...
+```
+
+2. **Models and DTOs**:
+```go
+// model.go
+package user
+
+import "time"
+
+// User represents a user entity
+type User struct {
+    ID        string    `json:"id"`
+    Username  string    `json:"username"`
+    Email     string    `json:"email"`
+    CreatedAt time.Time `json:"created_at"`
+    UpdatedAt time.Time `json:"updated_at"`
+}
+
+// CreateUserRequest represents data needed to create a user
+type CreateUserRequest struct {
+    Username string `json:"username" binding:"required,min=3,max=50"`
+    Email    string `json:"email" binding:"required,email"`
+    Password string `json:"password" binding:"required,min=8"`
+}
+
+// UpdateUserRequest represents data for updating a user
+type UpdateUserRequest struct {
+    Username string `json:"username,omitempty"`
+    Email    string `json:"email,omitempty"`
+}
+```
+
+3. **Repository Interface and Implementation**:
+```go
+// repository.go
+package user
+
+import (
+    "context"
+    "fmt"
+    "vault0/internal/db"
+)
+
+// Repository defines the user data access interface
+type Repository interface {
+    FindByID(ctx context.Context, id string) (*User, error)
+    FindByEmail(ctx context.Context, email string) (*User, error)
+    Create(ctx context.Context, user *User) error
+    Update(ctx context.Context, user *User) error
+    Delete(ctx context.Context, id string) error
+}
+
+// repository implements Repository interface
+type repository struct {
+    db *db.DB
+}
+
+// NewRepository creates a new user repository
+func NewRepository(db *db.DB) Repository {
+    return &repository{db: db}
+}
+
+// Implementation of Repository interface methods
+func (r *repository) FindByID(ctx context.Context, id string) (*User, error) {
+    query := `SELECT id, username, email, created_at, updated_at FROM users WHERE id = ?`
+    
+    var user User
+    err := r.db.ExecuteQueryRowContext(ctx, query, []interface{}{id}, &user.ID, &user.Username, &user.Email, &user.CreatedAt, &user.UpdatedAt)
+    if err != nil {
+        return nil, fmt.Errorf("failed to find user by ID: %w", err)
+    }
+    
+    return &user, nil
+}
+
+// Other repository method implementations...
+```
+
+### Handler Pattern
+
+API handlers should follow this structure:
+
+```go
+// internal/api/handlers/user/handler.go
+package user
+
+import (
+    "net/http"
+    "vault0/internal/services/user"
+
+    "github.com/gin-gonic/gin"
+)
+
+// Handler handles user-related HTTP requests
+type Handler struct {
+    userService user.Service
+}
+
+// NewHandler creates a new user handler
+func NewHandler(userService user.Service) *Handler {
+    return &Handler{
+        userService: userService,
+    }
+}
+
+// RegisterRoutes registers the user routes to the given router group
+func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
+    userRoutes := router.Group("/users")
+    {
+        userRoutes.GET("/:id", h.GetUser)
+        userRoutes.POST("/", h.CreateUser)
+        userRoutes.PUT("/:id", h.UpdateUser)
+        userRoutes.DELETE("/:id", h.DeleteUser)
+    }
+}
+
+// GetUser handles GET /users/:id
+func (h *Handler) GetUser(c *gin.Context) {
+    id := c.Param("id")
+    user, err := h.userService.GetUser(c.Request.Context(), id)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
+        return
+    }
+    
+    c.JSON(http.StatusOK, user)
+}
+
+// Other handler methods...
+```
 
 ## Core Dependencies
 
@@ -73,8 +355,9 @@ The project follows a standard Go application layout:
 - **go-playground/validator**: Request validation framework
 - **zap/zerolog**: Structured logging
 - **testify**: Testing toolkit for assertions and mocking
-
-## Coding Patterns
+- **ethclient**: Ethereum client library
+- **jwt-go**: JWT authentication
+- **crypto/aes**: AES encryption for keystore
 
 ### Configuration
 
@@ -95,7 +378,7 @@ The project follows a standard Go application layout:
 ### API Structure
 
 - The API uses Gin for routing and middleware
-- Routes are organized in the `setupRoutes` method
+- Routes are organized by domain in handler packages
 - Health check endpoint is provided at `/api/health`
 - Static file serving for the UI
 - Group related endpoints under logical path prefixes
@@ -108,30 +391,6 @@ The project follows a standard Go application layout:
 - Implement custom validators for domain-specific validation rules
 - Add validation middleware to routes that require it
 - Return consistent, descriptive validation error messages
-- Example validation structure:
-
-```go
-type UserRequest struct {
-    Username string `json:"username" binding:"required,min=3,max=50"`
-    Email    string `json:"email" binding:"required,email"`
-    Password string `json:"password" binding:"required,min=8"`
-}
-
-// Handler with validation
-func CreateUser(c *gin.Context) {
-    var req UserRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": ValidationErrors(err)})
-        return
-    }
-    // Process valid request...
-}
-
-// Helper to format validation errors
-func ValidationErrors(err error) map[string]string {
-    // Convert validation errors to user-friendly messages
-}
-```
 
 ### Middleware
 
@@ -190,11 +449,12 @@ For example:
 
 ### Adding New API Endpoints
 
-1. Define model and validation rules in `internal/models`
-2. Add route in `internal/api/routes.go` with appropriate middleware
-3. Implement handler function with proper validation and error handling
-4. Add service logic in `internal/services` if needed
-5. Test the endpoint with unit and integration tests
+1. Define model and validation rules in service layer
+2. Add repository implementation for data access
+3. Implement service with business logic
+4. Create handler with route registration
+5. Register handler with API server
+6. Test the endpoint with unit and integration tests
 
 ### Database Operations
 
