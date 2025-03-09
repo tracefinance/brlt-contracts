@@ -91,8 +91,8 @@ git-reset:
 # Setup git diff with cat to prevent terminal from getting stuck
 git-diff-setup:
 	@echo "Setting up git diff with cat as pager for the current repository..."
-	git config core.pager cat
 	git config pager.diff cat
+	git config pager.show cat
 	@echo "Git diff is now set up to use cat instead of less. This prevents the terminal from getting stuck in pager mode."
 
 # UI commands
