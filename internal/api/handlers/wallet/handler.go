@@ -23,15 +23,6 @@ func NewHandler(walletService wallet.Service) *Handler {
 	}
 }
 
-// RegisterRoutes registers the wallet routes
-func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
-	router.POST("/wallets", h.CreateWallet)
-	router.GET("/wallets", h.ListWallets)
-	router.GET("/wallets/:id", h.GetWallet)
-	router.PUT("/wallets/:id", h.UpdateWallet)
-	router.DELETE("/wallets/:id", h.DeleteWallet)
-}
-
 // CreateWallet handles wallet creation
 func (h *Handler) CreateWallet(c *gin.Context) {
 	var req CreateWalletRequest
