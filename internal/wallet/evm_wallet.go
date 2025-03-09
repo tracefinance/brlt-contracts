@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"vault0/internal/config"
+	"vault0/internal/keygen"
 	"vault0/internal/keystore"
 	"vault0/internal/types"
 )
@@ -310,4 +311,34 @@ func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethtypes.Transac
 	}
 
 	return nil, fmt.Errorf("failed to recover correct public key from signature")
+}
+
+// Create creates a new wallet by generating a keypair in the keystore
+// and returns the wallet information
+func (w *EVMWallet) Create(ctx context.Context, name string, tags map[string]string) (*WalletInfo, error) {
+	// For EVM chains, we use ECDSA keys with the secp256k1 curve
+	key, err := w.keyStore.Create(ctx, name, keygen.KeyTypeECDSA, keygen.Secp256k1Curve, tags)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create key: %w", err)
+	}
+
+	// Create a new wallet with the created key
+	wallet := &EVMWallet{
+		keyStore:  w.keyStore,
+		chainType: w.chainType,
+		config:    w.config,
+		keyID:     key.ID,
+	}
+
+	// Derive the address for the new wallet
+	address, err := wallet.DeriveAddress(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive address: %w", err)
+	}
+
+	return &WalletInfo{
+		KeyID:     key.ID,
+		Address:   address,
+		ChainType: w.chainType,
+	}, nil
 }

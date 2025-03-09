@@ -12,9 +12,14 @@ import (
 type MockKeyStore struct {
 	GetPublicKeyFunc func(ctx context.Context, id string) (*keystore.Key, error)
 	SignFunc         func(ctx context.Context, id string, data []byte, dataType keystore.DataType) ([]byte, error)
+	CreateFunc       func(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error)
 }
 
 func (m *MockKeyStore) Create(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, name, keyType, curve, tags)
+	}
+
 	// Generate a mock ID
 	id := "mock-key-id"
 

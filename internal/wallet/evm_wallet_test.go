@@ -3,10 +3,12 @@ package wallet
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/asn1"
 	"math/big"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -290,4 +292,128 @@ func TestSignTransaction(t *testing.T) {
 	tx.From = "0x1234567890abcdef1234567890abcdef12345678"
 	_, err = wallet.SignTransaction(ctx, tx)
 	assert.Error(t, err, "SignTransaction should fail with mismatched from address")
+}
+
+func TestCreate(t *testing.T) {
+	// Setup
+	wallet, ks, _ := setupTest(t)
+	ctx := context.Background()
+
+	// Generate a test key pair
+	privKey, err := ecdsa.GenerateKey(keygen.Secp256k1Curve, rand.Reader)
+	require.NoError(t, err)
+
+	// Get public key bytes using secp256k1 format
+	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
+	require.NoError(t, err)
+
+	// Set up the CreateFunc to return our mock key
+	expectedKeyID := "mock-key-id"
+	ks.CreateFunc = func(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
+		return &keystore.Key{
+			ID:        expectedKeyID,
+			Name:      name,
+			Type:      keyType,
+			Curve:     curve,
+			Tags:      tags,
+			PublicKey: pubKeyBytes,
+		}, nil
+	}
+
+	// Set up the GetPublicKeyFunc to return our key
+	ks.GetPublicKeyFunc = func(ctx context.Context, id string) (*keystore.Key, error) {
+		if id == expectedKeyID {
+			return &keystore.Key{
+				ID:        expectedKeyID,
+				Type:      keygen.KeyTypeECDSA,
+				Curve:     keygen.Secp256k1Curve,
+				PublicKey: pubKeyBytes,
+			}, nil
+		}
+		return nil, keystore.ErrKeyNotFound
+	}
+
+	// Set expectations
+	keyName := "test-wallet"
+	keyTags := map[string]string{"purpose": "testing", "env": "unit-test"}
+
+	// Execute
+	walletInfo, err := wallet.Create(ctx, keyName, keyTags)
+
+	// Verify
+	assert.NoError(t, err)
+	assert.NotNil(t, walletInfo)
+	assert.Equal(t, expectedKeyID, walletInfo.KeyID)
+	assert.NotEmpty(t, walletInfo.Address)
+	assert.True(t, strings.HasPrefix(walletInfo.Address, "0x"), "Address should start with 0x")
+	assert.Equal(t, wallet.chainType, walletInfo.ChainType)
+}
+
+func TestCreateWithErrors(t *testing.T) {
+	// Setup
+	ks := &MockKeyStore{
+		// Override the Create method to return an error
+		CreateFunc: func(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
+			return nil, assert.AnError
+		},
+	}
+
+	appCfg := &mockAppConfig{
+		configs: map[string]*config.BlockchainConfig{
+			string(types.ChainTypeEthereum): {
+				ChainID:         1,
+				DefaultGasLimit: 21000,
+				DefaultGasPrice: 20000000000, // 20 Gwei
+			},
+		},
+	}
+
+	wallet, err := NewEVMWallet(ks, types.ChainTypeEthereum, "test", appCfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	keyName := "test-wallet"
+	keyTags := map[string]string{"purpose": "testing"}
+
+	// Execute
+	walletInfo, err := wallet.Create(ctx, keyName, keyTags)
+
+	// Verify
+	assert.Error(t, err)
+	assert.Nil(t, walletInfo)
+	assert.Contains(t, err.Error(), "failed to create key")
+}
+
+func TestCreateWithDeriveAddressError(t *testing.T) {
+	// Setup - create a wallet with a mock keystore
+	wallet, ks, _ := setupTest(t)
+	ctx := context.Background()
+
+	// Set up the CreateFunc to return a valid key
+	mockKeyID := "test-key-id"
+	ks.CreateFunc = func(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
+		return &keystore.Key{
+			ID:    mockKeyID,
+			Name:  name,
+			Type:  keyType,
+			Curve: curve,
+			Tags:  tags,
+		}, nil
+	}
+
+	// Override the GetPublicKeyFunc in the mock keystore to return an error
+	ks.GetPublicKeyFunc = func(ctx context.Context, id string) (*keystore.Key, error) {
+		return nil, assert.AnError
+	}
+
+	keyName := "test-wallet"
+	keyTags := map[string]string{"purpose": "testing"}
+
+	// Execute
+	walletInfo, err := wallet.Create(ctx, keyName, keyTags)
+
+	// Verify
+	assert.Error(t, err)
+	assert.Nil(t, walletInfo)
+	assert.Contains(t, err.Error(), "failed to derive address")
 }
