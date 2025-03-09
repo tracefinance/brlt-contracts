@@ -227,11 +227,11 @@ import "time"
 
 // User represents a user entity
 type User struct {
-    ID        string    `json:"id"`
-    Username  string    `json:"username"`
-    Email     string    `json:"email"`
-    CreatedAt time.Time `json:"created_at"`
-    UpdatedAt time.Time `json:"updated_at"`
+    ID        string
+    Username  string
+    Email     string
+    CreatedAt time.Time
+    UpdatedAt time.Time
 }
 
 // CreateUserRequest represents data needed to create a user
@@ -294,10 +294,35 @@ func (r *repository) FindByID(ctx context.Context, id string) (*User, error) {
 // Other repository method implementations...
 ```
 
-### Handler Pattern
+### DTOs and Handler Pattern
+
+DTOs should should follow the structure:
+
+```go
+// internal/api/handlers/user/dto.go
+
+// UserResponse represents a user response
+type UserResponse struct {
+    ID        string    `json:"id"`
+    Username  string    `json:"username"`
+    Email     string    `json:"email"`
+    CreatedAt time.Time `json:"created_at"`
+    UpdatedAt time.Time `json:"updated_at"`
+}
+
+// ToResponse converts a user model to a user response
+func ToResponse(user *user.User) *UserResponse {
+	return &UserResponse{
+		ID:        user.ID,
+		Username:  user.Username,
+        Email:     user.Email,
+        CreatedAt: user.CreatedAt,
+        UpdatedAt: user.UpdatedAt,
+	}
+}
+```
 
 API handlers should follow this structure:
-
 ```go
 // internal/api/handlers/user/handler.go
 package user
