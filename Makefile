@@ -28,7 +28,7 @@ CONTRACTS_DIR = ./contracts
 # Package name
 PACKAGE = vault0
 
-.PHONY: all build clean server server-test server-test-coverage server-deps server-install genkey genkey-install server-dev server-clean git-reset git-status git-pull git-push ui ui-deps ui-dev ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests
+.PHONY: all build clean server server-test server-test-coverage server-deps server-install genkey genkey-install server-dev server-clean git-reset git-status git-pull git-push ui ui-deps ui-dev ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests git-diff-setup
 
 # Count lines of code in the project
 count-lines:
@@ -87,6 +87,15 @@ clean: server-clean ui-clean
 git-reset:
 	@echo "Resetting git repository to last commit..."
 	git reset --hard HEAD && git clean -fd
+
+# Setup git diff with cat to prevent terminal from getting stuck
+git-diff-setup:
+	@echo "Setting up git diff with cat as pager for the current repository..."
+	git config core.pager cat
+	git config pager.diff cat
+	git config pager.show cat
+	git config pager.log cat
+	@echo "Git diff is now set up to use cat instead of less. This prevents the terminal from getting stuck in pager mode."
 
 # UI commands
 ui:
