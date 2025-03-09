@@ -43,8 +43,8 @@ type WalletFactory interface {
 	NewWallet(ctx context.Context, chainType types.ChainType, keyID string) (coreWallet.Wallet, error)
 }
 
-// DefaultService implements the Service interface
-type DefaultService struct {
+// WalletService implements the Service interface
+type WalletService struct {
 	repository    Repository
 	walletFactory WalletFactory
 	config        *config.Config
@@ -56,7 +56,7 @@ func NewService(repository Repository, keyStore keystore.KeyStore, config *confi
 	// Create the wallet factory using the provided keystore and config
 	walletFactory := coreWallet.NewFactory(keyStore, config)
 
-	return &DefaultService{
+	return &WalletService{
 		repository:    repository,
 		walletFactory: walletFactory,
 		config:        config,
@@ -65,7 +65,7 @@ func NewService(repository Repository, keyStore keystore.KeyStore, config *confi
 }
 
 // CreateWallet creates a new wallet
-func (s *DefaultService) CreateWallet(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error) {
+func (s *WalletService) CreateWallet(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error) {
 	// Validate inputs
 	if name == "" {
 		return nil, fmt.Errorf("%w: name cannot be empty", ErrInvalidInput)
@@ -114,7 +114,7 @@ func (s *DefaultService) CreateWallet(ctx context.Context, chainType types.Chain
 }
 
 // UpdateWallet updates a wallet's name and tags
-func (s *DefaultService) UpdateWallet(ctx context.Context, id, name string, tags map[string]string) (*Wallet, error) {
+func (s *WalletService) UpdateWallet(ctx context.Context, id, name string, tags map[string]string) (*Wallet, error) {
 	// Validate inputs
 	if id == "" {
 		return nil, fmt.Errorf("%w: id cannot be empty", ErrInvalidInput)
@@ -144,7 +144,7 @@ func (s *DefaultService) UpdateWallet(ctx context.Context, id, name string, tags
 }
 
 // DeleteWallet soft-deletes a wallet
-func (s *DefaultService) DeleteWallet(ctx context.Context, id string) error {
+func (s *WalletService) DeleteWallet(ctx context.Context, id string) error {
 	// Validate inputs
 	if id == "" {
 		return fmt.Errorf("%w: id cannot be empty", ErrInvalidInput)
@@ -163,7 +163,7 @@ func (s *DefaultService) DeleteWallet(ctx context.Context, id string) error {
 }
 
 // GetWallet retrieves a wallet by its ID
-func (s *DefaultService) GetWallet(ctx context.Context, id string) (*Wallet, error) {
+func (s *WalletService) GetWallet(ctx context.Context, id string) (*Wallet, error) {
 	// Validate inputs
 	if id == "" {
 		return nil, fmt.Errorf("%w: id cannot be empty", ErrInvalidInput)
@@ -182,7 +182,7 @@ func (s *DefaultService) GetWallet(ctx context.Context, id string) (*Wallet, err
 }
 
 // ListWallets retrieves a list of wallets
-func (s *DefaultService) ListWallets(ctx context.Context, limit, offset int) ([]*Wallet, error) {
+func (s *WalletService) ListWallets(ctx context.Context, limit, offset int) ([]*Wallet, error) {
 	// Set default pagination values if not provided
 	if limit <= 0 {
 		limit = 10

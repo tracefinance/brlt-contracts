@@ -217,7 +217,7 @@ func TestCreateWallet(t *testing.T) {
 	mockKeyStore := new(MockKeyStore)
 
 	// Create the service
-	service := &DefaultService{
+	service := &WalletService{
 		repository:    repo,
 		walletFactory: mockFactory,
 		config:        cfg,
@@ -292,7 +292,7 @@ func TestUpdateWallet(t *testing.T) {
 	cfg := &config.Config{}
 
 	// Create service with direct injection of mocks
-	service := &DefaultService{
+	service := &WalletService{
 		repository:    repo,
 		walletFactory: mockFactory,
 		config:        cfg,
@@ -350,7 +350,7 @@ func TestDeleteWallet(t *testing.T) {
 	cfg := &config.Config{}
 
 	// Create service with direct injection of mocks
-	service := &DefaultService{
+	service := &WalletService{
 		repository:    repo,
 		walletFactory: mockFactory,
 		config:        cfg,

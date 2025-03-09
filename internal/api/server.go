@@ -22,8 +22,8 @@ type Server struct {
 	keyStore keystore.KeyStore
 }
 
-// New creates a new API server
-func New(db *db.DB, keyStore keystore.KeyStore, cfg *config.Config) *Server {
+// NewServer creates a new API server
+func NewServer(db *db.DB, keyStore keystore.KeyStore, cfg *config.Config) *Server {
 	router := gin.Default()
 
 	server := &Server{

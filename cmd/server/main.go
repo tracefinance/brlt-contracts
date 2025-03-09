@@ -36,7 +36,7 @@ func main() {
 	}
 
 	// Initialize and start the server
-	server := api.New(database, keyStore, cfg)
+	server := api.NewServer(database, keyStore, cfg)
 
 	// Setup graceful shutdown
 	quit := make(chan os.Signal, 1)
