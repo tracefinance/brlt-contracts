@@ -135,16 +135,20 @@ vault0/
 │   │   ├── handlers/                   # API request handlers by domain
 │   │   │   ├── user/                   # User-related endpoints
 │   │   │   │   ├── handler.go          # User handler implementation
-│   │   │   │   └── dto.go              # User request/response structures
+│   │   │   │   ├── dto.go              # User request/response structures
+│   │   │   │   └── routes.go           # User routes configuration
 │   │   │   ├── wallet/                 # Wallet-related endpoints
 │   │   │   │   ├── handler.go          # Wallet handler implementation
-│   │   │   │   └── dto.go              # Wallet request/response structures
+│   │   │   │   ├── dto.go              # Wallet request/response structures
+│   │   │   │   └── routes.go           # Wallet routes configuration
 │   │   │   ├── auth/                   # Authentication endpoints
 │   │   │   │   ├── handler.go          # Auth handler implementation
-│   │   │   │   └── dto.go              # Auth request/response structures
+│   │   │   │   ├── dto.go              # Auth request/response structures
+│   │   │   │   └── routes.go           # Auth routes configuration
 │   │   │   └── transaction/            # Transaction endpoints
 │   │   │       ├── handler.go          # Transaction handler implementation
-│   │   │       └── dto.go              # Transaction request/response structures
+│   │   │       ├── dto.go              # Transaction request/response structures
+│   │   │       └── routes.go           # Transaction routes configuration
 │   │   ├── middleware/                 # Request middleware components
 │   │   │   ├── auth.go                 # Authentication middleware
 │   │   │   ├── logging.go              # Request logging middleware

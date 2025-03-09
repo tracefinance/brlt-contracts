@@ -94,16 +94,20 @@ vault0/
 │   │   ├── handlers/                   # API request handlers by domain
 │   │   │   ├── user/                   # User-related endpoints
 │   │   │   │   ├── handler.go          # User handler implementation
-│   │   │   │   └── dto.go              # User request/response structures
+│   │   │   │   ├── dto.go              # User request/response structures
+│   │   │   │   └── routes.go           # User routes configuration
 │   │   │   ├── wallet/                 # Wallet-related endpoints
 │   │   │   │   ├── handler.go          # Wallet handler implementation
-│   │   │   │   └── dto.go              # Wallet request/response structures
+│   │   │   │   ├── dto.go              # Wallet request/response structures
+│   │   │   │   └── routes.go           # Wallet routes configuration
 │   │   │   ├── auth/                   # Authentication endpoints
 │   │   │   │   ├── handler.go          # Auth handler implementation
-│   │   │   │   └── dto.go              # Auth request/response structures
+│   │   │   │   ├── dto.go              # Auth request/response structures
+│   │   │   │   └── routes.go           # Auth routes configuration
 │   │   │   └── transaction/            # Transaction endpoints
 │   │   │       ├── handler.go          # Transaction handler implementation
-│   │   │       └── dto.go              # Transaction request/response structures
+│   │   │       ├── dto.go              # Transaction request/response structures
+│   │   │       └── routes.go           # Transaction routes configuration
 │   │   ├── middleware/                 # Request middleware components
 │   │   │   ├── auth.go                 # Authentication middleware
 │   │   │   ├── logging.go              # Request logging middleware
@@ -297,7 +301,6 @@ func (r *repository) FindByID(ctx context.Context, id string) (*User, error) {
 ### DTOs and Handler Pattern
 
 DTOs should should follow the structure:
-
 ```go
 // internal/api/handlers/user/dto.go
 
@@ -370,6 +373,73 @@ func (h *Handler) GetUser(c *gin.Context) {
 }
 
 // Other handler methods...
+```
+
+### Routes Configuration Pattern
+
+Each handler module should have a dedicated `routes.go` file that sets up and registers routes for that specific domain. This file should:
+
+1. Create all necessary dependencies (repositories, services)
+2. Instantiate the handler with these dependencies
+3. Register all routes for that module
+
+Here's the recommended pattern for route configuration:
+
+```go
+// internal/api/handlers/user/routes.go
+package user
+
+import (
+    "github.com/gin-gonic/gin"
+
+    "vault0/internal/config"
+    "vault0/internal/db"
+    "vault0/internal/keystore"
+    userService "vault0/internal/services/user"
+)
+
+// SetupRoutes configures all user-related routes and their dependencies
+func SetupRoutes(router *gin.RouterGroup, db *db.DB, keyStore keystore.KeyStore, cfg *config.Config) {
+    // Create user repository
+    userRepo := userService.NewSQLiteRepository(db)
+
+    // Create user service
+    userSvc := userService.NewService(userRepo, keyStore, cfg)
+
+    // Create user handler
+    userHandler := NewHandler(userSvc)
+
+    // Register user routes directly
+    router.POST("/users", userHandler.CreateUser)
+    router.GET("/users", userHandler.ListUsers)
+    router.GET("/users/:id", userHandler.GetUser)
+    router.PUT("/users/:id", userHandler.UpdateUser)
+    router.DELETE("/users/:id", userHandler.DeleteUser)
+}
+```
+
+In the main server setup, you would call each module's `SetupRoutes` function:
+
+```go
+// internal/api/server.go
+func SetupRouter(db *db.DB, keyStore keystore.KeyStore, cfg *config.Config) *gin.Engine {
+    router := gin.Default()
+    
+    // Apply middleware
+    router.Use(middleware.Logger())
+    router.Use(middleware.ErrorHandler())
+    
+    // API routes group
+    api := router.Group("/api/v1")
+    
+    // Setup routes for each domain
+    user.SetupRoutes(api, db, keyStore, cfg)
+    wallet.SetupRoutes(api, db, keyStore, cfg)
+    auth.SetupRoutes(api, db, keyStore, cfg)
+    transaction.SetupRoutes(api, db, keyStore, cfg)
+    
+    return router
+}
 ```
 
 ## Core Dependencies
