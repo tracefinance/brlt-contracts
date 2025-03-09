@@ -472,6 +472,7 @@ Use the provided methods in the `DB` struct:
 - Use transactions for operations that require atomicity
 - Follow proper naming conventions for tables and columns
 - Include proper constraints (NOT NULL, UNIQUE, etc.)
+- Put migrations file into `migrations` folder and name as `000000n_migration_(up|down).sql` where `n = max(n) + 1`
 - Document complex queries with comments
 - Use foreign key constraints for related tables
 - Include proper database indexes for fields used in WHERE clauses
