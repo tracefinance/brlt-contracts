@@ -21,6 +21,10 @@ type Wallet interface {
 	// ChainType returns the blockchain type
 	ChainType() types.ChainType
 
+	// Create creates a new wallet by generating a keypair in the keystore
+	// and returns the wallet information
+	Create(ctx context.Context, name string, tags map[string]string) (*WalletInfo, error)
+
 	// DeriveAddress derives a wallet address
 	DeriveAddress(ctx context.Context) (string, error)
 
@@ -32,8 +36,4 @@ type Wallet interface {
 
 	// SignTransaction signs a transaction with the wallet's key
 	SignTransaction(ctx context.Context, tx *types.Transaction) ([]byte, error)
-
-	// Create creates a new wallet by generating a keypair in the keystore
-	// and returns the wallet information
-	Create(ctx context.Context, name string, tags map[string]string) (*WalletInfo, error)
 }

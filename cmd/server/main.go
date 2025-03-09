@@ -9,6 +9,7 @@ import (
 	"vault0/internal/api"
 	"vault0/internal/config"
 	"vault0/internal/db"
+	"vault0/internal/keystore"
 )
 
 func main() {
@@ -27,8 +28,15 @@ func main() {
 		log.Fatalf("Failed to apply database migrations: %v", err)
 	}
 
+	// Initialize keystore
+	keystoreFactory := keystore.NewFactory(cfg, database.GetConnection())
+	keyStore, err := keystoreFactory.CreateDefault()
+	if err != nil {
+		log.Fatalf("Failed to initialize keystore: %v", err)
+	}
+
 	// Initialize and start the server
-	server := api.New(database, cfg)
+	server := api.New(database, keyStore, cfg)
 
 	// Setup graceful shutdown
 	quit := make(chan os.Signal, 1)

@@ -30,7 +30,7 @@ func TestNewFactory(t *testing.T) {
 	})
 }
 
-func TestCreateWallet(t *testing.T) {
+func TestNewWallet(t *testing.T) {
 	t.Run("Create Ethereum wallet", func(t *testing.T) {
 		ctx := context.Background()
 		keyStore := &MockKeyStore{}
@@ -39,7 +39,7 @@ func TestCreateWallet(t *testing.T) {
 
 		// Use a test keyID
 		keyID := "test-key-id"
-		wallet, err := factory.Create(ctx, types.ChainTypeEthereum, keyID)
+		wallet, err := factory.NewWallet(ctx, types.ChainTypeEthereum, keyID)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
@@ -54,7 +54,7 @@ func TestCreateWallet(t *testing.T) {
 
 		// Use a test keyID
 		keyID := "test-key-id"
-		wallet, err := factory.Create(ctx, types.ChainTypePolygon, keyID)
+		wallet, err := factory.NewWallet(ctx, types.ChainTypePolygon, keyID)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
@@ -69,7 +69,7 @@ func TestCreateWallet(t *testing.T) {
 
 		// Use a test keyID
 		keyID := "test-key-id"
-		wallet, err := factory.Create(ctx, types.ChainTypeBase, keyID)
+		wallet, err := factory.NewWallet(ctx, types.ChainTypeBase, keyID)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
@@ -85,7 +85,7 @@ func TestCreateWallet(t *testing.T) {
 		unsupportedChainType := types.ChainType("unsupported")
 		// Use a test keyID
 		keyID := "test-key-id"
-		wallet, err := factory.Create(ctx, unsupportedChainType, keyID)
+		wallet, err := factory.NewWallet(ctx, unsupportedChainType, keyID)
 
 		assert.Error(t, err)
 		assert.Nil(t, wallet)

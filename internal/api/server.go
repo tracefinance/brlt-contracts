@@ -5,27 +5,32 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"vault0/internal/api/handlers/wallet"
 	"vault0/internal/config"
 	"vault0/internal/db"
+	"vault0/internal/keystore"
+	walletService "vault0/internal/services/wallet"
 
 	"github.com/gin-gonic/gin"
 )
 
 // Server represents the API server
 type Server struct {
-	router *gin.Engine
-	db     *db.DB
-	config *config.Config
+	router   *gin.Engine
+	db       *db.DB
+	config   *config.Config
+	keyStore keystore.KeyStore
 }
 
 // New creates a new API server
-func New(db *db.DB, cfg *config.Config) *Server {
+func New(db *db.DB, keyStore keystore.KeyStore, cfg *config.Config) *Server {
 	router := gin.Default()
 
 	server := &Server{
-		router: router,
-		db:     db,
-		config: cfg,
+		router:   router,
+		db:       db,
+		config:   cfg,
+		keyStore: keyStore,
 	}
 
 	// Setup routes
@@ -41,6 +46,9 @@ func (s *Server) setupRoutes() {
 	{
 		// Health check endpoint
 		apiGroup.GET("/health", s.healthHandler)
+
+		// Setup wallet routes
+		s.setupWalletRoutes(apiGroup)
 
 		// Add more API routes here as needed
 	}
@@ -59,6 +67,21 @@ func (s *Server) setupRoutes() {
 		// For all other routes, serve the index.html file to support SPA routing
 		c.File(filepath.Join(s.config.UIPath, "index.html"))
 	})
+}
+
+// setupWalletRoutes configures the wallet API routes
+func (s *Server) setupWalletRoutes(apiGroup *gin.RouterGroup) {
+	// Create wallet repository
+	walletRepo := walletService.NewSQLiteRepository(s.db)
+
+	// Create wallet service
+	walletSvc := walletService.NewService(walletRepo, s.keyStore, s.config)
+
+	// Create wallet handler
+	walletHandler := wallet.NewHandler(walletSvc)
+
+	// Register wallet routes
+	walletHandler.RegisterRoutes(apiGroup)
 }
 
 // healthHandler handles the health check endpoint
