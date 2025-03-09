@@ -30,7 +30,7 @@ func main() {
 
 	// Initialize keystore
 	keystoreFactory := keystore.NewFactory(cfg, database.GetConnection())
-	keyStore, err := keystoreFactory.CreateDefault()
+	keyStore, err := keystoreFactory.NewDefaultKeyStore()
 	if err != nil {
 		log.Fatalf("Failed to initialize keystore: %v", err)
 	}

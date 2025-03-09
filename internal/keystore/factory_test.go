@@ -24,7 +24,7 @@ func TestFactory_Create(t *testing.T) {
 
 	t.Run("CreateDBKeyStore", func(t *testing.T) {
 		// Create a DB keystore
-		keystore, err := factory.Create(KeyStoreTypeDB)
+		keystore, err := factory.NewKeyStore(KeyStoreTypeDB)
 		require.NoError(t, err)
 
 		// Validate it's a DBKeyStore
@@ -34,7 +34,7 @@ func TestFactory_Create(t *testing.T) {
 
 	t.Run("CreateDefaultKeyStore", func(t *testing.T) {
 		// Create a default keystore (should be DB)
-		keystore, err := factory.CreateDefault()
+		keystore, err := factory.NewDefaultKeyStore()
 		require.NoError(t, err)
 
 		// Validate it's a DBKeyStore
@@ -44,14 +44,14 @@ func TestFactory_Create(t *testing.T) {
 
 	t.Run("CreateKMSKeyStore", func(t *testing.T) {
 		// Attempt to create a KMS keystore (not implemented yet)
-		_, err := factory.Create(KeyStoreTypeKMS)
+		_, err := factory.NewKeyStore(KeyStoreTypeKMS)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not implemented yet")
 	})
 
 	t.Run("CreateUnsupportedKeyStore", func(t *testing.T) {
 		// Attempt to create an unsupported keystore type
-		_, err := factory.Create("unsupported")
+		_, err := factory.NewKeyStore("unsupported")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported key store type")
 	})
@@ -72,7 +72,7 @@ func TestFactory_InvalidConfig(t *testing.T) {
 	factory := NewFactory(invalidCfg, db)
 
 	// Attempt to create a DB keystore with invalid config
-	_, err := factory.Create(KeyStoreTypeDB)
+	_, err := factory.NewKeyStore(KeyStoreTypeDB)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "DB_ENCRYPTION_KEY environment variable is required")
 }
@@ -91,7 +91,7 @@ func TestFactory_ErrorHandling(t *testing.T) {
 	factory := NewFactory(cfg, db)
 
 	// Create the keystore (should succeed initially)
-	keystore, err := factory.Create(KeyStoreTypeDB)
+	keystore, err := factory.NewKeyStore(KeyStoreTypeDB)
 	require.NoError(t, err)
 
 	// But operations on it should fail due to closed DB

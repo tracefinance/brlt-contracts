@@ -25,8 +25,8 @@ func NewFactory(
 	}
 }
 
-// Create returns a SmartContract instance for the specified chain type
-func (f *Factory) Create(blockchain blockchain.Blockchain, wallet wallet.Wallet) (SmartContract, error) {
+// NewSmartContract returns a SmartContract instance for the specified chain type
+func (f *Factory) NewSmartContract(blockchain blockchain.Blockchain, wallet wallet.Wallet) (SmartContract, error) {
 	// Get the chain type from the blockchain
 	blockchainType := blockchain.ChainType()
 	walletType := wallet.ChainType()

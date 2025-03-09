@@ -32,8 +32,8 @@ func NewFactory(cfg *config.Config, db *sql.DB) *Factory {
 	}
 }
 
-// Create creates a new KeyStore instance of the specified type
-func (f *Factory) Create(keyStoreType KeyStoreType) (KeyStore, error) {
+// NewKeyStore creates a new KeyStore instance of the specified type
+func (f *Factory) NewKeyStore(keyStoreType KeyStoreType) (KeyStore, error) {
 	switch keyStoreType {
 	case KeyStoreTypeDB:
 		return NewDBKeyStore(f.db, f.cfg)
@@ -44,7 +44,7 @@ func (f *Factory) Create(keyStoreType KeyStoreType) (KeyStore, error) {
 	}
 }
 
-// CreateDefault creates a new KeyStore instance with the default type (DB)
-func (f *Factory) CreateDefault() (KeyStore, error) {
-	return f.Create(KeyStoreTypeDB)
+// NewDefaultKeyStore creates a new KeyStore instance with the default type (DB)
+func (f *Factory) NewDefaultKeyStore() (KeyStore, error) {
+	return f.NewKeyStore(KeyStoreTypeDB)
 }
