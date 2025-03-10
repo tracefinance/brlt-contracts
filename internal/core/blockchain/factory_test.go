@@ -42,19 +42,19 @@ func createTestConfig() *config.Config {
 
 func TestNewFactory(t *testing.T) {
 	cfg := createTestConfig()
-	factory := NewFactory(cfg)
 
-	assert.NotNil(t, factory)
-	assert.Equal(t, cfg, factory.cfg)
-	assert.NotNil(t, factory.clients)
+	assert.NotNil(t, cfg)
+	assert.NotNil(t, cfg.Blockchains)
+	assert.NotNil(t, cfg.Blockchains.Ethereum)
+	assert.NotNil(t, cfg.Blockchains.Polygon)
+	assert.NotNil(t, cfg.Blockchains.Base)
 }
 
 func TestNewChain(t *testing.T) {
 	cfg := createTestConfig()
-	factory := NewFactory(cfg)
 
 	t.Run("Ethereum Chain", func(t *testing.T) {
-		chain, err := factory.NewChain(types.ChainTypeEthereum)
+		chain, err := NewChain(types.ChainTypeEthereum, cfg)
 		require.NoError(t, err)
 
 		assert.Equal(t, int64(1), chain.ID)
@@ -68,7 +68,7 @@ func TestNewChain(t *testing.T) {
 	})
 
 	t.Run("Polygon Chain", func(t *testing.T) {
-		chain, err := factory.NewChain(types.ChainTypePolygon)
+		chain, err := NewChain(types.ChainTypePolygon, cfg)
 		require.NoError(t, err)
 
 		assert.Equal(t, int64(137), chain.ID)
@@ -82,7 +82,7 @@ func TestNewChain(t *testing.T) {
 	})
 
 	t.Run("Base Chain", func(t *testing.T) {
-		chain, err := factory.NewChain(types.ChainTypeBase)
+		chain, err := NewChain(types.ChainTypeBase, cfg)
 		require.NoError(t, err)
 
 		assert.Equal(t, int64(8453), chain.ID)
@@ -97,7 +97,7 @@ func TestNewChain(t *testing.T) {
 
 	t.Run("Unsupported Chain", func(t *testing.T) {
 		unsupportedChainType := types.ChainType("unsupported")
-		chain, err := factory.NewChain(unsupportedChainType)
+		chain, err := NewChain(unsupportedChainType, cfg)
 
 		assert.Error(t, err)
 		assert.Equal(t, Chain{}, chain)
@@ -109,9 +109,8 @@ func TestNewChain(t *testing.T) {
 		// Create a config with missing RPC URL
 		badCfg := createTestConfig()
 		badCfg.Blockchains.Ethereum.RPCURL = ""
-		badFactory := NewFactory(badCfg)
 
-		chain, err := badFactory.NewChain(types.ChainTypeEthereum)
+		chain, err := NewChain(types.ChainTypeEthereum, badCfg)
 
 		assert.Error(t, err)
 		assert.Equal(t, Chain{}, chain)

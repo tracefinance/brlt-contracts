@@ -2,10 +2,8 @@ package blockchain
 
 import (
 	"context"
-	"crypto/elliptic"
 	"errors"
 	"math/big"
-	"vault0/internal/core/keygen"
 	"vault0/internal/types"
 )
 
@@ -22,18 +20,6 @@ var (
 	ErrInvalidContractCall = errors.New("blockchain: invalid contract call")
 	ErrRPCConnectionFailed = errors.New("blockchain: RPC connection failed")
 )
-
-// Chain represents information about a specific blockchain
-type Chain struct {
-	ID          int64           // Chain ID
-	Type        types.ChainType // Chain type
-	Name        string          // Human-readable name
-	Symbol      string          // Native currency symbol
-	RPCUrl      string          // RPC URL for the chain
-	ExplorerUrl string          // Block explorer URL
-	Curve       elliptic.Curve  // Elliptic curve for key generation
-	KeyType     keygen.KeyType  // Key type for the blockchain
-}
 
 // Blockchain defines methods for interacting with a blockchain
 type Blockchain interface {

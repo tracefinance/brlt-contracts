@@ -34,8 +34,8 @@ func NewFactory(keyStore keystore.KeyStore, appConfig *config.Config) *Factory {
 func (f *Factory) NewWallet(ctx context.Context, chainType types.ChainType, keyID string) (Wallet, error) {
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
-		// Get chain struct from blockchain factory
-		chain, err := f.blockchainFactory.NewChain(chainType)
+		// Get chain struct from blockchain package
+		chain, err := blockchain.NewChain(chainType, f.appConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create chain: %w", err)
 		}

@@ -72,9 +72,7 @@ func (s *WalletService) CreateWallet(ctx context.Context, chainType types.ChainT
 	}
 
 	// Get chain information first to determine the appropriate key type and curve
-	// Create a blockchain factory to get the chain information
-	blockchainFactory := blockchain.NewFactory(s.config)
-	chain, err := blockchainFactory.NewChain(chainType)
+	chain, err := blockchain.NewChain(chainType, s.config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get chain information: %w", err)
 	}
