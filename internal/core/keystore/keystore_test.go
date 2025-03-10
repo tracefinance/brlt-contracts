@@ -33,7 +33,7 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 	// Note: Using the same schema as expected by the DBKeyStore implementation
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS keys (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL UNIQUE,
 			key_type TEXT NOT NULL,
 			curve TEXT,

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +23,8 @@ import (
 	"vault0/internal/config"
 	vcrypto "vault0/internal/core/crypto"
 	"vault0/internal/core/keygen"
+
+	"github.com/google/uuid"
 )
 
 // DBKeyStore implements the KeyStore interface using a local database
@@ -81,8 +82,12 @@ func (ks *DBKeyStore) Create(ctx context.Context, name string, keyType keygen.Ke
 		return nil, err
 	}
 
+	// Generate a UUID for the key ID
+	keyID := uuid.New().String()
+
 	// Create the key
 	key := &Key{
+		ID:        keyID,
 		Name:      name,
 		Type:      keyType,
 		Tags:      tags,
@@ -113,9 +118,10 @@ func (ks *DBKeyStore) Create(ctx context.Context, name string, keyType keygen.Ke
 	}
 
 	// Insert the key into the database
-	result, err := ks.db.ExecContext(
+	_, err = ks.db.ExecContext(
 		ctx,
-		"INSERT INTO keys (name, key_type, curve, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO keys (id, name, key_type, curve, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		key.ID,
 		key.Name,
 		string(key.Type),
 		curveName,
@@ -131,15 +137,6 @@ func (ks *DBKeyStore) Create(ctx context.Context, name string, keyType keygen.Ke
 		}
 		return nil, err
 	}
-
-	// Get the auto-generated ID
-	id, err := result.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
-
-	// Set the ID in the key
-	key.ID = strconv.FormatInt(id, 10)
 
 	return key, nil
 }
@@ -169,8 +166,12 @@ func (ks *DBKeyStore) Import(ctx context.Context, name string, keyType keygen.Ke
 		curveName = curve.Params().Name
 	}
 
+	// Generate a UUID for the key ID
+	keyID := uuid.New().String()
+
 	// Create the key
 	key := &Key{
+		ID:         keyID,
 		Name:       name,
 		Type:       keyType,
 		Tags:       tags,
@@ -181,9 +182,10 @@ func (ks *DBKeyStore) Import(ctx context.Context, name string, keyType keygen.Ke
 	}
 
 	// Insert the key into the database
-	result, err := ks.db.ExecContext(
+	_, err = ks.db.ExecContext(
 		ctx,
-		"INSERT INTO keys (name, key_type, curve, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO keys (id, name, key_type, curve, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		key.ID,
 		key.Name,
 		string(key.Type),
 		curveName,
@@ -199,15 +201,6 @@ func (ks *DBKeyStore) Import(ctx context.Context, name string, keyType keygen.Ke
 		}
 		return nil, err
 	}
-
-	// Get the auto-generated ID
-	id, err := result.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
-
-	// Set the ID in the key
-	key.ID = strconv.FormatInt(id, 10)
 
 	return key, nil
 }
