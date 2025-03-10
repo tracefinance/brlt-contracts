@@ -4,8 +4,8 @@ globs:
 alwaysApply: true
 ---
 - Follow Angular commit convetion with prefixes: feat, fix, chore, refactor, docs and tests
+- To commit messages with multiple lines, use `-m` for each line
 - Make the head / title of the commit message brief
 - Include elaborate details in the body of the commit message
 - Always follow the conventional commit message format
 - Always use `git diff` with `cat` to not lock the terminal
-- Add new lines with by adding `-m` parameters
