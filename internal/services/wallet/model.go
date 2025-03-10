@@ -23,7 +23,7 @@ type Wallet struct {
 
 // ScanWallet scans a database row into a Wallet struct
 func ScanWallet(row interface {
-	Scan(dest ...interface{}) error
+	Scan(dest ...any) error
 }) (*Wallet, error) {
 	wallet := &Wallet{}
 	var tagsJSON sql.NullString

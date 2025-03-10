@@ -233,7 +233,7 @@ func (s *service) GetUser(ctx context.Context, id string) (*User, error) {
 // Other method implementations...
 ```
 
-2. **Models and DTOs**:
+2. **Models**:
 ```go
 // model.go
 package user
@@ -247,19 +247,6 @@ type User struct {
     Email     string
     CreatedAt time.Time
     UpdatedAt time.Time
-}
-
-// CreateUserRequest represents data needed to create a user
-type CreateUserRequest struct {
-    Username string `json:"username" binding:"required,min=3,max=50"`
-    Email    string `json:"email" binding:"required,email"`
-    Password string `json:"password" binding:"required,min=8"`
-}
-
-// UpdateUserRequest represents data for updating a user
-type UpdateUserRequest struct {
-    Username string `json:"username,omitempty"`
-    Email    string `json:"email,omitempty"`
 }
 ```
 
@@ -314,7 +301,20 @@ func (r *repository) FindByID(ctx context.Context, id string) (*User, error) {
 DTOs should should follow the structure:
 ```go
 // internal/api/handlers/user/dto.go
+package user
 
+// CreateUserRequest represents data needed to create a user
+type CreateUserRequest struct {
+	Username string `json:"username" binding:"required,min=3,max=50"`
+	Email string `json:"email,omitempty" binding:"required,email"`
+    Password string `json:"password" binding:"required,min=8"`
+}
+// UpdateUserRequest represents data for updating a user
+type UpdateUserRequest struct {
+	Username string `json:"username,omitempty" binding:"omitempty,min=3,max=50"`
+    Email string `json:"email,omitempty" binding:"required,email"`
+	Password string `json:"password,omitempty" binding:"omitempty,min=8"`
+}
 // UserResponse represents a user response
 type UserResponse struct {
     ID        string    `json:"id"`
@@ -323,7 +323,6 @@ type UserResponse struct {
     CreatedAt time.Time `json:"created_at"`
     UpdatedAt time.Time `json:"updated_at"`
 }
-
 // ToResponse converts a user model to a user response
 func ToResponse(user *user.User) *UserResponse {
 	return &UserResponse{
