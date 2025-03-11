@@ -64,11 +64,11 @@ func (h *Handlers) TokenHandler(c *gin.Context) {
 
 // LoginRequest represents the login request structure
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
+	Email    string `json:"email" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
 
-// LoginHandler authenticates a user with username and password
+// LoginHandler authenticates a user with email and password
 // and returns an OAuth2 token if authentication is successful
 func (h *Handlers) LoginHandler(c *gin.Context) {
 	var loginReq LoginRequest
@@ -78,7 +78,7 @@ func (h *Handlers) LoginHandler(c *gin.Context) {
 	}
 
 	// Authenticate user
-	userID, err := h.authenticateUser(c, loginReq.Username, loginReq.Password)
+	userID, err := h.authenticateUser(c, loginReq.Email, loginReq.Password)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_grant", "error_description": "Invalid credentials"})
 		return
@@ -102,11 +102,11 @@ func (h *Handlers) LoginHandler(c *gin.Context) {
 	})
 }
 
-// authenticateUser validates the username and password against the database
-func (h *Handlers) authenticateUser(c context.Context, username, password string) (string, error) {
+// authenticateUser validates the email and password against the database
+func (h *Handlers) authenticateUser(c context.Context, email, password string) (string, error) {
 	// Query the user from the database
-	query := "SELECT id, password_hash FROM users WHERE username = ?"
-	rows, err := h.service.db.ExecuteQueryContext(c, query, username)
+	query := "SELECT id, password_hash FROM users WHERE email = ?"
+	rows, err := h.service.db.ExecuteQueryContext(c, query, email)
 	if err != nil {
 		return "", err
 	}

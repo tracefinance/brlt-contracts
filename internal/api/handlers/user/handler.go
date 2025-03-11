@@ -28,7 +28,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	createdUser, err := h.userService.Create(c.Request.Context(), req.Username, req.Password)
+	createdUser, err := h.userService.Create(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -51,7 +51,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	updatedUser, err := h.userService.Update(c.Request.Context(), id, req.Username, req.Password)
+	updatedUser, err := h.userService.Update(c.Request.Context(), id, req.Email, req.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

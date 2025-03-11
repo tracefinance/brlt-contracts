@@ -14,7 +14,7 @@ type Repository interface {
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, id int64) error
 	FindByID(ctx context.Context, id int64) (*User, error)
-	FindByUsername(ctx context.Context, username string) (*User, error)
+	FindByEmail(ctx context.Context, email string) (*User, error)
 	List(ctx context.Context, limit, offset int) ([]*User, error)
 	Count(ctx context.Context) (int, error)
 }
@@ -36,12 +36,12 @@ func (r *SQLiteRepository) Create(ctx context.Context, user *User) error {
 	user.UpdatedAt = now
 
 	query := `
-		INSERT INTO users (username, password_hash, created_at, updated_at)
+		INSERT INTO users (email, password_hash, created_at, updated_at)
 		VALUES (?, ?, ?, ?)
 	`
 
 	result, err := r.db.ExecuteStatementContext(ctx, query,
-		user.Username, user.PasswordHash, user.CreatedAt, user.UpdatedAt)
+		user.Email, user.PasswordHash, user.CreatedAt, user.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -62,12 +62,12 @@ func (r *SQLiteRepository) Update(ctx context.Context, user *User) error {
 
 	query := `
 		UPDATE users
-		SET username = ?, password_hash = ?, updated_at = ?
+		SET email = ?, password_hash = ?, updated_at = ?
 		WHERE id = ?
 	`
 
 	result, err := r.db.ExecuteStatementContext(ctx, query,
-		user.Username, user.PasswordHash, user.UpdatedAt, user.ID)
+		user.Email, user.PasswordHash, user.UpdatedAt, user.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
 	}
@@ -108,7 +108,7 @@ func (r *SQLiteRepository) Delete(ctx context.Context, id int64) error {
 // FindByID finds a user by ID
 func (r *SQLiteRepository) FindByID(ctx context.Context, id int64) (*User, error) {
 	query := `
-		SELECT id, username, password_hash, created_at, updated_at
+		SELECT id, email, password_hash, created_at, updated_at
 		FROM users
 		WHERE id = ?
 	`
@@ -124,7 +124,7 @@ func (r *SQLiteRepository) FindByID(ctx context.Context, id int64) (*User, error
 	}
 
 	var user User
-	err = rows.Scan(&user.ID, &user.Username, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+	err = rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan user: %w", err)
 	}
@@ -132,17 +132,17 @@ func (r *SQLiteRepository) FindByID(ctx context.Context, id int64) (*User, error
 	return &user, nil
 }
 
-// FindByUsername finds a user by username
-func (r *SQLiteRepository) FindByUsername(ctx context.Context, username string) (*User, error) {
+// FindByEmail finds a user by email
+func (r *SQLiteRepository) FindByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, username, password_hash, created_at, updated_at
+		SELECT id, email, password_hash, created_at, updated_at
 		FROM users
-		WHERE username = ?
+		WHERE email = ?
 	`
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, username)
+	rows, err := r.db.ExecuteQueryContext(ctx, query, email)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find user by username: %w", err)
+		return nil, fmt.Errorf("failed to find user by email: %w", err)
 	}
 	defer rows.Close()
 
@@ -151,7 +151,7 @@ func (r *SQLiteRepository) FindByUsername(ctx context.Context, username string) 
 	}
 
 	var user User
-	err = rows.Scan(&user.ID, &user.Username, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+	err = rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan user: %w", err)
 	}
@@ -162,7 +162,7 @@ func (r *SQLiteRepository) FindByUsername(ctx context.Context, username string) 
 // List retrieves a paginated list of users
 func (r *SQLiteRepository) List(ctx context.Context, limit, offset int) ([]*User, error) {
 	query := `
-		SELECT id, username, password_hash, created_at, updated_at
+		SELECT id, email, password_hash, created_at, updated_at
 		FROM users
 		ORDER BY id
 		LIMIT ? OFFSET ?
@@ -177,7 +177,7 @@ func (r *SQLiteRepository) List(ctx context.Context, limit, offset int) ([]*User
 	var users []*User
 	for rows.Next() {
 		var user User
-		err = rows.Scan(&user.ID, &user.Username, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+		err = rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}

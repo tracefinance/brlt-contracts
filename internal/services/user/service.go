@@ -10,8 +10,8 @@ import (
 
 // Service defines the user service interface
 type Service interface {
-	Create(ctx context.Context, username, password string) (*User, error)
-	Update(ctx context.Context, id int64, username, password string) (*User, error)
+	Create(ctx context.Context, email, password string) (*User, error)
+	Update(ctx context.Context, id int64, email, password string) (*User, error)
 	Delete(ctx context.Context, id int64) error
 	GetByID(ctx context.Context, id int64) (*User, error)
 	List(ctx context.Context, page, pageSize int) ([]*User, int, error)
@@ -30,14 +30,14 @@ func NewService(repository Repository) Service {
 }
 
 // Create creates a new user
-func (s *service) Create(ctx context.Context, username, password string) (*User, error) {
-	// Check if username already exists
-	existingUser, err := s.repository.FindByUsername(ctx, username)
+func (s *service) Create(ctx context.Context, email, password string) (*User, error) {
+	// Check if email already exists
+	existingUser, err := s.repository.FindByEmail(ctx, email)
 	if err != nil && err != sql.ErrNoRows {
-		return nil, fmt.Errorf("failed to check username: %w", err)
+		return nil, fmt.Errorf("failed to check email: %w", err)
 	}
 	if existingUser != nil {
-		return nil, fmt.Errorf("username already exists")
+		return nil, fmt.Errorf("email already exists")
 	}
 
 	// Hash the password
@@ -48,7 +48,7 @@ func (s *service) Create(ctx context.Context, username, password string) (*User,
 
 	// Create the user
 	user := &User{
-		Username:     username,
+		Email:        email,
 		PasswordHash: string(hashedPassword),
 	}
 
@@ -61,7 +61,7 @@ func (s *service) Create(ctx context.Context, username, password string) (*User,
 }
 
 // Update updates an existing user
-func (s *service) Update(ctx context.Context, id int64, username, password string) (*User, error) {
+func (s *service) Update(ctx context.Context, id int64, email, password string) (*User, error) {
 	// Get the existing user
 	user, err := s.repository.FindByID(ctx, id)
 	if err != nil {
@@ -69,17 +69,17 @@ func (s *service) Update(ctx context.Context, id int64, username, password strin
 	}
 
 	// Update fields if provided
-	if username != "" && username != user.Username {
-		// Check if new username already exists
-		existingUser, err := s.repository.FindByUsername(ctx, username)
+	if email != "" && email != user.Email {
+		// Check if new email already exists
+		existingUser, err := s.repository.FindByEmail(ctx, email)
 		if err != nil && err != sql.ErrNoRows {
-			return nil, fmt.Errorf("failed to check username: %w", err)
+			return nil, fmt.Errorf("failed to check email: %w", err)
 		}
 		if existingUser != nil {
-			return nil, fmt.Errorf("username already exists")
+			return nil, fmt.Errorf("email already exists")
 		}
 
-		user.Username = username
+		user.Email = email
 	}
 
 	// Update password if provided
