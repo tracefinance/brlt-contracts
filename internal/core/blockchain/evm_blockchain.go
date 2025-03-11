@@ -243,6 +243,155 @@ func (c *EVMBlockchain) BroadcastTransaction(ctx context.Context, signedTx []byt
 	return tx.Hash().Hex(), nil
 }
 
+// FilterLogs implements Blockchain.FilterLogs
+func (c *EVMBlockchain) FilterLogs(ctx context.Context, addresses []string, topics [][]string, fromBlock, toBlock int64) ([]types.Log, error) {
+	// Convert addresses to Ethereum addresses
+	var ethAddresses []common.Address
+	if len(addresses) > 0 {
+		ethAddresses = make([]common.Address, len(addresses))
+		for i, address := range addresses {
+			if !common.IsHexAddress(address) {
+				return nil, fmt.Errorf("evm: invalid address format for %s: %w", address, ErrInvalidAddress)
+			}
+			ethAddresses[i] = common.HexToAddress(address)
+		}
+	}
+
+	// Convert topics to Ethereum topics
+	var ethTopics [][]common.Hash
+	if len(topics) > 0 {
+		ethTopics = make([][]common.Hash, len(topics))
+		for i, topicSet := range topics {
+			if len(topicSet) > 0 {
+				ethTopics[i] = make([]common.Hash, len(topicSet))
+				for j, topic := range topicSet {
+					ethTopics[i][j] = common.HexToHash(topic)
+				}
+			}
+		}
+	}
+
+	// Create the filter query
+	filterQuery := ethereum.FilterQuery{
+		Addresses: ethAddresses,
+		Topics:    ethTopics,
+	}
+
+	// Set block ranges if provided
+	if fromBlock >= 0 {
+		filterQuery.FromBlock = big.NewInt(fromBlock)
+	}
+	if toBlock >= 0 {
+		filterQuery.ToBlock = big.NewInt(toBlock)
+	}
+
+	// Filter logs
+	logs, err := c.client.FilterLogs(ctx, filterQuery)
+	if err != nil {
+		return nil, fmt.Errorf("evm: failed to filter logs: %w", err)
+	}
+
+	// Convert ethereum logs to our log format
+	result := make([]types.Log, len(logs))
+	for i, log := range logs {
+		topics := make([]string, len(log.Topics))
+		for j, topic := range log.Topics {
+			topics[j] = topic.Hex()
+		}
+
+		result[i] = types.Log{
+			Address:         log.Address.Hex(),
+			Topics:          topics,
+			Data:            log.Data,
+			BlockNumber:     big.NewInt(int64(log.BlockNumber)),
+			TransactionHash: log.TxHash.Hex(),
+			LogIndex:        log.Index,
+		}
+	}
+
+	return result, nil
+}
+
+// SubscribeToEvents implements Blockchain.SubscribeToEvents
+func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []string, topics [][]string) (<-chan types.Log, <-chan error, error) {
+	// Convert addresses to Ethereum addresses
+	var ethAddresses []common.Address
+	if len(addresses) > 0 {
+		ethAddresses = make([]common.Address, len(addresses))
+		for i, address := range addresses {
+			if !common.IsHexAddress(address) {
+				return nil, nil, fmt.Errorf("evm: invalid address format for %s: %w", address, ErrInvalidAddress)
+			}
+			ethAddresses[i] = common.HexToAddress(address)
+		}
+	}
+
+	// Convert topics to Ethereum topics
+	var ethTopics [][]common.Hash
+	if len(topics) > 0 {
+		ethTopics = make([][]common.Hash, len(topics))
+		for i, topicSet := range topics {
+			if len(topicSet) > 0 {
+				ethTopics[i] = make([]common.Hash, len(topicSet))
+				for j, topic := range topicSet {
+					ethTopics[i][j] = common.HexToHash(topic)
+				}
+			}
+		}
+	}
+
+	// Create the filter query
+	filterQuery := ethereum.FilterQuery{
+		Addresses: ethAddresses,
+		Topics:    ethTopics,
+	}
+
+	// Create channels for logs and errors
+	logChan := make(chan types.Log)
+	errChan := make(chan error)
+
+	// Subscribe to logs
+	ethLogChan := make(chan ethtypes.Log)
+	sub, err := c.client.SubscribeFilterLogs(ctx, filterQuery, ethLogChan)
+	if err != nil {
+		return nil, nil, fmt.Errorf("evm: failed to subscribe to logs: %w", err)
+	}
+
+	// Handle the subscription in a goroutine
+	go func() {
+		defer close(logChan)
+		defer close(errChan)
+		defer sub.Unsubscribe()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case err := <-sub.Err():
+				errChan <- fmt.Errorf("evm: subscription error: %w", err)
+				return
+			case log := <-ethLogChan:
+				// Convert ethereum log to our log format
+				topics := make([]string, len(log.Topics))
+				for j, topic := range log.Topics {
+					topics[j] = topic.Hex()
+				}
+
+				logChan <- types.Log{
+					Address:         log.Address.Hex(),
+					Topics:          topics,
+					Data:            log.Data,
+					BlockNumber:     big.NewInt(int64(log.BlockNumber)),
+					TransactionHash: log.TxHash.Hex(),
+					LogIndex:        log.Index,
+				}
+			}
+		}
+	}()
+
+	return logChan, errChan, nil
+}
+
 // Close implements Blockchain.Close
 func (c *EVMBlockchain) Close() {
 	c.rpcClient.Close()

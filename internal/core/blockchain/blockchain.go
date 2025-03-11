@@ -47,6 +47,12 @@ type Blockchain interface {
 	// CallContract executes a read-only call to a smart contract
 	CallContract(ctx context.Context, from string, to string, data []byte) ([]byte, error)
 
+	// FilterLogs retrieves historical logs matching the filter criteria
+	FilterLogs(ctx context.Context, addresses []string, topics [][]string, fromBlock, toBlock int64) ([]types.Log, error)
+
+	// SubscribeToEvents subscribes to live events matching the filter criteria
+	SubscribeToEvents(ctx context.Context, addresses []string, topics [][]string) (<-chan types.Log, <-chan error, error)
+
 	// Chain returns the chain information
 	Chain() Chain
 
