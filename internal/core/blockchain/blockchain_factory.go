@@ -6,23 +6,29 @@ import (
 	"vault0/internal/types"
 )
 
+type BlockchainFactory interface {
+	NewBlockchain(chainType types.ChainType) (Blockchain, error)
+}
+
 // Factory creates blockchain implementations
-type Factory struct {
-	cfg        *config.Config
-	clients    map[types.ChainType]Blockchain
-	clientsMux sync.RWMutex
+type factory struct {
+	cfg          *config.Config
+	chainFactory ChainFactory
+	clients      map[types.ChainType]Blockchain
+	clientsMux   sync.RWMutex
 }
 
 // NewFactory creates a new blockchain factory with the given configuration
-func NewFactory(cfg *config.Config) *Factory {
-	return &Factory{
-		cfg:     cfg,
-		clients: make(map[types.ChainType]Blockchain),
+func NewFactory(cfg *config.Config) BlockchainFactory {
+	return &factory{
+		cfg:          cfg,
+		chainFactory: NewChainFactory(cfg),
+		clients:      make(map[types.ChainType]Blockchain),
 	}
 }
 
 // NewBlockchain creates a new blockchain client for the specified chain type
-func (f *Factory) NewBlockchain(chainType types.ChainType) (Blockchain, error) {
+func (f *factory) NewBlockchain(chainType types.ChainType) (Blockchain, error) {
 	f.clientsMux.Lock()
 	defer f.clientsMux.Unlock()
 
@@ -32,7 +38,7 @@ func (f *Factory) NewBlockchain(chainType types.ChainType) (Blockchain, error) {
 	}
 
 	// Create a new client
-	chain, err := NewChain(chainType, f.cfg)
+	chain, err := f.chainFactory.NewChain(chainType)
 	if err != nil {
 		return nil, err
 	}

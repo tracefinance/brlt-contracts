@@ -10,32 +10,36 @@ import (
 	"vault0/internal/types"
 )
 
+type WalletFactory interface {
+	NewWallet(ctx context.Context, chainType types.ChainType, keyID string) (Wallet, error)
+}
+
 // Factory provides methods to create different wallet types.
-type Factory struct {
-	keyStore          keystore.KeyStore
-	appConfig         *config.Config
-	blockchainFactory *blockchain.Factory
+type factory struct {
+	keyStore     keystore.KeyStore
+	appConfig    *config.Config
+	chainFactory blockchain.ChainFactory
 }
 
 // NewFactory creates a new wallet factory.
-func NewFactory(keyStore keystore.KeyStore, appConfig *config.Config) *Factory {
+func NewFactory(keyStore keystore.KeyStore, appConfig *config.Config) WalletFactory {
 	if appConfig == nil {
 		panic("appConfig must not be nil")
 	}
-
-	return &Factory{
-		keyStore:          keyStore,
-		appConfig:         appConfig,
-		blockchainFactory: blockchain.NewFactory(appConfig),
+	chainFactory := blockchain.NewChainFactory(appConfig)
+	return &factory{
+		keyStore:     keyStore,
+		appConfig:    appConfig,
+		chainFactory: chainFactory,
 	}
 }
 
 // NewWallet creates a new wallet instance for the specified chain type and key ID.
-func (f *Factory) NewWallet(ctx context.Context, chainType types.ChainType, keyID string) (Wallet, error) {
+func (f *factory) NewWallet(ctx context.Context, chainType types.ChainType, keyID string) (Wallet, error) {
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
 		// Get chain struct from blockchain package
-		chain, err := blockchain.NewChain(chainType, f.appConfig)
+		chain, err := f.chainFactory.NewChain(chainType)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create chain: %w", err)
 		}

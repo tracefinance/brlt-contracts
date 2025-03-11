@@ -9,9 +9,10 @@ import (
 
 // CreateWalletRequest represents a request to create a wallet
 type CreateWalletRequest struct {
-	ChainType types.ChainType   `json:"chain_type"`
-	Name      string            `json:"name"`
+	ChainType types.ChainType   `json:"chain_type" binding:"required"`
+	Name      string            `json:"name" binding:"required"`
 	Tags      map[string]string `json:"tags,omitempty"`
+	Address   string            `json:"address,omitempty"` // Optional, only for external wallets
 }
 
 // UpdateWalletRequest represents a request to update a wallet

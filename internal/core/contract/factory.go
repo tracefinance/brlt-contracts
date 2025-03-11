@@ -9,8 +9,12 @@ import (
 	"vault0/internal/types"
 )
 
+type ContractFactory interface {
+	NewSmartContract(blockchain blockchain.Blockchain, wallet wallet.Wallet) (SmartContract, error)
+}
+
 // Factory creates SmartContract instances for different chains
-type Factory struct {
+type factory struct {
 	config config.Config
 }
 
@@ -19,14 +23,14 @@ func NewFactory(
 	config config.Config,
 	blockchain blockchain.Blockchain,
 	wallet wallet.Wallet,
-) *Factory {
-	return &Factory{
+) ContractFactory {
+	return &factory{
 		config: config,
 	}
 }
 
 // NewSmartContract returns a SmartContract instance for the specified chain type
-func (f *Factory) NewSmartContract(blockchain blockchain.Blockchain, wallet wallet.Wallet) (SmartContract, error) {
+func (f *factory) NewSmartContract(blockchain blockchain.Blockchain, wallet wallet.Wallet) (SmartContract, error) {
 	// Get the chain information from the blockchain and wallet
 	blockchainChain := blockchain.Chain()
 	walletChain := wallet.Chain()

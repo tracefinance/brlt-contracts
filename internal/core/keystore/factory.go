@@ -8,6 +8,11 @@ import (
 	"vault0/internal/config"
 )
 
+type KeyStoreFactory interface {
+	NewKeyStore(keyStoreType KeyStoreType) (KeyStore, error)
+	NewDefaultKeyStore() (KeyStore, error)
+}
+
 // KeyStoreType represents the type of key store to use
 type KeyStoreType string
 
@@ -19,21 +24,21 @@ const (
 )
 
 // Factory creates KeyStore instances based on the specified type
-type Factory struct {
+type factory struct {
 	cfg *config.Config
 	db  *sql.DB
 }
 
 // NewFactory creates a new KeyStore factory
-func NewFactory(cfg *config.Config, db *sql.DB) *Factory {
-	return &Factory{
+func NewFactory(cfg *config.Config, db *sql.DB) KeyStoreFactory {
+	return &factory{
 		cfg: cfg,
 		db:  db,
 	}
 }
 
 // NewKeyStore creates a new KeyStore instance of the specified type
-func (f *Factory) NewKeyStore(keyStoreType KeyStoreType) (KeyStore, error) {
+func (f *factory) NewKeyStore(keyStoreType KeyStoreType) (KeyStore, error) {
 	switch keyStoreType {
 	case KeyStoreTypeDB:
 		return NewDBKeyStore(f.db, f.cfg)
@@ -45,6 +50,6 @@ func (f *Factory) NewKeyStore(keyStoreType KeyStoreType) (KeyStore, error) {
 }
 
 // NewDefaultKeyStore creates a new KeyStore instance with the default type (DB)
-func (f *Factory) NewDefaultKeyStore() (KeyStore, error) {
+func (f *factory) NewDefaultKeyStore() (KeyStore, error) {
 	return f.NewKeyStore(KeyStoreTypeDB)
 }

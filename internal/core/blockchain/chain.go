@@ -37,42 +37,6 @@ type Chain struct {
 	KeyType     keygen.KeyType  // Type of cryptographic keys used by the blockchain
 }
 
-// NewChain creates a Chain struct for the specified blockchain type.
-// It loads configuration from the provided config object and sets up
-// all necessary parameters for interacting with the blockchain.
-//
-// Parameters:
-//   - chainType: The type of blockchain to create (e.g., Ethereum, Polygon)
-//   - config: Configuration object containing blockchain-specific settings
-//
-// Returns:
-//   - A fully initialized Chain struct if successful
-//   - Error if the chain type is unsupported or if required configuration is missing
-func NewChain(chainType types.ChainType, config *config.Config) (Chain, error) {
-	chainCfg, err := getChainConfig(chainType, config)
-	if err != nil {
-		return Chain{}, err
-	}
-
-	if chainCfg.RPCURL == "" {
-		return Chain{}, fmt.Errorf("missing RPC URL for %s: %w", chainType, ErrRPCConnectionFailed)
-	}
-
-	// Determine the key type and curve for the chain
-	keyType, curve := getChainCryptoParams(chainType)
-
-	return Chain{
-		ID:          chainCfg.ChainID,
-		Type:        chainType,
-		Name:        getChainName(chainType),
-		Symbol:      getChainSymbol(chainType),
-		RPCUrl:      chainCfg.RPCURL,
-		ExplorerUrl: chainCfg.ExplorerURL,
-		KeyType:     keyType,
-		Curve:       curve,
-	}, nil
-}
-
 // getChainConfig returns the configuration for a given chain type.
 // It extracts the appropriate blockchain configuration from the provided config object.
 //

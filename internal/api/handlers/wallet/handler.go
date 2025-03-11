@@ -31,8 +31,21 @@ func (h *Handler) CreateWallet(c *gin.Context) {
 		return
 	}
 
-	// Create the wallet
-	walletModel, err := h.walletService.CreateWallet(c.Request.Context(), req.ChainType, req.Name, req.Tags)
+	var walletModel *wallet.Wallet
+	var err error
+
+	// Get user ID from context (assuming it's set by auth middleware)
+	userID := c.GetString("user_id") // This will be empty for system wallets
+
+	// Create the wallet based on the source type
+	if req.Address != "" {
+		// Create external wallet if address is provided
+		walletModel, err = h.walletService.CreateExternalWallet(c.Request.Context(), req.ChainType, req.Address, req.Name, req.Tags, userID)
+	} else {
+		// Create internal wallet if no address is provided
+		walletModel, err = h.walletService.CreateInternalWallet(c.Request.Context(), req.ChainType, req.Name, req.Tags, userID)
+	}
+
 	if err != nil {
 		if errors.Is(err, wallet.ErrInvalidInput) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
