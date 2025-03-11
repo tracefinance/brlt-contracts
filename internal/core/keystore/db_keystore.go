@@ -21,8 +21,9 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"vault0/internal/config"
-	vcrypto "vault0/internal/core/crypto"
+	coreCrypto "vault0/internal/core/crypto"
 	"vault0/internal/core/keygen"
+	"vault0/internal/types"
 
 	"github.com/google/uuid"
 )
@@ -30,7 +31,7 @@ import (
 // DBKeyStore implements the KeyStore interface using a local database
 type DBKeyStore struct {
 	db           *sql.DB
-	encryptor    vcrypto.Encryptor
+	encryptor    coreCrypto.Encryptor
 	keyGenerator keygen.KeyGenerator
 	initialized  bool
 }
@@ -42,7 +43,7 @@ func NewDBKeyStore(db *sql.DB, cfg *config.Config) (*DBKeyStore, error) {
 	}
 
 	// Create the encryptor
-	encryptor, err := vcrypto.NewAESEncryptorFromBase64(cfg.DBEncryptionKey)
+	encryptor, err := coreCrypto.NewAESEncryptorFromBase64(cfg.DBEncryptionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -61,16 +62,16 @@ func curveByName(name string) (elliptic.Curve, error) {
 	case "P-256":
 		return elliptic.P256(), nil
 	case "secp256k1":
-		return keygen.Secp256k1Curve, nil
+		return coreCrypto.Secp256k1Curve, nil
 	default:
 		return nil, fmt.Errorf("unsupported curve: %s", name)
 	}
 }
 
 // Create creates a new key with the given name and type
-func (ks *DBKeyStore) Create(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*Key, error) {
+func (ks *DBKeyStore) Create(ctx context.Context, name string, keyType types.KeyType, curve elliptic.Curve, tags map[string]string) (*Key, error) {
 	// Validate curve for ECDSA keys
-	if keyType == keygen.KeyTypeECDSA {
+	if keyType == types.KeyTypeECDSA {
 		if curve == nil {
 			curve = elliptic.P256() // Default to P-256 if no curve is specified
 		}
@@ -142,7 +143,7 @@ func (ks *DBKeyStore) Create(ctx context.Context, name string, keyType keygen.Ke
 }
 
 // Import imports an existing key
-func (ks *DBKeyStore) Import(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
+func (ks *DBKeyStore) Import(ctx context.Context, name string, keyType types.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
 	// Convert tags to JSON
 	tagsJSON, err := json.Marshal(tags)
 	if err != nil {
@@ -157,7 +158,7 @@ func (ks *DBKeyStore) Import(ctx context.Context, name string, keyType keygen.Ke
 
 	// Get curve name if applicable
 	var curveName string
-	if keyType == keygen.KeyTypeECDSA {
+	if keyType == types.KeyTypeECDSA {
 		if curve == nil {
 			curve = elliptic.P256() // Default to P-256 if no curve is specified
 		}
@@ -235,7 +236,7 @@ func (ks *DBKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, error)
 	}
 
 	// Convert key type
-	key.Type = keygen.KeyType(keyType)
+	key.Type = types.KeyType(keyType)
 
 	// Convert curve name to curve instance
 	if curveName != "" {
@@ -297,7 +298,7 @@ func (ks *DBKeyStore) List(ctx context.Context) ([]*Key, error) {
 		}
 
 		// Convert key type
-		key.Type = keygen.KeyType(keyType)
+		key.Type = types.KeyType(keyType)
 
 		// Convert curve name to curve instance
 		if curveName != "" {
@@ -408,7 +409,7 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte, dataType
 	}
 
 	// Sign the data based on the key type
-	signature, err := ks.signData(keygen.KeyType(keyType), decryptedPrivateKey, data, dataType, curveName)
+	signature, err := ks.signData(types.KeyType(keyType), decryptedPrivateKey, data, dataType, curveName)
 	if err != nil {
 		return nil, err
 	}
@@ -417,15 +418,15 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte, dataType
 }
 
 // signData signs data using the appropriate algorithm based on the key type
-func (ks *DBKeyStore) signData(keyType keygen.KeyType, privateKeyBytes, data []byte, dataType DataType, curveName string) ([]byte, error) {
+func (ks *DBKeyStore) signData(keyType types.KeyType, privateKeyBytes, data []byte, dataType DataType, curveName string) ([]byte, error) {
 	switch keyType {
-	case keygen.KeyTypeECDSA:
+	case types.KeyTypeECDSA:
 		return ks.signWithECDSA(privateKeyBytes, data, dataType, curveName)
-	case keygen.KeyTypeRSA:
+	case types.KeyTypeRSA:
 		return ks.signWithRSA(privateKeyBytes, data, dataType)
-	case keygen.KeyTypeEd25519:
+	case types.KeyTypeEd25519:
 		return ks.signWithEd25519(privateKeyBytes, data)
-	case keygen.KeyTypeSymmetric:
+	case types.KeyTypeSymmetric:
 		// For symmetric keys, we use HMAC instead of digital signatures
 		return ks.signWithHMAC(privateKeyBytes, data)
 	default:
@@ -440,7 +441,7 @@ func (ks *DBKeyStore) signWithECDSA(privateKeyBytes, data []byte, dataType DataT
 
 	// Use specialized unmarshal for secp256k1 curve
 	if curveName == "secp256k1" {
-		privateKey, err = keygen.UnmarshalPrivateKey(privateKeyBytes)
+		privateKey, err = coreCrypto.UnmarshalPrivateKey(privateKeyBytes)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal secp256k1 private key: %w", err)
 		}

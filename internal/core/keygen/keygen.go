@@ -9,27 +9,16 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-)
 
-// KeyType represents the type of cryptographic key
-type KeyType string
-
-const (
-	// KeyTypeECDSA represents ECDSA keys
-	KeyTypeECDSA KeyType = "ecdsa"
-	// KeyTypeRSA represents RSA keys
-	KeyTypeRSA KeyType = "rsa"
-	// KeyTypeEd25519 represents Ed25519 keys
-	KeyTypeEd25519 KeyType = "ed25519"
-	// KeyTypeSymmetric represents symmetric keys
-	KeyTypeSymmetric KeyType = "symmetric"
+	"vault0/internal/core/crypto"
+	"vault0/internal/types"
 )
 
 // KeyGenerator defines an interface for generating cryptographic keys
 type KeyGenerator interface {
 	// GenerateKeyPair generates a new key pair of the specified type
 	// For ECDSA keys, an optional curve can be provided. If nil, P-256 is used.
-	GenerateKeyPair(keyType KeyType, curve elliptic.Curve) (privateKey, publicKey []byte, err error)
+	GenerateKeyPair(keyType types.KeyType, curve elliptic.Curve) (privateKey, publicKey []byte, err error)
 }
 
 // DefaultKeyGenerator implements the KeyGenerator interface
@@ -42,15 +31,15 @@ func NewKeyGenerator() *DefaultKeyGenerator {
 
 // GenerateKeyPair generates a new key pair of the specified type
 // For ECDSA keys, an optional curve can be provided. If nil, P-256 is used.
-func (kg *DefaultKeyGenerator) GenerateKeyPair(keyType KeyType, curve elliptic.Curve) (privateKey, publicKey []byte, err error) {
+func (kg *DefaultKeyGenerator) GenerateKeyPair(keyType types.KeyType, curve elliptic.Curve) (privateKey, publicKey []byte, err error) {
 	switch keyType {
-	case KeyTypeECDSA:
+	case types.KeyTypeECDSA:
 		return kg.generateECDSAKeyPair(curve)
-	case KeyTypeRSA:
+	case types.KeyTypeRSA:
 		return kg.generateRSAKeyPair()
-	case KeyTypeEd25519:
+	case types.KeyTypeEd25519:
 		return kg.generateEd25519KeyPair()
-	case KeyTypeSymmetric:
+	case types.KeyTypeSymmetric:
 		return kg.generateSymmetricKey()
 	default:
 		return nil, nil, fmt.Errorf("unsupported key type: %s", keyType)
@@ -72,15 +61,15 @@ func (kg *DefaultKeyGenerator) generateECDSAKeyPair(curve elliptic.Curve) (priva
 	}
 
 	// Special handling for SECP256K1 curve
-	if curve == Secp256k1Curve {
+	if curve == crypto.Secp256k1Curve {
 		// Use our custom marshalling for SECP256K1
-		privateKey, err = MarshalPrivateKey(privateECDSA)
+		privateKey, err = crypto.MarshalPrivateKey(privateECDSA)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to marshal SECP256K1 private key: %w", err)
 		}
 
 		// Use custom marshalling for public key too
-		publicKey, err = MarshalPublicKey(&privateECDSA.PublicKey)
+		publicKey, err = crypto.MarshalPublicKey(&privateECDSA.PublicKey)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to marshal SECP256K1 public key: %w", err)
 		}

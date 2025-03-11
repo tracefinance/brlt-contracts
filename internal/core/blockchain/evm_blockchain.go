@@ -20,11 +20,11 @@ import (
 type EVMBlockchain struct {
 	client    *ethclient.Client
 	rpcClient *rpc.Client
-	chain     Chain
+	chain     types.Chain
 }
 
 // NewEVMBlockchain creates a new EVM blockchain client
-func NewEVMBlockchain(chain Chain) (*EVMBlockchain, error) {
+func NewEVMBlockchain(chain types.Chain) (*EVMBlockchain, error) {
 	if chain.RPCUrl == "" {
 		return nil, fmt.Errorf("RPC URL is required for %s", chain.Name)
 	}
@@ -472,6 +472,6 @@ func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethtypes.Tra
 }
 
 // Chain implements Blockchain.Chain
-func (c *EVMBlockchain) Chain() Chain {
+func (c *EVMBlockchain) Chain() types.Chain {
 	return c.chain
 }

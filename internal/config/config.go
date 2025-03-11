@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"vault0/internal/types"
 
 	"github.com/joho/godotenv"
 )
@@ -17,7 +16,7 @@ type BlockchainConfig struct {
 	// ChainID is the chain ID for the blockchain
 	ChainID int64
 	// DefaultGasPrice is the default gas price for transactions in Gwei
-	DefaultGasPrice int64
+	DefaultGasPrice uint64
 	// DefaultGasLimit is the default gas limit for transactions
 	DefaultGasLimit uint64
 	// ExplorerURL is the block explorer URL for the blockchain
@@ -130,7 +129,7 @@ func loadEthereumConfig() BlockchainConfig {
 	return BlockchainConfig{
 		RPCURL:          rpcURL,
 		ChainID:         parseEnvInt("ETHEREUM_CHAIN_ID", 1),
-		DefaultGasPrice: parseEnvInt("ETHEREUM_GAS_PRICE", 20), // Gwei
+		DefaultGasPrice: parseEnvUint("ETHEREUM_GAS_PRICE", 20), // Gwei
 		DefaultGasLimit: parseEnvUint("ETHEREUM_GAS_LIMIT", 21000),
 		ExplorerURL:     getEnv("ETHEREUM_EXPLORER_URL", "https://etherscan.io"),
 	}
@@ -146,7 +145,7 @@ func loadPolygonConfig() BlockchainConfig {
 	return BlockchainConfig{
 		RPCURL:          rpcURL,
 		ChainID:         parseEnvInt("POLYGON_CHAIN_ID", 137),
-		DefaultGasPrice: parseEnvInt("POLYGON_GAS_PRICE", 30), // Gwei
+		DefaultGasPrice: parseEnvUint("POLYGON_GAS_PRICE", 30), // Gwei
 		DefaultGasLimit: parseEnvUint("POLYGON_GAS_LIMIT", 21000),
 		ExplorerURL:     getEnv("POLYGON_EXPLORER_URL", "https://polygonscan.com"),
 	}
@@ -162,7 +161,7 @@ func loadBaseConfig() BlockchainConfig {
 	return BlockchainConfig{
 		RPCURL:          rpcURL,
 		ChainID:         parseEnvInt("BASE_CHAIN_ID", 8453),
-		DefaultGasPrice: parseEnvInt("BASE_GAS_PRICE", 10), // Gwei
+		DefaultGasPrice: parseEnvUint("BASE_GAS_PRICE", 10), // Gwei
 		DefaultGasLimit: parseEnvUint("BASE_GAS_LIMIT", 21000),
 		ExplorerURL:     getEnv("BASE_EXPLORER_URL", "https://basescan.org"),
 	}
@@ -196,20 +195,6 @@ func parseEnvUint(key string, defaultValue uint64) uint64 {
 	}
 
 	return value
-}
-
-// GetBlockchainConfig returns the blockchain configuration for the specified chain type
-func (c *Config) GetBlockchainConfig(chainType string) *BlockchainConfig {
-	switch chainType {
-	case string(types.ChainTypeEthereum):
-		return &c.Blockchains.Ethereum
-	case string(types.ChainTypePolygon):
-		return &c.Blockchains.Polygon
-	case string(types.ChainTypeBase):
-		return &c.Blockchains.Base
-	default:
-		return nil
-	}
 }
 
 // GetSmartContractsPath returns the path to the compiled smart contract artifacts

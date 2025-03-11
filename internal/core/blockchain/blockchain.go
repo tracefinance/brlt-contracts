@@ -162,7 +162,7 @@ type Blockchain interface {
 	//
 	// Returns:
 	//   - Chain information object
-	Chain() Chain
+	Chain() types.Chain
 
 	// Close closes any open connections.
 	// This should be called when the blockchain client is no longer needed.

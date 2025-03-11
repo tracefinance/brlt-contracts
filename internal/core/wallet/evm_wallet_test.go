@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/asn1"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -13,9 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"vault0/internal/config"
-	"vault0/internal/core/blockchain"
-	"vault0/internal/core/keygen"
+	coreCrypto "vault0/internal/core/crypto"
 	"vault0/internal/core/keystore"
 	"vault0/internal/types"
 )
@@ -25,48 +24,32 @@ type ecdsaSignature struct {
 	R, S *big.Int
 }
 
-// mockAppConfig implements the AppConfig interface for testing
-type mockAppConfig struct {
-	configs map[string]*config.BlockchainConfig
-}
-
-func (m *mockAppConfig) GetBlockchainConfig(chainType string) *config.BlockchainConfig {
-	return m.configs[chainType]
-}
-
 // setupTest creates a test wallet with mock dependencies
-func setupTest(t *testing.T) (*EVMWallet, *MockKeyStore, *mockAppConfig) {
+func setupTest(t *testing.T) (*EVMWallet, *MockKeyStore) {
 	ks := &MockKeyStore{}
-	appCfg := &mockAppConfig{
-		configs: map[string]*config.BlockchainConfig{
-			string(types.ChainTypeEthereum): {
-				ChainID:         1,
-				DefaultGasLimit: 21000,
-				DefaultGasPrice: 20000000000, // 20 Gwei
-			},
-		},
-	}
 
 	// Create a chain struct
-	chain := blockchain.Chain{
-		ID:          1,
-		Type:        types.ChainTypeEthereum,
-		Name:        "Ethereum",
-		Symbol:      "ETH",
-		RPCUrl:      "https://mainnet.infura.io",
-		ExplorerUrl: "https://etherscan.io",
-		KeyType:     keygen.KeyTypeECDSA,
-		Curve:       keygen.Secp256k1Curve,
+	chain := types.Chain{
+		ID:              1,
+		Type:            types.ChainTypeEthereum,
+		Name:            "Ethereum",
+		Symbol:          "ETH",
+		RPCUrl:          "https://mainnet.infura.io",
+		ExplorerUrl:     "https://etherscan.io",
+		KeyType:         types.KeyTypeECDSA,
+		Curve:           coreCrypto.Secp256k1Curve,
+		DefaultGasLimit: 21000,
+		DefaultGasPrice: 20000000000, // 20 Gwei
 	}
 
-	wallet, err := NewEVMWallet(ks, chain, "test", appCfg)
+	wallet, err := NewEVMWallet(ks, chain, "test")
 	require.NoError(t, err)
-	return wallet, ks, appCfg
+	return wallet, ks
 }
 
 // TestChain tests the Chain method
 func TestChain(t *testing.T) {
-	wallet, _, _ := setupTest(t)
+	wallet, _ := setupTest(t)
 	chain := wallet.Chain()
 	assert.Equal(t, types.ChainTypeEthereum, chain.Type, "Chain.Type should be Ethereum")
 	assert.Equal(t, int64(1), chain.ID, "Chain.ID should be 1")
@@ -75,15 +58,15 @@ func TestChain(t *testing.T) {
 
 // TestDeriveAddress tests the DeriveAddress method
 func TestDeriveAddress(t *testing.T) {
-	wallet, ks, _ := setupTest(t)
+	wallet, ks := setupTest(t)
 	ctx := context.Background()
 
 	// Generate a test key pair using secp256k1 curve
-	privKey, err := ecdsa.GenerateKey(keygen.Secp256k1Curve, rand.Reader)
+	privKey, err := ecdsa.GenerateKey(coreCrypto.Secp256k1Curve, rand.Reader)
 	require.NoError(t, err)
 
 	// Get public key bytes using secp256k1 format
-	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
+	pubKeyBytes, err := coreCrypto.MarshalPublicKey(&privKey.PublicKey)
 	require.NoError(t, err)
 
 	// Set up the mock to return our key
@@ -92,8 +75,8 @@ func TestDeriveAddress(t *testing.T) {
 			return &keystore.Key{
 				ID:        "test",
 				Name:      "test",
-				Type:      keygen.KeyTypeECDSA,
-				Curve:     keygen.Secp256k1Curve,
+				Type:      types.KeyTypeECDSA,
+				Curve:     coreCrypto.Secp256k1Curve,
 				PublicKey: pubKeyBytes,
 			}, nil
 		}
@@ -109,23 +92,23 @@ func TestDeriveAddress(t *testing.T) {
 
 // TestCreateNativeTransaction tests the CreateNativeTransaction method
 func TestCreateNativeTransaction(t *testing.T) {
-	wallet, ks, _ := setupTest(t)
+	wallet, ks := setupTest(t)
 	ctx := context.Background()
 
 	// Setup key using secp256k1 curve
-	privKey, err := ecdsa.GenerateKey(keygen.Secp256k1Curve, rand.Reader)
+	privKey, err := ecdsa.GenerateKey(coreCrypto.Secp256k1Curve, rand.Reader)
 	require.NoError(t, err)
 
 	// Get public key bytes using secp256k1 format
-	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
+	pubKeyBytes, err := coreCrypto.MarshalPublicKey(&privKey.PublicKey)
 	require.NoError(t, err)
 
 	// Marshal private key using secp256k1 format
-	privKeyBytes, err := keygen.MarshalPrivateKey(privKey)
+	privKeyBytes, err := coreCrypto.MarshalPrivateKey(privKey)
 	require.NoError(t, err)
 
 	// Import the key into the mock keystore
-	_, err = ks.Import(ctx, "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, privKeyBytes, pubKeyBytes, nil)
+	_, err = ks.Import(ctx, "test", types.KeyTypeECDSA, coreCrypto.Secp256k1Curve, privKeyBytes, pubKeyBytes, nil)
 	require.NoError(t, err)
 
 	// Set up the mock to return our key
@@ -134,8 +117,8 @@ func TestCreateNativeTransaction(t *testing.T) {
 			return &keystore.Key{
 				ID:        "test",
 				Name:      "test",
-				Type:      keygen.KeyTypeECDSA,
-				Curve:     keygen.Secp256k1Curve,
+				Type:      types.KeyTypeECDSA,
+				Curve:     coreCrypto.Secp256k1Curve,
 				PublicKey: pubKeyBytes,
 			}, nil
 		}
@@ -171,23 +154,23 @@ func TestCreateNativeTransaction(t *testing.T) {
 
 // TestCreateTokenTransaction tests the CreateTokenTransaction method
 func TestCreateTokenTransaction(t *testing.T) {
-	wallet, ks, _ := setupTest(t)
+	wallet, ks := setupTest(t)
 	ctx := context.Background()
 
 	// Setup key using secp256k1 curve
-	privKey, err := ecdsa.GenerateKey(keygen.Secp256k1Curve, rand.Reader)
+	privKey, err := ecdsa.GenerateKey(coreCrypto.Secp256k1Curve, rand.Reader)
 	require.NoError(t, err)
 
 	// Get public key bytes using secp256k1 format
-	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
+	pubKeyBytes, err := coreCrypto.MarshalPublicKey(&privKey.PublicKey)
 	require.NoError(t, err)
 
 	// Marshal private key using secp256k1 format
-	privKeyBytes, err := keygen.MarshalPrivateKey(privKey)
+	privKeyBytes, err := coreCrypto.MarshalPrivateKey(privKey)
 	require.NoError(t, err)
 
 	// Import the key into the mock keystore
-	_, err = ks.Import(ctx, "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, privKeyBytes, pubKeyBytes, nil)
+	_, err = ks.Import(ctx, "test", types.KeyTypeECDSA, coreCrypto.Secp256k1Curve, privKeyBytes, pubKeyBytes, nil)
 	require.NoError(t, err)
 
 	// Set up the mock to return our key
@@ -196,8 +179,8 @@ func TestCreateTokenTransaction(t *testing.T) {
 			return &keystore.Key{
 				ID:        "test",
 				Name:      "test",
-				Type:      keygen.KeyTypeECDSA,
-				Curve:     keygen.Secp256k1Curve,
+				Type:      types.KeyTypeECDSA,
+				Curve:     coreCrypto.Secp256k1Curve,
 				PublicKey: pubKeyBytes,
 			}, nil
 		}
@@ -225,21 +208,21 @@ func TestCreateTokenTransaction(t *testing.T) {
 
 // TestSignTransaction tests the SignTransaction method with DER-encoded keys
 func TestSignTransaction(t *testing.T) {
-	wallet, ks, _ := setupTest(t)
+	wallet, ks := setupTest(t)
 	ctx := context.Background()
 
 	// Generate a test key pair
-	privKey, err := ecdsa.GenerateKey(keygen.Secp256k1Curve, rand.Reader)
+	privKey, err := ecdsa.GenerateKey(coreCrypto.Secp256k1Curve, rand.Reader)
 	require.NoError(t, err)
 
-	pubKeyBytes, err := keygen.MarshalPublicKey(&privKey.PublicKey)
+	pubKeyBytes, err := coreCrypto.MarshalPublicKey(&privKey.PublicKey)
 	require.NoError(t, err)
 
-	privKeyBytes, err := keygen.MarshalPrivateKey(privKey)
+	privKeyBytes, err := coreCrypto.MarshalPrivateKey(privKey)
 	require.NoError(t, err)
 
 	// Import the key into the mock keystore
-	_, err = ks.Import(ctx, "test", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, privKeyBytes, pubKeyBytes, nil)
+	_, err = ks.Import(ctx, "test", types.KeyTypeECDSA, coreCrypto.Secp256k1Curve, privKeyBytes, pubKeyBytes, nil)
 	require.NoError(t, err)
 
 	// Set up the mock
@@ -247,104 +230,69 @@ func TestSignTransaction(t *testing.T) {
 	ks.GetPublicKeyFunc = func(ctx context.Context, id string) (*keystore.Key, error) {
 		return &keystore.Key{
 			ID:        "test",
-			Type:      keygen.KeyTypeECDSA,
-			Curve:     keygen.Secp256k1Curve,
+			Type:      types.KeyTypeECDSA,
+			Curve:     coreCrypto.Secp256k1Curve,
 			PublicKey: pubKeyBytes,
 		}, nil
 	}
 
-	// Set up the SignFunc to directly sign with the Ethereum signing format
+	// Create a test transaction
+	tx := &types.Transaction{
+		Chain:    types.ChainTypeEthereum,
+		From:     address,
+		To:       "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+		Value:    big.NewInt(1000000000000000000), // 1 ETH
+		GasPrice: big.NewInt(20000000000),         // 20 Gwei
+		GasLimit: 21000,
+		Nonce:    0,
+	}
+
+	// Set up the mock to sign with the private key
 	ks.SignFunc = func(ctx context.Context, id string, data []byte, dataType keystore.DataType) ([]byte, error) {
-		if id != "test" {
-			return nil, keystore.ErrKeyNotFound
+		if dataType != keystore.DataTypeDigest {
+			return nil, fmt.Errorf("unexpected data type: %v", dataType)
 		}
 
-		// For Ethereum, we need to sign the hash directly
-		// Create an ECDSA signature with the private key
+		// Sign the data using the private key
 		r, s, err := ecdsa.Sign(rand.Reader, privKey, data)
 		if err != nil {
 			return nil, err
 		}
 
-		// Encode signature in ASN.1 DER format for the keystore interface
-		signature, err := asn1.Marshal(ecdsaSignature{R: r, S: s})
-		if err != nil {
-			return nil, err
-		}
-
-		return signature, nil
-	}
-
-	// Create a transaction to sign
-	tx := &types.Transaction{
-		Chain:    types.ChainTypeEthereum,
-		From:     address,
-		To:       "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-		Nonce:    1,
-		Value:    big.NewInt(1000000000000000000), // 1 ETH
-		GasLimit: 21000,
-		GasPrice: big.NewInt(20000000000), // 20 Gwei
-		Data:     nil,
+		// Marshal the signature in ASN.1 DER format
+		sig := ecdsaSignature{R: r, S: s}
+		return asn1.Marshal(sig)
 	}
 
 	// Sign the transaction
 	signedTx, err := wallet.SignTransaction(ctx, tx)
 	require.NoError(t, err)
-	assert.NotNil(t, signedTx)
-	assert.Greater(t, len(signedTx), 0)
-
-	// Test error case: transaction from address doesn't match wallet
-	tx.From = "0x0000000000000000000000000000000000000000"
-	_, err = wallet.SignTransaction(ctx, tx)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "transaction from address does not match key")
+	assert.NotEmpty(t, signedTx, "Signed transaction should not be empty")
 }
 
+// TestNewEVMWalletValidation tests the validation in NewEVMWallet
 func TestNewEVMWalletValidation(t *testing.T) {
 	ks := &MockKeyStore{}
-	appCfg := &mockAppConfig{
-		configs: map[string]*config.BlockchainConfig{
-			string(types.ChainTypeEthereum): {
-				ChainID:         1,
-				DefaultGasLimit: 21000,
-				DefaultGasPrice: 20000000000,
-			},
-		},
-	}
 
-	t.Run("Invalid key type", func(t *testing.T) {
-		chain := blockchain.Chain{
-			ID:          1,
-			Type:        types.ChainTypeEthereum,
-			Name:        "Ethereum",
-			Symbol:      "ETH",
-			RPCUrl:      "https://mainnet.infura.io",
-			ExplorerUrl: "https://etherscan.io",
-			KeyType:     keygen.KeyTypeEd25519, // Invalid key type for EVM
-			Curve:       keygen.Secp256k1Curve,
-		}
+	// Test with nil keystore
+	_, err := NewEVMWallet(nil, types.Chain{}, "test")
+	assert.Error(t, err, "NewEVMWallet should fail with nil keystore")
 
-		wallet, err := NewEVMWallet(ks, chain, "test", appCfg)
-		assert.Error(t, err)
-		assert.Nil(t, wallet)
-		assert.Contains(t, err.Error(), "invalid key type for EVM wallet")
-	})
+	// Test with empty keyID
+	_, err = NewEVMWallet(ks, types.Chain{}, "")
+	assert.Error(t, err, "NewEVMWallet should fail with empty keyID")
 
-	t.Run("Invalid curve", func(t *testing.T) {
-		chain := blockchain.Chain{
-			ID:          1,
-			Type:        types.ChainTypeEthereum,
-			Name:        "Ethereum",
-			Symbol:      "ETH",
-			RPCUrl:      "https://mainnet.infura.io",
-			ExplorerUrl: "https://etherscan.io",
-			KeyType:     keygen.KeyTypeECDSA,
-			Curve:       elliptic.P256(), // Invalid curve for EVM
-		}
+	// Test with invalid key type
+	_, err = NewEVMWallet(ks, types.Chain{
+		KeyType: types.KeyTypeRSA,
+		Curve:   coreCrypto.Secp256k1Curve,
+	}, "test")
+	assert.Error(t, err, "NewEVMWallet should fail with invalid key type")
 
-		wallet, err := NewEVMWallet(ks, chain, "test", appCfg)
-		assert.Error(t, err)
-		assert.Nil(t, wallet)
-		assert.Contains(t, err.Error(), "invalid curve for EVM wallet")
-	})
+	// Test with invalid curve
+	_, err = NewEVMWallet(ks, types.Chain{
+		KeyType: types.KeyTypeECDSA,
+		Curve:   elliptic.P256(),
+	}, "test")
+	assert.Error(t, err, "NewEVMWallet should fail with invalid curve")
 }

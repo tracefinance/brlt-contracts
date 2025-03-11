@@ -16,40 +16,34 @@ import (
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/wallet"
-	vtypes "vault0/internal/types"
+	coreTypes "vault0/internal/types"
 )
-
-// AppConfig is the interface for application configuration
-type AppConfig interface {
-	GetBlockchainConfig(chainType string) *config.BlockchainConfig
-	GetSmartContractsPath() string
-}
 
 // EVMSmartContract implements the SmartContract interface for EVM compatible chains
 type EVMSmartContract struct {
 	// chainType is the type of blockchain
-	chainType vtypes.ChainType
+	chainType coreTypes.ChainType
 	// blockchain is the blockchain client
 	blockchain blockchain.Blockchain
 	// wallet is the wallet client
 	wallet wallet.Wallet
 	// config is the app configuration
-	config AppConfig
+	config config.Config
 }
 
 // NewEVMSmartContract creates a new EVM contract manager
 func NewEVMSmartContract(
 	blockchain blockchain.Blockchain,
 	wallet wallet.Wallet,
-	config AppConfig,
+	config config.Config,
 ) (*EVMSmartContract, error) {
 	// Get chain information from wallet
 	chain := wallet.Chain()
 
 	// Validate chain type
-	if chain.Type != vtypes.ChainTypeEthereum &&
-		chain.Type != vtypes.ChainTypePolygon &&
-		chain.Type != vtypes.ChainTypeBase {
+	if chain.Type != coreTypes.ChainTypeEthereum &&
+		chain.Type != coreTypes.ChainTypePolygon &&
+		chain.Type != coreTypes.ChainTypeBase {
 		return nil, fmt.Errorf("unsupported chain type: %s", chain.Type)
 	}
 
@@ -62,7 +56,7 @@ func NewEVMSmartContract(
 }
 
 // ChainType returns the blockchain type
-func (c *EVMSmartContract) ChainType() vtypes.ChainType {
+func (c *EVMSmartContract) ChainType() coreTypes.ChainType {
 	return c.wallet.Chain().Type
 }
 
@@ -205,7 +199,7 @@ func (c *EVMSmartContract) Deploy(
 	deployData := append(artifact.Bytecode, constructorInput...)
 
 	// Prepare transaction options
-	txOptions := vtypes.TransactionOptions{
+	txOptions := coreTypes.TransactionOptions{
 		GasPrice: options.GasPrice,
 		GasLimit: options.GasLimit,
 		Data:     deployData,
@@ -219,7 +213,7 @@ func (c *EVMSmartContract) Deploy(
 	// Create transaction - using a zero address as "to" for contract creation
 	tx, err := c.wallet.CreateNativeTransaction(
 		ctx,
-		vtypes.ZeroAddress, // Use zero address for contract deployment
+		coreTypes.ZeroAddress, // Use zero address for contract deployment
 		options.Value,
 		txOptions,
 	)
@@ -350,7 +344,7 @@ func (c *EVMSmartContract) ExecuteMethod(
 	contractAddress string,
 	artifact *Artifact,
 	method string,
-	options vtypes.TransactionOptions,
+	options coreTypes.TransactionOptions,
 	args ...any,
 ) (string, error) {
 	// Parse the ABI

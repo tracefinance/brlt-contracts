@@ -45,7 +45,7 @@ func (f *factory) NewSmartContract(blockchain blockchain.Blockchain, wallet wall
 	switch blockchainChain.Type {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
 		// These are all EVM-compatible chains, so use EVMSmartContract
-		return NewEVMSmartContract(blockchain, wallet, &f.config)
+		return NewEVMSmartContract(blockchain, wallet, f.config)
 	default:
 		return nil, fmt.Errorf("unsupported chain type: %s: %w", blockchainChain.Type, types.ErrUnsupportedChain)
 	}

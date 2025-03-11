@@ -13,8 +13,7 @@ import (
 
 	"crypto/elliptic"
 	"vault0/internal/config"
-	"vault0/internal/core/blockchain"
-	"vault0/internal/core/keygen"
+	"vault0/internal/core/crypto"
 	"vault0/internal/core/keystore"
 	coreWallet "vault0/internal/core/wallet"
 	"vault0/internal/types"
@@ -74,9 +73,9 @@ type MockWallet struct {
 	mock.Mock
 }
 
-func (m *MockWallet) Chain() blockchain.Chain {
+func (m *MockWallet) Chain() types.Chain {
 	args := m.Called()
-	return args.Get(0).(blockchain.Chain)
+	return args.Get(0).(types.Chain)
 }
 
 func (m *MockWallet) Create(ctx context.Context, name string, tags map[string]string) (*coreWallet.WalletInfo, error) {
@@ -118,7 +117,7 @@ type MockKeyStore struct {
 	mock.Mock
 }
 
-func (m *MockKeyStore) Create(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
+func (m *MockKeyStore) Create(ctx context.Context, name string, keyType types.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
 	args := m.Called(ctx, name, keyType, curve, tags)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -126,7 +125,7 @@ func (m *MockKeyStore) Create(ctx context.Context, name string, keyType keygen.K
 	return args.Get(0).(*keystore.Key), args.Error(1)
 }
 
-func (m *MockKeyStore) Import(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*keystore.Key, error) {
+func (m *MockKeyStore) Import(ctx context.Context, name string, keyType types.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*keystore.Key, error) {
 	args := m.Called(ctx, name, keyType, curve, privateKey, publicKey, tags)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -170,9 +169,9 @@ type MockBlockchainFactory struct {
 	mock.Mock
 }
 
-func (m *MockBlockchainFactory) NewChain(chainType types.ChainType) (blockchain.Chain, error) {
+func (m *MockBlockchainFactory) NewChain(chainType types.ChainType) (types.Chain, error) {
 	args := m.Called(chainType)
-	return args.Get(0).(blockchain.Chain), args.Error(1)
+	return args.Get(0).(types.Chain), args.Error(1)
 }
 
 // createTestConfig creates a test configuration with supported blockchains
@@ -231,20 +230,20 @@ func TestCreateWallet(t *testing.T) {
 	// Test successful wallet creation
 	t.Run("success", func(t *testing.T) {
 		// Mock chain factory to return a chain
-		mockChain := blockchain.Chain{
+		mockChain := types.Chain{
 			Type:    types.ChainTypeBase,
-			KeyType: keygen.KeyTypeECDSA,
-			Curve:   keygen.Secp256k1Curve,
+			KeyType: types.KeyTypeECDSA,
+			Curve:   crypto.Secp256k1Curve,
 		}
 		mockChainFactory.On("NewChain", types.ChainTypeBase).Return(mockChain, nil).Once()
 
 		// Mock keystore.Create to return a key
 		expectedKeyID := "key123"
-		mockKeyStore.On("Create", ctx, "Test Wallet", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, map[string]string{"tag1": "value1"}).
+		mockKeyStore.On("Create", ctx, "Test Wallet", types.KeyTypeECDSA, crypto.Secp256k1Curve, map[string]string{"tag1": "value1"}).
 			Return(&keystore.Key{
 				ID:   expectedKeyID,
 				Name: "Test Wallet",
-				Type: keygen.KeyTypeECDSA,
+				Type: types.KeyTypeECDSA,
 				Tags: map[string]string{"tag1": "value1"},
 			}, nil).Once()
 
@@ -288,14 +287,14 @@ func TestCreateWallet(t *testing.T) {
 	// Test with key creation error
 	t.Run("key_creation_error", func(t *testing.T) {
 		// Mock chain factory to return a chain
-		mockChain := blockchain.Chain{
+		mockChain := types.Chain{
 			Type:    types.ChainTypeBase,
-			KeyType: keygen.KeyTypeECDSA,
-			Curve:   keygen.Secp256k1Curve,
+			KeyType: types.KeyTypeECDSA,
+			Curve:   crypto.Secp256k1Curve,
 		}
 		mockChainFactory.On("NewChain", types.ChainTypeBase).Return(mockChain, nil).Once()
 
-		mockKeyStore.On("Create", ctx, "Test Wallet", keygen.KeyTypeECDSA, keygen.Secp256k1Curve, map[string]string{}).
+		mockKeyStore.On("Create", ctx, "Test Wallet", types.KeyTypeECDSA, crypto.Secp256k1Curve, map[string]string{}).
 			Return(nil, errors.New("key creation failed")).Once()
 
 		wallet, err := service.CreateInternalWallet(ctx, types.ChainTypeBase, "Test Wallet", map[string]string{}, "")

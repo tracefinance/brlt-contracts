@@ -6,8 +6,6 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
-	"vault0/internal/config"
-	"vault0/internal/core/blockchain"
 	"vault0/internal/types"
 )
 
@@ -16,9 +14,9 @@ type MockWallet struct {
 	mock.Mock
 }
 
-func (m *MockWallet) Chain() blockchain.Chain {
+func (m *MockWallet) Chain() types.Chain {
 	args := m.Called()
-	return args.Get(0).(blockchain.Chain)
+	return args.Get(0).(types.Chain)
 }
 
 func (m *MockWallet) DeriveAddress(ctx context.Context, keyID string) (string, error) {
@@ -39,32 +37,4 @@ func (m *MockWallet) CreateTokenTransaction(ctx context.Context, keyID string, t
 func (m *MockWallet) SignTransaction(ctx context.Context, keyID string, tx *types.Transaction) ([]byte, error) {
 	args := m.Called(ctx, keyID, tx)
 	return args.Get(0).([]byte), args.Error(1)
-}
-
-func createTestConfig() *config.Config {
-	return &config.Config{
-		Blockchains: config.BlockchainsConfig{
-			Ethereum: config.BlockchainConfig{
-				RPCURL:          "https://mainnet.infura.io/v3/your-api-key",
-				ChainID:         1,
-				DefaultGasPrice: 20,
-				DefaultGasLimit: 21000,
-				ExplorerURL:     "https://etherscan.io",
-			},
-			Polygon: config.BlockchainConfig{
-				RPCURL:          "https://polygon-mainnet.infura.io/v3/your-api-key",
-				ChainID:         137,
-				DefaultGasPrice: 30,
-				DefaultGasLimit: 21000,
-				ExplorerURL:     "https://polygonscan.com",
-			},
-			Base: config.BlockchainConfig{
-				RPCURL:          "https://mainnet.base.org",
-				ChainID:         8453,
-				DefaultGasPrice: 10,
-				DefaultGasLimit: 21000,
-				ExplorerURL:     "https://basescan.org",
-			},
-		},
-	}
 }

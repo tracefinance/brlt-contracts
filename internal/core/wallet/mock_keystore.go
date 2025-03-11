@@ -4,18 +4,18 @@ import (
 	"context"
 	"crypto/elliptic"
 
-	"vault0/internal/core/keygen"
 	"vault0/internal/core/keystore"
+	"vault0/internal/types"
 )
 
 // MockKeyStore is a mock implementation of the keystore.KeyStore interface for testing
 type MockKeyStore struct {
 	GetPublicKeyFunc func(ctx context.Context, id string) (*keystore.Key, error)
 	SignFunc         func(ctx context.Context, id string, data []byte, dataType keystore.DataType) ([]byte, error)
-	CreateFunc       func(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error)
+	CreateFunc       func(ctx context.Context, name string, keyType types.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error)
 }
 
-func (m *MockKeyStore) Create(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
+func (m *MockKeyStore) Create(ctx context.Context, name string, keyType types.KeyType, curve elliptic.Curve, tags map[string]string) (*keystore.Key, error) {
 	if m.CreateFunc != nil {
 		return m.CreateFunc(ctx, name, keyType, curve, tags)
 	}
@@ -32,7 +32,7 @@ func (m *MockKeyStore) Create(ctx context.Context, name string, keyType keygen.K
 	}, nil
 }
 
-func (m *MockKeyStore) Import(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*keystore.Key, error) {
+func (m *MockKeyStore) Import(ctx context.Context, name string, keyType types.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*keystore.Key, error) {
 	// Generate a mock ID
 	id := "mock-key-id"
 

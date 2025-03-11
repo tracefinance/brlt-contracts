@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"vault0/internal/types"
 )
 
 func TestNewKeyGenerator(t *testing.T) {
@@ -32,7 +34,7 @@ func TestGenerateKeyPair_ECDSA(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			privKey, pubKey, err := kg.GenerateKeyPair(KeyTypeECDSA, tt.curve)
+			privKey, pubKey, err := kg.GenerateKeyPair(types.KeyTypeECDSA, tt.curve)
 			require.NoError(t, err)
 			require.NotNil(t, privKey)
 			require.NotNil(t, pubKey)
@@ -58,7 +60,7 @@ func TestGenerateKeyPair_ECDSA(t *testing.T) {
 func TestGenerateKeyPair_RSA(t *testing.T) {
 	kg := NewKeyGenerator()
 
-	privKey, pubKey, err := kg.GenerateKeyPair(KeyTypeRSA, nil)
+	privKey, pubKey, err := kg.GenerateKeyPair(types.KeyTypeRSA, nil)
 	require.NoError(t, err)
 	require.NotNil(t, privKey)
 	require.NotNil(t, pubKey)
@@ -83,7 +85,7 @@ func TestGenerateKeyPair_RSA(t *testing.T) {
 func TestGenerateKeyPair_Ed25519(t *testing.T) {
 	kg := NewKeyGenerator()
 
-	privKey, pubKey, err := kg.GenerateKeyPair(KeyTypeEd25519, nil)
+	privKey, pubKey, err := kg.GenerateKeyPair(types.KeyTypeEd25519, nil)
 	require.NoError(t, err)
 	require.NotNil(t, privKey)
 	require.NotNil(t, pubKey)
@@ -109,7 +111,7 @@ func TestGenerateKeyPair_Ed25519(t *testing.T) {
 func TestGenerateKeyPair_Symmetric(t *testing.T) {
 	kg := NewKeyGenerator()
 
-	privKey, pubKey, err := kg.GenerateKeyPair(KeyTypeSymmetric, nil)
+	privKey, pubKey, err := kg.GenerateKeyPair(types.KeyTypeSymmetric, nil)
 	require.NoError(t, err)
 	require.NotNil(t, privKey)
 	require.Nil(t, pubKey) // Symmetric keys don't have a public key
@@ -133,14 +135,14 @@ func TestDefaultKeyGenerator_GenerateKeyPair(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		keyType   KeyType
+		keyType   types.KeyType
 		curve     elliptic.Curve
 		wantErr   bool
 		validator func(t *testing.T, privKey, pubKey []byte)
 	}{
 		{
 			name:    "ECDSA with P256 curve",
-			keyType: KeyTypeECDSA,
+			keyType: types.KeyTypeECDSA,
 			curve:   elliptic.P256(),
 			validator: func(t *testing.T, privKey, pubKey []byte) {
 				// Parse private key
@@ -158,7 +160,7 @@ func TestDefaultKeyGenerator_GenerateKeyPair(t *testing.T) {
 		},
 		{
 			name:    "ECDSA with P384 curve",
-			keyType: KeyTypeECDSA,
+			keyType: types.KeyTypeECDSA,
 			curve:   elliptic.P384(),
 			validator: func(t *testing.T, privKey, pubKey []byte) {
 				// Parse private key
@@ -176,7 +178,7 @@ func TestDefaultKeyGenerator_GenerateKeyPair(t *testing.T) {
 		},
 		{
 			name:    "RSA key pair",
-			keyType: KeyTypeRSA,
+			keyType: types.KeyTypeRSA,
 			validator: func(t *testing.T, privKey, pubKey []byte) {
 				// Parse private key
 				privateKey, err := x509.ParsePKCS1PrivateKey(privKey)
@@ -193,7 +195,7 @@ func TestDefaultKeyGenerator_GenerateKeyPair(t *testing.T) {
 		},
 		{
 			name:    "Ed25519 key pair",
-			keyType: KeyTypeEd25519,
+			keyType: types.KeyTypeEd25519,
 			validator: func(t *testing.T, privKey, pubKey []byte) {
 				// Parse private key
 				privateKeyIface, err := x509.ParsePKCS8PrivateKey(privKey)
@@ -210,7 +212,7 @@ func TestDefaultKeyGenerator_GenerateKeyPair(t *testing.T) {
 		},
 		{
 			name:    "Symmetric key",
-			keyType: KeyTypeSymmetric,
+			keyType: types.KeyTypeSymmetric,
 			validator: func(t *testing.T, privKey, pubKey []byte) {
 				assert.Len(t, privKey, 32) // Check symmetric key length is 32 bytes (256 bits)
 				assert.Nil(t, pubKey)      // Symmetric keys don't have a public key
@@ -245,7 +247,7 @@ func TestDefaultKeyGenerator_GenerateKeyPair_MultipleCallsConsistency(t *testing
 	kg := NewKeyGenerator()
 
 	// Test that multiple calls with the same parameters generate different keys
-	keyTypes := []KeyType{KeyTypeECDSA, KeyTypeRSA, KeyTypeEd25519, KeyTypeSymmetric}
+	keyTypes := []types.KeyType{types.KeyTypeECDSA, types.KeyTypeRSA, types.KeyTypeEd25519, types.KeyTypeSymmetric}
 
 	for _, keyType := range keyTypes {
 		t.Run(string(keyType), func(t *testing.T) {
@@ -259,7 +261,7 @@ func TestDefaultKeyGenerator_GenerateKeyPair_MultipleCallsConsistency(t *testing
 
 			// Keys should be different
 			assert.NotEqual(t, priv1, priv2, "private keys should be different")
-			if keyType != KeyTypeSymmetric {
+			if keyType != types.KeyTypeSymmetric {
 				assert.NotEqual(t, pub1, pub2, "public keys should be different")
 			}
 		})

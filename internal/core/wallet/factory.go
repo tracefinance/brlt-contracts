@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"vault0/internal/config"
-	"vault0/internal/core/blockchain"
 	"vault0/internal/core/keystore"
 	"vault0/internal/types"
 )
@@ -18,7 +17,7 @@ type WalletFactory interface {
 type factory struct {
 	keyStore     keystore.KeyStore
 	appConfig    *config.Config
-	chainFactory blockchain.ChainFactory
+	chainFactory types.ChainFactory
 }
 
 // NewFactory creates a new wallet factory.
@@ -26,7 +25,7 @@ func NewFactory(keyStore keystore.KeyStore, appConfig *config.Config) WalletFact
 	if appConfig == nil {
 		panic("appConfig must not be nil")
 	}
-	chainFactory := blockchain.NewChainFactory(appConfig)
+	chainFactory := types.NewChainFactory(appConfig)
 	return &factory{
 		keyStore:     keyStore,
 		appConfig:    appConfig,
@@ -45,7 +44,7 @@ func (f *factory) NewWallet(ctx context.Context, chainType types.ChainType, keyI
 		}
 
 		// All EVM-compatible chains use the same implementation
-		return NewEVMWallet(f.keyStore, chain, keyID, f.appConfig)
+		return NewEVMWallet(f.keyStore, chain, keyID)
 	default:
 		return nil, fmt.Errorf("%w: %s", types.ErrUnsupportedChain, chainType)
 	}

@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"vault0/internal/config"
-	"vault0/internal/core/blockchain"
 	"vault0/internal/core/keystore"
 	coreWallet "vault0/internal/core/wallet"
 	"vault0/internal/types"
@@ -44,7 +43,7 @@ type Service interface {
 type WalletService struct {
 	repository    Repository
 	walletFactory coreWallet.WalletFactory
-	chainFactory  blockchain.ChainFactory
+	chainFactory  types.ChainFactory
 	config        *config.Config
 	keystore      keystore.KeyStore
 }
@@ -53,7 +52,7 @@ type WalletService struct {
 func NewService(repository Repository, keyStore keystore.KeyStore, config *config.Config) Service {
 	// Create the wallet factory using the provided keystore and config
 	walletFactory := coreWallet.NewFactory(keyStore, config)
-	chainFactory := blockchain.NewChainFactory(config)
+	chainFactory := types.NewChainFactory(config)
 
 	return &WalletService{
 		repository:    repository,

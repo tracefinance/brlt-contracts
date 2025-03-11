@@ -13,7 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"vault0/internal/core/crypto"
 	"vault0/internal/core/keygen"
+	"vault0/internal/types"
 )
 
 // MockKeyStore provides a mock implementation of the KeyStore interface for testing
@@ -32,7 +34,7 @@ func NewMockKeyStore() *MockKeyStore {
 }
 
 // Create creates a new key with the given ID, name, and type
-func (ks *MockKeyStore) Create(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*Key, error) {
+func (ks *MockKeyStore) Create(ctx context.Context, name string, keyType types.KeyType, curve elliptic.Curve, tags map[string]string) (*Key, error) {
 	ks.mutex.Lock()
 	defer ks.mutex.Unlock()
 
@@ -71,7 +73,7 @@ func (ks *MockKeyStore) Create(ctx context.Context, name string, keyType keygen.
 }
 
 // Import imports an existing key
-func (ks *MockKeyStore) Import(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
+func (ks *MockKeyStore) Import(ctx context.Context, name string, keyType types.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
 	ks.mutex.Lock()
 	defer ks.mutex.Unlock()
 
@@ -113,13 +115,13 @@ func (ks *MockKeyStore) Sign(ctx context.Context, id string, data []byte, dataTy
 	}
 
 	// For ECDSA keys, use proper signing
-	if key.Type == keygen.KeyTypeECDSA && len(key.PrivateKey) > 0 {
+	if key.Type == types.KeyTypeECDSA && len(key.PrivateKey) > 0 {
 		var privateKey *ecdsa.PrivateKey
 		var err error
 
 		// Handle secp256k1 curve specially
-		if key.Curve == keygen.Secp256k1Curve {
-			privateKey, err = keygen.UnmarshalPrivateKey(key.PrivateKey)
+		if key.Curve == crypto.Secp256k1Curve {
+			privateKey, err = crypto.UnmarshalPrivateKey(key.PrivateKey)
 			if err != nil {
 				return nil, fmt.Errorf("failed to unmarshal secp256k1 private key: %w", err)
 			}

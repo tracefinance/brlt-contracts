@@ -11,9 +11,7 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"vault0/internal/config"
-	"vault0/internal/core/blockchain"
-	"vault0/internal/core/keygen"
+	coreCrypto "vault0/internal/core/crypto"
 	"vault0/internal/core/keystore"
 	"vault0/internal/types"
 )
@@ -23,56 +21,13 @@ const (
 	ERC20TransferMethodSignature = "transfer(address,uint256)"
 )
 
-type EVMConfig struct {
-	ChainID         *big.Int
-	DefaultGasLimit uint64
-	DefaultGasPrice *big.Int
-}
-
-type AppConfig interface {
-	GetBlockchainConfig(chainType string) *config.BlockchainConfig
-}
-
-func NewEVMConfig(chainType types.ChainType, appConfig AppConfig) (*EVMConfig, error) {
-	if appConfig == nil {
-		panic("appConfig must not be nil")
-	}
-
-	config := &EVMConfig{}
-	blockchainConfig := appConfig.GetBlockchainConfig(string(chainType))
-	if blockchainConfig == nil {
-		return nil, fmt.Errorf("blockchain configuration for %s not found: %w", chainType, types.ErrUnsupportedChain)
-	}
-
-	if blockchainConfig.ChainID != 0 {
-		config.ChainID = big.NewInt(blockchainConfig.ChainID)
-	} else {
-		return nil, fmt.Errorf("chain ID is required for %s", chainType)
-	}
-
-	if blockchainConfig.DefaultGasLimit != 0 {
-		config.DefaultGasLimit = blockchainConfig.DefaultGasLimit
-	} else {
-		config.DefaultGasLimit = 21000
-	}
-
-	if blockchainConfig.DefaultGasPrice != 0 {
-		config.DefaultGasPrice = big.NewInt(blockchainConfig.DefaultGasPrice)
-	} else {
-		config.DefaultGasPrice = big.NewInt(20000000000)
-	}
-
-	return config, nil
-}
-
 type EVMWallet struct {
 	keyStore keystore.KeyStore
-	chain    blockchain.Chain
-	config   *EVMConfig
+	chain    types.Chain
 	keyID    string
 }
 
-func NewEVMWallet(keyStore keystore.KeyStore, chain blockchain.Chain, keyID string, appConfig AppConfig) (*EVMWallet, error) {
+func NewEVMWallet(keyStore keystore.KeyStore, chain types.Chain, keyID string) (*EVMWallet, error) {
 	if keyStore == nil {
 		return nil, fmt.Errorf("keystore cannot be nil")
 	}
@@ -82,29 +37,23 @@ func NewEVMWallet(keyStore keystore.KeyStore, chain blockchain.Chain, keyID stri
 	}
 
 	// Validate that the chain has the correct crypto parameters for EVM wallets
-	if chain.KeyType != keygen.KeyTypeECDSA {
+	if chain.KeyType != types.KeyTypeECDSA {
 		return nil, fmt.Errorf("invalid key type for EVM wallet: %s", chain.KeyType)
 	}
 
 	// EVM chains require secp256k1 curve
-	if chain.Curve != keygen.Secp256k1Curve {
+	if chain.Curve != coreCrypto.Secp256k1Curve {
 		return nil, fmt.Errorf("invalid curve for EVM wallet: %s", chain.Curve.Params().Name)
-	}
-
-	config, err := NewEVMConfig(chain.Type, appConfig)
-	if err != nil {
-		return nil, err
 	}
 
 	return &EVMWallet{
 		keyStore: keyStore,
 		chain:    chain,
-		config:   config,
 		keyID:    keyID,
 	}, nil
 }
 
-func (w *EVMWallet) Chain() blockchain.Chain {
+func (w *EVMWallet) Chain() types.Chain {
 	return w.chain
 }
 
@@ -146,12 +95,12 @@ func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, toAddress strin
 
 	gasPrice := options.GasPrice
 	if gasPrice == nil || gasPrice.Cmp(big.NewInt(0)) == 0 {
-		gasPrice = w.config.DefaultGasPrice
+		gasPrice = big.NewInt(int64(w.chain.DefaultGasPrice))
 	}
 
 	gasLimit := options.GasLimit
 	if gasLimit == 0 {
-		gasLimit = w.config.DefaultGasLimit
+		gasLimit = w.chain.DefaultGasLimit
 	}
 
 	tx := &types.Transaction{
@@ -190,7 +139,7 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, tokenAddress, to
 
 	gasPrice := options.GasPrice
 	if gasPrice == nil || gasPrice.Cmp(big.NewInt(0)) == 0 {
-		gasPrice = w.config.DefaultGasPrice
+		gasPrice = big.NewInt(int64(w.chain.DefaultGasPrice))
 	}
 
 	gasLimit := options.GasLimit
@@ -240,7 +189,7 @@ func (w *EVMWallet) SignTransaction(ctx context.Context, tx *types.Transaction) 
 
 func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethtypes.Transaction) ([]byte, error) {
 	// Create an EIP-155 signer with the chain ID from the wallet config
-	signer := ethtypes.NewEIP155Signer(w.config.ChainID)
+	signer := ethtypes.NewEIP155Signer(big.NewInt(w.chain.ID))
 
 	// Compute the transaction hash that needs to be signed
 	hash := signer.Hash(tx)
@@ -301,7 +250,7 @@ func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethtypes.Transac
 		// Check if the recovered public key matches the expected one
 		if recoveredPubKey.X.Cmp(publicKey.X) == 0 && recoveredPubKey.Y.Cmp(publicKey.Y) == 0 {
 			// Adjust v for EIP-155: v = 35 + 2*chainID + recoveryID
-			v := new(big.Int).Mul(w.config.ChainID, big.NewInt(2))
+			v := new(big.Int).Mul(big.NewInt(w.chain.ID), big.NewInt(2))
 			v.Add(v, big.NewInt(35+int64(recoveryID)))
 			// Build the final signature with the adjusted v value
 			finalSig := append(rBytes, sBytes...)

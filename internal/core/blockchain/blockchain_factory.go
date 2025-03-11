@@ -13,7 +13,7 @@ type BlockchainFactory interface {
 // Factory creates blockchain implementations
 type factory struct {
 	cfg          *config.Config
-	chainFactory ChainFactory
+	chainFactory types.ChainFactory
 	clients      map[types.ChainType]Blockchain
 	clientsMux   sync.RWMutex
 }
@@ -22,7 +22,7 @@ type factory struct {
 func NewFactory(cfg *config.Config) BlockchainFactory {
 	return &factory{
 		cfg:          cfg,
-		chainFactory: NewChainFactory(cfg),
+		chainFactory: types.NewChainFactory(cfg),
 		clients:      make(map[types.ChainType]Blockchain),
 	}
 }

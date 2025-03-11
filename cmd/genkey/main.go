@@ -8,6 +8,7 @@ import (
 
 	"vault0/internal/core/crypto"
 	"vault0/internal/core/keygen"
+	"vault0/internal/types"
 )
 
 func main() {
@@ -55,33 +56,19 @@ func generateEncryptionKey(keySize int, format string) {
 
 // generateKeypair generates a new ECDSA keypair for blockchain use
 func generateKeypair(format string) {
-	// Create a key generator
-	keyGen := keygen.NewKeyGenerator()
-
-	// Generate ECDSA key pair with secp256k1 curve
-	privateKey, publicKey, err := keyGen.GenerateKeyPair(keygen.KeyTypeECDSA, keygen.Secp256k1Curve)
+	kg := keygen.NewKeyGenerator()
+	privKey, pubKey, err := kg.GenerateKeyPair(types.KeyTypeECDSA, crypto.Secp256k1Curve)
 	if err != nil {
 		fmt.Printf("Error generating keypair: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Convert to hex format
-	privateKeyHex := hex.EncodeToString(privateKey)
-	publicKeyHex := hex.EncodeToString(publicKey)
-
-	// Print the keys based on format
 	if format == "env" {
-		fmt.Printf("PRIVATE_KEY='%s'\n", privateKeyHex)
-		fmt.Printf("PUBLIC_KEY='%s'\n", publicKeyHex)
+		fmt.Printf("PRIVATE_KEY='%s'\n", hex.EncodeToString(privKey))
+		fmt.Printf("PUBLIC_KEY='%s'\n", hex.EncodeToString(pubKey))
 	} else {
-		fmt.Println("Generated ECDSA keypair:")
-		fmt.Println("\nPrivate Key (hex):")
-		fmt.Println(privateKeyHex)
-		fmt.Println("\nPublic Key (hex):")
-		fmt.Println(publicKeyHex)
-
-		fmt.Println("\nTo export as environment variables:")
-		fmt.Printf("export PRIVATE_KEY='%s'\n", privateKeyHex)
-		fmt.Printf("export PUBLIC_KEY='%s'\n", publicKeyHex)
+		fmt.Printf("Generated ECDSA keypair:\n\n")
+		fmt.Printf("Private key (hex):\n%s\n\n", hex.EncodeToString(privKey))
+		fmt.Printf("Public key (hex):\n%s\n", hex.EncodeToString(pubKey))
 	}
 }

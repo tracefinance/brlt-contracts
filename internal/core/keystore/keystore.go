@@ -5,7 +5,7 @@ import (
 	"crypto/elliptic"
 	"errors"
 
-	"vault0/internal/core/keygen"
+	"vault0/internal/types"
 )
 
 // Common errors
@@ -35,7 +35,7 @@ type Key struct {
 	// Name is a human-readable name for the key
 	Name string
 	// Type is the type of cryptographic key
-	Type keygen.KeyType
+	Type types.KeyType
 	// Curve is the elliptic curve used for ECDSA keys
 	Curve elliptic.Curve
 	// Tags are optional metadata for the key
@@ -55,12 +55,12 @@ type KeyStore interface {
 	// Create creates a new key with the given name and type
 	// For ECDSA keys, curve specifies which elliptic curve to use (e.g., P256, P384, P521)
 	// For other key types, curve parameter is ignored
-	Create(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, tags map[string]string) (*Key, error)
+	Create(ctx context.Context, name string, keyType types.KeyType, curve elliptic.Curve, tags map[string]string) (*Key, error)
 
 	// Import imports an existing key
 	// For ECDSA keys, curve must match the curve used to generate the key
 	// For other key types, curve parameter is ignored
-	Import(ctx context.Context, name string, keyType keygen.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*Key, error)
+	Import(ctx context.Context, name string, keyType types.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*Key, error)
 
 	// Sign signs the provided data using the key identified by id
 	// This method uses the private key internally without exposing it
