@@ -2,10 +2,20 @@ package blockchain
 
 import (
 	"crypto/elliptic"
+	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/ethereum/go-ethereum/common"
+
 	"vault0/internal/config"
 	"vault0/internal/core/keygen"
 	"vault0/internal/types"
+)
+
+// Chain errors
+var (
+	ErrInvalidAddress = errors.New("invalid address")
 )
 
 // Chain represents information about a specific blockchain network.
@@ -148,5 +158,45 @@ func getChainCryptoParams(chainType types.ChainType) (keygen.KeyType, elliptic.C
 	default:
 		// For unknown chains, default to ECDSA with P-256
 		return keygen.KeyTypeECDSA, elliptic.P256()
+	}
+}
+
+// IsValidAddress validates if the given address is a valid blockchain address.
+//
+// Parameters:
+//   - address: The address to validate
+//
+// Returns:
+//   - true if the address is valid, false otherwise
+func (c *Chain) IsValidAddress(address string) bool {
+	return c.ValidateAddress(address) == nil
+}
+
+// ValidateAddress validates if the given address is a valid blockchain address.
+// The validation logic depends on the chain type.
+//
+// Parameters:
+//   - address: The address to validate
+//
+// Returns:
+//   - nil if the address is valid, otherwise returns an error with details
+func (c *Chain) ValidateAddress(address string) error {
+	// For EVM-compatible chains (Ethereum, Polygon, Base)
+	switch c.Type {
+	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
+		// Check if the address has the correct format (0x followed by 40 hex characters)
+		if !common.IsHexAddress(address) {
+			return fmt.Errorf("%w: invalid format", ErrInvalidAddress)
+		}
+
+		// Convert to checksum address and verify
+		checksumAddr := common.HexToAddress(address)
+		if address != checksumAddr.Hex() && address != strings.ToLower(checksumAddr.Hex()) {
+			return fmt.Errorf("%w: checksum validation failed", ErrInvalidAddress)
+		}
+
+		return nil
+	default:
+		return ErrInvalidAddress
 	}
 }

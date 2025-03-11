@@ -67,7 +67,7 @@ func (c *EVMBlockchain) GetChainID(ctx context.Context) (int64, error) {
 
 // GetBalance implements Blockchain.GetBalance
 func (c *EVMBlockchain) GetBalance(ctx context.Context, address string) (*big.Int, error) {
-	if err := c.ValidateAddress(address); err != nil {
+	if err := c.chain.ValidateAddress(address); err != nil {
 		return nil, err
 	}
 
@@ -82,7 +82,7 @@ func (c *EVMBlockchain) GetBalance(ctx context.Context, address string) (*big.In
 
 // GetNonce implements Blockchain.GetNonce
 func (c *EVMBlockchain) GetNonce(ctx context.Context, address string) (uint64, error) {
-	if err := c.ValidateAddress(address); err != nil {
+	if err := c.chain.ValidateAddress(address); err != nil {
 		return 0, err
 	}
 
@@ -161,7 +161,7 @@ func (c *EVMBlockchain) GetTransactionReceipt(ctx context.Context, hash string) 
 func (c *EVMBlockchain) EstimateGas(ctx context.Context, tx *types.Transaction) (uint64, error) {
 	var from common.Address
 	if tx.From != "" {
-		if err := c.ValidateAddress(tx.From); err != nil {
+		if err := c.chain.ValidateAddress(tx.From); err != nil {
 			return 0, err
 		}
 		from = common.HexToAddress(tx.From)
@@ -169,7 +169,7 @@ func (c *EVMBlockchain) EstimateGas(ctx context.Context, tx *types.Transaction) 
 
 	var to *common.Address
 	if tx.To != "" {
-		if err := c.ValidateAddress(tx.To); err != nil {
+		if err := c.chain.ValidateAddress(tx.To); err != nil {
 			return 0, err
 		}
 		addr := common.HexToAddress(tx.To)
@@ -204,13 +204,13 @@ func (c *EVMBlockchain) GetGasPrice(ctx context.Context) (*big.Int, error) {
 func (c *EVMBlockchain) CallContract(ctx context.Context, from string, to string, data []byte) ([]byte, error) {
 	var fromAddress common.Address
 	if from != "" && from != types.ZeroAddress {
-		if err := c.ValidateAddress(from); err != nil {
+		if err := c.chain.ValidateAddress(from); err != nil {
 			return nil, err
 		}
 		fromAddress = common.HexToAddress(from)
 	}
 
-	if err := c.ValidateAddress(to); err != nil {
+	if err := c.chain.ValidateAddress(to); err != nil {
 		return nil, err
 	}
 	toAddress := common.HexToAddress(to)
@@ -250,7 +250,7 @@ func (c *EVMBlockchain) FilterLogs(ctx context.Context, addresses []string, topi
 	if len(addresses) > 0 {
 		ethAddresses = make([]common.Address, len(addresses))
 		for i, address := range addresses {
-			if err := c.ValidateAddress(address); err != nil {
+			if err := c.chain.ValidateAddress(address); err != nil {
 				return nil, err
 			}
 			ethAddresses[i] = common.HexToAddress(address)
@@ -319,7 +319,7 @@ func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []strin
 	if len(addresses) > 0 {
 		ethAddresses = make([]common.Address, len(addresses))
 		for i, address := range addresses {
-			if err := c.ValidateAddress(address); err != nil {
+			if err := c.chain.ValidateAddress(address); err != nil {
 				return nil, nil, err
 			}
 			ethAddresses[i] = common.HexToAddress(address)
@@ -474,27 +474,4 @@ func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethtypes.Tra
 // Chain implements Blockchain.Chain
 func (c *EVMBlockchain) Chain() Chain {
 	return c.chain
-}
-
-// IsValidAddress implements Blockchain.IsValidAddress
-func (c *EVMBlockchain) IsValidAddress(address string) bool {
-	return c.ValidateAddress(address) == nil
-}
-
-// ValidateAddress implements Blockchain.ValidateAddress
-// It validates if the given address is a valid Ethereum address.
-// Returns nil if the address is valid, otherwise returns an error.
-func (c *EVMBlockchain) ValidateAddress(address string) error {
-	// Check if the address has the correct format (0x followed by 40 hex characters)
-	if !common.IsHexAddress(address) {
-		return fmt.Errorf("%w: invalid format", ErrInvalidAddress)
-	}
-
-	// Convert to checksum address and verify
-	checksumAddr := common.HexToAddress(address)
-	if address != checksumAddr.Hex() && address != strings.ToLower(checksumAddr.Hex()) {
-		return fmt.Errorf("%w: checksum validation failed", ErrInvalidAddress)
-	}
-
-	return nil
 }
