@@ -8,19 +8,36 @@ import (
 	"vault0/internal/types"
 )
 
-// Chain represents information about a specific blockchain
+// Chain represents information about a specific blockchain network.
+// It contains all the necessary configuration and metadata to interact
+// with a particular blockchain, including network identifiers, connection
+// details, and cryptographic parameters.
+//
+// This struct is used by blockchain implementations to determine how to
+// connect to and interact with the specific blockchain network, and by
+// application code to display information about the connected chain.
 type Chain struct {
-	ID          int64           // Chain ID
-	Type        types.ChainType // Chain type
-	Name        string          // Human-readable name
-	Symbol      string          // Native currency symbol
-	RPCUrl      string          // RPC URL for the chain
-	ExplorerUrl string          // Block explorer URL
-	Curve       elliptic.Curve  // Elliptic curve for key generation
-	KeyType     keygen.KeyType  // Key type for the blockchain
+	ID          int64           // Unique identifier for the blockchain network
+	Type        types.ChainType // Type of blockchain (e.g., Ethereum, Polygon)
+	Name        string          // Human-readable name of the blockchain network
+	Symbol      string          // Native currency symbol (e.g., ETH, MATIC)
+	RPCUrl      string          // JSON-RPC endpoint URL for connecting to the network
+	ExplorerUrl string          // Block explorer URL for viewing transactions
+	Curve       elliptic.Curve  // Elliptic curve used for cryptographic operations
+	KeyType     keygen.KeyType  // Type of cryptographic keys used by the blockchain
 }
 
-// NewChain creates a Chain struct for the specified chain type
+// NewChain creates a Chain struct for the specified blockchain type.
+// It loads configuration from the provided config object and sets up
+// all necessary parameters for interacting with the blockchain.
+//
+// Parameters:
+//   - chainType: The type of blockchain to create (e.g., Ethereum, Polygon)
+//   - config: Configuration object containing blockchain-specific settings
+//
+// Returns:
+//   - A fully initialized Chain struct if successful
+//   - Error if the chain type is unsupported or if required configuration is missing
 func NewChain(chainType types.ChainType, config *config.Config) (Chain, error) {
 	chainCfg, err := getChainConfig(chainType, config)
 	if err != nil {
@@ -46,7 +63,16 @@ func NewChain(chainType types.ChainType, config *config.Config) (Chain, error) {
 	}, nil
 }
 
-// getChainConfig returns the configuration for a given chain type
+// getChainConfig returns the configuration for a given chain type.
+// It extracts the appropriate blockchain configuration from the provided config object.
+//
+// Parameters:
+//   - chainType: The type of blockchain to get configuration for
+//   - config: Configuration object containing settings for all supported blockchains
+//
+// Returns:
+//   - Pointer to the blockchain-specific configuration
+//   - Error if the chain type is unsupported
 func getChainConfig(chainType types.ChainType, config *config.Config) (*config.BlockchainConfig, error) {
 	switch chainType {
 	case types.ChainTypeEthereum:
@@ -60,7 +86,15 @@ func getChainConfig(chainType types.ChainType, config *config.Config) (*config.B
 	}
 }
 
-// getChainName returns the human-readable name for a given blockchain
+// getChainName returns the human-readable name for a given blockchain type.
+// This is used for display purposes in user interfaces and logs.
+//
+// Parameters:
+//   - chainType: The type of blockchain to get the name for
+//
+// Returns:
+//   - Human-readable name of the blockchain
+//   - "Unknown" if the chain type is not recognized
 func getChainName(chainType types.ChainType) string {
 	switch chainType {
 	case types.ChainTypeEthereum:
@@ -74,7 +108,15 @@ func getChainName(chainType types.ChainType) string {
 	}
 }
 
-// getChainSymbol returns the native currency symbol for a given blockchain
+// getChainSymbol returns the native currency symbol for a given blockchain type.
+// This is the symbol of the blockchain's primary token used for gas fees.
+//
+// Parameters:
+//   - chainType: The type of blockchain to get the symbol for
+//
+// Returns:
+//   - Currency symbol (e.g., "ETH" for Ethereum)
+//   - "UNKNOWN" if the chain type is not recognized
 func getChainSymbol(chainType types.ChainType) string {
 	switch chainType {
 	case types.ChainTypeEthereum:
@@ -88,7 +130,16 @@ func getChainSymbol(chainType types.ChainType) string {
 	}
 }
 
-// getChainCryptoParams returns the appropriate key type and elliptic curve for a given blockchain
+// getChainCryptoParams returns the appropriate key type and elliptic curve
+// for a given blockchain type. These parameters are used for key generation
+// and cryptographic operations specific to the blockchain.
+//
+// Parameters:
+//   - chainType: The type of blockchain to get cryptographic parameters for
+//
+// Returns:
+//   - Key type appropriate for the blockchain (e.g., ECDSA)
+//   - Elliptic curve used by the blockchain (e.g., secp256k1 for Ethereum)
 func getChainCryptoParams(chainType types.ChainType) (keygen.KeyType, elliptic.Curve) {
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:

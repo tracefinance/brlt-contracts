@@ -21,41 +21,151 @@ var (
 	ErrRPCConnectionFailed = errors.New("blockchain: RPC connection failed")
 )
 
-// Blockchain defines methods for interacting with a blockchain
+// Blockchain defines a blockchain client interface that abstracts interactions with
+// various blockchain networks. It provides methods for querying blockchain state,
+// submitting transactions, interacting with smart contracts, and subscribing to events.
+//
+// This interface is designed to be blockchain-agnostic, allowing implementations
+// for different blockchain networks (Ethereum, Polygon, etc.) while providing a
+// consistent API for application code. All blockchain-specific details should be
+// handled by the implementation.
+//
+// Most methods accept a context.Context parameter to allow for cancellation and
+// timeouts when interacting with the blockchain network.
 type Blockchain interface {
-	// GetTransaction retrieves transaction details by hash
+	// GetTransaction retrieves transaction details by hash.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, can be used for cancellation
+	//   - hash: Transaction hash in hexadecimal format
+	//
+	// Returns:
+	//   - Transaction details if found
+	//   - Error if transaction cannot be retrieved or doesn't exist
 	GetTransaction(ctx context.Context, hash string) (*types.Transaction, error)
 
-	// GetTransactionReceipt retrieves transaction receipt by hash
+	// GetTransactionReceipt retrieves transaction receipt by hash.
+	// The receipt contains execution results including status, logs, and gas used.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, can be used for cancellation
+	//   - hash: Transaction hash in hexadecimal format
+	//
+	// Returns:
+	//   - Transaction receipt if the transaction has been mined
+	//   - Error if receipt cannot be retrieved or transaction hasn't been mined
 	GetTransactionReceipt(ctx context.Context, hash string) (*types.TransactionReceipt, error)
 
-	// EstimateGas estimates the gas needed to execute a transaction
+	// EstimateGas estimates the gas needed to execute a transaction.
+	// This performs a simulation of the transaction execution without committing to the blockchain.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, can be used for cancellation
+	//   - tx: Transaction object containing the operation details
+	//
+	// Returns:
+	//   - Estimated gas amount required for the transaction
+	//   - Error if estimation fails (e.g., transaction would revert)
 	EstimateGas(ctx context.Context, tx *types.Transaction) (uint64, error)
 
-	// BroadcastTransaction broadcasts a signed transaction to the network
+	// BroadcastTransaction broadcasts a signed transaction to the network.
+	// The transaction must be properly signed before broadcasting.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, can be used for cancellation
+	//   - signedTx: RLP-encoded signed transaction bytes
+	//
+	// Returns:
+	//   - Transaction hash if successfully broadcasted
+	//   - Error if broadcasting fails or transaction is invalid
 	BroadcastTransaction(ctx context.Context, signedTx []byte) (string, error)
 
-	// GetBalance retrieves the balance of an address
+	// GetBalance retrieves the balance of an address.
+	// The balance is returned in the smallest denomination (e.g., wei for Ethereum).
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, can be used for cancellation
+	//   - address: Account address in the blockchain's format
+	//
+	// Returns:
+	//   - Account balance as a big integer
+	//   - Error if balance cannot be retrieved
 	GetBalance(ctx context.Context, address string) (*big.Int, error)
 
-	// GetNonce retrieves the next nonce for an address
+	// GetNonce retrieves the next nonce for an address.
+	// The nonce is used to prevent transaction replay and must be included in transactions.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, can be used for cancellation
+	//   - address: Account address in the blockchain's format
+	//
+	// Returns:
+	//   - Next nonce to use for transactions from this address
+	//   - Error if nonce cannot be retrieved
 	GetNonce(ctx context.Context, address string) (uint64, error)
 
-	// GetGasPrice retrieves the current gas price
+	// GetGasPrice retrieves the current gas price.
+	// This is the recommended price per gas unit for timely transaction processing.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, can be used for cancellation
+	//
+	// Returns:
+	//   - Current gas price as a big integer
+	//   - Error if gas price cannot be retrieved
 	GetGasPrice(ctx context.Context) (*big.Int, error)
 
-	// CallContract executes a read-only call to a smart contract
+	// CallContract executes a read-only call to a smart contract.
+	// This simulates the contract execution without creating a transaction.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, can be used for cancellation
+	//   - from: Address to execute the call from (can affect execution context)
+	//   - to: Contract address to call
+	//   - data: ABI-encoded function call data
+	//
+	// Returns:
+	//   - Result data from the contract call
+	//   - Error if the call fails or reverts
 	CallContract(ctx context.Context, from string, to string, data []byte) ([]byte, error)
 
-	// FilterLogs retrieves historical logs matching the filter criteria
+	// FilterLogs retrieves historical logs matching the filter criteria.
+	// Logs are events emitted by smart contracts during transaction execution.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, can be used for cancellation
+	//   - addresses: List of contract addresses to filter logs from (empty for all)
+	//   - topics: Nested array of topics to filter by (position matters)
+	//   - fromBlock: Starting block number for the filter (negative for latest)
+	//   - toBlock: Ending block number for the filter (negative for latest)
+	//
+	// Returns:
+	//   - Array of logs matching the filter criteria
+	//   - Error if logs cannot be retrieved
 	FilterLogs(ctx context.Context, addresses []string, topics [][]string, fromBlock, toBlock int64) ([]types.Log, error)
 
-	// SubscribeToEvents subscribes to live events matching the filter criteria
+	// SubscribeToEvents subscribes to live events matching the filter criteria.
+	// This creates a real-time subscription to contract events as they occur.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, can be used to cancel the subscription
+	//   - addresses: List of contract addresses to filter events from (empty for all)
+	//   - topics: Nested array of topics to filter by (position matters)
+	//
+	// Returns:
+	//   - Channel that receives matching log events in real-time
+	//   - Channel that receives subscription errors
+	//   - Error if subscription cannot be created
 	SubscribeToEvents(ctx context.Context, addresses []string, topics [][]string) (<-chan types.Log, <-chan error, error)
 
-	// Chain returns the chain information
+	// Chain returns the chain information.
+	// This includes details like chain ID, network name, and other chain-specific data.
+	//
+	// Returns:
+	//   - Chain information object
 	Chain() Chain
 
-	// Close closes any open connections
+	// Close closes any open connections.
+	// This should be called when the blockchain client is no longer needed.
 	Close()
 }
