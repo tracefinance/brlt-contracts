@@ -165,6 +165,24 @@ type Blockchain interface {
 	//   - Chain information object
 	Chain() Chain
 
+	// ValidateAddress validates if the given address is a valid blockchain address.
+	//
+	// Parameters:
+	//   - address: The address to validate
+	//
+	// Returns:
+	//   - nil if the address is valid, otherwise returns an error with details
+	ValidateAddress(address string) error
+
+	// IsValidAddress validates if the given address is a valid blockchain address.
+	//
+	// Parameters:
+	//   - address: The address to validate
+	//
+	// Returns:
+	//   - true if the address is valid, false otherwise
+	IsValidAddress(address string) bool
+
 	// Close closes any open connections.
 	// This should be called when the blockchain client is no longer needed.
 	Close()
