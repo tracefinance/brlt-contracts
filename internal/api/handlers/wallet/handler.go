@@ -23,35 +23,54 @@ func NewHandler(walletService wallet.Service) *Handler {
 	}
 }
 
-// CreateWallet handles wallet creation
-func (h *Handler) CreateWallet(c *gin.Context) {
-	var req CreateWalletRequest
+// CreateInternalWallet handles internal wallet creation
+func (h *Handler) CreateInternalWallet(c *gin.Context) {
+	var req CreateInternalWalletRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	var walletModel *wallet.Wallet
-	var err error
-
 	// Get user ID from context (assuming it's set by auth middleware)
-	userID := c.GetString("user_id") // This will be empty for system wallets
+	userID := c.GetString("user_id")
 
-	// Create the wallet based on the source type
-	if req.Address != "" {
-		// Create external wallet if address is provided
-		walletModel, err = h.walletService.CreateExternalWallet(c.Request.Context(), req.ChainType, req.Address, req.Name, req.Tags, userID)
-	} else {
-		// Create internal wallet if no address is provided
-		walletModel, err = h.walletService.CreateInternalWallet(c.Request.Context(), req.ChainType, req.Name, req.Tags, userID)
-	}
-
+	// Create internal wallet
+	walletModel, err := h.walletService.CreateInternalWallet(c.Request.Context(), req.ChainType, req.Name, req.Tags, userID)
 	if err != nil {
 		if errors.Is(err, wallet.ErrInvalidInput) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create wallet"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create internal wallet"})
+		return
+	}
+
+	// Convert to response
+	response := ToResponse(walletModel)
+
+	// Write response
+	c.JSON(http.StatusCreated, response)
+}
+
+// CreateExternalWallet handles external wallet creation
+func (h *Handler) CreateExternalWallet(c *gin.Context) {
+	var req CreateExternalWalletRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Get user ID from context (assuming it's set by auth middleware)
+	userID := c.GetString("user_id")
+
+	// Create external wallet
+	walletModel, err := h.walletService.CreateExternalWallet(c.Request.Context(), req.ChainType, req.Address, req.Name, req.Tags, userID)
+	if err != nil {
+		if errors.Is(err, wallet.ErrInvalidInput) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create external wallet"})
 		return
 	}
 

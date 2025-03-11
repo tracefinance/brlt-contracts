@@ -21,7 +21,8 @@ func SetupRoutes(router *gin.RouterGroup, db *db.DB, keyStore keystore.KeyStore,
 	walletHandler := NewHandler(walletSvc)
 
 	// Register wallet routes directly
-	router.POST("/wallets", walletHandler.CreateWallet)
+	router.POST("/wallets", walletHandler.CreateInternalWallet)
+	router.POST("/wallets/external", walletHandler.CreateExternalWallet)
 	router.GET("/wallets", walletHandler.ListWallets)
 	router.GET("/wallets/:id", walletHandler.GetWallet)
 	router.PUT("/wallets/:id", walletHandler.UpdateWallet)

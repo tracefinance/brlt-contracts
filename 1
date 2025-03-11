@@ -1,0 +1,29 @@
+refactor: split wallet creation into internal and external handlers
+
+- Remove deprecated CreateWallet handler and DTO
+
+- Add dedicated CreateInternalWallet and CreateExternalWallet handlers
+
+- Update routes to use /wallets for internal and /wallets/external for external
+
+- Improve error messages to be more specific about wallet type
+
+- Remove deleted_at column from wallets table
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# Date:      Tue Mar 11 20:50:40 2025 -0300
+#
+# On branch main
+# Your branch is up to date with 'origin/main'.
+#
+# Changes to be committed:
+#	modified:   internal/api/handlers/wallet/dto.go
+#	modified:   internal/api/handlers/wallet/handler.go
+#	modified:   internal/api/handlers/wallet/route.go
+#
+# Changes not staged for commit:
+#	modified:   migrations/000005_create_wallets_table.down.sql
+#	modified:   migrations/000005_create_wallets_table.up.sql
+#

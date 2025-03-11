@@ -9,8 +9,7 @@ CREATE TABLE IF NOT EXISTS wallets (
     type TEXT NOT NULL DEFAULT 'user',
     source TEXT NOT NULL DEFAULT 'internal',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_wallets_key_id ON wallets(key_id);
@@ -18,4 +17,3 @@ CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets(user_id);
 CREATE INDEX IF NOT EXISTS idx_wallets_chain_type ON wallets(chain_type);
 CREATE INDEX IF NOT EXISTS idx_wallets_type ON wallets(type);
 CREATE INDEX IF NOT EXISTS idx_wallets_source ON wallets(source);
-CREATE INDEX IF NOT EXISTS idx_wallets_deleted_at ON wallets(deleted_at); 
