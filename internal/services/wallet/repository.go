@@ -23,7 +23,7 @@ type Repository interface {
 	// Update updates a wallet's name and tags
 	Update(ctx context.Context, wallet *Wallet) error
 
-	// Delete soft-deletes a wallet by its ID
+	// Delete permanently deletes a wallet by its ID
 	Delete(ctx context.Context, id string) error
 
 	// List retrieves wallets with optional filtering
@@ -86,9 +86,9 @@ func (r *SQLiteRepository) Create(ctx context.Context, wallet *Wallet) error {
 // GetByID retrieves a wallet by its ID
 func (r *SQLiteRepository) GetByID(ctx context.Context, id string) (*Wallet, error) {
 	query := `
-		SELECT id, key_id, chain_type, address, name, tags, created_at, updated_at, deleted_at
+		SELECT id, key_id, chain_type, address, name, tags, created_at, updated_at
 		FROM wallets
-		WHERE id = ? AND deleted_at IS NULL
+		WHERE id = ?
 	`
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, id)
@@ -123,7 +123,7 @@ func (r *SQLiteRepository) Update(ctx context.Context, wallet *Wallet) error {
 	query := `
 		UPDATE wallets
 		SET name = ?, tags = ?, updated_at = ?
-		WHERE id = ? AND deleted_at IS NULL
+		WHERE id = ?
 	`
 
 	result, err := r.db.ExecuteStatementContext(
@@ -151,18 +151,16 @@ func (r *SQLiteRepository) Update(ctx context.Context, wallet *Wallet) error {
 	return nil
 }
 
-// Delete soft-deletes a wallet by its ID
+// Delete permanently deletes a wallet by its ID
 func (r *SQLiteRepository) Delete(ctx context.Context, id string) error {
 	query := `
-		UPDATE wallets
-		SET deleted_at = ?
-		WHERE id = ? AND deleted_at IS NULL
+		DELETE FROM wallets
+		WHERE id = ?
 	`
 
 	result, err := r.db.ExecuteStatementContext(
 		ctx,
 		query,
-		time.Now(),
 		id,
 	)
 
@@ -185,9 +183,8 @@ func (r *SQLiteRepository) Delete(ctx context.Context, id string) error {
 // List retrieves wallets with optional filtering
 func (r *SQLiteRepository) List(ctx context.Context, limit, offset int) ([]*Wallet, error) {
 	query := `
-		SELECT id, key_id, chain_type, address, name, tags, created_at, updated_at, deleted_at
+		SELECT id, key_id, chain_type, address, name, tags, created_at, updated_at
 		FROM wallets
-		WHERE deleted_at IS NULL
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?
 	`

@@ -10,15 +10,14 @@ import (
 
 // Wallet represents a wallet entity stored in the database
 type Wallet struct {
-	ID        string
-	KeyID     string
-	ChainType types.ChainType
-	Address   string
-	Name      string
-	Tags      map[string]string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt sql.NullTime
+	ID        string            `db:"id"`
+	KeyID     string            `db:"key_id"`
+	ChainType types.ChainType   `db:"chain_type"`
+	Address   string            `db:"address"`
+	Name      string            `db:"name"`
+	Tags      map[string]string `db:"tags"`
+	CreatedAt time.Time         `db:"created_at"`
+	UpdatedAt time.Time         `db:"updated_at"`
 }
 
 // ScanWallet scans a database row into a Wallet struct
@@ -37,7 +36,6 @@ func ScanWallet(row interface {
 		&tagsJSON,
 		&wallet.CreatedAt,
 		&wallet.UpdatedAt,
-		&wallet.DeletedAt,
 	)
 	if err != nil {
 		return nil, err
