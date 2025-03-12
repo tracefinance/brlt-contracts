@@ -25,6 +25,7 @@ type Wallet struct {
 	Tags      map[string]string `db:"tags"`
 	CreatedAt time.Time         `db:"created_at"`
 	UpdatedAt time.Time         `db:"updated_at"`
+	DeletedAt sql.NullTime      `db:"deleted_at"`
 }
 
 // ScanWallet scans a database row into a Wallet struct
@@ -43,6 +44,7 @@ func ScanWallet(row interface {
 		&tagsJSON,
 		&wallet.CreatedAt,
 		&wallet.UpdatedAt,
+		&wallet.DeletedAt,
 	)
 	if err != nil {
 		return nil, err
