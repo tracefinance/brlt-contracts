@@ -1,6 +1,6 @@
 ---
 description: Solidity
-globs: contracts/**/*.js, contracts/**/*.json, *.sol
+globs: contracts/**/*,*.sol
 alwaysApply: false
 ---
 # Windsurf Rules for Smart Contract Development
