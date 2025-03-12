@@ -259,14 +259,13 @@ func TestCreateWallet(t *testing.T) {
 			return w.KeyID == expectedKeyID && w.Address == expectedAddress && w.ChainType == types.ChainTypeBase
 		})).Return(nil).Once()
 
-		wallet, err := service.CreateInternalWallet(ctx, types.ChainTypeBase, "Test Wallet", map[string]string{"tag1": "value1"}, "")
+		wallet, err := service.CreateWallet(ctx, types.ChainTypeBase, "Test Wallet", map[string]string{"tag1": "value1"})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, wallet)
 		assert.Equal(t, expectedKeyID, wallet.KeyID)
 		assert.Equal(t, expectedAddress, wallet.Address)
 		assert.Equal(t, types.ChainTypeBase, wallet.ChainType)
-		assert.Equal(t, WalletTypeSystem, wallet.Type) // Empty userID means system wallet
 
 		mockChainFactory.AssertExpectations(t)
 		mockKeyStore.AssertExpectations(t)
@@ -277,7 +276,7 @@ func TestCreateWallet(t *testing.T) {
 
 	// Test with empty name
 	t.Run("empty_name", func(t *testing.T) {
-		wallet, err := service.CreateInternalWallet(ctx, types.ChainTypeBase, "", nil, "")
+		wallet, err := service.CreateWallet(ctx, types.ChainTypeBase, "", nil)
 
 		assert.Error(t, err)
 		assert.Nil(t, wallet)
@@ -297,7 +296,7 @@ func TestCreateWallet(t *testing.T) {
 		mockKeyStore.On("Create", ctx, "Test Wallet", types.KeyTypeECDSA, crypto.Secp256k1Curve, map[string]string{}).
 			Return(nil, errors.New("key creation failed")).Once()
 
-		wallet, err := service.CreateInternalWallet(ctx, types.ChainTypeBase, "Test Wallet", map[string]string{}, "")
+		wallet, err := service.CreateWallet(ctx, types.ChainTypeBase, "Test Wallet", map[string]string{})
 
 		assert.Error(t, err)
 		assert.Nil(t, wallet)

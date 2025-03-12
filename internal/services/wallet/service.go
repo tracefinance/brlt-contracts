@@ -20,11 +20,8 @@ var (
 
 // Service defines the wallet service interface
 type Service interface {
-	// CreateInternalWallet creates a new internal wallet with a key
-	CreateInternalWallet(ctx context.Context, chainType types.ChainType, name string, tags map[string]string, userID string) (*Wallet, error)
-
-	// CreateExternalWallet creates a new external wallet with just an address
-	CreateExternalWallet(ctx context.Context, chainType types.ChainType, address, name string, tags map[string]string, userID string) (*Wallet, error)
+	// CreateWallet creates a new wallet with a key and derives its address
+	CreateWallet(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error)
 
 	// UpdateWallet updates a wallet's name and tags
 	UpdateWallet(ctx context.Context, id, name string, tags map[string]string) (*Wallet, error)
@@ -63,8 +60,8 @@ func NewService(repository Repository, keyStore keystore.KeyStore, config *confi
 	}
 }
 
-// CreateInternalWallet creates a new internal wallet with a key
-func (s *WalletService) CreateInternalWallet(ctx context.Context, chainType types.ChainType, name string, tags map[string]string, userID string) (*Wallet, error) {
+// CreateWallet creates a new wallet with a key and derives its address
+func (s *WalletService) CreateWallet(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error) {
 	// Validate inputs
 	if name == "" {
 		return nil, fmt.Errorf("%w: name cannot be empty", ErrInvalidInput)
@@ -97,60 +94,10 @@ func (s *WalletService) CreateInternalWallet(ctx context.Context, chainType type
 	// Store the wallet info in the database
 	wallet := &Wallet{
 		KeyID:     key.ID,
-		UserID:    userID,
 		ChainType: chain.Type,
 		Address:   address,
 		Name:      name,
 		Tags:      tags,
-		Type:      WalletTypeUser,
-		Source:    WalletSourceInternal,
-	}
-
-	// If userID is empty, this is a system wallet
-	if userID == "" {
-		wallet.Type = WalletTypeSystem
-	}
-
-	if err := s.repository.Create(ctx, wallet); err != nil {
-		return nil, fmt.Errorf("failed to store wallet: %w", err)
-	}
-
-	return wallet, nil
-}
-
-// CreateExternalWallet creates a new external wallet with just an address
-func (s *WalletService) CreateExternalWallet(ctx context.Context, chainType types.ChainType, address, name string, tags map[string]string, userID string) (*Wallet, error) {
-	// Validate inputs
-	if name == "" {
-		return nil, fmt.Errorf("%w: name cannot be empty", ErrInvalidInput)
-	}
-	if address == "" {
-		return nil, fmt.Errorf("%w: address cannot be empty", ErrInvalidInput)
-	}
-	if userID == "" {
-		return nil, fmt.Errorf("%w: external wallets must be associated with a user", ErrInvalidInput)
-	}
-
-	// Get chain information
-	chain, err := s.chainFactory.NewChain(chainType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get chain information: %w", err)
-	}
-
-	// Validate the address format
-	if !chain.IsValidAddress(address) {
-		return nil, fmt.Errorf("%w: invalid address format for chain %s", ErrInvalidInput, chainType)
-	}
-
-	// Store the wallet info in the database
-	wallet := &Wallet{
-		UserID:    userID,
-		ChainType: chain.Type,
-		Address:   address,
-		Name:      name,
-		Tags:      tags,
-		Type:      WalletTypeUser,
-		Source:    WalletSourceExternal,
 	}
 
 	if err := s.repository.Create(ctx, wallet); err != nil {

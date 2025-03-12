@@ -7,19 +7,11 @@ import (
 	"vault0/internal/types"
 )
 
-// CreateInternalWalletRequest represents a request to create an internal wallet
-type CreateInternalWalletRequest struct {
+// CreateWalletRequest represents a request to create a wallet
+type CreateWalletRequest struct {
 	ChainType types.ChainType   `json:"chain_type" binding:"required"`
 	Name      string            `json:"name" binding:"required"`
 	Tags      map[string]string `json:"tags,omitempty"`
-}
-
-// CreateExternalWalletRequest represents a request to create an external wallet
-type CreateExternalWalletRequest struct {
-	ChainType types.ChainType   `json:"chain_type" binding:"required"`
-	Name      string            `json:"name" binding:"required"`
-	Tags      map[string]string `json:"tags,omitempty"`
-	Address   string            `json:"address" binding:"required"` // Required for external wallets
 }
 
 // UpdateWalletRequest represents a request to update a wallet
