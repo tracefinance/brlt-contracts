@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	coreCrypto "vault0/internal/core/crypto"
@@ -175,7 +175,7 @@ func (w *EVMWallet) SignTransaction(ctx context.Context, tx *types.Transaction) 
 	}
 
 	toAddress := common.HexToAddress(tx.To)
-	ethTx := ethtypes.NewTx(&ethtypes.LegacyTx{
+	ethTx := ethTypes.NewTx(&ethTypes.LegacyTx{
 		Nonce:    tx.Nonce,
 		GasPrice: tx.GasPrice,
 		Gas:      tx.GasLimit,
@@ -187,9 +187,9 @@ func (w *EVMWallet) SignTransaction(ctx context.Context, tx *types.Transaction) 
 	return w.signEVMTransaction(ctx, ethTx)
 }
 
-func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethtypes.Transaction) ([]byte, error) {
+func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethTypes.Transaction) ([]byte, error) {
 	// Create an EIP-155 signer with the chain ID from the wallet config
-	signer := ethtypes.NewEIP155Signer(big.NewInt(w.chain.ID))
+	signer := ethTypes.NewEIP155Signer(big.NewInt(w.chain.ID))
 
 	// Compute the transaction hash that needs to be signed
 	hash := signer.Hash(tx)

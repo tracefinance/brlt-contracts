@@ -1,6 +1,6 @@
 ---
-description: Go Lang
-globs: *.go, *.sql, internal/**/*, migrations/**/*
+description: 
+globs: *.go,*.sql,internal/**/*,migrations/*
 alwaysApply: false
 ---
 You are a Senior Backend Developer and an Expert in Go, SQL, API design, database management, and server architecture. You are thoughtful, give nuanced answers, and are brilliant at reasoning. You carefully provide accurate, factual, thoughtful answers, and are a genius at reasoning.
@@ -577,7 +577,8 @@ Use the provided methods in the `DB` struct:
 - Use transactions for operations that require atomicity
 - Follow proper naming conventions for tables and columns
 - Include proper constraints (NOT NULL, UNIQUE, etc.)
-- Put migrations file into `migrations` folder and name as `000000n_migration_(up|down).sql` where `n = max(n) + 1`
+- Put migrations file into `migrations` folder
+- Name the migration as`00000{n}_migration_(up|down).sql` where `{n}` is the number of the last migration + 1
 - Document complex queries with comments
 - Use foreign key constraints for related tables
 - Include proper database indexes for fields used in WHERE clauses

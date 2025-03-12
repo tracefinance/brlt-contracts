@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -111,7 +111,7 @@ func (c *EVMBlockchain) GetTransaction(ctx context.Context, hash string) (*types
 
 	var blockNumber *big.Int
 	var timestamp uint64
-	var receipt *ethtypes.Receipt
+	var receipt *ethTypes.Receipt
 
 	if !isPending {
 		receipt, err = c.client.TransactionReceipt(ctx, txHash)
@@ -231,7 +231,7 @@ func (c *EVMBlockchain) CallContract(ctx context.Context, from string, to string
 
 // BroadcastTransaction implements Blockchain.BroadcastTransaction
 func (c *EVMBlockchain) BroadcastTransaction(ctx context.Context, signedTx []byte) (string, error) {
-	var tx ethtypes.Transaction
+	var tx ethTypes.Transaction
 	if err := tx.UnmarshalBinary(signedTx); err != nil {
 		return "", fmt.Errorf("evm: failed to decode transaction: %w", err)
 	}
@@ -351,7 +351,7 @@ func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []strin
 	errChan := make(chan error)
 
 	// Subscribe to logs
-	ethLogChan := make(chan ethtypes.Log)
+	ethLogChan := make(chan ethTypes.Log)
 	sub, err := c.client.SubscribeFilterLogs(ctx, filterQuery, ethLogChan)
 	if err != nil {
 		return nil, nil, fmt.Errorf("evm: failed to subscribe to logs: %w", err)
@@ -398,7 +398,7 @@ func (c *EVMBlockchain) Close() {
 }
 
 // convertEthereumLogsToLogs converts Ethereum logs to our Log model
-func (c *EVMBlockchain) convertEthereumLogsToLogs(logs []*ethtypes.Log) []types.Log {
+func (c *EVMBlockchain) convertEthereumLogsToLogs(logs []*ethTypes.Log) []types.Log {
 	result := make([]types.Log, len(logs))
 	for i, log := range logs {
 		topics := make([]string, len(log.Topics))
@@ -419,7 +419,7 @@ func (c *EVMBlockchain) convertEthereumLogsToLogs(logs []*ethtypes.Log) []types.
 }
 
 // convertEthereumTransactionToTransaction converts an Ethereum transaction to common.Transaction
-func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethtypes.Transaction, receipt *ethtypes.Receipt, timestamp uint64) *types.Transaction {
+func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethTypes.Transaction, receipt *ethTypes.Receipt, timestamp uint64) *types.Transaction {
 	var status string
 	if receipt != nil {
 		if receipt.Status == 1 {
@@ -432,8 +432,8 @@ func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethtypes.Tra
 	}
 
 	from := ""
-	signer := ethtypes.LatestSignerForChainID(big.NewInt(c.chain.ID))
-	if sender, err := ethtypes.Sender(signer, tx); err == nil {
+	signer := ethTypes.LatestSignerForChainID(big.NewInt(c.chain.ID))
+	if sender, err := ethTypes.Sender(signer, tx); err == nil {
 		from = sender.Hex()
 	}
 

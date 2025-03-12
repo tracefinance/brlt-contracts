@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"vault0/internal/api/handlers/blockchain"
+	"vault0/internal/api/handlers/user"
 	"vault0/internal/api/handlers/wallet"
 	"vault0/internal/config"
 	"vault0/internal/core/db"
@@ -46,8 +48,14 @@ func (s *Server) setupRoutes() {
 		// Health check endpoint
 		apiGroup.GET("/health", s.healthHandler)
 
-		// Setup wallet routes
+		// Setup user routes with core dependencies
+		user.SetupRoutes(apiGroup, s.db)
+
+		// Setup wallet routes with core dependencies
 		wallet.SetupRoutes(apiGroup, s.db, s.keyStore, s.config)
+
+		// Setup blockchain routes with core dependencies
+		blockchain.SetupRoutes(apiGroup, s.db, s.keyStore, s.config)
 
 		// Add more API routes here as needed
 	}
