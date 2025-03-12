@@ -9,29 +9,38 @@ import (
 	"vault0/internal/api/handlers/user"
 	"vault0/internal/api/handlers/wallet"
 	"vault0/internal/config"
+	coreBlockchain "vault0/internal/core/blockchain"
 	"vault0/internal/core/db"
 	"vault0/internal/core/keystore"
+	coreWallet "vault0/internal/core/wallet"
+	"vault0/internal/types"
 
 	"github.com/gin-gonic/gin"
 )
 
 // Server represents the API server
 type Server struct {
-	router   *gin.Engine
-	db       *db.DB
-	config   *config.Config
-	keyStore keystore.KeyStore
+	router            *gin.Engine
+	db                *db.DB
+	config            *config.Config
+	keystore          keystore.KeyStore
+	chainFactory      types.ChainFactory
+	walletFactory     coreWallet.Factory
+	blockchainFactory coreBlockchain.Factory
 }
 
 // NewServer creates a new API server
-func NewServer(db *db.DB, keyStore keystore.KeyStore, cfg *config.Config) *Server {
+func NewServer(db *db.DB, cfg *config.Config, keystore keystore.KeyStore, chainFactory types.ChainFactory, walletFactory coreWallet.Factory, blockchainFactory coreBlockchain.Factory) *Server {
 	router := gin.Default()
 
 	server := &Server{
-		router:   router,
-		db:       db,
-		config:   cfg,
-		keyStore: keyStore,
+		router:            router,
+		db:                db,
+		config:            cfg,
+		keystore:          keystore,
+		chainFactory:      chainFactory,
+		walletFactory:     walletFactory,
+		blockchainFactory: blockchainFactory,
 	}
 
 	// Setup routes
@@ -52,10 +61,10 @@ func (s *Server) setupRoutes() {
 		user.SetupRoutes(apiGroup, s.db)
 
 		// Setup wallet routes with core dependencies
-		wallet.SetupRoutes(apiGroup, s.db, s.keyStore, s.config)
+		wallet.SetupRoutes(apiGroup, s.db, s.keystore, s.chainFactory, s.walletFactory, s.config)
 
 		// Setup blockchain routes with core dependencies
-		blockchain.SetupRoutes(apiGroup, s.db, s.keyStore, s.config)
+		blockchain.SetupRoutes(apiGroup, s.db, s.keystore, s.config)
 
 		// Add more API routes here as needed
 	}

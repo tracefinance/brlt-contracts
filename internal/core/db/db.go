@@ -16,8 +16,8 @@ type DB struct {
 	conn *sql.DB
 }
 
-// New creates a new database connection
-func New(cfg *config.Config) (*DB, error) {
+// NewDatabase creates a new database connection
+func NewDatabase(cfg *config.Config) (*DB, error) {
 	// Create a database connection string for SQLite
 	connStr := fmt.Sprintf("file:%s", cfg.DBPath)
 

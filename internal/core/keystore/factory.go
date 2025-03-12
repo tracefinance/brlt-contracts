@@ -1,16 +1,15 @@
 package keystore
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 
 	"vault0/internal/config"
+	"vault0/internal/core/db"
 )
 
-type KeyStoreFactory interface {
-	NewKeyStore(keyStoreType KeyStoreType) (KeyStore, error)
-	NewDefaultKeyStore() (KeyStore, error)
+type Factory interface {
+	NewKeyStore() (KeyStore, error)
 }
 
 // KeyStoreType represents the type of key store to use
@@ -26,30 +25,27 @@ const (
 // Factory creates KeyStore instances based on the specified type
 type factory struct {
 	cfg *config.Config
-	db  *sql.DB
+	db  *db.DB
 }
 
 // NewFactory creates a new KeyStore factory
-func NewFactory(cfg *config.Config, db *sql.DB) KeyStoreFactory {
+func NewFactory(db *db.DB, cfg *config.Config) Factory {
 	return &factory{
 		cfg: cfg,
 		db:  db,
 	}
 }
 
-// NewKeyStore creates a new KeyStore instance of the specified type
-func (f *factory) NewKeyStore(keyStoreType KeyStoreType) (KeyStore, error) {
+// NewKeyStore creates a new KeyStore instance based on the type specified in config
+func (f *factory) NewKeyStore() (KeyStore, error) {
+	keyStoreType := KeyStoreType(f.cfg.KeyStoreType)
+
 	switch keyStoreType {
 	case KeyStoreTypeDB:
-		return NewDBKeyStore(f.db, f.cfg)
+		return NewDBKeyStore(f.db.GetConnection(), f.cfg)
 	case KeyStoreTypeKMS:
 		return nil, errors.New("KMS key store not implemented yet")
 	default:
 		return nil, fmt.Errorf("unsupported key store type: %s", keyStoreType)
 	}
-}
-
-// NewDefaultKeyStore creates a new KeyStore instance with the default type (DB)
-func (f *factory) NewDefaultKeyStore() (KeyStore, error) {
-	return f.NewKeyStore(KeyStoreTypeDB)
 }

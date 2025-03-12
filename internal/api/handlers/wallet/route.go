@@ -6,16 +6,18 @@ import (
 	"vault0/internal/config"
 	"vault0/internal/core/db"
 	"vault0/internal/core/keystore"
+	coreWallet "vault0/internal/core/wallet"
 	walletService "vault0/internal/services/wallet"
+	"vault0/internal/types"
 )
 
 // SetupRoutes configures all wallet-related routes and their dependencies
-func SetupRoutes(router *gin.RouterGroup, db *db.DB, keyStore keystore.KeyStore, cfg *config.Config) {
+func SetupRoutes(router *gin.RouterGroup, db *db.DB, keyStore keystore.KeyStore, chainFactory types.ChainFactory, walletFactory coreWallet.Factory, cfg *config.Config) {
 	// Create wallet repository
 	walletRepo := walletService.NewSQLiteRepository(db)
 
 	// Create wallet service
-	walletSvc := walletService.NewService(walletRepo, keyStore, cfg)
+	walletSvc := walletService.NewService(cfg, walletRepo, keyStore, chainFactory, walletFactory)
 
 	// Create wallet handler
 	walletHandler := NewHandler(walletSvc)

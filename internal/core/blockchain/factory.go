@@ -6,7 +6,7 @@ import (
 	"vault0/internal/types"
 )
 
-type BlockchainFactory interface {
+type Factory interface {
 	NewBlockchain(chainType types.ChainType) (Blockchain, error)
 }
 
@@ -19,7 +19,7 @@ type factory struct {
 }
 
 // NewFactory creates a new blockchain factory with the given configuration
-func NewFactory(cfg *config.Config) BlockchainFactory {
+func NewFactory(cfg *config.Config) Factory {
 	return &factory{
 		cfg:          cfg,
 		chainFactory: types.NewChainFactory(cfg),

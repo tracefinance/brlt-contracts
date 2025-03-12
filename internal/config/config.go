@@ -47,6 +47,8 @@ type Config struct {
 	DBEncryptionKey string
 	// SmartContractsPath is the path to the compiled smart contract artifacts
 	SmartContractsPath string
+	// KeyStoreType specifies the type of key store to use (db or kms)
+	KeyStoreType string
 
 	// Blockchains holds configuration for all supported blockchains
 	Blockchains BlockchainsConfig
@@ -101,6 +103,12 @@ func LoadConfig() *Config {
 		smartContractsPath = filepath.Join(baseDir, "contracts", "artifacts")
 	}
 
+	// Get KeyStore type from environment or use default
+	keyStoreType := os.Getenv("KEY_STORE_TYPE")
+	if keyStoreType == "" {
+		keyStoreType = "db" // Default to database key store
+	}
+
 	// Load blockchain configurations
 	blockchains := BlockchainsConfig{
 		Ethereum: loadEthereumConfig(),
@@ -115,6 +123,7 @@ func LoadConfig() *Config {
 		MigrationsPath:     migrationsPath,
 		DBEncryptionKey:    dbEncryptionKey,
 		SmartContractsPath: smartContractsPath,
+		KeyStoreType:       keyStoreType,
 		Blockchains:        blockchains,
 	}
 }

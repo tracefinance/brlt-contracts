@@ -9,7 +9,7 @@ import (
 	"vault0/internal/types"
 )
 
-type WalletFactory interface {
+type Factory interface {
 	NewWallet(ctx context.Context, chainType types.ChainType, keyID string) (Wallet, error)
 }
 
@@ -21,7 +21,7 @@ type factory struct {
 }
 
 // NewFactory creates a new wallet factory.
-func NewFactory(keyStore keystore.KeyStore, appConfig *config.Config) WalletFactory {
+func NewFactory(keyStore keystore.KeyStore, appConfig *config.Config) Factory {
 	if appConfig == nil {
 		panic("appConfig must not be nil")
 	}

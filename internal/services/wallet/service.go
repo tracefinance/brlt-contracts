@@ -38,24 +38,20 @@ type Service interface {
 
 // WalletService implements the Service interface
 type WalletService struct {
-	repository    Repository
-	walletFactory coreWallet.WalletFactory
-	chainFactory  types.ChainFactory
 	config        *config.Config
+	repository    Repository
+	walletFactory coreWallet.Factory
+	chainFactory  types.ChainFactory
 	keystore      keystore.KeyStore
 }
 
 // NewService creates a new wallet service
-func NewService(repository Repository, keyStore keystore.KeyStore, config *config.Config) Service {
-	// Create the wallet factory using the provided keystore and config
-	walletFactory := coreWallet.NewFactory(keyStore, config)
-	chainFactory := types.NewChainFactory(config)
-
+func NewService(config *config.Config, repository Repository, keyStore keystore.KeyStore, chainFactory types.ChainFactory, walletFactory coreWallet.Factory) Service {
 	return &WalletService{
+		config:        config,
 		repository:    repository,
 		walletFactory: walletFactory,
 		chainFactory:  chainFactory,
-		config:        config,
 		keystore:      keyStore,
 	}
 }
