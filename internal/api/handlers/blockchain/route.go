@@ -1,12 +1,12 @@
 package blockchain
 
 import (
-	"context"
 	"vault0/internal/config"
 	blockchainCore "vault0/internal/core/blockchain"
 	"vault0/internal/core/db"
 	"vault0/internal/core/keystore"
 	"vault0/internal/core/wallet"
+	"vault0/internal/logger"
 	blockchainService "vault0/internal/services/blockchain"
 	walletService "vault0/internal/services/wallet"
 	"vault0/internal/types"
@@ -15,7 +15,7 @@ import (
 )
 
 // SetupRoutes configures all blockchain-related routes and their dependencies
-func SetupRoutes(router *gin.RouterGroup, db *db.DB, keyStore keystore.KeyStore, cfg *config.Config) {
+func SetupRoutes(router *gin.RouterGroup, db *db.DB, keyStore keystore.KeyStore, cfg *config.Config, logger logger.Logger) {
 	// Create chain factory
 	chainFactory := types.NewChainFactory(cfg)
 
@@ -27,7 +27,7 @@ func SetupRoutes(router *gin.RouterGroup, db *db.DB, keyStore keystore.KeyStore,
 
 	// Create wallet repository and service
 	walletRepo := walletService.NewSQLiteRepository(db)
-	walletSvc := walletService.NewService(cfg, walletRepo, keyStore, chainFactory, walletFactory)
+	walletSvc := walletService.NewService(cfg, walletRepo, keyStore, chainFactory, walletFactory, blockchainFactory, logger)
 
 	// Create blockchain repository
 	blockchainRepo := blockchainService.NewRepository(db)
@@ -44,13 +44,4 @@ func SetupRoutes(router *gin.RouterGroup, db *db.DB, keyStore keystore.KeyStore,
 	blockchainRoutes.POST("/:chain_type/deactivate", blockchainHandler.DeactivateBlockchain)
 	blockchainRoutes.GET("/:chain_type", blockchainHandler.GetBlockchain)
 	blockchainRoutes.GET("/", blockchainHandler.ListActiveBlockchains)
-	blockchainRoutes.POST("/events/subscribe", blockchainHandler.SubscribeToEvents)
-	blockchainRoutes.POST("/events/unsubscribe", blockchainHandler.UnsubscribeFromEvents)
-
-	// Subscribe to events for active blockchains
-	if err := blockchainSvc.SubscribeToEvents(context.Background()); err != nil {
-		// Log error but don't stop server startup
-		// TODO: Use proper logger
-		println("Failed to subscribe to blockchain events:", err.Error())
-	}
 }

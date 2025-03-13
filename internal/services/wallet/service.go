@@ -5,10 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sync"
 
 	"vault0/internal/config"
+	"vault0/internal/core/blockchain"
 	"vault0/internal/core/keystore"
 	coreWallet "vault0/internal/core/wallet"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
@@ -34,6 +37,12 @@ type Service interface {
 
 	// ListWallets retrieves a list of wallets
 	ListWallets(ctx context.Context, limit, offset int) ([]*Wallet, error)
+
+	// SubscribeToEvents subscribes to events for all active wallets
+	SubscribeToEvents(ctx context.Context) error
+
+	// UnsubscribeFromEvents unsubscribes from all event subscriptions
+	UnsubscribeFromEvents()
 }
 
 // WalletService implements the Service interface
@@ -43,16 +52,32 @@ type WalletService struct {
 	walletFactory coreWallet.Factory
 	chainFactory  types.ChainFactory
 	keystore      keystore.KeyStore
+	subscribers   map[string]context.CancelFunc
+	mu            sync.RWMutex
+	logger        logger.Logger
+	blockchain    blockchain.Factory
 }
 
 // NewService creates a new wallet service
-func NewService(config *config.Config, repository Repository, keyStore keystore.KeyStore, chainFactory types.ChainFactory, walletFactory coreWallet.Factory) Service {
+func NewService(
+	config *config.Config,
+	repository Repository,
+	keyStore keystore.KeyStore,
+	chainFactory types.ChainFactory,
+	walletFactory coreWallet.Factory,
+	blockchain blockchain.Factory,
+	log logger.Logger,
+) Service {
 	return &WalletService{
 		config:        config,
 		repository:    repository,
 		walletFactory: walletFactory,
 		chainFactory:  chainFactory,
 		keystore:      keyStore,
+		subscribers:   make(map[string]context.CancelFunc),
+		mu:            sync.RWMutex{},
+		logger:        log,
+		blockchain:    blockchain,
 	}
 }
 
@@ -100,6 +125,14 @@ func (s *WalletService) CreateWallet(ctx context.Context, chainType types.ChainT
 		return nil, fmt.Errorf("failed to store wallet: %w", err)
 	}
 
+	// Subscribe to wallet events
+	if err := s.subscribeToWallet(wallet); err != nil {
+		s.logger.Error("Failed to subscribe to wallet events",
+			logger.String("wallet_id", wallet.ID),
+			logger.String("address", wallet.Address),
+			logger.Error(err))
+	}
+
 	return wallet, nil
 }
 
@@ -135,17 +168,11 @@ func (s *WalletService) UpdateWallet(ctx context.Context, id, name string, tags 
 
 // DeleteWallet soft-deletes a wallet
 func (s *WalletService) DeleteWallet(ctx context.Context, id string) error {
-	// Validate inputs
-	if id == "" {
-		return fmt.Errorf("%w: id cannot be empty", ErrInvalidInput)
-	}
+	// Unsubscribe from wallet events first
+	s.unsubscribeFromWallet(id)
 
-	// Delete the wallet
-	err := s.repository.Delete(ctx, id)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrWalletNotFound
-		}
+	// Then delete the wallet
+	if err := s.repository.Delete(ctx, id); err != nil {
 		return fmt.Errorf("failed to delete wallet: %w", err)
 	}
 
@@ -188,4 +215,98 @@ func (s *WalletService) ListWallets(ctx context.Context, limit, offset int) ([]*
 	}
 
 	return wallets, nil
+}
+
+// SubscribeToEvents subscribes to events for all active wallets
+func (s *WalletService) SubscribeToEvents(ctx context.Context) error {
+	// Get all non-deleted wallets
+	wallets, err := s.repository.List(ctx, 0, 0)
+	if err != nil {
+		return fmt.Errorf("failed to list wallets: %w", err)
+	}
+
+	// Subscribe to each wallet
+	for _, wallet := range wallets {
+		if err := s.subscribeToWallet(wallet); err != nil {
+			s.logger.Error("Failed to subscribe to wallet events",
+				logger.String("wallet_id", wallet.ID),
+				logger.String("address", wallet.Address),
+				logger.Error(err))
+		}
+	}
+
+	return nil
+}
+
+// UnsubscribeFromEvents unsubscribes from all event subscriptions
+func (s *WalletService) UnsubscribeFromEvents() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Cancel all subscribers
+	for walletID, cancel := range s.subscribers {
+		cancel()
+		delete(s.subscribers, walletID)
+	}
+}
+
+func (s *WalletService) subscribeToWallet(wallet *Wallet) error {
+	// Create blockchain client
+	client, err := s.blockchain.NewBlockchain(wallet.ChainType)
+	if err != nil {
+		return fmt.Errorf("failed to create blockchain client: %w", err)
+	}
+
+	// Create context with cancellation
+	subscriptionCtx, cancel := context.WithCancel(context.Background())
+
+	// Store cancel function
+	s.mu.Lock()
+	s.subscribers[wallet.ID] = cancel
+	s.mu.Unlock()
+
+	// Subscribe to events
+	go func() {
+		defer cancel()
+
+		// Subscribe to events for the wallet address
+		logCh, errCh, err := client.SubscribeToEvents(subscriptionCtx, []string{wallet.Address}, nil)
+		if err != nil {
+			s.logger.Error("Failed to subscribe to events",
+				logger.String("wallet_id", wallet.ID),
+				logger.String("address", wallet.Address),
+				logger.Error(err))
+			return
+		}
+
+		for {
+			select {
+			case <-subscriptionCtx.Done():
+				return
+			case err := <-errCh:
+				s.logger.Error("Event subscription error",
+					logger.String("wallet_id", wallet.ID),
+					logger.String("address", wallet.Address),
+					logger.Error(err))
+				return
+			case log := <-logCh:
+				s.logger.Info("Received transaction event",
+					logger.String("wallet_id", wallet.ID),
+					logger.String("address", wallet.Address),
+					logger.String("tx_hash", log.TransactionHash))
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (s *WalletService) unsubscribeFromWallet(walletID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if cancel, exists := s.subscribers[walletID]; exists {
+		cancel()
+		delete(s.subscribers, walletID)
+	}
 }

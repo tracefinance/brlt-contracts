@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/gin-gonic/gin"
+
 	"vault0/internal/api/handlers/blockchain"
 	"vault0/internal/api/handlers/user"
 	"vault0/internal/api/handlers/wallet"
@@ -14,8 +16,6 @@ import (
 	coreWallet "vault0/internal/core/wallet"
 	"vault0/internal/logger"
 	"vault0/internal/types"
-
-	"github.com/gin-gonic/gin"
 )
 
 // Server represents the API server
@@ -61,38 +61,40 @@ func NewServer(
 
 // setupRoutes configures the API routes
 func (s *Server) setupRoutes() {
-	// API routes group
-	apiGroup := s.router.Group("/api")
-	{
-		// Health check endpoint
-		apiGroup.GET("/health", s.healthHandler)
+	// Setup API routes
+	api := s.router.Group("/api/v1")
 
-		// Setup user routes with core dependencies
-		user.SetupRoutes(apiGroup, s.db)
+	// Setup user routes
+	user.SetupRoutes(api, s.db)
 
-		// Setup wallet routes with core dependencies
-		wallet.SetupRoutes(apiGroup, s.db, s.keystore, s.chainFactory, s.walletFactory, s.config)
+	// Setup wallet routes
+	wallet.SetupRoutes(
+		api,
+		s.db,
+		s.keystore,
+		s.chainFactory,
+		s.walletFactory,
+		s.blockchainFactory,
+		s.config,
+		s.logger,
+	)
 
-		// Setup blockchain routes with core dependencies
-		blockchain.SetupRoutes(apiGroup, s.db, s.keystore, s.config)
+	// Setup blockchain routes
+	blockchain.SetupRoutes(
+		api,
+		s.db,
+		s.keystore,
+		s.config,
+		s.logger,
+	)
 
-		// Add more API routes here as needed
+	// Serve static files for the UI
+	if s.config.UIPath != "" {
+		s.router.Static("/ui", s.config.UIPath)
+		s.router.NoRoute(func(c *gin.Context) {
+			c.File(filepath.Join(s.config.UIPath, "index.html"))
+		})
 	}
-
-	// Serve static files from the UI directory
-	s.router.Static("/assets", filepath.Join(s.config.UIPath, "assets"))
-
-	// Setup a catch-all route to serve index.html for SPA routing
-	s.router.NoRoute(func(c *gin.Context) {
-		// If the request path starts with /api, return 404
-		if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "API endpoint not found"})
-			return
-		}
-
-		// For all other routes, serve the index.html file to support SPA routing
-		c.File(filepath.Join(s.config.UIPath, "index.html"))
-	})
 }
 
 // healthHandler handles the health check endpoint
@@ -102,18 +104,12 @@ func (s *Server) healthHandler(c *gin.Context) {
 	})
 }
 
-// Run starts the server on the specified port
+// Run starts the server
 func (s *Server) Run() error {
-	address := ":" + s.config.Port
-	s.logger.Info("Starting server", logger.String("address", address))
-	return s.router.Run(address)
+	return s.router.Run(":" + s.config.Port)
 }
 
-// Shutdown gracefully shuts down the server
+// Shutdown performs cleanup before server shutdown
 func (s *Server) Shutdown() {
-	s.logger.Info("Shutting down server")
-	// Close the database connection
-	if s.db != nil {
-		s.db.Close()
-	}
+	// Add cleanup logic here if needed
 }

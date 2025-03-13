@@ -84,19 +84,3 @@ func (h *Handler) ListActiveBlockchains(c *gin.Context) {
 
 	c.JSON(http.StatusOK, ToResponseList(blockchains))
 }
-
-// SubscribeToEvents handles POST /blockchains/events/subscribe
-func (h *Handler) SubscribeToEvents(c *gin.Context) {
-	if err := h.service.SubscribeToEvents(c.Request.Context()); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"status": "subscribed"})
-}
-
-// UnsubscribeFromEvents handles POST /blockchains/events/unsubscribe
-func (h *Handler) UnsubscribeFromEvents(c *gin.Context) {
-	h.service.UnsubscribeFromEvents()
-	c.JSON(http.StatusOK, gin.H{"status": "unsubscribed"})
-}
