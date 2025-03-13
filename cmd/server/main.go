@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,6 +11,7 @@ import (
 	"vault0/internal/core/db"
 	"vault0/internal/core/keystore"
 	"vault0/internal/core/wallet"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
@@ -19,23 +19,30 @@ func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
 
+	// Initialize logger
+	log, err := logger.NewLogger(cfg.Log)
+	if err != nil {
+		// Since we don't have the logger yet, use os.Exit
+		os.Exit(1)
+	}
+
 	// Initialize database
 	database, err := db.NewDatabase(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		log.Fatal("Failed to initialize database", logger.Error(err))
 	}
 	defer database.Close()
 
 	// Apply database migrations
 	if err := db.MigrateDatabase(database, cfg); err != nil {
-		log.Fatalf("Failed to apply database migrations: %v", err)
+		log.Fatal("Failed to apply database migrations", logger.Error(err))
 	}
 
 	// Initialize keystore factory and create keystore
 	keystoreFactory := keystore.NewFactory(database, cfg)
 	ks, err := keystoreFactory.NewKeyStore()
 	if err != nil {
-		log.Fatalf("Failed to initialize keystore: %v", err)
+		log.Fatal("Failed to initialize keystore", logger.Error(err))
 	}
 
 	// Initialize chain factory
@@ -55,6 +62,7 @@ func main() {
 		chainFactory,
 		walletFactory,
 		blockchainFactory,
+		log,
 	)
 
 	// Setup graceful shutdown
@@ -64,19 +72,21 @@ func main() {
 	// Run the server in a goroutine
 	go func() {
 		if err := server.Run(); err != nil {
-			log.Fatalf("Failed to start server: %v", err)
+			log.Fatal("Failed to start server", logger.Error(err))
 		}
 	}()
 
-	log.Printf("Server is running on port %s", cfg.Port)
-	log.Printf("Press Ctrl+C to shutdown")
+	log.Info("Server is running",
+		logger.String("port", cfg.Port),
+		logger.String("message", "Press Ctrl+C to shutdown"),
+	)
 
 	// Wait for interrupt signal
 	<-quit
-	log.Println("Shutting down server...")
+	log.Info("Received shutdown signal")
 
 	// Perform cleanup
 	server.Shutdown()
 
-	log.Println("Server gracefully stopped")
+	log.Info("Server gracefully stopped")
 }

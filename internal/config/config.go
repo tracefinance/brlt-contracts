@@ -5,9 +5,48 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
+
+// LogLevel represents the logging level
+type LogLevel string
+
+const (
+	// LogLevelDebug represents debug level logging
+	LogLevelDebug LogLevel = "debug"
+	// LogLevelInfo represents info level logging
+	LogLevelInfo LogLevel = "info"
+	// LogLevelWarn represents warn level logging
+	LogLevelWarn LogLevel = "warn"
+	// LogLevelError represents error level logging
+	LogLevelError LogLevel = "error"
+)
+
+// LogFormat represents the logging output format
+type LogFormat string
+
+const (
+	// LogFormatJSON represents JSON format logging
+	LogFormatJSON LogFormat = "json"
+	// LogFormatConsole represents human-readable console format logging
+	LogFormatConsole LogFormat = "console"
+)
+
+// LogConfig holds configuration for application logging
+type LogConfig struct {
+	// Level is the minimum log level to output
+	Level LogLevel
+	// Format is the log output format (json or console)
+	Format LogFormat
+	// OutputPath is the path to the log file (empty for stdout)
+	OutputPath string
+	// RequestLogging enables HTTP request logging when true
+	RequestLogging bool
+	// SQLLogging enables SQL query logging when true
+	SQLLogging bool
+}
 
 // BlockchainConfig holds configuration for a specific blockchain
 type BlockchainConfig struct {
@@ -49,7 +88,8 @@ type Config struct {
 	SmartContractsPath string
 	// KeyStoreType specifies the type of key store to use (db or kms)
 	KeyStoreType string
-
+	// Log holds the logging configuration
+	Log LogConfig
 	// Blockchains holds configuration for all supported blockchains
 	Blockchains BlockchainsConfig
 }
@@ -116,6 +156,9 @@ func LoadConfig() *Config {
 		Base:     loadBaseConfig(),
 	}
 
+	// Load logging configuration
+	logging := loadLoggingConfig()
+
 	return &Config{
 		DBPath:             dbPath,
 		Port:               port,
@@ -124,6 +167,7 @@ func LoadConfig() *Config {
 		DBEncryptionKey:    dbEncryptionKey,
 		SmartContractsPath: smartContractsPath,
 		KeyStoreType:       keyStoreType,
+		Log:                logging,
 		Blockchains:        blockchains,
 	}
 }
@@ -246,5 +290,55 @@ func getEnv(key, defaultValue string) string {
 	if value == "" {
 		return defaultValue
 	}
+	return value
+}
+
+// loadLoggingConfig loads logging configuration from environment variables
+func loadLoggingConfig() LogConfig {
+	// Get log level from environment or use default
+	levelStr := strings.ToLower(getEnv("LOG_LEVEL", "info"))
+	level := LogLevelInfo
+	switch LogLevel(levelStr) {
+	case LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError:
+		level = LogLevel(levelStr)
+	}
+
+	// Get log format from environment or use default
+	formatStr := strings.ToLower(getEnv("LOG_FORMAT", "console"))
+	format := LogFormatConsole
+	if formatStr == string(LogFormatJSON) {
+		format = LogFormatJSON
+	}
+
+	// Get log output path from environment
+	outputPath := os.Getenv("LOG_OUTPUT_PATH")
+
+	// Get request logging setting from environment
+	requestLogging := parseEnvBool("LOG_REQUESTS", true)
+
+	// Get SQL logging setting from environment
+	sqlLogging := parseEnvBool("LOG_SQL", false)
+
+	return LogConfig{
+		Level:          level,
+		Format:         format,
+		OutputPath:     outputPath,
+		RequestLogging: requestLogging,
+		SQLLogging:     sqlLogging,
+	}
+}
+
+// parseEnvBool parses a boolean from an environment variable
+func parseEnvBool(key string, defaultValue bool) bool {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+
+	value, err := strconv.ParseBool(valueStr)
+	if err != nil {
+		return defaultValue
+	}
+
 	return value
 }

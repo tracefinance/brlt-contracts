@@ -1,7 +1,6 @@
 package api
 
 import (
-	"log"
 	"net/http"
 	"path/filepath"
 
@@ -13,6 +12,7 @@ import (
 	"vault0/internal/core/db"
 	"vault0/internal/core/keystore"
 	coreWallet "vault0/internal/core/wallet"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 
 	"github.com/gin-gonic/gin"
@@ -27,10 +27,19 @@ type Server struct {
 	chainFactory      types.ChainFactory
 	walletFactory     coreWallet.Factory
 	blockchainFactory coreBlockchain.Factory
+	logger            logger.Logger
 }
 
 // NewServer creates a new API server
-func NewServer(db *db.DB, cfg *config.Config, keystore keystore.KeyStore, chainFactory types.ChainFactory, walletFactory coreWallet.Factory, blockchainFactory coreBlockchain.Factory) *Server {
+func NewServer(
+	db *db.DB,
+	cfg *config.Config,
+	keystore keystore.KeyStore,
+	chainFactory types.ChainFactory,
+	walletFactory coreWallet.Factory,
+	blockchainFactory coreBlockchain.Factory,
+	log logger.Logger,
+) *Server {
 	router := gin.Default()
 
 	server := &Server{
@@ -41,6 +50,7 @@ func NewServer(db *db.DB, cfg *config.Config, keystore keystore.KeyStore, chainF
 		chainFactory:      chainFactory,
 		walletFactory:     walletFactory,
 		blockchainFactory: blockchainFactory,
+		logger:            log,
 	}
 
 	// Setup routes
@@ -95,12 +105,13 @@ func (s *Server) healthHandler(c *gin.Context) {
 // Run starts the server on the specified port
 func (s *Server) Run() error {
 	address := ":" + s.config.Port
-	log.Printf("Starting server on %s", address)
+	s.logger.Info("Starting server", logger.String("address", address))
 	return s.router.Run(address)
 }
 
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown() {
+	s.logger.Info("Shutting down server")
 	// Close the database connection
 	if s.db != nil {
 		s.db.Close()
