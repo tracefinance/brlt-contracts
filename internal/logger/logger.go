@@ -40,7 +40,7 @@ type zapLogger struct {
 }
 
 // NewLogger creates a new logger instance with the given configuration
-func NewLogger(cfg config.LogConfig) (Logger, error) {
+func NewLogger(cfg *config.Config) (Logger, error) {
 	// Create encoder config based on format
 	encoderConfig := zapcore.EncoderConfig{
 		TimeKey:        "ts",
@@ -59,7 +59,7 @@ func NewLogger(cfg config.LogConfig) (Logger, error) {
 
 	// Configure encoder based on format
 	var encoder zapcore.Encoder
-	if cfg.Format == config.LogFormatJSON {
+	if cfg.Log.Format == config.LogFormatJSON {
 		encoder = zapcore.NewJSONEncoder(encoderConfig)
 	} else {
 		encoder = zapcore.NewConsoleEncoder(encoderConfig)
@@ -67,7 +67,7 @@ func NewLogger(cfg config.LogConfig) (Logger, error) {
 
 	// Configure log level
 	var level zapcore.Level
-	switch cfg.Level {
+	switch cfg.Log.Level {
 	case config.LogLevelDebug:
 		level = zapcore.DebugLevel
 	case config.LogLevelInfo:
@@ -82,8 +82,8 @@ func NewLogger(cfg config.LogConfig) (Logger, error) {
 
 	// Configure output
 	var output zapcore.WriteSyncer
-	if cfg.OutputPath != "" {
-		file, err := os.OpenFile(cfg.OutputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if cfg.Log.OutputPath != "" {
+		file, err := os.OpenFile(cfg.Log.OutputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open log file: %w", err)
 		}

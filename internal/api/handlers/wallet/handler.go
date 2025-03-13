@@ -168,3 +168,12 @@ func (h *Handler) ListWallets(c *gin.Context) {
 	// Write response
 	c.JSON(http.StatusOK, response)
 }
+
+func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
+	walletRoutes := router.Group("/wallets")
+	walletRoutes.POST("", h.CreateWallet)
+	walletRoutes.GET("/:id", h.GetWallet)
+	walletRoutes.PUT("/:id", h.UpdateWallet)
+	walletRoutes.DELETE("/:id", h.DeleteWallet)
+	walletRoutes.GET("", h.ListWallets)
+}

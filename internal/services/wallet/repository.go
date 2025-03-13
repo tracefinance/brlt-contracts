@@ -30,18 +30,18 @@ type Repository interface {
 	List(ctx context.Context, limit, offset int) ([]*Wallet, error)
 }
 
-// SQLiteRepository implements Repository interface for SQLite
-type SQLiteRepository struct {
+// repository implements Repository interface for SQLite
+type repository struct {
 	db *db.DB
 }
 
-// NewSQLiteRepository creates a new SQLite repository for wallets
-func NewSQLiteRepository(db *db.DB) Repository {
-	return &SQLiteRepository{db: db}
+// NewRepository creates a new SQLite repository for wallets
+func NewRepository(db *db.DB) Repository {
+	return &repository{db: db}
 }
 
 // Create inserts a new wallet into the database
-func (r *SQLiteRepository) Create(ctx context.Context, wallet *Wallet) error {
+func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 	// Generate a new UUID if not provided
 	if wallet.ID == "" {
 		wallet.ID = uuid.New().String()
@@ -84,7 +84,7 @@ func (r *SQLiteRepository) Create(ctx context.Context, wallet *Wallet) error {
 }
 
 // GetByID retrieves a wallet by its ID
-func (r *SQLiteRepository) GetByID(ctx context.Context, id string) (*Wallet, error) {
+func (r *repository) GetByID(ctx context.Context, id string) (*Wallet, error) {
 	query := `
 		SELECT id, key_id, chain_type, address, name, tags, created_at, updated_at, deleted_at
 		FROM wallets
@@ -110,7 +110,7 @@ func (r *SQLiteRepository) GetByID(ctx context.Context, id string) (*Wallet, err
 }
 
 // Update updates a wallet's name and tags
-func (r *SQLiteRepository) Update(ctx context.Context, wallet *Wallet) error {
+func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 	// Set updated timestamp
 	wallet.UpdatedAt = time.Now()
 
@@ -152,7 +152,7 @@ func (r *SQLiteRepository) Update(ctx context.Context, wallet *Wallet) error {
 }
 
 // Delete soft deletes a wallet by its ID
-func (r *SQLiteRepository) Delete(ctx context.Context, id string) error {
+func (r *repository) Delete(ctx context.Context, id string) error {
 	query := `
 		UPDATE wallets
 		SET deleted_at = ?, updated_at = ?
@@ -185,7 +185,7 @@ func (r *SQLiteRepository) Delete(ctx context.Context, id string) error {
 }
 
 // List retrieves wallets with optional filtering
-func (r *SQLiteRepository) List(ctx context.Context, limit, offset int) ([]*Wallet, error) {
+func (r *repository) List(ctx context.Context, limit, offset int) ([]*Wallet, error) {
 	query := `
 		SELECT id, key_id, chain_type, address, name, tags, created_at, updated_at, deleted_at
 		FROM wallets

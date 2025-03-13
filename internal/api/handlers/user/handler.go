@@ -118,3 +118,12 @@ func (h *Handler) ListUsers(c *gin.Context) {
 		"users": ToResponseList(users),
 	})
 }
+
+func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
+	userRoutes := router.Group("/users")
+	userRoutes.POST("", h.CreateUser)
+	userRoutes.PUT("/:id", h.UpdateUser)
+	userRoutes.DELETE("/:id", h.DeleteUser)
+	userRoutes.GET("/:id", h.GetUser)
+	userRoutes.GET("", h.ListUsers)
+}

@@ -41,7 +41,7 @@ all: clean build
 build: server genkey ui contracts-build
 
 # Build server binary
-server:
+server: wire
 	@echo "Building server binary..."
 	@mkdir -p $(BUILD_DIR)
 	$(GOBUILD) -o $(BUILD_DIR)/$(SERVER_BIN) $(SERVER_SRC)
@@ -78,6 +78,16 @@ server-clean:
 	@echo "Cleaning build artifacts..."
 	@rm -rf $(BUILD_DIR)
 	$(GOCLEAN) -cache
+
+# Install Wire tool
+wire-install:
+	@echo "Installing Wire tool..."
+	$(GOGET) github.com/google/wire/cmd/wire
+
+# Generate Wire code
+wire: wire-install
+	@echo "Generating Wire dependency injection code..."
+	cd internal/wire && wire
 
 # Combined clean target
 clean: server-clean ui-clean

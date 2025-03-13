@@ -144,7 +144,7 @@ func LoadConfig() *Config {
 	}
 
 	// Get KeyStore type from environment or use default
-	keyStoreType := os.Getenv("KEY_STORE_TYPE")
+	keyStoreType := os.Getenv("KEYSTORE_TYPE")
 	if keyStoreType == "" {
 		keyStoreType = "db" // Default to database key store
 	}

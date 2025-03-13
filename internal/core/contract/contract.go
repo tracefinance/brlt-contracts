@@ -2,7 +2,11 @@ package contract
 
 import (
 	"context"
+	"fmt"
 	"math/big"
+	"vault0/internal/config"
+	"vault0/internal/core/blockchain"
+	"vault0/internal/core/wallet"
 	"vault0/internal/types"
 )
 
@@ -51,7 +55,7 @@ type DeploymentOptions struct {
 // and executing contract methods (both read-only and state-changing operations).
 type SmartContract interface {
 	// LoadArtifact loads a contract artifact from the filesystem.
-	// 
+	//
 	// Parameters:
 	//   - ctx: The context for the operation, which can be used for cancellation.
 	//   - contractName: Name of the contract to load (without file extension).
@@ -62,7 +66,7 @@ type SmartContract interface {
 	LoadArtifact(ctx context.Context, contractName string) (*Artifact, error)
 
 	// Deploy deploys a smart contract to the blockchain using the provided artifact and options.
-	// 
+	//
 	// Parameters:
 	//   - ctx: The context for the operation, which can be used for cancellation.
 	//   - artifact: The contract artifact containing the bytecode and ABI to be deployed.
@@ -79,7 +83,7 @@ type SmartContract interface {
 
 	// WaitForDeployment waits for a contract deployment transaction to be mined and confirmed on the blockchain.
 	// This method is useful for ensuring a contract is fully deployed before interacting with it.
-	// 
+	//
 	// Parameters:
 	//   - ctx: The context for the operation, which can be used for cancellation or timeout.
 	//   - transactionHash: The hash of the deployment transaction to wait for.
@@ -94,7 +98,7 @@ type SmartContract interface {
 
 	// CallMethod calls a read-only (view/pure) method on a deployed contract.
 	// These calls don't modify blockchain state and don't consume gas.
-	// 
+	//
 	// Parameters:
 	//   - ctx: The context for the operation, which can be used for cancellation.
 	//   - contractAddress: The address of the deployed contract to interact with.
@@ -115,7 +119,7 @@ type SmartContract interface {
 
 	// ExecuteMethod executes a state-changing method on a deployed contract.
 	// These calls modify blockchain state, require gas, and result in a new transaction.
-	// 
+	//
 	// Parameters:
 	//   - ctx: The context for the operation, which can be used for cancellation.
 	//   - contractAddress: The address of the deployed contract to interact with.
@@ -135,4 +139,26 @@ type SmartContract interface {
 		options types.TransactionOptions,
 		args ...any,
 	) (string, error)
+}
+
+// NewSmartContract returns a SmartContract instance for the specified chain type
+func NewSmartContract(blockchain blockchain.Blockchain, wallet wallet.Wallet, config config.Config) (SmartContract, error) {
+	// Get the chain information from the blockchain and wallet
+	blockchainChain := blockchain.Chain()
+	walletChain := wallet.Chain()
+
+	// Validate that the wallet and blockchain have matching chain types
+	if blockchainChain.Type != walletChain.Type {
+		return nil, fmt.Errorf("blockchain chain type %s does not match wallet chain type %s: %w",
+			blockchainChain.Type, walletChain.Type, types.ErrUnsupportedChain)
+	}
+
+	// Create the appropriate implementation based on chain type
+	switch blockchainChain.Type {
+	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
+		// These are all EVM-compatible chains, so use EVMSmartContract
+		return NewEVMSmartContract(blockchain, wallet, config)
+	default:
+		return nil, fmt.Errorf("unsupported chain type: %s: %w", blockchainChain.Type, types.ErrUnsupportedChain)
+	}
 }

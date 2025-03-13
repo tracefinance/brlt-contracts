@@ -10,83 +10,50 @@ import (
 	"vault0/internal/api/handlers/user"
 	"vault0/internal/api/handlers/wallet"
 	"vault0/internal/config"
-	coreBlockchain "vault0/internal/core/blockchain"
-	"vault0/internal/core/db"
-	"vault0/internal/core/keystore"
-	coreWallet "vault0/internal/core/wallet"
 	"vault0/internal/logger"
-	"vault0/internal/types"
 )
 
 // Server represents the API server
 type Server struct {
 	router            *gin.Engine
-	db                *db.DB
 	config            *config.Config
-	keystore          keystore.KeyStore
-	chainFactory      types.ChainFactory
-	walletFactory     coreWallet.Factory
-	blockchainFactory coreBlockchain.Factory
 	logger            logger.Logger
+	userHandler       *user.Handler
+	walletHandler     *wallet.Handler
+	blockchainHandler *blockchain.Handler
 }
 
 // NewServer creates a new API server
 func NewServer(
-	db *db.DB,
-	cfg *config.Config,
-	keystore keystore.KeyStore,
-	chainFactory types.ChainFactory,
-	walletFactory coreWallet.Factory,
-	blockchainFactory coreBlockchain.Factory,
-	log logger.Logger,
+	logger logger.Logger,
+	config *config.Config,
+	userHandler *user.Handler,
+	walletHandler *wallet.Handler,
+	blockchainHandler *blockchain.Handler,
 ) *Server {
 	router := gin.Default()
-
-	server := &Server{
+	return &Server{
 		router:            router,
-		db:                db,
-		config:            cfg,
-		keystore:          keystore,
-		chainFactory:      chainFactory,
-		walletFactory:     walletFactory,
-		blockchainFactory: blockchainFactory,
-		logger:            log,
+		logger:            logger,
+		config:            config,
+		userHandler:       userHandler,
+		walletHandler:     walletHandler,
+		blockchainHandler: blockchainHandler,
 	}
-
-	// Setup routes
-	server.setupRoutes()
-
-	return server
 }
 
 // setupRoutes configures the API routes
-func (s *Server) setupRoutes() {
+func (s *Server) SetupRoutes() {
 	// Setup API routes
 	api := s.router.Group("/api/v1")
 
 	// Setup user routes
-	user.SetupRoutes(api, s.db)
+	s.userHandler.SetupRoutes(api)
+	s.walletHandler.SetupRoutes(api)
+	s.blockchainHandler.SetupRoutes(api)
 
-	// Setup wallet routes
-	wallet.SetupRoutes(
-		api,
-		s.db,
-		s.keystore,
-		s.chainFactory,
-		s.walletFactory,
-		s.blockchainFactory,
-		s.config,
-		s.logger,
-	)
-
-	// Setup blockchain routes
-	blockchain.SetupRoutes(
-		api,
-		s.db,
-		s.keystore,
-		s.config,
-		s.logger,
-	)
+	// Health check endpoint
+	api.GET("/health", s.healthHandler)
 
 	// Serve static files for the UI
 	if s.config.UIPath != "" {

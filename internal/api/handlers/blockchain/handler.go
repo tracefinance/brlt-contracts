@@ -84,3 +84,12 @@ func (h *Handler) ListActiveBlockchains(c *gin.Context) {
 
 	c.JSON(http.StatusOK, ToResponseList(blockchains))
 }
+
+func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
+	// Register blockchain routes
+	blockchainRoutes := router.Group("/blockchains")
+	blockchainRoutes.POST("/:chain_type/activate", h.ActivateBlockchain)
+	blockchainRoutes.POST("/:chain_type/deactivate", h.DeactivateBlockchain)
+	blockchainRoutes.GET("/:chain_type", h.GetBlockchain)
+	blockchainRoutes.GET("", h.ListActiveBlockchains)
+}

@@ -45,53 +45,53 @@ type Service interface {
 	UnsubscribeFromEvents()
 }
 
-// WalletService implements the Service interface
-type WalletService struct {
-	config        *config.Config
-	repository    Repository
-	walletFactory coreWallet.Factory
-	chainFactory  types.ChainFactory
-	keystore      keystore.KeyStore
-	subscribers   map[string]context.CancelFunc
-	mu            sync.RWMutex
-	logger        logger.Logger
-	blockchain    blockchain.Factory
+// walletService implements the Service interface
+type walletService struct {
+	config             *config.Config
+	logger             logger.Logger
+	repository         Repository
+	keystore           keystore.KeyStore
+	walletFactory      coreWallet.Factory
+	blockchainRegistry blockchain.Registry
+	chains             types.Chains
+	subscribers        map[string]context.CancelFunc
+	mu                 sync.RWMutex
 }
 
 // NewService creates a new wallet service
 func NewService(
 	config *config.Config,
+	logger logger.Logger,
 	repository Repository,
 	keyStore keystore.KeyStore,
-	chainFactory types.ChainFactory,
 	walletFactory coreWallet.Factory,
-	blockchain blockchain.Factory,
-	log logger.Logger,
+	blockchainRegistry blockchain.Registry,
+	chains types.Chains,
 ) Service {
-	return &WalletService{
-		config:        config,
-		repository:    repository,
-		walletFactory: walletFactory,
-		chainFactory:  chainFactory,
-		keystore:      keyStore,
-		subscribers:   make(map[string]context.CancelFunc),
-		mu:            sync.RWMutex{},
-		logger:        log,
-		blockchain:    blockchain,
+	return &walletService{
+		config:             config,
+		logger:             logger,
+		repository:         repository,
+		keystore:           keyStore,
+		walletFactory:      walletFactory,
+		blockchainRegistry: blockchainRegistry,
+		chains:             chains,
+		subscribers:        make(map[string]context.CancelFunc),
+		mu:                 sync.RWMutex{},
 	}
 }
 
 // CreateWallet creates a new wallet with a key and derives its address
-func (s *WalletService) CreateWallet(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error) {
+func (s *walletService) CreateWallet(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error) {
 	// Validate inputs
 	if name == "" {
 		return nil, fmt.Errorf("%w: name cannot be empty", ErrInvalidInput)
 	}
 
-	// Get chain information first to determine the appropriate key type and curve
-	chain, err := s.chainFactory.NewChain(chainType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get chain information: %w", err)
+	// Get chain information from chains
+	chain, exists := s.chains[chainType]
+	if !exists {
+		return nil, fmt.Errorf("unsupported chain type: %s", chainType)
 	}
 
 	// Create the key in the keystore using the chain's specified key type and curve
@@ -137,7 +137,7 @@ func (s *WalletService) CreateWallet(ctx context.Context, chainType types.ChainT
 }
 
 // UpdateWallet updates a wallet's name and tags
-func (s *WalletService) UpdateWallet(ctx context.Context, id, name string, tags map[string]string) (*Wallet, error) {
+func (s *walletService) UpdateWallet(ctx context.Context, id, name string, tags map[string]string) (*Wallet, error) {
 	// Validate inputs
 	if id == "" {
 		return nil, fmt.Errorf("%w: id cannot be empty", ErrInvalidInput)
@@ -167,7 +167,7 @@ func (s *WalletService) UpdateWallet(ctx context.Context, id, name string, tags 
 }
 
 // DeleteWallet soft-deletes a wallet
-func (s *WalletService) DeleteWallet(ctx context.Context, id string) error {
+func (s *walletService) DeleteWallet(ctx context.Context, id string) error {
 	// Unsubscribe from wallet events first
 	s.unsubscribeFromWallet(id)
 
@@ -180,7 +180,7 @@ func (s *WalletService) DeleteWallet(ctx context.Context, id string) error {
 }
 
 // GetWallet retrieves a wallet by its ID
-func (s *WalletService) GetWallet(ctx context.Context, id string) (*Wallet, error) {
+func (s *walletService) GetWallet(ctx context.Context, id string) (*Wallet, error) {
 	// Validate inputs
 	if id == "" {
 		return nil, fmt.Errorf("%w: id cannot be empty", ErrInvalidInput)
@@ -199,7 +199,7 @@ func (s *WalletService) GetWallet(ctx context.Context, id string) (*Wallet, erro
 }
 
 // ListWallets retrieves a list of wallets
-func (s *WalletService) ListWallets(ctx context.Context, limit, offset int) ([]*Wallet, error) {
+func (s *walletService) ListWallets(ctx context.Context, limit, offset int) ([]*Wallet, error) {
 	// Set default pagination values if not provided
 	if limit <= 0 {
 		limit = 10
@@ -218,7 +218,7 @@ func (s *WalletService) ListWallets(ctx context.Context, limit, offset int) ([]*
 }
 
 // SubscribeToEvents subscribes to events for all active wallets
-func (s *WalletService) SubscribeToEvents(ctx context.Context) error {
+func (s *walletService) SubscribeToEvents(ctx context.Context) error {
 	// Get all non-deleted wallets
 	wallets, err := s.repository.List(ctx, 0, 0)
 	if err != nil {
@@ -239,7 +239,7 @@ func (s *WalletService) SubscribeToEvents(ctx context.Context) error {
 }
 
 // UnsubscribeFromEvents unsubscribes from all event subscriptions
-func (s *WalletService) UnsubscribeFromEvents() {
+func (s *walletService) UnsubscribeFromEvents() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -250,9 +250,9 @@ func (s *WalletService) UnsubscribeFromEvents() {
 	}
 }
 
-func (s *WalletService) subscribeToWallet(wallet *Wallet) error {
+func (s *walletService) subscribeToWallet(wallet *Wallet) error {
 	// Create blockchain client
-	client, err := s.blockchain.NewBlockchain(wallet.ChainType)
+	client, err := s.blockchainRegistry.GetBlockchain(wallet.ChainType)
 	if err != nil {
 		return fmt.Errorf("failed to create blockchain client: %w", err)
 	}
@@ -301,7 +301,7 @@ func (s *WalletService) subscribeToWallet(wallet *Wallet) error {
 	return nil
 }
 
-func (s *WalletService) unsubscribeFromWallet(walletID string) {
+func (s *walletService) unsubscribeFromWallet(walletID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

@@ -43,31 +43,21 @@ type Chain struct {
 	DefaultGasPrice uint64         // Default transaction gas price
 }
 
-// ChainFactory defines an interface for creating Chain instances.
-// Implementations of this interface are responsible for initializing
-// Chain objects with the appropriate configuration and parameters
-// for different blockchain networks.
-type ChainFactory interface {
-	// NewChain creates a Chain struct for the specified blockchain type.
-	// It loads configuration from the provided config object and sets up
-	// all necessary parameters for interacting with the blockchain.
-	//
-	// Parameters:
-	//   - chainType: The type of blockchain to create (e.g., Ethereum, Polygon)
-	//
-	// Returns:
-	//   - A fully initialized Chain struct if successful
-	//   - Error if the chain type is unsupported or if required configuration is missing
-	NewChain(chainType ChainType) (Chain, error)
+type Chains map[ChainType]Chain
+
+func NewChains(cfg *config.Config) (Chains, error) {
+	chains := make(Chains)
+	for _, chainType := range []ChainType{ChainTypeEthereum, ChainTypePolygon, ChainTypeBase} {
+		chain, err := newChain(cfg, chainType)
+		if err != nil {
+			return nil, err
+		}
+		chains[chainType] = chain
+	}
+	return chains, nil
 }
 
-// chainFactory implements the ChainFactory interface.
-// It uses a configuration object to create properly configured Chain instances.
-type chainFactory struct {
-	cfg *config.Config
-}
-
-// NewChain creates a new Chain instance for the specified blockchain type.
+// newChain creates a new Chain instance for the specified blockchain type.
 // It initializes the chain with configuration values from the factory's config object.
 //
 // Parameters:
@@ -78,8 +68,8 @@ type chainFactory struct {
 //   - Error if:
 //   - The chain type is unsupported (ErrUnsupportedChain)
 //   - The RPC URL is not configured (ErrMissingRPCURL)
-func (f *chainFactory) NewChain(chainType ChainType) (Chain, error) {
-	chainCfg, err := getChainConfig(chainType, f.cfg)
+func newChain(cfg *config.Config, chainType ChainType) (Chain, error) {
+	chainCfg, err := getChainConfig(chainType, cfg)
 	if err != nil {
 		return Chain{}, err
 	}
@@ -103,20 +93,6 @@ func (f *chainFactory) NewChain(chainType ChainType) (Chain, error) {
 		DefaultGasLimit: chainCfg.DefaultGasLimit,
 		DefaultGasPrice: chainCfg.DefaultGasPrice,
 	}, nil
-}
-
-// NewChainFactory creates a new instance of chainFactory.
-// The factory uses the provided configuration to initialize Chain instances.
-//
-// Parameters:
-//   - cfg: Configuration object containing settings for all supported blockchains
-//
-// Returns:
-//   - A ChainFactory interface implementation
-func NewChainFactory(cfg *config.Config) ChainFactory {
-	return &chainFactory{
-		cfg: cfg,
-	}
 }
 
 // IsValidAddress validates if the given address is a valid blockchain address.

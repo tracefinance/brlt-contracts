@@ -24,15 +24,15 @@ type Service interface {
 type service struct {
 	repository    Repository
 	walletService wallet.Service
-	factory       blockchain.Factory
+	registry      blockchain.Registry
 }
 
 // NewService creates a new blockchain service
-func NewService(repository Repository, walletSvc wallet.Service, factory blockchain.Factory) Service {
+func NewService(repository Repository, walletSvc wallet.Service, registry blockchain.Registry) Service {
 	return &service{
 		repository:    repository,
 		walletService: walletSvc,
-		factory:       factory,
+		registry:      registry,
 	}
 }
 
@@ -53,7 +53,7 @@ func (s *service) Activate(ctx context.Context, chainType types.ChainType) error
 	}
 
 	// Get chain information
-	chain, err := s.factory.NewBlockchain(chainType)
+	chain, err := s.registry.GetBlockchain(chainType)
 	if err != nil {
 		return fmt.Errorf("failed to create blockchain client: %w", err)
 	}

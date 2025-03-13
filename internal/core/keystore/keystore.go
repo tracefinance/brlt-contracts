@@ -4,7 +4,10 @@ import (
 	"context"
 	"crypto/elliptic"
 	"errors"
+	"fmt"
 
+	"vault0/internal/config"
+	"vault0/internal/core/db"
 	"vault0/internal/types"
 )
 
@@ -16,6 +19,16 @@ var (
 	ErrEncryptionFailed = errors.New("encryption failed")
 	ErrDecryptionFailed = errors.New("decryption failed")
 	ErrInvalidCurve     = errors.New("invalid curve")
+)
+
+// KeyStoreType represents the type of key store to use
+type KeyStoreType string
+
+// Supported key store types
+const (
+	KeyStoreTypeDB  KeyStoreType = "db"
+	KeyStoreTypeKMS KeyStoreType = "kms"
+	// Add more key store types here as they are implemented
 )
 
 // DataType indicates how the data should be treated in cryptographic operations
@@ -78,4 +91,17 @@ type KeyStore interface {
 
 	// Delete deletes a key by its ID
 	Delete(ctx context.Context, id string) error
+}
+
+func NewKeyStore(db *db.DB, cfg *config.Config) (KeyStore, error) {
+	keyStoreType := KeyStoreType(cfg.KeyStoreType)
+
+	switch keyStoreType {
+	case KeyStoreTypeDB:
+		return NewDBKeyStore(db.GetConnection(), cfg)
+	case KeyStoreTypeKMS:
+		return nil, errors.New("KMS key store not implemented yet")
+	default:
+		return nil, fmt.Errorf("unsupported key store type: %s", keyStoreType)
+	}
 }

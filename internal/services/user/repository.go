@@ -19,18 +19,18 @@ type Repository interface {
 	Count(ctx context.Context) (int, error)
 }
 
-// SQLiteRepository implements Repository using SQLite database
-type SQLiteRepository struct {
+// repository implements Repository using SQLite database
+type repository struct {
 	db *db.DB
 }
 
-// NewSQLiteRepository creates a new SQLite user repository
-func NewSQLiteRepository(db *db.DB) Repository {
-	return &SQLiteRepository{db: db}
+// NewRepository creates a new SQLite user repository
+func NewRepository(db *db.DB) Repository {
+	return &repository{db: db}
 }
 
 // Create adds a new user to the database
-func (r *SQLiteRepository) Create(ctx context.Context, user *User) error {
+func (r *repository) Create(ctx context.Context, user *User) error {
 	now := time.Now()
 	user.CreatedAt = now
 	user.UpdatedAt = now
@@ -57,7 +57,7 @@ func (r *SQLiteRepository) Create(ctx context.Context, user *User) error {
 }
 
 // Update updates an existing user in the database
-func (r *SQLiteRepository) Update(ctx context.Context, user *User) error {
+func (r *repository) Update(ctx context.Context, user *User) error {
 	user.UpdatedAt = time.Now()
 
 	query := `
@@ -85,7 +85,7 @@ func (r *SQLiteRepository) Update(ctx context.Context, user *User) error {
 }
 
 // Delete removes a user from the database
-func (r *SQLiteRepository) Delete(ctx context.Context, id int64) error {
+func (r *repository) Delete(ctx context.Context, id int64) error {
 	query := "DELETE FROM users WHERE id = ?"
 
 	result, err := r.db.ExecuteStatementContext(ctx, query, id)
@@ -106,7 +106,7 @@ func (r *SQLiteRepository) Delete(ctx context.Context, id int64) error {
 }
 
 // FindByID finds a user by ID
-func (r *SQLiteRepository) FindByID(ctx context.Context, id int64) (*User, error) {
+func (r *repository) FindByID(ctx context.Context, id int64) (*User, error) {
 	query := `
 		SELECT id, email, password_hash, created_at, updated_at
 		FROM users
@@ -133,7 +133,7 @@ func (r *SQLiteRepository) FindByID(ctx context.Context, id int64) (*User, error
 }
 
 // FindByEmail finds a user by email
-func (r *SQLiteRepository) FindByEmail(ctx context.Context, email string) (*User, error) {
+func (r *repository) FindByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
 		SELECT id, email, password_hash, created_at, updated_at
 		FROM users
@@ -160,7 +160,7 @@ func (r *SQLiteRepository) FindByEmail(ctx context.Context, email string) (*User
 }
 
 // List retrieves a paginated list of users
-func (r *SQLiteRepository) List(ctx context.Context, limit, offset int) ([]*User, error) {
+func (r *repository) List(ctx context.Context, limit, offset int) ([]*User, error) {
 	query := `
 		SELECT id, email, password_hash, created_at, updated_at
 		FROM users
@@ -192,7 +192,7 @@ func (r *SQLiteRepository) List(ctx context.Context, limit, offset int) ([]*User
 }
 
 // Count returns the total number of users
-func (r *SQLiteRepository) Count(ctx context.Context) (int, error) {
+func (r *repository) Count(ctx context.Context) (int, error) {
 	query := "SELECT COUNT(*) FROM users"
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query)
