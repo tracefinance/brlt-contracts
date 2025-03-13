@@ -40,7 +40,7 @@ func SetupRoutes(router *gin.RouterGroup, db *db.DB, keyStore keystore.KeyStore,
 
 	// Register blockchain routes
 	blockchainRoutes := router.Group("/blockchains")
-	blockchainRoutes.POST("/activate", blockchainHandler.ActivateBlockchain)
+	blockchainRoutes.POST("/:chain_type/activate", blockchainHandler.ActivateBlockchain)
 	blockchainRoutes.POST("/:chain_type/deactivate", blockchainHandler.DeactivateBlockchain)
 	blockchainRoutes.GET("/:chain_type", blockchainHandler.GetBlockchain)
 	blockchainRoutes.GET("/", blockchainHandler.ListActiveBlockchains)

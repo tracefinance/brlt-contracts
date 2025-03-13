@@ -6,11 +6,6 @@ import (
 	"vault0/internal/types"
 )
 
-// ActivateBlockchainRequest represents the request to activate a blockchain
-type ActivateBlockchainRequest struct {
-	ChainType types.ChainType `json:"chain_type" binding:"required"`
-}
-
 // BlockchainResponse represents a blockchain in API responses
 type BlockchainResponse struct {
 	ChainType     types.ChainType `json:"chain_type"`

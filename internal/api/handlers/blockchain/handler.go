@@ -20,20 +20,16 @@ func NewHandler(service blockchain.Service) *Handler {
 	}
 }
 
-// ActivateBlockchain handles POST /blockchains/activate
+// ActivateBlockchain handles POST /blockchains/:chain_type/activate
 func (h *Handler) ActivateBlockchain(c *gin.Context) {
-	var req ActivateBlockchainRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	chainType := types.ChainType(c.Param("chain_type"))
 
-	if err := h.service.Activate(c.Request.Context(), req.ChainType); err != nil {
+	if err := h.service.Activate(c.Request.Context(), chainType); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	blockchain, err := h.service.GetBlockchain(c.Request.Context(), req.ChainType)
+	blockchain, err := h.service.GetBlockchain(c.Request.Context(), chainType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
