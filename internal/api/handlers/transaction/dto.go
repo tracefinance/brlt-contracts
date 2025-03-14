@@ -53,7 +53,7 @@ func FromServiceTransaction(tx *transaction.Transaction) TransactionResponse {
 	}
 
 	dataStr := ""
-	if tx.Data != nil && len(tx.Data) > 0 {
+	if len(tx.Data) > 0 {
 		dataStr = "0x" + string(tx.Data)
 	}
 

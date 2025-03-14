@@ -25,27 +25,26 @@ func NewHandler(transactionService transaction.Service) *Handler {
 
 // SetupRoutes sets up the transaction routes
 func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
-	// Option 1: Nested under wallets
+	// Wallet-scoped transaction routes
 	walletRoutes := router.Group("/wallets/:chain_type/:address/transactions")
-	{
-		walletRoutes.GET("", h.GetTransactionsByAddress)
-		walletRoutes.GET("/:hash", h.GetTransaction)
-		walletRoutes.POST("/sync", h.SyncTransactions)
-	}
+	walletRoutes.GET("", h.GetTransactionsByAddress)
+	walletRoutes.GET("/:hash", h.GetTransaction)
+	walletRoutes.POST("/sync", h.SyncTransactions)
 
-	// Option 2: Direct transactions endpoint
-	txRoutes := router.Group("/transactions/:chain_type/:address")
-	{
-		txRoutes.GET("", h.GetTransactionsByAddress)
-		txRoutes.GET("/:hash", h.GetTransaction)
-		txRoutes.POST("/sync", h.SyncTransactions)
-	}
+	// Direct transaction routes
+	transactionRoutes := router.Group("/transactions")
+	transactionRoutes.GET("/:hash", h.GetTransaction)
 }
 
 // GetTransaction handles GET /wallets/:chain_type/:address/transactions/:hash
-// or GET /transactions/:chain_type/:address/:hash
+// or GET /transactions/:hash
 func (h *Handler) GetTransaction(c *gin.Context) {
-	chainType := types.ChainType(c.Param("chain_type"))
+	// Get chain type either from URL or try to infer from hash
+	var chainType types.ChainType
+	if c.Param("chain_type") != "" {
+		chainType = types.ChainType(c.Param("chain_type"))
+	}
+
 	hash := c.Param("hash")
 
 	tx, err := h.transactionService.GetTransaction(c.Request.Context(), chainType, hash)
