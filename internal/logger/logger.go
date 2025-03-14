@@ -202,3 +202,18 @@ func Error(err error) Field {
 func Any(key string, value interface{}) Field {
 	return Field{Key: key, Value: value}
 }
+
+// nopLogger is a logger that does nothing
+type nopLogger struct{}
+
+func (l *nopLogger) Debug(msg string, fields ...Field) {}
+func (l *nopLogger) Info(msg string, fields ...Field)  {}
+func (l *nopLogger) Warn(msg string, fields ...Field)  {}
+func (l *nopLogger) Error(msg string, fields ...Field) {}
+func (l *nopLogger) Fatal(msg string, fields ...Field) {}
+func (l *nopLogger) With(fields ...Field) Logger       { return l }
+
+// NewNopLogger creates a new logger that does nothing
+func NewNopLogger() Logger {
+	return &nopLogger{}
+}
