@@ -20,10 +20,10 @@ func main() {
 	}
 
 	// Get the logger from the container
-	log := container.Logger
+	log := container.Core.Logger
 
 	// Migrate the database
-	if err := container.DB.MigrateDatabase(); err != nil {
+	if err := container.Core.DB.MigrateDatabase(); err != nil {
 		log.Fatal("Failed to migrate database", logger.Error(err))
 	}
 
@@ -47,7 +47,7 @@ func main() {
 	}()
 
 	log.Info("Server is running",
-		logger.String("port", container.Config.Port),
+		logger.String("port", container.Core.Config.Port),
 		logger.String("message", "Press Ctrl+C to shutdown"),
 	)
 
@@ -59,8 +59,8 @@ func main() {
 	container.Server.Shutdown()
 
 	// Close the database connection
-	if container.DB != nil {
-		container.DB.Close()
+	if container.Core.DB != nil {
+		container.Core.DB.Close()
 	}
 
 	log.Info("Server gracefully stopped")

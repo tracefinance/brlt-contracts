@@ -28,14 +28,14 @@ type EVMSmartContract struct {
 	// wallet is the wallet client
 	wallet wallet.Wallet
 	// config is the app configuration
-	config config.Config
+	config *config.Config
 }
 
 // NewEVMSmartContract creates a new EVM contract manager
 func NewEVMSmartContract(
 	blockchain blockchain.Blockchain,
 	wallet wallet.Wallet,
-	config config.Config,
+	config *config.Config,
 ) (*EVMSmartContract, error) {
 	// Get chain information from wallet
 	chain := wallet.Chain()

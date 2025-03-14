@@ -142,7 +142,7 @@ type SmartContract interface {
 }
 
 // NewSmartContract returns a SmartContract instance for the specified chain type
-func NewSmartContract(blockchain blockchain.Blockchain, wallet wallet.Wallet, config config.Config) (SmartContract, error) {
+func NewSmartContract(blockchain blockchain.Blockchain, wallet wallet.Wallet, config *config.Config) (SmartContract, error) {
 	// Get the chain information from the blockchain and wallet
 	blockchainChain := blockchain.Chain()
 	walletChain := wallet.Chain()

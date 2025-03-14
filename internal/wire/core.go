@@ -14,6 +14,44 @@ import (
 	"vault0/internal/types"
 )
 
+// Core holds all core infrastructure dependencies
+type Core struct {
+	Config               *config.Config
+	DB                   *db.DB
+	Logger               logger.Logger
+	KeyStore             keystore.KeyStore
+	Chains               types.Chains
+	WalletFactory        wallet.Factory
+	BlockchainRegistry   blockchain.Registry
+	ContractFactory      contract.Factory
+	BlockExplorerFactory blockexplorer.Factory
+}
+
+// NewCore creates a new Core instance with all core dependencies
+func NewCore(
+	config *config.Config,
+	db *db.DB,
+	logger logger.Logger,
+	keyStore keystore.KeyStore,
+	chains types.Chains,
+	walletFactory wallet.Factory,
+	blockchainRegistry blockchain.Registry,
+	contractFactory contract.Factory,
+	blockExplorerFactory blockexplorer.Factory,
+) *Core {
+	return &Core{
+		Config:               config,
+		DB:                   db,
+		Logger:               logger,
+		KeyStore:             keyStore,
+		Chains:               chains,
+		WalletFactory:        walletFactory,
+		BlockchainRegistry:   blockchainRegistry,
+		ContractFactory:      contractFactory,
+		BlockExplorerFactory: blockExplorerFactory,
+	}
+}
+
 // CoreSet combines all core dependencies
 var CoreSet = wire.NewSet(
 	config.LoadConfig,
@@ -23,6 +61,7 @@ var CoreSet = wire.NewSet(
 	blockchain.NewRegistry,
 	wallet.NewFactory,
 	blockexplorer.NewFactory,
-	contract.NewSmartContract,
+	contract.NewFactory,
 	types.NewChains,
+	NewCore,
 )
