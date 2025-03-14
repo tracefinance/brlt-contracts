@@ -24,8 +24,8 @@ type Repository interface {
 	// GetByID retrieves a wallet by its ID
 	GetByID(ctx context.Context, id string) (*Wallet, error)
 
-	// Update updates a wallet's name and tags by chain type and address
-	Update(ctx context.Context, chainType types.ChainType, address string, name string, tags map[string]string) (*Wallet, error)
+	// Update updates a wallet's name, tags and last block number
+	Update(ctx context.Context, wallet *Wallet) error
 
 	// Delete deletes a wallet by its chain type and address
 	Delete(ctx context.Context, chainType types.ChainType, address string) error
@@ -142,29 +142,20 @@ func (r *repository) GetByID(ctx context.Context, id string) (*Wallet, error) {
 	return wallet, nil
 }
 
-// Update updates a wallet's name and tags by chain type and address
-func (r *repository) Update(ctx context.Context, chainType types.ChainType, address string, name string, tags map[string]string) (*Wallet, error) {
-	// Get the wallet first
-	wallet, err := r.Get(ctx, chainType, address)
-	if err != nil {
-		return nil, err
-	}
-
-	// Update the wallet fields
-	wallet.Name = name
-	wallet.Tags = tags
-	wallet.UpdatedAt = time.Now()
-
+// Update updates a wallet's name, tags and last block number
+func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 	// Convert tags to JSON
 	tagsJSON, err := json.Marshal(wallet.Tags)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal tags: %w", err)
+		return fmt.Errorf("failed to marshal tags: %w", err)
 	}
+
+	wallet.UpdatedAt = time.Now()
 
 	query := `
 		UPDATE wallets
-		SET name = ?, tags = ?, updated_at = ?
-		WHERE chain_type = ? AND address = ? AND deleted_at IS NULL
+		SET name = ?, tags = ?, last_block_number = ?, updated_at = ?
+		WHERE id = ? AND deleted_at IS NULL
 	`
 
 	result, err := r.db.ExecuteStatementContext(
@@ -172,25 +163,25 @@ func (r *repository) Update(ctx context.Context, chainType types.ChainType, addr
 		query,
 		wallet.Name,
 		string(tagsJSON),
+		wallet.LastBlockNumber,
 		wallet.UpdatedAt,
-		chainType,
-		address,
+		wallet.ID,
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to update wallet: %w", err)
+		return fmt.Errorf("failed to update wallet: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		return nil, sql.ErrNoRows
+		return sql.ErrNoRows
 	}
 
-	return wallet, nil
+	return nil
 }
 
 // Delete soft deletes a wallet by its chain type and address

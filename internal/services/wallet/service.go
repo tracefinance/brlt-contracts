@@ -62,7 +62,7 @@ type Service interface {
 	//   - error: ErrInvalidInput if parameters are invalid, or any other error that occurred
 	Create(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error)
 
-	// Update modifies a wallet's name and tags.
+	// Update updates a wallet's name and tags by chain type and address.
 	// The wallet is identified by its chain type and address.
 	// Only the name and tags can be updated; other fields are immutable.
 	//
@@ -78,7 +78,20 @@ type Service interface {
 	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
 	Update(ctx context.Context, chainType types.ChainType, address, name string, tags map[string]string) (*Wallet, error)
 
-	// Delete performs a soft delete of a wallet.
+	// UpdateLastBlockNumber updates the last block number for a wallet.
+	// This method is used to track the last processed block from blockchain events.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation
+	//   - chainType: The blockchain network type
+	//   - address: The wallet's blockchain address
+	//   - blockNumber: The new last block number
+	//
+	// Returns:
+	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
+	UpdateLastBlockNumber(ctx context.Context, chainType types.ChainType, address string, blockNumber int64) error
+
+	// Delete soft-deletes a wallet by chain type and address.
 	// The wallet is identified by its chain type and address.
 	// This operation:
 	// 1. Marks the wallet as deleted in the database
@@ -94,7 +107,7 @@ type Service interface {
 	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
 	Delete(ctx context.Context, chainType types.ChainType, address string) error
 
-	// Get retrieves a wallet's information by its chain type and address.
+	// Get retrieves a wallet by its chain type and address.
 	// Only returns non-deleted wallets.
 	//
 	// Parameters:
@@ -217,6 +230,25 @@ func NewService(
 
 // emitBlockchainEvent sends a blockchain event to the blockchain events channel
 func (s *walletService) emitBlockchainEvent(event *BlockchainEvent) {
+	// Update wallet's last block number
+	if event.Log != nil && event.Log.BlockNumber != nil {
+		ctx := context.Background()
+		wallet, err := s.repository.GetByID(ctx, event.WalletID)
+		if err == nil {
+			// Convert current block number to int64
+			blockNumber := event.Log.BlockNumber.Int64()
+			if wallet.LastBlockNumber < blockNumber {
+				// Update the last block number if it's higher than current
+				if err := s.UpdateLastBlockNumber(ctx, wallet.ChainType, wallet.Address, blockNumber); err != nil {
+					s.logger.Error("Failed to update wallet's last block number",
+						logger.String("wallet_id", event.WalletID),
+						logger.Int64("block_number", blockNumber),
+						logger.Error(err))
+				}
+			}
+		}
+	}
+
 	select {
 	case s.blockchainEvents <- event:
 	default:
@@ -323,9 +355,21 @@ func (s *walletService) Update(ctx context.Context, chainType types.ChainType, a
 		return nil, fmt.Errorf("%w: invalid address format for chain type %s", ErrInvalidInput, chainType)
 	}
 
-	// Update the wallet
-	wallet, err := s.repository.Update(ctx, chainType, address, name, tags)
+	// Get the wallet first
+	wallet, err := s.repository.Get(ctx, chainType, address)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrWalletNotFound
+		}
+		return nil, err
+	}
+
+	// Update wallet fields
+	wallet.Name = name
+	wallet.Tags = tags
+
+	// Update the wallet
+	if err := s.repository.Update(ctx, wallet); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrWalletNotFound
 		}
@@ -333,6 +377,53 @@ func (s *walletService) Update(ctx context.Context, chainType types.ChainType, a
 	}
 
 	return wallet, nil
+}
+
+// UpdateLastBlockNumber updates the last block number for a wallet
+func (s *walletService) UpdateLastBlockNumber(ctx context.Context, chainType types.ChainType, address string, blockNumber int64) error {
+	// Validate inputs
+	if chainType == "" {
+		return fmt.Errorf("%w: chain type cannot be empty", ErrInvalidInput)
+	}
+	if address == "" {
+		return fmt.Errorf("%w: address cannot be empty", ErrInvalidInput)
+	}
+	if blockNumber < 0 {
+		return fmt.Errorf("%w: block number cannot be negative", ErrInvalidInput)
+	}
+
+	// Validate chain type
+	chain, exists := s.chains[chainType]
+	if !exists {
+		return fmt.Errorf("%w: unsupported chain type: %s", ErrInvalidInput, chainType)
+	}
+
+	// Validate address format
+	if !chain.IsValidAddress(address) {
+		return fmt.Errorf("%w: invalid address format for chain type %s", ErrInvalidInput, chainType)
+	}
+
+	// Get the wallet first
+	wallet, err := s.repository.Get(ctx, chainType, address)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrWalletNotFound
+		}
+		return err
+	}
+
+	// Update only the last block number
+	wallet.LastBlockNumber = blockNumber
+
+	// Update the wallet
+	if err := s.repository.Update(ctx, wallet); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrWalletNotFound
+		}
+		return fmt.Errorf("failed to update wallet's last block number: %w", err)
+	}
+
+	return nil
 }
 
 // Delete soft-deletes a wallet by chain type and address

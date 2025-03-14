@@ -396,7 +396,7 @@ func (e *EVMExplorer) GetTokenBalances(ctx context.Context, address string) (map
 }
 
 // Close implements BlockExplorer.Close
-func (e *EVMExplorer) Close() {
+func (e *EVMExplorer) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -404,6 +404,7 @@ func (e *EVMExplorer) Close() {
 		e.rateLimiter.Stop()
 		e.rateLimiter = nil
 	}
+	return nil
 }
 
 // Chain implements BlockExplorer.Chain

@@ -220,16 +220,18 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 	}
 	defer explorer.Close()
 
-	// Get wallet ID if exists
+	// Get wallet ID and last block number if exists
 	var walletID string
+	var startBlock int64
 	wallet, err := s.walletService.Get(ctx, chainType, address)
 	if err == nil {
 		walletID = wallet.ID
+		startBlock = wallet.LastBlockNumber
 	}
 
 	// Prepare options for fetching transactions
 	options := blockexplorer.TransactionHistoryOptions{
-		StartBlock: 0,
+		StartBlock: startBlock,
 		EndBlock:   0, // Latest block
 		Page:       1,
 		PageSize:   100,
@@ -239,7 +241,7 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 			blockexplorer.TxTypeERC20,
 			blockexplorer.TxTypeERC721,
 		},
-		SortAscending: false,
+		SortAscending: false, // Get newest transactions first
 	}
 
 	// Fetch transactions from explorer
@@ -250,7 +252,16 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 
 	// Save transactions to database
 	count := 0
+	var maxBlockNumber int64
 	for _, coreTx := range txs {
+		// Update max block number if this transaction's block number is higher
+		if coreTx.BlockNumber != nil {
+			blockNum := coreTx.BlockNumber.Int64()
+			if blockNum > maxBlockNumber {
+				maxBlockNumber = blockNum
+			}
+		}
+
 		// Check if transaction already exists
 		exists, err := s.repository.Exists(ctx, chainType, coreTx.Hash)
 		if err != nil {
@@ -273,6 +284,16 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 		}
 
 		count++
+	}
+
+	// Update wallet's last block number if we found new transactions with a higher block number
+	if wallet != nil && maxBlockNumber > wallet.LastBlockNumber {
+		if err := s.walletService.UpdateLastBlockNumber(ctx, wallet.ChainType, wallet.Address, maxBlockNumber); err != nil {
+			s.logger.Error("Failed to update wallet's last block number",
+				logger.String("wallet_id", wallet.ID),
+				logger.Int64("block_number", maxBlockNumber),
+				logger.Error(err))
+		}
 	}
 
 	return count, nil

@@ -140,7 +140,7 @@ type BlockExplorer interface {
 	//
 	// This should be called when the explorer is no longer needed to clean up
 	// resources like rate limiters and HTTP clients.
-	Close()
+	Close() error
 
 	// Chain returns information about the blockchain this explorer is connected to.
 	//

@@ -56,6 +56,8 @@ type Transaction struct {
 	Status string
 	// Timestamp is the transaction timestamp
 	Timestamp int64
+	// BlockNumber is the block number
+	BlockNumber *big.Int
 }
 
 // TransactionOptions represents optional parameters for a transaction

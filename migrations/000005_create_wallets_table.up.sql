@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS wallets (
     address TEXT NOT NULL,
     name TEXT NOT NULL,
     tags TEXT,
+    last_block_number INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP,
