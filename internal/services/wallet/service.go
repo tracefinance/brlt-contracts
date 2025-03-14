@@ -185,9 +185,8 @@ type walletService struct {
 	chains             types.Chains
 	subscriptions      map[string]context.CancelFunc
 	mu                 sync.RWMutex
-	// Separate channels for different event types
-	blockchainEvents chan *BlockchainEvent // Only blockchain events
-	lifecycleEvents  chan *LifecycleEvent  // Only lifecycle events
+	blockchainEvents   chan *BlockchainEvent
+	lifecycleEvents    chan *LifecycleEvent
 }
 
 // NewService creates a new wallet service
@@ -282,7 +281,7 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 	}
 
 	// Subscribe to wallet events
-	if err := s.subscribeToWallet(wallet); err != nil {
+	if err := s.subscribeToWallet(ctx, wallet); err != nil {
 		s.logger.Error("Failed to subscribe to wallet events",
 			logger.String("wallet_id", wallet.ID),
 			logger.String("address", wallet.Address),
@@ -450,7 +449,7 @@ func (s *walletService) SubscribeToBlockchainEvents(ctx context.Context) error {
 
 	// Subscribe to each wallet
 	for _, wallet := range wallets {
-		if err := s.subscribeToWallet(wallet); err != nil {
+		if err := s.subscribeToWallet(ctx, wallet); err != nil {
 			s.logger.Error("Failed to subscribe to wallet events",
 				logger.String("wallet_id", wallet.ID),
 				logger.String("address", wallet.Address),
@@ -477,7 +476,7 @@ func (s *walletService) UnsubscribeFromBlockchainEvents() {
 	close(s.lifecycleEvents)
 }
 
-func (s *walletService) subscribeToWallet(wallet *Wallet) error {
+func (s *walletService) subscribeToWallet(ctx context.Context, wallet *Wallet) error {
 	// Create blockchain client
 	client, err := s.blockchainRegistry.GetBlockchain(wallet.ChainType)
 	if err != nil {
@@ -485,7 +484,7 @@ func (s *walletService) subscribeToWallet(wallet *Wallet) error {
 	}
 
 	// Create context with cancellation
-	subscriptionCtx, cancel := context.WithCancel(context.Background())
+	subscriptionCtx, cancel := context.WithCancel(ctx)
 
 	// Store cancel function
 	s.mu.Lock()
