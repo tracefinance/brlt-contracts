@@ -21,6 +21,26 @@ var (
 	ErrInvalidInput   = errors.New("invalid input")
 )
 
+// Event types for wallet lifecycle events
+const (
+	EventTypeWalletCreated = "WALLET_CREATED"
+	EventTypeWalletDeleted = "WALLET_DELETED"
+)
+
+// BlockchainEvent represents a blockchain event associated with a wallet
+type BlockchainEvent struct {
+	WalletID string
+	Log      *types.Log
+}
+
+// LifecycleEvent represents a wallet lifecycle event
+type LifecycleEvent struct {
+	WalletID  string
+	EventType string
+	ChainType types.ChainType
+	Address   string
+}
+
 // Service defines the wallet service interface
 type Service interface {
 	// Create creates a new wallet with a key and derives its address.
@@ -125,7 +145,7 @@ type Service interface {
 	//   - error: ErrInvalidInput for invalid parameters
 	Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error)
 
-	// SubscribeToEvents sets up event subscriptions for all active wallets.
+	// SubscribeToBlockchainEvents sets up event subscriptions for all active wallets.
 	// For each wallet, it:
 	// 1. Creates a blockchain client connection
 	// 2. Subscribes to relevant blockchain events
@@ -136,12 +156,22 @@ type Service interface {
 	//
 	// Returns:
 	//   - error: Any error that occurred during subscription setup
-	SubscribeToEvents(ctx context.Context) error
+	SubscribeToBlockchainEvents(ctx context.Context) error
 
-	// UnsubscribeFromEvents cancels all active wallet event subscriptions.
+	// UnsubscribeFromBlockchainEvents cancels all active wallet event subscriptions.
 	// This should be called when shutting down the service or
 	// when event monitoring is no longer needed.
-	UnsubscribeFromEvents()
+	UnsubscribeFromBlockchainEvents()
+
+	// BlockchainEvents returns a channel that emits blockchain-related events.
+	// These are events from the blockchain like transactions, token transfers, etc.
+	// The channel is closed when UnsubscribeFromEvents is called.
+	BlockchainEvents() <-chan *BlockchainEvent
+
+	// LifecycleEvents returns a channel that emits wallet lifecycle events.
+	// These are events like wallet creation, deletion, etc.
+	// The channel is closed when UnsubscribeFromEvents is called.
+	LifecycleEvents() <-chan *LifecycleEvent
 }
 
 // walletService implements the Service interface
@@ -153,8 +183,11 @@ type walletService struct {
 	walletFactory      coreWallet.Factory
 	blockchainRegistry blockchain.Registry
 	chains             types.Chains
-	subscribers        map[string]context.CancelFunc
+	subscriptions      map[string]context.CancelFunc
 	mu                 sync.RWMutex
+	// Separate channels for different event types
+	blockchainEvents chan *BlockchainEvent // Only blockchain events
+	lifecycleEvents  chan *LifecycleEvent  // Only lifecycle events
 }
 
 // NewService creates a new wallet service
@@ -167,6 +200,7 @@ func NewService(
 	blockchainRegistry blockchain.Registry,
 	chains types.Chains,
 ) Service {
+	const channelBuffer = 100
 	return &walletService{
 		config:             config,
 		logger:             logger,
@@ -175,8 +209,31 @@ func NewService(
 		walletFactory:      walletFactory,
 		blockchainRegistry: blockchainRegistry,
 		chains:             chains,
-		subscribers:        make(map[string]context.CancelFunc),
+		subscriptions:      make(map[string]context.CancelFunc),
 		mu:                 sync.RWMutex{},
+		blockchainEvents:   make(chan *BlockchainEvent, channelBuffer),
+		lifecycleEvents:    make(chan *LifecycleEvent, channelBuffer),
+	}
+}
+
+// emitBlockchainEvent sends a blockchain event to the blockchain events channel
+func (s *walletService) emitBlockchainEvent(event *BlockchainEvent) {
+	select {
+	case s.blockchainEvents <- event:
+	default:
+		s.logger.Warn("Blockchain events channel is full, dropping event",
+			logger.String("wallet_id", event.WalletID))
+	}
+}
+
+// emitLifecycleEvent sends a lifecycle event to the lifecycle events channel
+func (s *walletService) emitLifecycleEvent(event *LifecycleEvent) {
+	select {
+	case s.lifecycleEvents <- event:
+	default:
+		s.logger.Warn("Lifecycle events channel is full, dropping event",
+			logger.String("wallet_id", event.WalletID),
+			logger.String("event_type", event.EventType))
 	}
 }
 
@@ -231,6 +288,14 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 			logger.String("address", wallet.Address),
 			logger.Error(err))
 	}
+
+	// Emit wallet created event
+	s.emitLifecycleEvent(&LifecycleEvent{
+		WalletID:  wallet.ID,
+		EventType: EventTypeWalletCreated,
+		ChainType: wallet.ChainType,
+		Address:   wallet.Address,
+	})
 
 	return wallet, nil
 }
@@ -312,6 +377,14 @@ func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, a
 		return fmt.Errorf("failed to delete wallet: %w", err)
 	}
 
+	// Emit wallet deleted event
+	s.emitLifecycleEvent(&LifecycleEvent{
+		WalletID:  wallet.ID,
+		EventType: EventTypeWalletDeleted,
+		ChainType: wallet.ChainType,
+		Address:   wallet.Address,
+	})
+
 	return nil
 }
 
@@ -367,8 +440,8 @@ func (s *walletService) List(ctx context.Context, limit, offset int) ([]*Wallet,
 	return wallets, nil
 }
 
-// SubscribeToEvents subscribes to events for all active wallets
-func (s *walletService) SubscribeToEvents(ctx context.Context) error {
+// SubscribeToBlockchainEvents subscribes to events for all active wallets
+func (s *walletService) SubscribeToBlockchainEvents(ctx context.Context) error {
 	// Get all non-deleted wallets
 	wallets, err := s.repository.List(ctx, 0, 0)
 	if err != nil {
@@ -388,16 +461,20 @@ func (s *walletService) SubscribeToEvents(ctx context.Context) error {
 	return nil
 }
 
-// UnsubscribeFromEvents unsubscribes from all event subscriptions
-func (s *walletService) UnsubscribeFromEvents() {
+// UnsubscribeFromBlockchainEvents unsubscribes from all event subscriptions
+func (s *walletService) UnsubscribeFromBlockchainEvents() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// Cancel all subscribers
-	for walletID, cancel := range s.subscribers {
+	for walletID, cancel := range s.subscriptions {
 		cancel()
-		delete(s.subscribers, walletID)
+		delete(s.subscriptions, walletID)
 	}
+
+	// Close all event channels
+	close(s.blockchainEvents)
+	close(s.lifecycleEvents)
 }
 
 func (s *walletService) subscribeToWallet(wallet *Wallet) error {
@@ -412,7 +489,7 @@ func (s *walletService) subscribeToWallet(wallet *Wallet) error {
 
 	// Store cancel function
 	s.mu.Lock()
-	s.subscribers[wallet.ID] = cancel
+	s.subscriptions[wallet.ID] = cancel
 	s.mu.Unlock()
 
 	// Subscribe to events
@@ -440,10 +517,11 @@ func (s *walletService) subscribeToWallet(wallet *Wallet) error {
 					logger.Error(err))
 				return
 			case log := <-logCh:
-				s.logger.Info("Received transaction event",
-					logger.String("wallet_id", wallet.ID),
-					logger.String("address", wallet.Address),
-					logger.String("tx_hash", log.TransactionHash))
+				// Emit blockchain event
+				s.emitBlockchainEvent(&BlockchainEvent{
+					WalletID: wallet.ID,
+					Log:      &log,
+				})
 			}
 		}
 	}()
@@ -455,9 +533,9 @@ func (s *walletService) unsubscribeFromWallet(walletID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if cancel, exists := s.subscribers[walletID]; exists {
+	if cancel, exists := s.subscriptions[walletID]; exists {
 		cancel()
-		delete(s.subscribers, walletID)
+		delete(s.subscriptions, walletID)
 	}
 }
 
@@ -503,4 +581,14 @@ func (s *walletService) GetByID(ctx context.Context, id string) (*Wallet, error)
 	}
 
 	return wallet, nil
+}
+
+// BlockchainEvents returns the blockchain events channel
+func (s *walletService) BlockchainEvents() <-chan *BlockchainEvent {
+	return s.blockchainEvents
+}
+
+// LifecycleEvents returns the lifecycle events channel
+func (s *walletService) LifecycleEvents() <-chan *LifecycleEvent {
+	return s.lifecycleEvents
 }

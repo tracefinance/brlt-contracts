@@ -59,12 +59,11 @@ func (m *MockWalletService) List(ctx context.Context, limit, offset int) ([]*wal
 	return args.Get(0).([]*wallet.Wallet), args.Error(1)
 }
 
-func (m *MockWalletService) SubscribeToEvents(ctx context.Context) error {
-	args := m.Called(ctx)
-	return args.Error(0)
+func (m *MockWalletService) SubscribeToBlockchainEvents(ctx context.Context) error {
+	return nil
 }
 
-func (m *MockWalletService) UnsubscribeFromEvents() {
+func (m *MockWalletService) UnsubscribeFromBlockchainEvents() {
 	m.Called()
 }
 
@@ -79,6 +78,14 @@ func (m *MockWalletService) GetByID(ctx context.Context, id string) (*wallet.Wal
 func (m *MockWalletService) Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error) {
 	args := m.Called(ctx, chainType, address)
 	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockWalletService) BlockchainEvents() <-chan *wallet.BlockchainEvent {
+	return nil
+}
+
+func (m *MockWalletService) LifecycleEvents() <-chan *wallet.LifecycleEvent {
+	return nil
 }
 
 // setupTestRouter creates a new router and mock service for each test

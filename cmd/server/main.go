@@ -27,10 +27,17 @@ func main() {
 		log.Fatal("Failed to migrate database", logger.Error(err))
 	}
 
-	// Subscribe to wallet events
-	if err := container.Services.WalletService.SubscribeToEvents(context.Background()); err != nil {
-		log.Error("Failed to subscribe to wallet events", logger.Error(err))
+	// Create root context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start wallet event subscriptions
+	if err := container.Services.WalletService.SubscribeToBlockchainEvents(ctx); err != nil {
+		log.Fatal("Failed to subscribe to blockchain events", logger.Error(err))
 	}
+
+	// Start transaction event subscriptions
+	container.Services.TransactionService.SubscribeToWalletEvents(ctx)
 
 	// Setup routes
 	container.Server.SetupRoutes()
@@ -55,8 +62,15 @@ func main() {
 	<-quit
 	log.Info("Received shutdown signal")
 
+	// Cancel the root context
+	cancel()
+
 	// Perform cleanup
 	container.Server.Shutdown()
+
+	// Unsubscribe from events
+	container.Services.WalletService.UnsubscribeFromBlockchainEvents()
+	container.Services.TransactionService.UnsubscribeFromWalletEvents()
 
 	// Close the database connection
 	if container.Core.DB != nil {

@@ -14,6 +14,7 @@ import (
 	"vault0/internal/types"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 // MockRepository mocks the transaction Repository interface
@@ -116,11 +117,19 @@ func (m *MockWalletService) Exists(ctx context.Context, chainType types.ChainTyp
 	return false, nil
 }
 
-func (m *MockWalletService) SubscribeToEvents(ctx context.Context) error {
+func (m *MockWalletService) SubscribeToBlockchainEvents(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockWalletService) UnsubscribeFromEvents() {
+func (m *MockWalletService) UnsubscribeFromBlockchainEvents() {
+}
+
+func (m *MockWalletService) BlockchainEvents() <-chan *wallet.BlockchainEvent {
+	return nil
+}
+
+func (m *MockWalletService) LifecycleEvents() <-chan *wallet.LifecycleEvent {
+	return nil
 }
 
 // MockBlockExplorer mocks the blockexplorer interface
@@ -180,6 +189,58 @@ func (m *MockBlockExplorerFactory) GetExplorer(chainType types.ChainType) (block
 	}
 	explorer := &MockBlockExplorer{}
 	return explorer, nil
+}
+
+// MockTransactionService is a mock implementation of the Service interface
+type MockTransactionService struct {
+	mock.Mock
+}
+
+func (m *MockTransactionService) GetTransaction(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error) {
+	args := m.Called(ctx, chainType, hash)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*Transaction), args.Error(1)
+}
+
+func (m *MockTransactionService) GetTransactionsByWallet(ctx context.Context, walletID string, limit, offset int) ([]*Transaction, error) {
+	args := m.Called(ctx, walletID, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*Transaction), args.Error(1)
+}
+
+func (m *MockTransactionService) GetTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) ([]*Transaction, error) {
+	args := m.Called(ctx, chainType, address, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*Transaction), args.Error(1)
+}
+
+func (m *MockTransactionService) SyncTransactions(ctx context.Context, walletID string) (int, error) {
+	args := m.Called(ctx, walletID)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MockTransactionService) SyncTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string) (int, error) {
+	args := m.Called(ctx, chainType, address)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MockTransactionService) CountTransactions(ctx context.Context, walletID string) (int, error) {
+	args := m.Called(ctx, walletID)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MockTransactionService) SubscribeToWalletEvents(ctx context.Context) {
+	m.Called(ctx)
+}
+
+func (m *MockTransactionService) UnsubscribeFromWalletEvents() {
+	m.Called()
 }
 
 // TestGetTransaction tests the GetTransaction method
