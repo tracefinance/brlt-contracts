@@ -85,7 +85,7 @@ wire-install:
 	$(GOGET) github.com/google/wire/cmd/wire
 
 # Generate Wire code
-wire: wire-install
+wire:
 	@echo "Generating Wire dependency injection code..."
 	cd internal/wire && wire
 
