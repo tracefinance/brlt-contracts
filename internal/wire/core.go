@@ -5,6 +5,7 @@ import (
 
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
+	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/contract"
 	"vault0/internal/core/db"
 	"vault0/internal/core/keystore"
@@ -21,6 +22,7 @@ var CoreSet = wire.NewSet(
 	keystore.NewKeyStore,
 	blockchain.NewRegistry,
 	wallet.NewFactory,
+	blockexplorer.NewFactory,
 	contract.NewSmartContract,
 	types.NewChains,
 )

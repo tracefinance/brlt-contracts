@@ -60,6 +60,8 @@ type BlockchainConfig struct {
 	DefaultGasLimit uint64
 	// ExplorerURL is the block explorer URL for the blockchain
 	ExplorerURL string
+	// ExplorerAPIKey is the API key for the block explorer
+	ExplorerAPIKey string
 }
 
 // BlockchainsConfig holds configuration for all supported blockchains
@@ -185,6 +187,7 @@ func loadEthereumConfig() BlockchainConfig {
 		DefaultGasPrice: parseEnvUint("ETHEREUM_GAS_PRICE", 20), // Gwei
 		DefaultGasLimit: parseEnvUint("ETHEREUM_GAS_LIMIT", 21000),
 		ExplorerURL:     getEnv("ETHEREUM_EXPLORER_URL", "https://etherscan.io"),
+		ExplorerAPIKey:  getEnv("ETHEREUM_EXPLORER_API_KEY", ""),
 	}
 }
 
@@ -201,6 +204,7 @@ func loadPolygonConfig() BlockchainConfig {
 		DefaultGasPrice: parseEnvUint("POLYGON_GAS_PRICE", 30), // Gwei
 		DefaultGasLimit: parseEnvUint("POLYGON_GAS_LIMIT", 21000),
 		ExplorerURL:     getEnv("POLYGON_EXPLORER_URL", "https://polygonscan.com"),
+		ExplorerAPIKey:  getEnv("POLYGON_EXPLORER_API_KEY", ""),
 	}
 }
 
@@ -217,6 +221,7 @@ func loadBaseConfig() BlockchainConfig {
 		DefaultGasPrice: parseEnvUint("BASE_GAS_PRICE", 10), // Gwei
 		DefaultGasLimit: parseEnvUint("BASE_GAS_LIMIT", 21000),
 		ExplorerURL:     getEnv("BASE_EXPLORER_URL", "https://basescan.org"),
+		ExplorerAPIKey:  getEnv("BASE_EXPLORER_API_KEY", ""),
 	}
 }
 
