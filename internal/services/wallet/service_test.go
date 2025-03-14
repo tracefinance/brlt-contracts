@@ -95,11 +95,13 @@ func (m *MockWallet) SignTransaction(ctx context.Context, tx *types.Transaction)
 
 // MockRepository mocks Repository
 type MockRepository struct {
-	CreateFunc func(ctx context.Context, wallet *Wallet) error
-	GetFunc    func(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
-	UpdateFunc func(ctx context.Context, chainType types.ChainType, address string, name string, tags map[string]string) (*Wallet, error)
-	DeleteFunc func(ctx context.Context, chainType types.ChainType, address string) error
-	ListFunc   func(ctx context.Context, limit, offset int) ([]*Wallet, error)
+	CreateFunc  func(ctx context.Context, wallet *Wallet) error
+	GetFunc     func(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
+	GetByIDFunc func(ctx context.Context, id string) (*Wallet, error)
+	UpdateFunc  func(ctx context.Context, chainType types.ChainType, address string, name string, tags map[string]string) (*Wallet, error)
+	DeleteFunc  func(ctx context.Context, chainType types.ChainType, address string) error
+	ListFunc    func(ctx context.Context, limit, offset int) ([]*Wallet, error)
+	ExistsFunc  func(ctx context.Context, chainType types.ChainType, address string) (bool, error)
 }
 
 func (m *MockRepository) Create(ctx context.Context, wallet *Wallet) error {
@@ -114,6 +116,13 @@ func (m *MockRepository) Get(ctx context.Context, chainType types.ChainType, add
 		return m.GetFunc(ctx, chainType, address)
 	}
 	return &Wallet{ChainType: chainType, Address: address}, nil
+}
+
+func (m *MockRepository) GetByID(ctx context.Context, id string) (*Wallet, error) {
+	if m.GetByIDFunc != nil {
+		return m.GetByIDFunc(ctx, id)
+	}
+	return &Wallet{ID: id}, nil
 }
 
 func (m *MockRepository) Update(ctx context.Context, chainType types.ChainType, address string, name string, tags map[string]string) (*Wallet, error) {
@@ -135,6 +144,13 @@ func (m *MockRepository) List(ctx context.Context, limit, offset int) ([]*Wallet
 		return m.ListFunc(ctx, limit, offset)
 	}
 	return []*Wallet{}, nil
+}
+
+func (m *MockRepository) Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error) {
+	if m.ExistsFunc != nil {
+		return m.ExistsFunc(ctx, chainType, address)
+	}
+	return true, nil
 }
 
 // MockBlockchainRegistry mocks blockchain.Registry

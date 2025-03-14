@@ -68,6 +68,19 @@ func (m *MockWalletService) UnsubscribeFromEvents() {
 	m.Called()
 }
 
+func (m *MockWalletService) GetByID(ctx context.Context, id string) (*wallet.Wallet, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*wallet.Wallet), args.Error(1)
+}
+
+func (m *MockWalletService) Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error) {
+	args := m.Called(ctx, chainType, address)
+	return args.Bool(0), args.Error(1)
+}
+
 // setupTestRouter creates a new router and mock service for each test
 func setupTestRouter() (*gin.Engine, *MockWalletService, *Handler) {
 	gin.SetMode(gin.TestMode)
