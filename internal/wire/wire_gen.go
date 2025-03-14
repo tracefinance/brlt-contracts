@@ -14,6 +14,7 @@ import (
 	wallet3 "vault0/internal/api/handlers/wallet"
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
+	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/db"
 	"vault0/internal/core/keystore"
 	"vault0/internal/core/wallet"
@@ -48,6 +49,7 @@ func BuildContainer() (*Container, error) {
 	}
 	factory := wallet.NewFactory(keyStore, chains, configConfig)
 	registry := blockchain.NewRegistry(chains, configConfig)
+	blockexplorerFactory := blockexplorer.NewFactory(chains, configConfig)
 	repository := user.NewRepository(dbDB)
 	service := user.NewService(repository)
 	handler := user2.NewHandler(service)
@@ -59,7 +61,7 @@ func BuildContainer() (*Container, error) {
 	blockchainHandler := blockchain3.NewHandler(blockchainService)
 	server := api.NewServer(loggerLogger, configConfig, handler, walletHandler, blockchainHandler)
 	services := NewServices(walletService, service, blockchainService)
-	container := NewContainer(configConfig, dbDB, loggerLogger, keyStore, chains, factory, registry, server, services)
+	container := NewContainer(configConfig, dbDB, loggerLogger, keyStore, chains, factory, registry, blockexplorerFactory, server, services)
 	return container, nil
 }
 
@@ -67,15 +69,16 @@ func BuildContainer() (*Container, error) {
 
 // Container holds all application dependencies
 type Container struct {
-	Config             *config.Config
-	DB                 *db.DB
-	Logger             logger.Logger
-	KeyStore           keystore.KeyStore
-	Chains             types.Chains
-	WalletFactory      wallet.Factory
-	BlockchainRegistry blockchain.Registry
-	Server             *api.Server
-	Services           *Services
+	Config               *config.Config
+	DB                   *db.DB
+	Logger               logger.Logger
+	KeyStore             keystore.KeyStore
+	Chains               types.Chains
+	WalletFactory        wallet.Factory
+	BlockchainRegistry   blockchain.Registry
+	BlockExplorerFactory blockexplorer.Factory
+	Server               *api.Server
+	Services             *Services
 }
 
 // NewContainer creates a new dependency injection container
@@ -85,19 +88,21 @@ func NewContainer(config2 *config.Config, db2 *db.DB, logger2 logger.Logger,
 	chains types.Chains,
 	walletFactory wallet.Factory,
 	blockchainRegistry blockchain.Registry,
+	blockExplorerFactory blockexplorer.Factory,
 	server *api.Server,
 	services *Services,
 ) *Container {
 	return &Container{
-		Config:             config2,
-		DB:                 db2,
-		Logger:             logger2,
-		KeyStore:           keyStore,
-		Chains:             chains,
-		WalletFactory:      walletFactory,
-		BlockchainRegistry: blockchainRegistry,
-		Server:             server,
-		Services:           services,
+		Config:               config2,
+		DB:                   db2,
+		Logger:               logger2,
+		KeyStore:             keyStore,
+		Chains:               chains,
+		WalletFactory:        walletFactory,
+		BlockchainRegistry:   blockchainRegistry,
+		BlockExplorerFactory: blockExplorerFactory,
+		Server:               server,
+		Services:             services,
 	}
 }
 
