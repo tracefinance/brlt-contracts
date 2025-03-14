@@ -79,8 +79,9 @@ func (m *MockRepository) Exists(ctx context.Context, chainType types.ChainType, 
 
 // MockWalletService mocks the wallet.Service interface
 type MockWalletService struct {
-	GetByIDFunc func(ctx context.Context, id string) (*wallet.Wallet, error)
-	GetFunc     func(ctx context.Context, chainType types.ChainType, address string) (*wallet.Wallet, error)
+	GetByIDFunc               func(ctx context.Context, id string) (*wallet.Wallet, error)
+	GetFunc                   func(ctx context.Context, chainType types.ChainType, address string) (*wallet.Wallet, error)
+	UpdateLastBlockNumberFunc func(ctx context.Context, chainType types.ChainType, address string, blockNumber int64) error
 }
 
 func (m *MockWalletService) Create(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*wallet.Wallet, error) {
@@ -103,6 +104,13 @@ func (m *MockWalletService) GetByID(ctx context.Context, id string) (*wallet.Wal
 
 func (m *MockWalletService) Update(ctx context.Context, chainType types.ChainType, address string, name string, tags map[string]string) (*wallet.Wallet, error) {
 	return nil, nil
+}
+
+func (m *MockWalletService) UpdateLastBlockNumber(ctx context.Context, chainType types.ChainType, address string, blockNumber int64) error {
+	if m.UpdateLastBlockNumberFunc != nil {
+		return m.UpdateLastBlockNumberFunc(ctx, chainType, address, blockNumber)
+	}
+	return nil
 }
 
 func (m *MockWalletService) Delete(ctx context.Context, chainType types.ChainType, address string) error {
@@ -139,6 +147,7 @@ type MockBlockExplorer struct {
 	GetAddressBalanceFunc     func(ctx context.Context, address string) (*big.Int, error)
 	GetTokenBalancesFunc      func(ctx context.Context, address string) (map[string]*big.Int, error)
 	ChainFunc                 func() types.Chain
+	CloseFunc                 func() error
 }
 
 func (m *MockBlockExplorer) GetTransactionsByHash(ctx context.Context, hashes []string) ([]*types.Transaction, error) {
@@ -176,7 +185,12 @@ func (m *MockBlockExplorer) Chain() types.Chain {
 	return types.Chain{Type: types.ChainTypeEthereum}
 }
 
-func (m *MockBlockExplorer) Close() {}
+func (m *MockBlockExplorer) Close() error {
+	if m.CloseFunc != nil {
+		return m.CloseFunc()
+	}
+	return nil
+}
 
 // MockBlockExplorerFactory mocks the blockexplorer.Factory interface
 type MockBlockExplorerFactory struct {

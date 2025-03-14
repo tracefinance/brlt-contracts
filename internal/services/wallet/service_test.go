@@ -98,7 +98,7 @@ type MockRepository struct {
 	CreateFunc  func(ctx context.Context, wallet *Wallet) error
 	GetFunc     func(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
 	GetByIDFunc func(ctx context.Context, id string) (*Wallet, error)
-	UpdateFunc  func(ctx context.Context, chainType types.ChainType, address string, name string, tags map[string]string) (*Wallet, error)
+	UpdateFunc  func(ctx context.Context, wallet *Wallet) error
 	DeleteFunc  func(ctx context.Context, chainType types.ChainType, address string) error
 	ListFunc    func(ctx context.Context, limit, offset int) ([]*Wallet, error)
 	ExistsFunc  func(ctx context.Context, chainType types.ChainType, address string) (bool, error)
@@ -125,11 +125,11 @@ func (m *MockRepository) GetByID(ctx context.Context, id string) (*Wallet, error
 	return &Wallet{ID: id}, nil
 }
 
-func (m *MockRepository) Update(ctx context.Context, chainType types.ChainType, address string, name string, tags map[string]string) (*Wallet, error) {
+func (m *MockRepository) Update(ctx context.Context, wallet *Wallet) error {
 	if m.UpdateFunc != nil {
-		return m.UpdateFunc(ctx, chainType, address, name, tags)
+		return m.UpdateFunc(ctx, wallet)
 	}
-	return &Wallet{ChainType: chainType, Address: address, Name: name, Tags: tags}, nil
+	return nil
 }
 
 func (m *MockRepository) Delete(ctx context.Context, chainType types.ChainType, address string) error {
@@ -442,6 +442,137 @@ func TestGetWallet(t *testing.T) {
 				assert.NotNil(t, wallet)
 				assert.Equal(t, tt.chainType, wallet.ChainType)
 				assert.Equal(t, tt.address, wallet.Address)
+			}
+		})
+	}
+}
+
+// TestUpdateLastBlockNumber tests the UpdateLastBlockNumber method
+func TestUpdateLastBlockNumber(t *testing.T) {
+	// Setup minimal config and chains
+	cfg := &config.Config{}
+	chains := types.Chains{
+		types.ChainTypeEthereum: types.Chain{
+			Type:    types.ChainTypeEthereum,
+			KeyType: types.KeyTypeECDSA,
+			Curve:   elliptic.P256(),
+		},
+	}
+
+	// Define test cases
+	tests := []struct {
+		name        string
+		chainType   types.ChainType
+		address     string
+		blockNumber int64
+		setupMocks  func(*MockRepository)
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:        "successful update",
+			chainType:   types.ChainTypeEthereum,
+			address:     "0x1234567890abcdef1234567890abcdef12345678",
+			blockNumber: 12345,
+			setupMocks: func(repo *MockRepository) {
+				repo.GetFunc = func(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
+					return &Wallet{
+						ID:        "wallet123",
+						ChainType: chainType,
+						Address:   address,
+						Name:      "Test Wallet",
+					}, nil
+				}
+				repo.UpdateFunc = func(ctx context.Context, wallet *Wallet) error {
+					assert.Equal(t, int64(12345), wallet.LastBlockNumber)
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:        "wallet not found",
+			chainType:   types.ChainTypeEthereum,
+			address:     "0x1234567890abcdef1234567890abcdef12345678",
+			blockNumber: 12345,
+			setupMocks: func(repo *MockRepository) {
+				repo.GetFunc = func(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
+					return nil, sql.ErrNoRows
+				}
+			},
+			wantErr:     true,
+			errContains: "wallet not found",
+		},
+		{
+			name:        "empty chain type",
+			chainType:   "",
+			address:     "0x1234567890abcdef1234567890abcdef12345678",
+			blockNumber: 12345,
+			setupMocks: func(repo *MockRepository) {
+				// No mocks needed; validation fails before repository is called
+			},
+			wantErr:     true,
+			errContains: "chain type cannot be empty",
+		},
+		{
+			name:        "empty address",
+			chainType:   types.ChainTypeEthereum,
+			address:     "",
+			blockNumber: 12345,
+			setupMocks: func(repo *MockRepository) {
+				// No mocks needed; validation fails before repository is called
+			},
+			wantErr:     true,
+			errContains: "address cannot be empty",
+		},
+		{
+			name:        "negative block number",
+			chainType:   types.ChainTypeEthereum,
+			address:     "0x1234567890abcdef1234567890abcdef12345678",
+			blockNumber: -1,
+			setupMocks: func(repo *MockRepository) {
+				// No mocks needed; validation fails before repository is called
+			},
+			wantErr:     true,
+			errContains: "block number cannot be negative",
+		},
+		{
+			name:        "unsupported chain type",
+			chainType:   "unsupported",
+			address:     "0x1234567890abcdef1234567890abcdef12345678",
+			blockNumber: 12345,
+			setupMocks: func(repo *MockRepository) {
+				// No mocks needed; validation fails before repository is called
+			},
+			wantErr:     true,
+			errContains: "unsupported chain type",
+		},
+	}
+
+	// Run tests
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Initialize mocks
+			mockKeyStore := &MockKeyStore{}
+			mockWalletFactory := &MockWalletFactory{}
+			mockRepository := &MockRepository{}
+			mockBlockchainRegistry := &MockBlockchainRegistry{}
+
+			// Setup mock behavior
+			tt.setupMocks(mockRepository)
+
+			// Create service
+			s := NewService(cfg, logger.NewNopLogger(), mockRepository, mockKeyStore, mockWalletFactory, mockBlockchainRegistry, chains)
+
+			// Call the service method
+			err := s.UpdateLastBlockNumber(context.Background(), tt.chainType, tt.address, tt.blockNumber)
+
+			// Assertions
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

@@ -20,6 +20,11 @@ import (
 // MockWalletService is a mock implementation of the wallet.Service interface
 type MockWalletService struct {
 	mock.Mock
+	CreateFunc                func(ctx context.Context, name string, chainType string, address string) (*wallet.Wallet, error)
+	GetFunc                   func(ctx context.Context, chainType string, address string) (*wallet.Wallet, error)
+	UpdateFunc                func(ctx context.Context, wallet *wallet.Wallet) error
+	DeleteFunc                func(ctx context.Context, chainType string, address string) error
+	UpdateLastBlockNumberFunc func(ctx context.Context, chainType types.ChainType, address string, blockNumber int64) error
 }
 
 func (m *MockWalletService) Create(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*wallet.Wallet, error) {
@@ -85,6 +90,13 @@ func (m *MockWalletService) BlockchainEvents() <-chan *wallet.BlockchainEvent {
 }
 
 func (m *MockWalletService) LifecycleEvents() <-chan *wallet.LifecycleEvent {
+	return nil
+}
+
+func (m *MockWalletService) UpdateLastBlockNumber(ctx context.Context, chainType types.ChainType, address string, blockNumber int64) error {
+	if m.UpdateLastBlockNumberFunc != nil {
+		return m.UpdateLastBlockNumberFunc(ctx, chainType, address, blockNumber)
+	}
 	return nil
 }
 
