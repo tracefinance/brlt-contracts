@@ -4,15 +4,13 @@ import (
 	"fmt"
 	"log"
 
-	"vault0/internal/config"
-
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 // MigrateDatabase applies all available migrations to the database
-func MigrateDatabase(db *DB, cfg *config.Config) error {
+func (db *DB) MigrateDatabase() error {
 	// Get the database driver
 	driver, err := sqlite3.WithInstance(db.GetConnection(), &sqlite3.Config{})
 	if err != nil {
@@ -20,7 +18,7 @@ func MigrateDatabase(db *DB, cfg *config.Config) error {
 	}
 
 	// Create the migrate instance
-	sourceURL := fmt.Sprintf("file://%s", cfg.MigrationsPath)
+	sourceURL := fmt.Sprintf("file://%s", db.config.MigrationsPath)
 	m, err := migrate.NewWithDatabaseInstance(
 		sourceURL,
 		"sqlite3", // Database name (just a label for migrate)

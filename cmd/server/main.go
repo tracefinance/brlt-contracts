@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,6 +21,16 @@ func main() {
 
 	// Get the logger from the container
 	log := container.Logger
+
+	// Migrate the database
+	if err := container.DB.MigrateDatabase(); err != nil {
+		log.Fatal("Failed to migrate database", logger.Error(err))
+	}
+
+	// Subscribe to wallet events
+	if err := container.Services.WalletService.SubscribeToEvents(context.Background()); err != nil {
+		log.Error("Failed to subscribe to wallet events", logger.Error(err))
+	}
 
 	// Setup routes
 	container.Server.SetupRoutes()

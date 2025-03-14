@@ -13,7 +13,8 @@ import (
 
 // DB represents the database connection
 type DB struct {
-	conn *sql.DB
+	conn   *sql.DB
+	config *config.Config
 }
 
 // NewDatabase creates a new database connection
@@ -33,7 +34,7 @@ func NewDatabase(cfg *config.Config) (*DB, error) {
 	}
 
 	log.Printf("Connected to database at %s", cfg.DBPath)
-	return &DB{conn: conn}, nil
+	return &DB{conn: conn, config: cfg}, nil
 }
 
 // Close closes the database connection
