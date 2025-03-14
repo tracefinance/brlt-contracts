@@ -10,6 +10,7 @@ import (
 	"github.com/google/wire"
 	"vault0/internal/api"
 	blockchain3 "vault0/internal/api/handlers/blockchain"
+	transaction2 "vault0/internal/api/handlers/transaction"
 	user2 "vault0/internal/api/handlers/user"
 	wallet3 "vault0/internal/api/handlers/wallet"
 	"vault0/internal/config"
@@ -20,6 +21,7 @@ import (
 	"vault0/internal/core/wallet"
 	"vault0/internal/logger"
 	blockchain2 "vault0/internal/services/blockchain"
+	"vault0/internal/services/transaction"
 	"vault0/internal/services/user"
 	wallet2 "vault0/internal/services/wallet"
 	"vault0/internal/types"
@@ -59,8 +61,11 @@ func BuildContainer() (*Container, error) {
 	blockchainRepository := blockchain2.NewRepository(dbDB)
 	blockchainService := blockchain2.NewService(blockchainRepository, walletService, registry)
 	blockchainHandler := blockchain3.NewHandler(blockchainService)
-	server := api.NewServer(loggerLogger, configConfig, handler, walletHandler, blockchainHandler)
-	services := NewServices(walletService, service, blockchainService)
+	transactionRepository := transaction.NewRepository(dbDB)
+	transactionService := transaction.NewService(configConfig, loggerLogger, transactionRepository, walletService, blockexplorerFactory, chains)
+	transactionHandler := transaction2.NewHandler(transactionService)
+	server := api.NewServer(loggerLogger, configConfig, handler, walletHandler, blockchainHandler, transactionHandler)
+	services := NewServices(walletService, service, blockchainService, transactionService)
 	container := NewContainer(configConfig, dbDB, loggerLogger, keyStore, chains, factory, registry, blockexplorerFactory, server, services)
 	return container, nil
 }
