@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"vault0/internal/services/wallet"
+	"vault0/internal/types"
 )
 
 // Handler handles wallet API requests
@@ -32,7 +33,7 @@ func (h *Handler) CreateWallet(c *gin.Context) {
 	}
 
 	// Create wallet
-	walletModel, err := h.walletService.CreateWallet(c.Request.Context(), req.ChainType, req.Name, req.Tags)
+	walletModel, err := h.walletService.Create(c.Request.Context(), req.ChainType, req.Name, req.Tags)
 	if err != nil {
 		if errors.Is(err, wallet.ErrInvalidInput) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -49,15 +50,20 @@ func (h *Handler) CreateWallet(c *gin.Context) {
 	c.JSON(http.StatusCreated, response)
 }
 
-// GetWallet handles retrieving a wallet by ID
+// GetWallet handles retrieving a wallet by chain type and address
 func (h *Handler) GetWallet(c *gin.Context) {
-	id := c.Param("id")
+	chainType := types.ChainType(c.Param("chain_type"))
+	address := c.Param("address")
 
 	// Get the wallet
-	walletModel, err := h.walletService.GetWallet(c.Request.Context(), id)
+	walletModel, err := h.walletService.Get(c.Request.Context(), chainType, address)
 	if err != nil {
 		if errors.Is(err, wallet.ErrWalletNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Wallet not found"})
+			return
+		}
+		if errors.Is(err, wallet.ErrInvalidInput) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get wallet"})
@@ -73,7 +79,8 @@ func (h *Handler) GetWallet(c *gin.Context) {
 
 // UpdateWallet handles updating a wallet
 func (h *Handler) UpdateWallet(c *gin.Context) {
-	id := c.Param("id")
+	chainType := types.ChainType(c.Param("chain_type"))
+	address := c.Param("address")
 
 	var req UpdateWalletRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -82,7 +89,7 @@ func (h *Handler) UpdateWallet(c *gin.Context) {
 	}
 
 	// Update the wallet
-	walletModel, err := h.walletService.UpdateWallet(c.Request.Context(), id, req.Name, req.Tags)
+	walletModel, err := h.walletService.Update(c.Request.Context(), chainType, address, req.Name, req.Tags)
 	if err != nil {
 		if errors.Is(err, wallet.ErrWalletNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Wallet not found"})
@@ -105,13 +112,18 @@ func (h *Handler) UpdateWallet(c *gin.Context) {
 
 // DeleteWallet handles deleting a wallet
 func (h *Handler) DeleteWallet(c *gin.Context) {
-	id := c.Param("id")
+	chainType := types.ChainType(c.Param("chain_type"))
+	address := c.Param("address")
 
 	// Delete the wallet
-	err := h.walletService.DeleteWallet(c.Request.Context(), id)
+	err := h.walletService.Delete(c.Request.Context(), chainType, address)
 	if err != nil {
 		if errors.Is(err, wallet.ErrWalletNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Wallet not found"})
+			return
+		}
+		if errors.Is(err, wallet.ErrInvalidInput) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete wallet"})
@@ -145,7 +157,7 @@ func (h *Handler) ListWallets(c *gin.Context) {
 	}
 
 	// Get the wallets
-	wallets, err := h.walletService.ListWallets(c.Request.Context(), limit, offset)
+	wallets, err := h.walletService.List(c.Request.Context(), limit, offset)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// If no wallets found, return an empty list
@@ -172,8 +184,8 @@ func (h *Handler) ListWallets(c *gin.Context) {
 func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	walletRoutes := router.Group("/wallets")
 	walletRoutes.POST("", h.CreateWallet)
-	walletRoutes.GET("/:id", h.GetWallet)
-	walletRoutes.PUT("/:id", h.UpdateWallet)
-	walletRoutes.DELETE("/:id", h.DeleteWallet)
+	walletRoutes.GET("/:chain_type/:address", h.GetWallet)
+	walletRoutes.PUT("/:chain_type/:address", h.UpdateWallet)
+	walletRoutes.DELETE("/:chain_type/:address", h.DeleteWallet)
 	walletRoutes.GET("", h.ListWallets)
 }

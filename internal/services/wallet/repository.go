@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"vault0/internal/core/db"
+	"vault0/internal/types"
 )
 
 // Repository defines the interface for wallet data access
@@ -17,14 +18,14 @@ type Repository interface {
 	// Create creates a new wallet in the database
 	Create(ctx context.Context, wallet *Wallet) error
 
-	// GetByID retrieves a wallet by its ID
-	GetByID(ctx context.Context, id string) (*Wallet, error)
+	// Get retrieves a wallet by its chain type and address
+	Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
 
-	// Update updates a wallet's name and tags
-	Update(ctx context.Context, wallet *Wallet) error
+	// Update updates a wallet's name and tags by chain type and address
+	Update(ctx context.Context, chainType types.ChainType, address string, name string, tags map[string]string) (*Wallet, error)
 
-	// Delete permanently deletes a wallet by its ID
-	Delete(ctx context.Context, id string) error
+	// Delete deletes a wallet by its chain type and address
+	Delete(ctx context.Context, chainType types.ChainType, address string) error
 
 	// List retrieves wallets with optional filtering
 	List(ctx context.Context, limit, offset int) ([]*Wallet, error)
@@ -83,15 +84,15 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 	return nil
 }
 
-// GetByID retrieves a wallet by its ID
-func (r *repository) GetByID(ctx context.Context, id string) (*Wallet, error) {
+// Get retrieves a wallet by its chain type and address
+func (r *repository) Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
 	query := `
 		SELECT id, key_id, chain_type, address, name, tags, created_at, updated_at, deleted_at
 		FROM wallets
-		WHERE id = ? AND deleted_at IS NULL
+		WHERE chain_type = ? AND address = ? AND deleted_at IS NULL
 	`
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, id)
+	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, address)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query wallet: %w", err)
 	}
@@ -109,21 +110,29 @@ func (r *repository) GetByID(ctx context.Context, id string) (*Wallet, error) {
 	return wallet, nil
 }
 
-// Update updates a wallet's name and tags
-func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
-	// Set updated timestamp
+// Update updates a wallet's name and tags by chain type and address
+func (r *repository) Update(ctx context.Context, chainType types.ChainType, address string, name string, tags map[string]string) (*Wallet, error) {
+	// Get the wallet first
+	wallet, err := r.Get(ctx, chainType, address)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update the wallet fields
+	wallet.Name = name
+	wallet.Tags = tags
 	wallet.UpdatedAt = time.Now()
 
 	// Convert tags to JSON
 	tagsJSON, err := json.Marshal(wallet.Tags)
 	if err != nil {
-		return fmt.Errorf("failed to marshal tags: %w", err)
+		return nil, fmt.Errorf("failed to marshal tags: %w", err)
 	}
 
 	query := `
 		UPDATE wallets
 		SET name = ?, tags = ?, updated_at = ?
-		WHERE id = ? AND deleted_at IS NULL
+		WHERE chain_type = ? AND address = ? AND deleted_at IS NULL
 	`
 
 	result, err := r.db.ExecuteStatementContext(
@@ -132,31 +141,32 @@ func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 		wallet.Name,
 		string(tagsJSON),
 		wallet.UpdatedAt,
-		wallet.ID,
+		chainType,
+		address,
 	)
 
 	if err != nil {
-		return fmt.Errorf("failed to update wallet: %w", err)
+		return nil, fmt.Errorf("failed to update wallet: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		return sql.ErrNoRows
+		return nil, sql.ErrNoRows
 	}
 
-	return nil
+	return wallet, nil
 }
 
-// Delete soft deletes a wallet by its ID
-func (r *repository) Delete(ctx context.Context, id string) error {
+// Delete soft deletes a wallet by its chain type and address
+func (r *repository) Delete(ctx context.Context, chainType types.ChainType, address string) error {
 	query := `
 		UPDATE wallets
 		SET deleted_at = ?, updated_at = ?
-		WHERE id = ? AND deleted_at IS NULL
+		WHERE chain_type = ? AND address = ? AND deleted_at IS NULL
 	`
 
 	now := time.Now()
@@ -165,7 +175,8 @@ func (r *repository) Delete(ctx context.Context, id string) error {
 		query,
 		now,
 		now,
-		id,
+		chainType,
+		address,
 	)
 
 	if err != nil {

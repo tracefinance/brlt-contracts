@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"crypto/elliptic"
+	"database/sql"
 	"math/big"
 	"testing"
 
@@ -95,6 +96,10 @@ func (m *MockWallet) SignTransaction(ctx context.Context, tx *types.Transaction)
 // MockRepository mocks Repository
 type MockRepository struct {
 	CreateFunc func(ctx context.Context, wallet *Wallet) error
+	GetFunc    func(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
+	UpdateFunc func(ctx context.Context, chainType types.ChainType, address string, name string, tags map[string]string) (*Wallet, error)
+	DeleteFunc func(ctx context.Context, chainType types.ChainType, address string) error
+	ListFunc   func(ctx context.Context, limit, offset int) ([]*Wallet, error)
 }
 
 func (m *MockRepository) Create(ctx context.Context, wallet *Wallet) error {
@@ -104,20 +109,32 @@ func (m *MockRepository) Create(ctx context.Context, wallet *Wallet) error {
 	return nil
 }
 
-func (m *MockRepository) Delete(ctx context.Context, id string) error {
-	return nil // No-op for testing
+func (m *MockRepository) Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
+	if m.GetFunc != nil {
+		return m.GetFunc(ctx, chainType, address)
+	}
+	return &Wallet{ChainType: chainType, Address: address}, nil
 }
 
-func (m *MockRepository) GetByID(ctx context.Context, id string) (*Wallet, error) {
-	return &Wallet{ID: id}, nil
+func (m *MockRepository) Update(ctx context.Context, chainType types.ChainType, address string, name string, tags map[string]string) (*Wallet, error) {
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(ctx, chainType, address, name, tags)
+	}
+	return &Wallet{ChainType: chainType, Address: address, Name: name, Tags: tags}, nil
 }
 
-func (m *MockRepository) List(ctx context.Context, offset, limit int) ([]*Wallet, error) {
-	return []*Wallet{}, nil
-}
-
-func (m *MockRepository) Update(ctx context.Context, wallet *Wallet) error {
+func (m *MockRepository) Delete(ctx context.Context, chainType types.ChainType, address string) error {
+	if m.DeleteFunc != nil {
+		return m.DeleteFunc(ctx, chainType, address)
+	}
 	return nil
+}
+
+func (m *MockRepository) List(ctx context.Context, limit, offset int) ([]*Wallet, error) {
+	if m.ListFunc != nil {
+		return m.ListFunc(ctx, limit, offset)
+	}
+	return []*Wallet{}, nil
 }
 
 // MockBlockchainRegistry mocks blockchain.Registry
@@ -188,8 +205,8 @@ func (m *MockBlockchain) GetTransactionReceipt(ctx context.Context, txHash strin
 	return &types.TransactionReceipt{}, nil
 }
 
-// TestWalletService_CreateWallet tests the CreateWallet method
-func TestWalletService_CreateWallet(t *testing.T) {
+// TestCreateWallet tests the CreateWallet method
+func TestCreateWallet(t *testing.T) {
 	// Setup minimal config and chains
 	cfg := &config.Config{}
 	chains := types.Chains{
@@ -276,8 +293,8 @@ func TestWalletService_CreateWallet(t *testing.T) {
 			// Create service
 			s := NewService(cfg, logger.NewNopLogger(), mockRepository, mockKeyStore, mockWalletFactory, mockBlockchainRegistry, chains)
 
-			// Call CreateWallet
-			wallet, err := s.CreateWallet(context.Background(), tt.chainType, tt.walletName, tt.tags)
+			// Call the service method
+			wallet, err := s.Create(context.Background(), tt.chainType, tt.walletName, tt.tags)
 
 			// Assertions
 			if tt.wantErr {
@@ -292,6 +309,123 @@ func TestWalletService_CreateWallet(t *testing.T) {
 				assert.Equal(t, "0x1234567890", wallet.Address)
 				assert.Equal(t, "key123", wallet.KeyID)
 				assert.Equal(t, tt.tags, wallet.Tags)
+			}
+		})
+	}
+}
+
+// TestGetWallet tests the GetWallet method
+func TestGetWallet(t *testing.T) {
+	// Setup minimal config and chains
+	cfg := &config.Config{}
+	chains := types.Chains{
+		types.ChainTypeEthereum: types.Chain{
+			Type:    types.ChainTypeEthereum,
+			KeyType: types.KeyTypeECDSA,
+			Curve:   elliptic.P256(),
+		},
+	}
+
+	// Define test cases
+	tests := []struct {
+		name        string
+		chainType   types.ChainType
+		address     string
+		setupMocks  func(*MockRepository)
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:      "successful retrieval",
+			chainType: types.ChainTypeEthereum,
+			address:   "0x1234567890abcdef1234567890abcdef12345678",
+			setupMocks: func(repo *MockRepository) {
+				repo.GetFunc = func(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
+					assert.Equal(t, types.ChainTypeEthereum, chainType)
+					assert.Equal(t, "0x1234567890abcdef1234567890abcdef12345678", address)
+					return &Wallet{
+						ID:        "wallet123",
+						ChainType: chainType,
+						Address:   address,
+						Name:      "Test Wallet",
+						Tags:      map[string]string{"tag1": "value1"},
+					}, nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:      "wallet not found",
+			chainType: types.ChainTypeEthereum,
+			address:   "0x1234567890abcdef1234567890abcdef12345678",
+			setupMocks: func(repo *MockRepository) {
+				repo.GetFunc = func(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
+					return nil, sql.ErrNoRows
+				}
+			},
+			wantErr:     true,
+			errContains: "wallet not found",
+		},
+		{
+			name:      "empty chain type",
+			chainType: "",
+			address:   "0x1234567890abcdef1234567890abcdef12345678",
+			setupMocks: func(repo *MockRepository) {
+				// No mocks needed; validation fails before repository is called
+			},
+			wantErr:     true,
+			errContains: "chain type cannot be empty",
+		},
+		{
+			name:      "empty address",
+			chainType: types.ChainTypeEthereum,
+			address:   "",
+			setupMocks: func(repo *MockRepository) {
+				// No mocks needed; validation fails before repository is called
+			},
+			wantErr:     true,
+			errContains: "address cannot be empty",
+		},
+		{
+			name:      "unsupported chain type",
+			chainType: "unsupported",
+			address:   "0x1234567890abcdef1234567890abcdef12345678",
+			setupMocks: func(repo *MockRepository) {
+				// No mocks needed; validation fails before repository is called
+			},
+			wantErr:     true,
+			errContains: "unsupported chain type",
+		},
+	}
+
+	// Run tests
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Initialize mocks
+			mockKeyStore := &MockKeyStore{}
+			mockWalletFactory := &MockWalletFactory{}
+			mockRepository := &MockRepository{}
+			mockBlockchainRegistry := &MockBlockchainRegistry{}
+
+			// Setup mock behavior
+			tt.setupMocks(mockRepository)
+
+			// Create service
+			s := NewService(cfg, logger.NewNopLogger(), mockRepository, mockKeyStore, mockWalletFactory, mockBlockchainRegistry, chains)
+
+			// Call the service method
+			wallet, err := s.Get(context.Background(), tt.chainType, tt.address)
+
+			// Assertions
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				assert.Nil(t, wallet)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, wallet)
+				assert.Equal(t, tt.chainType, wallet.ChainType)
+				assert.Equal(t, tt.address, wallet.Address)
 			}
 		})
 	}

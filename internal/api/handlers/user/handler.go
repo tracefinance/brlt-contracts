@@ -84,7 +84,7 @@ func (h *Handler) GetUser(c *gin.Context) {
 		return
 	}
 
-	foundUser, err := h.userService.GetByID(c.Request.Context(), id)
+	foundUser, err := h.userService.Get(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

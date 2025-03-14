@@ -15,8 +15,8 @@ type Service interface {
 	Activate(ctx context.Context, chainType types.ChainType) error
 	// Deactivate deactivates a blockchain
 	Deactivate(ctx context.Context, chainType types.ChainType) error
-	// GetBlockchain retrieves blockchain information by chain type
-	GetBlockchain(ctx context.Context, chainType types.ChainType) (*Blockchain, error)
+	// Get retrieves blockchain information by chain type
+	Get(ctx context.Context, chainType types.ChainType) (*Blockchain, error)
 	// ListActive lists all active blockchains
 	ListActive(ctx context.Context) ([]*Blockchain, error)
 }
@@ -44,7 +44,7 @@ func (s *service) Activate(ctx context.Context, chainType types.ChainType) error
 	}
 
 	// Create wallet for the blockchain
-	walletInfo, err := s.walletService.CreateWallet(ctx, chainType, fmt.Sprintf("%s-wallet", chainType), map[string]string{
+	walletInfo, err := s.walletService.Create(ctx, chainType, fmt.Sprintf("%s-wallet", chainType), map[string]string{
 		"type":  "blockchain",
 		"chain": string(chainType),
 	})
@@ -82,7 +82,7 @@ func (s *service) Deactivate(ctx context.Context, chainType types.ChainType) err
 	return nil
 }
 
-func (s *service) GetBlockchain(ctx context.Context, chainType types.ChainType) (*Blockchain, error) {
+func (s *service) Get(ctx context.Context, chainType types.ChainType) (*Blockchain, error) {
 	return s.repository.FindByChainType(ctx, chainType)
 }
 

@@ -23,20 +23,20 @@ var (
 
 // Service defines the wallet service interface
 type Service interface {
-	// CreateWallet creates a new wallet with a key and derives its address
-	CreateWallet(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error)
+	// Create creates a new wallet with a key and derives its address
+	Create(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error)
 
-	// UpdateWallet updates a wallet's name and tags
-	UpdateWallet(ctx context.Context, id, name string, tags map[string]string) (*Wallet, error)
+	// Update updates a wallet's name and tags by chain type and address
+	Update(ctx context.Context, chainType types.ChainType, address, name string, tags map[string]string) (*Wallet, error)
 
-	// DeleteWallet soft-deletes a wallet
-	DeleteWallet(ctx context.Context, id string) error
+	// Delete soft-deletes a wallet by chain type and address
+	Delete(ctx context.Context, chainType types.ChainType, address string) error
 
-	// GetWallet retrieves a wallet by its ID
-	GetWallet(ctx context.Context, id string) (*Wallet, error)
+	// Get retrieves a wallet by its chain type and address
+	Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
 
-	// ListWallets retrieves a list of wallets
-	ListWallets(ctx context.Context, limit, offset int) ([]*Wallet, error)
+	// List retrieves a list of wallets
+	List(ctx context.Context, limit, offset int) ([]*Wallet, error)
 
 	// SubscribeToEvents subscribes to events for all active wallets
 	SubscribeToEvents(ctx context.Context) error
@@ -81,8 +81,8 @@ func NewService(
 	}
 }
 
-// CreateWallet creates a new wallet with a key and derives its address
-func (s *walletService) CreateWallet(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error) {
+// Create creates a new wallet with a key and derives its address
+func (s *walletService) Create(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error) {
 	// Validate inputs
 	if name == "" {
 		return nil, fmt.Errorf("%w: name cannot be empty", ErrInvalidInput)
@@ -136,58 +136,109 @@ func (s *walletService) CreateWallet(ctx context.Context, chainType types.ChainT
 	return wallet, nil
 }
 
-// UpdateWallet updates a wallet's name and tags
-func (s *walletService) UpdateWallet(ctx context.Context, id, name string, tags map[string]string) (*Wallet, error) {
+// Update updates a wallet's name and tags by chain type and address
+func (s *walletService) Update(ctx context.Context, chainType types.ChainType, address, name string, tags map[string]string) (*Wallet, error) {
 	// Validate inputs
-	if id == "" {
-		return nil, fmt.Errorf("%w: id cannot be empty", ErrInvalidInput)
+	if chainType == "" {
+		return nil, fmt.Errorf("%w: chain type cannot be empty", ErrInvalidInput)
+	}
+	if address == "" {
+		return nil, fmt.Errorf("%w: address cannot be empty", ErrInvalidInput)
 	}
 	if name == "" {
 		return nil, fmt.Errorf("%w: name cannot be empty", ErrInvalidInput)
 	}
 
-	// Get the current wallet
-	wallet, err := s.repository.GetByID(ctx, id)
+	// Validate chain type
+	chain, exists := s.chains[chainType]
+	if !exists {
+		return nil, fmt.Errorf("%w: unsupported chain type: %s", ErrInvalidInput, chainType)
+	}
+
+	// Validate address format
+	if !chain.IsValidAddress(address) {
+		return nil, fmt.Errorf("%w: invalid address format for chain type %s", ErrInvalidInput, chainType)
+	}
+
+	// Update the wallet
+	wallet, err := s.repository.Update(ctx, chainType, address, name, tags)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrWalletNotFound
 		}
-		return nil, err
-	}
-
-	// Update the wallet
-	wallet.Name = name
-	wallet.Tags = tags
-
-	if err := s.repository.Update(ctx, wallet); err != nil {
 		return nil, fmt.Errorf("failed to update wallet: %w", err)
 	}
 
 	return wallet, nil
 }
 
-// DeleteWallet soft-deletes a wallet
-func (s *walletService) DeleteWallet(ctx context.Context, id string) error {
+// Delete soft-deletes a wallet by chain type and address
+func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, address string) error {
+	// Validate inputs
+	if chainType == "" {
+		return fmt.Errorf("%w: chain type cannot be empty", ErrInvalidInput)
+	}
+	if address == "" {
+		return fmt.Errorf("%w: address cannot be empty", ErrInvalidInput)
+	}
+
+	// Validate chain type
+	chain, exists := s.chains[chainType]
+	if !exists {
+		return fmt.Errorf("%w: unsupported chain type: %s", ErrInvalidInput, chainType)
+	}
+
+	// Validate address format
+	if !chain.IsValidAddress(address) {
+		return fmt.Errorf("%w: invalid address format for chain type %s", ErrInvalidInput, chainType)
+	}
+
+	// Get the wallet first to get its ID for unsubscribing
+	wallet, err := s.repository.Get(ctx, chainType, address)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrWalletNotFound
+		}
+		return err
+	}
+
 	// Unsubscribe from wallet events first
-	s.unsubscribeFromWallet(id)
+	s.unsubscribeFromWallet(wallet.ID)
 
 	// Then delete the wallet
-	if err := s.repository.Delete(ctx, id); err != nil {
+	if err := s.repository.Delete(ctx, chainType, address); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrWalletNotFound
+		}
 		return fmt.Errorf("failed to delete wallet: %w", err)
 	}
 
 	return nil
 }
 
-// GetWallet retrieves a wallet by its ID
-func (s *walletService) GetWallet(ctx context.Context, id string) (*Wallet, error) {
+// Get retrieves a wallet by its chain type and address
+func (s *walletService) Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
 	// Validate inputs
-	if id == "" {
-		return nil, fmt.Errorf("%w: id cannot be empty", ErrInvalidInput)
+	if chainType == "" {
+		return nil, fmt.Errorf("%w: chain type cannot be empty", ErrInvalidInput)
+	}
+	if address == "" {
+		return nil, fmt.Errorf("%w: address cannot be empty", ErrInvalidInput)
+	}
+
+	// Validate chain type
+	chain, exists := s.chains[chainType]
+	if !exists {
+		return nil, fmt.Errorf("%w: unsupported chain type: %s", ErrInvalidInput, chainType)
+	}
+
+	// Validate address format
+	if !chain.IsValidAddress(address) {
+		return nil, fmt.Errorf("%w: invalid address format for chain type %s", ErrInvalidInput, chainType)
 	}
 
 	// Get the wallet
-	wallet, err := s.repository.GetByID(ctx, id)
+	wallet, err := s.repository.Get(ctx, chainType, address)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrWalletNotFound
@@ -198,8 +249,8 @@ func (s *walletService) GetWallet(ctx context.Context, id string) (*Wallet, erro
 	return wallet, nil
 }
 
-// ListWallets retrieves a list of wallets
-func (s *walletService) ListWallets(ctx context.Context, limit, offset int) ([]*Wallet, error) {
+// List retrieves a list of wallets
+func (s *walletService) List(ctx context.Context, limit, offset int) ([]*Wallet, error) {
 	// Set default pagination values if not provided
 	if limit <= 0 {
 		limit = 10

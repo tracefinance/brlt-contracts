@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS wallets (
     tags TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP
+    deleted_at TIMESTAMP,
+    UNIQUE(chain_type, address)
 );
 
 CREATE INDEX IF NOT EXISTS idx_wallets_key_id ON wallets(key_id);

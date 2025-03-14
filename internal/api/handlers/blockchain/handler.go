@@ -29,7 +29,7 @@ func (h *Handler) ActivateBlockchain(c *gin.Context) {
 		return
 	}
 
-	blockchain, err := h.service.GetBlockchain(c.Request.Context(), chainType)
+	blockchain, err := h.service.Get(c.Request.Context(), chainType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -47,7 +47,7 @@ func (h *Handler) DeactivateBlockchain(c *gin.Context) {
 		return
 	}
 
-	blockchain, err := h.service.GetBlockchain(c.Request.Context(), chainType)
+	blockchain, err := h.service.Get(c.Request.Context(), chainType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -60,7 +60,7 @@ func (h *Handler) DeactivateBlockchain(c *gin.Context) {
 func (h *Handler) GetBlockchain(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 
-	blockchain, err := h.service.GetBlockchain(c.Request.Context(), chainType)
+	blockchain, err := h.service.Get(c.Request.Context(), chainType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

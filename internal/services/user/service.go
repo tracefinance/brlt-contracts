@@ -13,7 +13,7 @@ type Service interface {
 	Create(ctx context.Context, email, password string) (*User, error)
 	Update(ctx context.Context, id int64, email, password string) (*User, error)
 	Delete(ctx context.Context, id int64) error
-	GetByID(ctx context.Context, id int64) (*User, error)
+	Get(ctx context.Context, id int64) (*User, error)
 	List(ctx context.Context, page, pageSize int) ([]*User, int, error)
 }
 
@@ -107,8 +107,8 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// GetByID retrieves a user by ID
-func (s *service) GetByID(ctx context.Context, id int64) (*User, error) {
+// Get retrieves a user by ID
+func (s *service) Get(ctx context.Context, id int64) (*User, error) {
 	user, err := s.repository.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
