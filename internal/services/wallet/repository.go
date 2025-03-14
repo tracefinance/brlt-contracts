@@ -21,6 +21,9 @@ type Repository interface {
 	// Get retrieves a wallet by its chain type and address
 	Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
 
+	// GetByID retrieves a wallet by its ID
+	GetByID(ctx context.Context, id string) (*Wallet, error)
+
 	// Update updates a wallet's name and tags by chain type and address
 	Update(ctx context.Context, chainType types.ChainType, address string, name string, tags map[string]string) (*Wallet, error)
 
@@ -29,6 +32,9 @@ type Repository interface {
 
 	// List retrieves wallets with optional filtering
 	List(ctx context.Context, limit, offset int) ([]*Wallet, error)
+
+	// Exists checks if a wallet exists by its chain type and address
+	Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error)
 }
 
 // repository implements Repository interface for SQLite
@@ -93,6 +99,32 @@ func (r *repository) Get(ctx context.Context, chainType types.ChainType, address
 	`
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query wallet: %w", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return nil, sql.ErrNoRows
+	}
+
+	wallet, err := ScanWallet(rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan wallet: %w", err)
+	}
+
+	return wallet, nil
+}
+
+// GetByID retrieves a wallet by its ID
+func (r *repository) GetByID(ctx context.Context, id string) (*Wallet, error) {
+	query := `
+		SELECT id, key_id, chain_type, address, name, tags, created_at, updated_at, deleted_at
+		FROM wallets
+		WHERE id = ? AND deleted_at IS NULL
+	`
+
+	rows, err := r.db.ExecuteQueryContext(ctx, query, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query wallet: %w", err)
 	}
@@ -225,4 +257,28 @@ func (r *repository) List(ctx context.Context, limit, offset int) ([]*Wallet, er
 	}
 
 	return wallets, nil
+}
+
+// Exists checks if a wallet exists by its chain type and address
+func (r *repository) Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error) {
+	query := `
+		SELECT 1
+		FROM wallets
+		WHERE chain_type = ? AND address = ? AND deleted_at IS NULL
+		LIMIT 1
+	`
+
+	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, address)
+	if err != nil {
+		return false, fmt.Errorf("failed to check wallet existence: %w", err)
+	}
+	defer rows.Close()
+
+	exists := rows.Next()
+
+	if err = rows.Err(); err != nil {
+		return false, fmt.Errorf("error checking wallet existence: %w", err)
+	}
+
+	return exists, nil
 }

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"vault0/internal/config"
 	"vault0/internal/core/blockexplorer"
@@ -16,9 +15,7 @@ import (
 
 // Common service errors
 var (
-	ErrWalletNotFound = errors.New("wallet not found")
-	ErrInvalidInput   = errors.New("invalid input")
-	// Use the repository's ErrTransactionNotFound
+	ErrInvalidInput = errors.New("invalid input")
 )
 
 // Service defines the transaction service interface
@@ -181,26 +178,19 @@ func (s *transactionService) SyncTransactions(ctx context.Context, walletID stri
 	s.syncMutex.Lock()
 	defer s.syncMutex.Unlock()
 
-	// Get wallet from wallet service
-	wallets, err := s.walletService.List(ctx, 1, 0)
+	// Validate input
+	if walletID == "" {
+		return 0, fmt.Errorf("%w: wallet ID is required", ErrInvalidInput)
+	}
+
+	// Get wallet from wallet service by ID
+	wallet, err := s.walletService.GetByID(ctx, walletID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to list wallets: %w", err)
-	}
-
-	var targetWallet *wallet.Wallet
-	for _, w := range wallets {
-		if w.ID == walletID {
-			targetWallet = w
-			break
-		}
-	}
-
-	if targetWallet == nil {
-		return 0, ErrWalletNotFound
+		return 0, err
 	}
 
 	// Sync transactions for the wallet's address
-	return s.SyncTransactionsByAddress(ctx, targetWallet.ChainType, targetWallet.Address)
+	return s.SyncTransactionsByAddress(ctx, wallet.ChainType, wallet.Address)
 }
 
 // SyncTransactionsByAddress fetches and stores transactions for an address
@@ -222,14 +212,9 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 
 	// Get wallet ID if exists
 	var walletID string
-	wallets, err := s.walletService.List(ctx, 100, 0)
+	wallet, err := s.walletService.Get(ctx, chainType, address)
 	if err == nil {
-		for _, w := range wallets {
-			if w.ChainType == chainType && w.Address == address {
-				walletID = w.ID
-				break
-			}
-		}
+		walletID = wallet.ID
 	}
 
 	// Prepare options for fetching transactions
@@ -268,24 +253,7 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 		}
 
 		// Convert to service transaction
-		tx := &Transaction{
-			WalletID:     walletID,
-			ChainType:    coreTx.Chain,
-			Hash:         coreTx.Hash,
-			FromAddress:  coreTx.From,
-			ToAddress:    coreTx.To,
-			Value:        coreTx.Value,
-			Data:         coreTx.Data,
-			Nonce:        coreTx.Nonce,
-			GasPrice:     coreTx.GasPrice,
-			GasLimit:     coreTx.GasLimit,
-			Type:         string(coreTx.Type),
-			TokenAddress: coreTx.TokenAddress,
-			Status:       coreTx.Status,
-			Timestamp:    coreTx.Timestamp,
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
-		}
+		tx := FromCoreTransaction(coreTx, walletID)
 
 		// Save to database
 		err = s.repository.Create(ctx, tx)
