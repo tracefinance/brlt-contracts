@@ -1,0 +1,262 @@
+---
+description: NextJS
+globs: ui/**/*,*.tsx,*.ts
+alwaysApply: false
+---
+# Frontend Development Guidelines
+
+## Architecture Overview
+
+The frontend follows a component-based architecture using Next.js 14 with App Router, organized into the following layers:
+
+### Layer 1: Core Components
+Located in `app/components/core`, contains foundational UI elements:
+- Buttons, inputs, forms
+- Layout components
+- Navigation elements
+- Modal/dialog components
+- Loading states
+- Error boundaries
+
+### Layer 2: Feature Components
+Located in `app/components/features`, implements business logic:
+- Domain-specific components
+- Complex UI interactions
+- Form implementations
+- Data visualization
+- Integration with backend services
+
+### Layer 3: Page Components
+Located in `app/`, represents complete pages:
+- Route definitions
+- Page layouts
+- Data fetching
+- SEO optimization
+- Error handling
+
+## Project Structure
+
+```
+app/
+├── components/                        # Shared components
+│   ├── core/                         # Core UI components
+│   │   ├── button/                   # Button variants
+│   │   │   ├── Button.tsx           # Base button component
+│   │   │   └── types.ts             # Button types and props
+│   │   ├── input/                   # Input components
+│   │   ├── form/                    # Form components
+│   │   └── layout/                  # Layout components
+│   └── features/                    # Feature-specific components
+│       ├── wallet/                  # Wallet-related components
+│       ├── user/                    # User-related components
+│       └── blockchain/              # Blockchain-related components
+├── hooks/                           # Custom React hooks
+│   ├── useWallet.ts                # Wallet-related hooks
+│   ├── useAuth.ts                  # Authentication hooks
+│   └── useBlockchain.ts            # Blockchain interaction hooks
+├── lib/                            # Utility functions and constants
+│   ├── api/                        # API client and endpoints
+│   ├── utils/                      # Helper functions
+│   └── constants/                  # Constants and configurations
+├── providers/                      # React context providers
+│   ├── WalletProvider.tsx         # Wallet context
+│   └── AuthProvider.tsx           # Authentication context
+├── styles/                         # Global styles
+│   └── tailwind.css               # Tailwind configuration
+└── types/                         # TypeScript type definitions
+```
+
+## Implementation Patterns
+
+### Component Pattern
+
+Each component should follow this structure:
+
+1. **Component Definition**:
+```tsx
+// Button.tsx
+import { type ButtonProps } from './types'
+
+export const Button = ({ 
+  children,
+  variant = 'primary',
+  size = 'md',
+  disabled = false,
+  ...props 
+}: ButtonProps) => {
+  const baseStyles = 'inline-flex items-center justify-center rounded-md font-medium'
+  
+  return (
+    <button
+      className={cn(
+        baseStyles,
+        variantStyles[variant],
+        sizeStyles[size],
+        disabled && 'opacity-50 cursor-not-allowed'
+      )}
+      disabled={disabled}
+      {...props}
+    >
+      {children}
+    </button>
+  )
+}
+```
+
+2. **Type Definitions**:
+```tsx
+// types.ts
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'primary' | 'secondary' | 'outline'
+  size?: 'sm' | 'md' | 'lg'
+  children: React.ReactNode
+}
+```
+
+3. **Styles Configuration**:
+```tsx
+// styles.ts
+export const variantStyles = {
+  primary: 'bg-primary text-white hover:bg-primary/90',
+  secondary: 'bg-secondary text-white hover:bg-secondary/90',
+  outline: 'border-2 border-primary text-primary hover:bg-primary/10'
+}
+
+export const sizeStyles = {
+  sm: 'px-3 py-1.5 text-sm',
+  md: 'px-4 py-2 text-base',
+  lg: 'px-6 py-3 text-lg'
+}
+```
+
+### Hook Pattern
+
+```tsx
+// useWallet.ts
+import { useState, useCallback } from 'react'
+import { type Wallet } from '@/types'
+
+export const useWallet = () => {
+  const [wallet, setWallet] = useState<Wallet | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+
+  const connect = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      // Wallet connection logic
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  return { wallet, isLoading, error, connect }
+}
+```
+
+### Form Pattern
+
+```tsx
+// LoginForm.tsx
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { type LoginFormData, loginSchema } from './schema'
+
+export const LoginForm = () => {
+  const form = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: ''
+    }
+  })
+
+  const onSubmit = async (data: LoginFormData) => {
+    // Form submission logic
+  }
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      {/* Form fields */}
+    </form>
+  )
+}
+```
+
+## Development Guidelines
+
+### Component Development
+- Use functional components with hooks
+- Implement proper TypeScript types
+- Keep components small and focused
+- Use proper prop naming
+- Implement error boundaries
+- Handle loading states
+- Use proper event handlers
+- Implement proper validation
+
+### Accessibility
+- Use semantic HTML elements
+- Implement ARIA attributes
+- Ensure keyboard navigation
+- Provide proper focus management
+- Use proper color contrast
+- Implement proper error messages
+- Test with screen readers
+
+### State Management
+- Use React Query for server state
+- Use Context for global state
+- Use local state for UI state
+- Implement proper loading states
+- Handle error states
+- Use proper caching
+- Implement optimistic updates
+
+### Performance
+- Implement proper code splitting
+- Use proper image optimization
+- Implement proper caching
+- Use proper bundling
+- Minimize re-renders
+- Use proper lazy loading
+- Implement proper prefetching
+
+### Testing
+- Write unit tests for components
+- Implement integration tests
+- Use proper mocking
+- Test error scenarios
+- Test loading states
+- Test user interactions
+- Test accessibility
+
+### Styling Guidelines
+- Use Tailwind for styling
+- Follow consistent naming
+- Use proper responsive design
+- Implement dark mode
+- Use proper animations
+- Follow design system
+- Maintain consistent spacing
+
+### Error Handling
+- Implement proper error boundaries
+- Use proper error messages
+- Handle network errors
+- Handle validation errors
+- Implement proper fallbacks
+- Use proper error logging
+- Handle edge cases
+
+### SEO
+- Implement proper meta tags
+- Use proper page titles
+- Implement proper descriptions
+- Use proper canonical URLs
+- Implement proper schemas
+- Handle dynamic content
+- Implement proper sitemap 

@@ -1,0 +1,274 @@
+---
+description: 
+globs: internal/**/*,migrations/*,*.go,*.sql
+alwaysApply: false
+---
+# Backend Development Guidelines
+
+## Architecture Overview
+
+The backend follows a three-layer architecture:
+
+### Layer 1: Core/Infrastructure Layer
+Located in `internal/core`, composed of foundational modules:
+- **Database Access**: Database connectivity and query execution
+- **Wallet Operations**: Low-level wallet functionality
+- **Keystore**: Secure storage and retrieval of cryptographic keys
+- **Blockchain Interaction**: Core blockchain communication
+- **Cryptography Utilities**: Encryption, decryption, and hashing functions
+- **Contract Interaction**: Smart contract operation abstraction
+- **Key Generation**: Cryptographic key generation utilities
+
+### Layer 2: Service Layer
+Located in `internal/services`, contains business logic modules organized by domain:
+- Domain-specific data models
+- Business operations and validation rules
+- Repository interfaces for data access
+
+Services include:
+- User management
+- Wallet administration
+- Authentication and authorization
+- Transaction processing
+- Blockchain service integration
+
+### Layer 3: Communication Layer
+Located in `internal/api`, exposes the service layer functionality:
+- RESTful API endpoints
+- Request/response handling
+- Middleware (authentication, logging, error handling)
+- Route management
+
+## Project Structure
+
+```
+backend/
+├── cmd/                                # Command-line applications
+│   ├── server/                         # Main server application
+│   │   └── main.go                     # Application entry point
+│   └── genkey/                         # Encryption key generation utility
+│       └── main.go                     # Key generation entry point
+├── internal/                           # Private application code
+│   ├── api/                            # Communication Layer (Layer 3)
+│   │   ├── handlers/                   # API request handlers by domain
+│   │   │   ├── user/                   # User-related endpoints
+│   │   │   │   ├── handler.go          # User handler implementation and route setup
+│   │   │   │   ├── dto.go              # User request/response structures
+│   │   │   ├── wallet/                 # Wallet-related endpoints
+│   │   │   └── blockchain/             # Blockchain-related endpoints
+│   │   ├── middleware/                 # Request middleware components
+│   │   │   ├── auth.go                 # Authentication middleware
+│   │   │   ├── logging.go              # Request logging middleware
+│   │   │   └── errors.go               # Error handling middleware
+│   │   └── server.go                   # API server setup and configuration
+│   ├── core/                           # Core/Infrastructure Layer (Layer 1)
+│   │   ├── blockchain/                 # Blockchain interaction
+│   │   ├── contract/                   # Smart contract interaction
+│   │   ├── crypto/                     # Cryptography utilities
+│   │   ├── db/                         # Database access
+│   │   ├── keygen/                     # Key generation utilities
+│   │   ├── keystore/                   # Key management
+│   │   └── wallet/                     # Wallet operations
+│   ├── services/                       # Service Layer (Layer 2)
+│   │   ├── user/                       # User management domain
+│   │   ├── wallet/                     # Wallet operations domain
+│   │   ├── auth/                       # Authentication domain
+│   │   └── blockchain/                 # Blockchain operations domain
+│   ├── config/                         # Configuration management
+│   ├── logger/                         # Logging utilities
+│   ├── types/                          # Shared type definitions
+│   └── wire/                           # Dependency injection configuration
+├── migrations/                         # Database migrations
+└── pkg/                               # Public packages
+
+```
+
+## Implementation Patterns
+
+### Service Layer Pattern
+
+Each service module should follow this structure:
+
+1. **Service Interface and Implementation**:
+```go
+// service.go
+type Service interface {
+    // Service methods
+}
+
+type service struct {
+    repository Repository
+    // Other dependencies
+}
+
+func NewService(repository Repository) Service {
+    return &service{repository: repository}
+}
+```
+
+2. **Models**:
+```go
+// model.go
+type Entity struct {
+    ID        string    `db:"id"`
+    CreatedAt time.Time `db:"created_at"`
+    UpdatedAt time.Time `db:"updated_at"`
+}
+```
+
+3. **Repository Interface and Implementation**:
+```go
+// repository.go
+type Repository interface {
+    FindByID(ctx context.Context, id string) (*Entity, error)
+    Create(ctx context.Context, entity *Entity) error
+}
+
+type repository struct {
+    db *db.DB
+}
+
+func NewRepository(db *db.DB) Repository {
+    return &repository{db: db}
+}
+```
+
+### Handler Pattern
+
+```go
+// handler.go
+type Handler struct {
+    service Service
+}
+
+func NewHandler(service Service) *Handler {
+    return &Handler{service: service}
+}
+
+func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
+    router.GET("/:id", h.Get)
+    router.POST("/", h.Create)
+}
+```
+
+## Dependency Injection with Google Wire
+
+The project uses Google Wire for dependency injection, organized in the `internal/wire` package.
+
+### Wire Structure
+
+1. **Container Definition** (`wire.go`):
+```go
+type Container struct {
+    Config             *config.Config
+    DB                 *db.DB
+    Logger             logger.Logger
+    KeyStore           keystore.KeyStore
+    Chains             types.Chains
+    WalletFactory      wallet.Factory
+    BlockchainRegistry blockchain.Registry
+    Server             *api.Server
+    Services           *Services
+}
+```
+
+2. **Core Dependencies** (`core.go`):
+```go
+var CoreSet = wire.NewSet(
+    config.LoadConfig,
+    db.NewDatabase,
+    logger.NewLogger,
+    keystore.NewKeyStore,
+    blockchain.NewRegistry,
+    wallet.NewFactory,
+    contract.NewSmartContract,
+    types.NewChains,
+)
+```
+
+3. **Services Configuration** (`services.go`):
+```go
+type Services struct {
+    WalletService     wallet.Service
+    UserService       user.Service
+    BlockchainService blockchain.Service
+}
+
+var WalletServiceSet = wire.NewSet(
+	wallet.NewRepository,
+	wallet.NewService,
+)
+
+var ServicesSet = wire.NewSet(
+    WalletServiceSet,
+    UserServiceSet,
+    BlockchainServiceSet,
+    NewServices,
+)
+```
+
+4. **Server Configuration** (`server.go`):
+```go
+var ServerSet = wire.NewSet(
+    wallet.NewHandler,
+    user.NewHandler,
+    blockchain.NewHandler,
+    api.NewServer,
+)
+```
+
+## Development Guidelines
+
+### Error Handling
+- Use early returns for error handling
+- Wrap errors with context using `fmt.Errorf("context: %w", err)`
+- Use custom error types for domain-specific errors
+- Implement proper error recovery mechanisms
+
+### Database Operations
+- Use prepared statements for all SQL queries
+- Implement proper connection pooling
+- Use transactions for atomic operations
+- Include proper database indexes
+- Handle database migrations properly
+
+### API Design
+- Use proper HTTP methods
+- Implement proper validation
+- Use proper status codes
+- Include proper error responses
+- Document API endpoints
+- Implement proper rate limiting
+
+### Testing
+- Write unit tests for all components
+- Implement integration tests
+- Use proper mocking
+- Test error scenarios
+- Test edge cases
+- Maintain high test coverage
+
+### Security
+- Implement proper authentication
+- Use proper authorization
+- Validate all inputs
+- Use proper encryption
+- Handle sensitive data properly
+- Implement rate limiting
+- Monitor for security issues
+
+### Performance
+- Optimize database queries
+- Implement proper caching
+- Use proper indexing
+- Handle large datasets efficiently
+- Monitor performance metrics
+- Implement proper pagination
+
+### Logging
+- Use structured logging
+- Include proper context
+- Use appropriate log levels
+- Avoid logging sensitive data
+- Implement proper monitoring
+- Track error rates 

@@ -1,0 +1,198 @@
+---
+description: General rules
+globs: 
+alwaysApply: true
+---
+
+# Vault0 Project Guidelines
+
+## Project Overview
+Vault0 is a full-stack web3 application that combines blockchain technology with modern web development. The project follows a layered architecture approach with clear separation of concerns between backend, frontend, and smart contract components.
+
+## Core Development Principles
+- Write clean, maintainable, and well-documented code
+- Follow DRY (Don't Repeat Yourself) principles
+- Implement comprehensive testing for all components
+- Prioritize security and performance
+- Maintain consistent code style across all technologies
+- Focus on accessibility and user experience
+- Use TypeScript for type safety where applicable
+
+## Project Structure
+```
+vault0/
+├── app/             # Frontend NextJS application
+│   ├── components/  # React components
+│   ├── hooks/       # Custom React hooks
+│   ├── lib/         # Utility functions and constants
+│   ├── pages/       # Next.js pages
+│   ├── styles/      # Global styles and Tailwind config
+│   └── types/       # TypeScript type definitions
+├── contracts/       # Smart contracts
+│   ├── src/         # Contract source files
+│   ├── test/        # Contract tests
+│   └── scripts/     # Deployment and utility scripts
+└── backend/         # Go backend service
+    ├── cmd/         # Command-line applications
+    ├── internal/    # Private application code
+    ├── migrations/  # Database migrations
+    └── pkg/         # Public packages
+```
+
+## Technology Stack
+- Frontend: Next.js, TypeScript, TailwindCSS
+- Backend: Go, SQLite, Gin
+- Blockchain: Solidity, Hardhat
+- Testing: Jest, Go testing, Hardhat test
+
+## Code Style Guidelines
+
+### General
+- Use meaningful and descriptive names for variables, functions, and files
+- Keep functions small and focused on a single responsibility
+- Document complex logic with clear comments
+- Handle errors appropriately in each layer
+- Implement proper logging and monitoring
+- Follow consistent formatting in each language
+
+### Frontend (Next.js)
+- Use functional components with hooks
+- Implement proper TypeScript types
+- Use Tailwind for styling
+- Follow accessibility best practices
+- Implement proper error boundaries
+- Use proper state management
+- Handle loading and error states
+- Implement proper form validation
+- Use proper SEO practices
+
+### Backend (Go)
+- Follow standard Go project layout
+- Use proper error handling with context
+- Implement proper middleware
+- Use prepared statements for database operations
+- Implement proper validation
+- Use proper logging
+- Handle graceful shutdown
+- Implement proper testing
+
+### Smart Contracts (Solidity)
+- Follow latest Solidity best practices
+- Implement proper access control
+- Use safe math operations
+- Follow security best practices
+- Implement proper event logging
+- Optimize for gas efficiency
+- Implement comprehensive testing
+- Document with NatSpec comments
+
+## Git Workflow
+- Follow Angular commit convention
+- Use meaningful commit messages
+- Keep commits focused and atomic
+- Use proper branching strategy
+- Review code before merging
+- Maintain clean git history
+- Multi-line commits muts use a `-m` parameter for each line
+
+## Testing Requirements
+- Maintain high test coverage
+- Test edge cases
+- Implement integration tests
+- Test error scenarios
+- Use proper mocking
+- Test accessibility
+- Test performance
+- Test security
+
+## Documentation
+- Maintain up-to-date README
+- Document API endpoints
+- Document component props
+- Document contract functions
+- Keep inline documentation current
+- Document deployment procedures
+- Document configuration options
+
+## Security Guidelines
+- Implement proper authentication
+- Use proper authorization
+- Validate all inputs
+- Protect against common vulnerabilities
+- Use proper encryption
+- Handle sensitive data properly
+- Implement rate limiting
+- Monitor for security issues
+
+## Performance Guidelines
+- Optimize database queries
+- Implement proper caching
+- Optimize frontend bundle size
+- Optimize smart contract gas usage
+- Monitor performance metrics
+- Use proper indexing
+- Implement proper pagination
+- Handle large datasets efficiently
+
+## Deployment
+- Use proper CI/CD pipeline
+- Test in staging environment
+- Use proper environment variables
+- Document deployment procedures
+- Monitor deployment health
+- Handle rollbacks properly
+- Verify contract deployments
+
+## Maintenance
+- Keep dependencies updated
+- Monitor system health
+- Handle technical debt
+- Document maintenance procedures
+- Monitor resource usage
+- Handle backups properly
+- Plan for upgrades
+
+## Error Handling
+- Use proper error types
+- Implement proper error recovery
+- Log errors appropriately
+- Handle edge cases
+- Return proper error responses
+- Document error conditions
+- Monitor error rates
+
+## Monitoring and Logging
+- Implement proper logging
+- Use structured logging
+- Monitor system metrics
+- Set up proper alerts
+- Track user behavior
+- Monitor performance
+- Track errors and exceptions
+
+## Development Environment
+- Document setup procedures
+- Use consistent tooling
+- Maintain development scripts
+- Use proper linting
+- Use proper formatting
+- Maintain development database
+- Document local testing
+
+## Quality Assurance
+- Review code quality
+- Test accessibility
+- Test cross-browser compatibility
+- Test responsive design
+- Test performance
+- Test security
+- Document QA procedures
+
+## Contribution Guidelines
+- Follow code style guide
+- Write proper tests
+- Update documentation
+- Review existing issues
+- Create meaningful PRs
+- Follow security guidelines
+- Update changelog
