@@ -158,3 +158,13 @@ tokens:
       chain_type: base
       address: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb"
       decimals: 18
+    - symbol: USDT
+      type: erc20
+      chain_type: base
+      address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2"
+      decimals: 6
+    - symbol: WBTC
+      type: ERC20
+      chain_type: BASE
+      address: "0x0555E30da8f98308EdB960aa94C0Db47230d2B9c"
+      decimals: 8

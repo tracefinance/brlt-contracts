@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -49,7 +50,7 @@ func main() {
 
 	// Process each chain's tokens
 	var wg sync.WaitGroup
-	results := make(chan string, 100)
+	results := make(chan verificationResult, 100)
 
 	// Process Ethereum tokens
 	wg.Add(1)
@@ -63,22 +64,63 @@ func main() {
 	wg.Add(1)
 	go verifyTokens(ctx, &wg, results, factory, types.ChainTypeBase, cfg.Tokens.Base)
 
-	// Print results as they come in
+	// Collect and group results
 	go func() {
-		for msg := range results {
-			fmt.Println(msg)
-		}
+		wg.Wait()
+		close(results)
 	}()
 
-	// Wait for all verifications to complete
-	wg.Wait()
-	close(results)
+	// Group results by blockchain
+	groupedResults := make(map[types.ChainType][]string)
+	for result := range results {
+		groupedResults[result.chainType] = append(groupedResults[result.chainType], result.message)
+	}
+
+	// Print results grouped by blockchain
+	printGroupedResults(groupedResults, chains)
+}
+
+// verificationResult represents a single token verification result
+type verificationResult struct {
+	chainType types.ChainType
+	message   string
+}
+
+// printGroupedResults prints verification results grouped by blockchain
+func printGroupedResults(groupedResults map[types.ChainType][]string, chains types.Chains) {
+	// Sort network names for consistent output
+	networks := make([]string, 0, len(groupedResults))
+	chainTypeToName := make(map[types.ChainType]string)
+	nameToChainType := make(map[string]types.ChainType)
+
+	for chainType, chain := range chains {
+		networks = append(networks, chain.Name)
+		chainTypeToName[chainType] = chain.Name
+		nameToChainType[chain.Name] = chainType
+	}
+	sort.Strings(networks)
+
+	// Print results for each network
+	for _, network := range networks {
+		fmt.Printf("\n> %s Network <\n\n", network)
+
+		// Print messages for this network
+		chainType := nameToChainType[network]
+		results := groupedResults[chainType]
+		if len(results) == 0 {
+			fmt.Printf("  No tokens verified for %s\n", network)
+		} else {
+			for _, msg := range results {
+				fmt.Printf("  %s\n", msg)
+			}
+		}
+	}
 }
 
 func verifyTokens(
 	ctx context.Context,
 	wg *sync.WaitGroup,
-	results chan<- string,
+	results chan<- verificationResult,
 	factory blockexplorer.Factory,
 	chainType types.ChainType,
 	tokens []config.TokenConfig,
@@ -88,7 +130,10 @@ func verifyTokens(
 	// Get explorer for this chain
 	explorer, err := factory.GetExplorer(chainType)
 	if err != nil {
-		results <- fmt.Sprintf("Error getting explorer for %s: %v", chainType, err)
+		results <- verificationResult{
+			chainType: chainType,
+			message:   fmt.Sprintf("Error getting explorer for %s: %v", chainType, err),
+		}
 		return
 	}
 	defer explorer.Close()
@@ -96,7 +141,10 @@ func verifyTokens(
 	// Check each token
 	for _, token := range tokens {
 		if token.Type == "native" {
-			results <- fmt.Sprintf("✅ [%s] %s (native token)", strings.ToUpper(string(chainType)), token.Symbol)
+			results <- verificationResult{
+				chainType: chainType,
+				message:   fmt.Sprintf("[+] [%s] %s (native token)", strings.ToUpper(string(chainType)), token.Symbol),
+			}
 			continue
 		}
 
@@ -109,29 +157,38 @@ func verifyTokens(
 				rawResponse = fmt.Sprintf("\nRaw Response: %s", evmErr.RawResponse)
 			}
 
-			results <- fmt.Sprintf("❌ [%s] %s (%s): Error - %v%s",
-				strings.ToUpper(string(chainType)),
-				token.Symbol,
-				token.Address,
-				err,
-				rawResponse,
-			)
+			results <- verificationResult{
+				chainType: chainType,
+				message: fmt.Sprintf("[-] [%s] %s (%s): Error - %v%s",
+					strings.ToUpper(string(chainType)),
+					token.Symbol,
+					token.Address,
+					err,
+					rawResponse,
+				),
+			}
 			continue
 		}
 
 		if info.IsVerified {
-			results <- fmt.Sprintf("✅ [%s] %s (%s): Verified contract - %s",
-				strings.ToUpper(string(chainType)),
-				token.Symbol,
-				token.Address,
-				info.ContractName,
-			)
+			results <- verificationResult{
+				chainType: chainType,
+				message: fmt.Sprintf("[+] [%s] %s (%s): Verified contract - %s",
+					strings.ToUpper(string(chainType)),
+					token.Symbol,
+					token.Address,
+					info.ContractName,
+				),
+			}
 		} else {
-			results <- fmt.Sprintf("⚠️ [%s] %s (%s): Unverified contract",
-				strings.ToUpper(string(chainType)),
-				token.Symbol,
-				token.Address,
-			)
+			results <- verificationResult{
+				chainType: chainType,
+				message: fmt.Sprintf("[!] [%s] %s (%s): Unverified contract",
+					strings.ToUpper(string(chainType)),
+					token.Symbol,
+					token.Address,
+				),
+			}
 		}
 	}
 }
