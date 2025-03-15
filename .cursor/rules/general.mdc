@@ -93,7 +93,7 @@ vault0/
 - Use proper branching strategy
 - Review code before merging
 - Maintain clean git history
-- Multi-line commits muts use a `-m` parameter for each line
+- Do not commit multi-line messages (\n)! Use additionals `-m` parameter 
 
 ## Testing Requirements
 - Maintain high test coverage

@@ -31,7 +31,10 @@ import (
 // InitializeContainer creates a new container with all dependencies wired up
 // BuildContainer is a placeholder function that will be replaced by wire with the actual implementation
 func BuildContainer() (*Container, error) {
-	configConfig := config.LoadConfig()
+	configConfig, err := config.LoadConfig()
+	if err != nil {
+		return nil, err
+	}
 	dbDB, err := db.NewDatabase(configConfig)
 	if err != nil {
 		return nil, err
