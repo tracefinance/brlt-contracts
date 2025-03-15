@@ -23,7 +23,7 @@ blockchains:
     default_gas_price: 20
     default_gas_limit: 21000
     explorer_url: https://etherscan.io
-    explorer_api_key: ${ETHEREUM_EXPLORER_API_KEY:-}  # Keep as env var for security
+    explorer_api_key: ${ETHEREUM_EXPLORER_API_KEY}  # Keep as env var for security
 
   polygon:
     rpc_url: https://polygon-rpc.com
@@ -31,7 +31,7 @@ blockchains:
     default_gas_price: 30
     default_gas_limit: 21000
     explorer_url: https://polygonscan.com
-    explorer_api_key: ${POLYGON_EXPLORER_API_KEY:-}  # Keep as env var for security
+    explorer_api_key: ${POLYGON_EXPLORER_API_KEY}  # Keep as env var for security
 
   base:
     rpc_url: https://mainnet.base.org
@@ -39,7 +39,7 @@ blockchains:
     default_gas_price: 10
     default_gas_limit: 21000
     explorer_url: https://basescan.org
-    explorer_api_key: ${BASE_EXPLORER_API_KEY:-}  # Keep as env var for security
+    explorer_api_key: ${BASE_EXPLORER_API_KEY}  # Keep as env var for security
 
 # Token configurations
 tokens:
