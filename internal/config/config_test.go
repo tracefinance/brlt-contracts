@@ -155,28 +155,16 @@ func TestLoadConfigWithoutYAML(t *testing.T) {
 	os.Setenv("KEYSTORE_TYPE", "env-store")
 	os.Setenv("LOG_LEVEL", "error")
 
-	// Load configuration
-	config, err := LoadConfig()
-	if err != nil {
-		t.Fatalf("LoadConfig failed: %v", err)
+	// Load configuration - should fail because no config file exists
+	_, err := LoadConfig()
+	if err == nil {
+		t.Fatal("LoadConfig should fail when no config file exists")
 	}
 
-	// Test environment variables
-	if config.Port != "7777" {
-		t.Errorf("Expected port 7777, got %s", config.Port)
-	}
-
-	if config.KeyStoreType != "env-store" {
-		t.Errorf("Expected KeyStoreType env-store, got %s", config.KeyStoreType)
-	}
-
-	// Test default values
-	if config.Log.Format != "console" {
-		t.Errorf("Expected default log format console, got %s", config.Log.Format)
-	}
-
-	if config.Blockchains.Ethereum.RPCURL != "https://ethereum-rpc.publicnode.com" {
-		t.Errorf("Expected default Ethereum RPC URL, got %s", config.Blockchains.Ethereum.RPCURL)
+	// Verify error message
+	expectedErrMsg := "no config file found in paths: [ .config.yaml ../.config.yaml]"
+	if err.Error() != expectedErrMsg {
+		t.Errorf("Expected error message %q, got %q", expectedErrMsg, err.Error())
 	}
 
 	// Clean up environment variables

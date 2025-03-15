@@ -3,9 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -174,8 +172,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	if err != nil {
-		fmt.Printf("No config file found, using environment variables\n")
-		return loadFromEnvironment(), nil
+		return nil, fmt.Errorf("no config file found in paths: %v", configPaths)
 	}
 
 	// Parse YAML with environment variable interpolation
@@ -219,125 +216,6 @@ func interpolateEnvVars(content string) string {
 	})
 }
 
-// loadFromEnvironment creates a config from environment variables
-func loadFromEnvironment() *Config {
-	baseDir := os.Getenv("APP_BASE_DIR")
-	if baseDir == "" {
-		currentDir, _ := os.Getwd()
-		baseDir = currentDir
-	}
-
-	config := &Config{
-		DBPath:             getEnv("DB_PATH", filepath.Join(baseDir, "vault0.db")),
-		Port:               getEnv("SERVER_PORT", "8080"),
-		UIPath:             getEnv("UI_PATH", filepath.Join(baseDir, "ui", "dist")),
-		MigrationsPath:     getEnv("MIGRATIONS_PATH", filepath.Join(baseDir, "migrations")),
-		DBEncryptionKey:    os.Getenv("DB_ENCRYPTION_KEY"),
-		SmartContractsPath: getEnv("SMART_CONTRACTS_PATH", filepath.Join(baseDir, "contracts", "artifacts")),
-		KeyStoreType:       getEnv("KEYSTORE_TYPE", "db"),
-		Log: LogConfig{
-			Level:          LogLevel(getEnv("LOG_LEVEL", string(LogLevelInfo))),
-			Format:         LogFormat(getEnv("LOG_FORMAT", string(LogFormatConsole))),
-			OutputPath:     os.Getenv("LOG_OUTPUT_PATH"),
-			RequestLogging: parseEnvBool("LOG_REQUESTS", true),
-			SQLLogging:     parseEnvBool("LOG_SQL", false),
-		},
-		Blockchains: BlockchainsConfig{
-			Ethereum: loadEthereumConfig(),
-			Polygon:  loadPolygonConfig(),
-			Base:     loadBaseConfig(),
-		},
-	}
-
-	return config
-}
-
-// loadEthereumConfig loads Ethereum configuration from environment variables
-func loadEthereumConfig() BlockchainConfig {
-	rpcURL := os.Getenv("ETHEREUM_RPC_URL")
-	if rpcURL == "" {
-		rpcURL = "https://ethereum-rpc.publicnode.com"
-	}
-
-	return BlockchainConfig{
-		RPCURL:          rpcURL,
-		ChainID:         parseEnvInt("ETHEREUM_CHAIN_ID", 1),
-		DefaultGasPrice: parseEnvUint("ETHEREUM_GAS_PRICE", 20), // Gwei
-		DefaultGasLimit: parseEnvUint("ETHEREUM_GAS_LIMIT", 21000),
-		ExplorerURL:     getEnv("ETHEREUM_EXPLORER_URL", "https://etherscan.io"),
-		ExplorerAPIKey:  getEnv("ETHEREUM_EXPLORER_API_KEY", ""),
-	}
-}
-
-// loadPolygonConfig loads Polygon configuration from environment variables
-func loadPolygonConfig() BlockchainConfig {
-	rpcURL := os.Getenv("POLYGON_RPC_URL")
-	if rpcURL == "" {
-		rpcURL = "https://polygon-rpc.com"
-	}
-
-	return BlockchainConfig{
-		RPCURL:          rpcURL,
-		ChainID:         parseEnvInt("POLYGON_CHAIN_ID", 137),
-		DefaultGasPrice: parseEnvUint("POLYGON_GAS_PRICE", 30), // Gwei
-		DefaultGasLimit: parseEnvUint("POLYGON_GAS_LIMIT", 21000),
-		ExplorerURL:     getEnv("POLYGON_EXPLORER_URL", "https://polygonscan.com"),
-		ExplorerAPIKey:  getEnv("POLYGON_EXPLORER_API_KEY", ""),
-	}
-}
-
-// loadBaseConfig loads Base configuration from environment variables
-func loadBaseConfig() BlockchainConfig {
-	rpcURL := os.Getenv("BASE_RPC_URL")
-	if rpcURL == "" {
-		rpcURL = "https://mainnet.base.org"
-	}
-
-	return BlockchainConfig{
-		RPCURL:          rpcURL,
-		ChainID:         parseEnvInt("BASE_CHAIN_ID", 8453),
-		DefaultGasPrice: parseEnvUint("BASE_GAS_PRICE", 10), // Gwei
-		DefaultGasLimit: parseEnvUint("BASE_GAS_LIMIT", 21000),
-		ExplorerURL:     getEnv("BASE_EXPLORER_URL", "https://basescan.org"),
-		ExplorerAPIKey:  getEnv("BASE_EXPLORER_API_KEY", ""),
-	}
-}
-
-// Helper function to parse integers from environment variables
-func parseEnvInt(key string, defaultValue int64) int64 {
-	valueStr := os.Getenv(key)
-	if valueStr == "" {
-		return defaultValue
-	}
-
-	value, err := strconv.ParseInt(valueStr, 10, 64)
-	if err != nil {
-		return defaultValue
-	}
-
-	return value
-}
-
-// Helper function to parse unsigned integers from environment variables
-func parseEnvUint(key string, defaultValue uint64) uint64 {
-	valueStr := os.Getenv(key)
-	if valueStr == "" {
-		return defaultValue
-	}
-
-	value, err := strconv.ParseUint(valueStr, 10, 64)
-	if err != nil {
-		return defaultValue
-	}
-
-	return value
-}
-
-// GetSmartContractsPath returns the path to the compiled smart contract artifacts
-func (c *Config) GetSmartContractsPath() string {
-	return c.SmartContractsPath
-}
-
 // loadEnvFiles tries to load environment variables from .env files in multiple locations
 func loadEnvFiles() {
 	// Check if a custom .env file path is provided
@@ -367,26 +245,7 @@ func loadEnvFiles() {
 	fmt.Println("No .env file found, using default values")
 }
 
-// getEnv gets an environment variable or returns a default value
-func getEnv(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	return value
-}
-
-// parseEnvBool parses a boolean from an environment variable
-func parseEnvBool(key string, defaultValue bool) bool {
-	valueStr := os.Getenv(key)
-	if valueStr == "" {
-		return defaultValue
-	}
-
-	value, err := strconv.ParseBool(valueStr)
-	if err != nil {
-		return defaultValue
-	}
-
-	return value
+// GetSmartContractsPath returns the path to the compiled smart contract artifacts
+func (c *Config) GetSmartContractsPath() string {
+	return c.SmartContractsPath
 }
