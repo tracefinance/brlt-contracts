@@ -9,14 +9,40 @@ import (
 
 // Common errors
 var (
-	ErrExplorerNotSupported = errors.New("blockexplorer: explorer not supported")
-	ErrRateLimitExceeded    = errors.New("blockexplorer: rate limit exceeded")
-	ErrInvalidAPIKey        = errors.New("blockexplorer: invalid API key")
-	ErrInvalidAddress       = errors.New("blockexplorer: invalid address")
-	ErrInvalidResponse      = errors.New("blockexplorer: invalid response from explorer")
-	ErrRequestFailed        = errors.New("blockexplorer: request failed")
-	ErrMissingAPIKey        = errors.New("blockexplorer: missing API key")
+	ErrExplorerNotSupported = errors.New("explorer: explorer not supported")
+	ErrRateLimitExceeded    = errors.New("explorer: rate limit exceeded")
+	ErrInvalidAPIKey        = errors.New("explorer: invalid API key")
+	ErrInvalidAddress       = errors.New("explorer: invalid address")
+	ErrInvalidResponse      = errors.New("explorer: invalid response from explorer")
+	ErrRequestFailed        = errors.New("explorer: request failed")
+	ErrMissingAPIKey        = errors.New("explorer: missing API key")
 )
+
+// TokenBalance represents a token balance for any blockchain
+type TokenBalance struct {
+	// Address of the token contract
+	TokenAddress string
+	// Name of the token
+	TokenName string
+	// Symbol of the token
+	TokenSymbol string
+	// Number of decimal places for the token
+	TokenDecimal uint8
+	// Balance of the token in its smallest unit
+	Balance *big.Int
+}
+
+// ContractInfo represents contract information for any blockchain
+type ContractInfo struct {
+	// Contract's ABI (Application Binary Interface)
+	ABI string
+	// Name of the contract
+	ContractName string
+	// Contract's source code
+	SourceCode string
+	// Whether the contract is verified on the block explorer
+	IsVerified bool
+}
 
 // TransactionType represents different transaction categories for filtering
 type TransactionType string
@@ -74,6 +100,23 @@ type TransactionHistoryOptions struct {
 //	}
 //	txs, err := explorer.GetTransactionHistory(ctx, address, options)
 type BlockExplorer interface {
+	// GetContract retrieves contract information and verifies if it's source code
+	// is published on the block explorer.
+	//
+	// This method fetches the contract's source code, ABI, and other metadata from
+	// the block explorer. It also checks if the contract is verified by looking for
+	// published source code.
+	//
+	// Parameters:
+	//   - ctx: Context for timeout and cancellation
+	//   - address: The contract address to query (must be valid for the chain)
+	//
+	// Returns:
+	//   - *ContractInfo: Contract information including verification status
+	//   - error: ErrInvalidAddress if address is invalid, or EVMExplorerError
+	//     containing the raw response for debugging if the request fails
+	GetContract(ctx context.Context, address string) (*ContractInfo, error)
+
 	// GetTransactionHistory retrieves transaction history for an address.
 	//
 	// The method supports pagination and filtering through TransactionHistoryOptions.
@@ -121,7 +164,7 @@ type BlockExplorer interface {
 	//   - error: ErrInvalidAddress if address is invalid, or API/network errors
 	GetAddressBalance(ctx context.Context, address string) (*big.Int, error)
 
-	// GetTokenBalances retrieves ERC20 token balances for an address.
+	// GetTokenBalances retrieves token balances for an address.
 	//
 	// Returns a map of token contract addresses to their respective balances.
 	// The balances are in the smallest unit of each token (need to be divided
@@ -132,9 +175,9 @@ type BlockExplorer interface {
 	//   - address: The blockchain address to query
 	//
 	// Returns:
-	//   - map[string]*big.Int: Map of token addresses to balances
+	//   - []*TokenBalance: Slice of token balances
 	//   - error: ErrInvalidAddress if address is invalid, or API/network errors
-	GetTokenBalances(ctx context.Context, address string) (map[string]*big.Int, error)
+	GetTokenBalances(ctx context.Context, address string) ([]*TokenBalance, error)
 
 	// Close releases any resources used by the explorer.
 	//

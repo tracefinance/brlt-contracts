@@ -66,23 +66,45 @@ type EVMTransaction struct {
 	IsError           string `json:"isError,omitempty"`
 }
 
-// EVMTokenBalance represents a token balance returned by Etherscan-like APIs
+// EVMTokenBalance represents token balance information specific to EVM-based blockchains.
+// This is an implementation-specific type that gets converted to the abstract TokenBalance.
 type EVMTokenBalance struct {
 	TokenAddress string `json:"contractAddress"`
 	TokenName    string `json:"tokenName"`
 	TokenSymbol  string `json:"tokenSymbol"`
+	// TokenDecimal is a string in the API response, converted to uint8 when mapping to TokenBalance
 	TokenDecimal string `json:"tokenDecimal"`
-	Balance      string `json:"balance"`
+	// Balance is a string in the API response, converted to *big.Int when mapping to TokenBalance
+	Balance string `json:"balance"`
 }
 
-// EVMContractInfo represents contract information returned by Etherscan-like APIs
+// EVMContractInfo represents contract information specific to EVM-based blockchains.
+// This is an implementation-specific type that gets converted to the abstract ContractInfo.
 type EVMContractInfo struct {
 	ABI              string `json:"ABI"`
 	ContractName     string `json:"ContractName"`
 	CompilerVersion  string `json:"CompilerVersion"`
 	OptimizationUsed string `json:"OptimizationUsed"`
 	SourceCode       string `json:"SourceCode"`
-	IsVerified       bool
+	// IsVerified is derived from the presence of source code
+	IsVerified bool `json:"-"`
+}
+
+// EVMExplorerError represents an error that occurred during an EVM explorer operation
+// and includes the raw response from the API for debugging purposes.
+type EVMExplorerError struct {
+	Err         error
+	RawResponse string
+}
+
+// Error implements the error interface.
+func (e *EVMExplorerError) Error() string {
+	return fmt.Sprintf("%v (raw response: %s)", e.Err, e.RawResponse)
+}
+
+// Unwrap returns the underlying error.
+func (e *EVMExplorerError) Unwrap() error {
+	return e.Err
 }
 
 // NewEVMExplorer creates a new EVMExplorer instance
@@ -108,16 +130,10 @@ func NewEVMExplorer(chain types.Chain, baseURL, apiKey string) (*EVMExplorer, er
 	}, nil
 }
 
-// VerifyContract checks if a contract is verified and returns its information
-func (e *EVMExplorer) VerifyContract(ctx context.Context, address string) (*EVMContractInfo, error) {
-	info, _, err := e.VerifyContractWithRawResponse(ctx, address)
-	return info, err
-}
-
-// VerifyContractWithRawResponse checks if a contract is verified and returns its information along with the raw response
-func (e *EVMExplorer) VerifyContractWithRawResponse(ctx context.Context, address string) (*EVMContractInfo, string, error) {
+// GetContract checks if a contract is verified and returns its information
+func (e *EVMExplorer) GetContract(ctx context.Context, address string) (*ContractInfo, error) {
 	if err := e.chain.ValidateAddress(address); err != nil {
-		return nil, "", ErrInvalidAddress
+		return nil, &EVMExplorerError{Err: ErrInvalidAddress, RawResponse: ""}
 	}
 
 	// Prepare request parameters
@@ -128,23 +144,29 @@ func (e *EVMExplorer) VerifyContractWithRawResponse(ctx context.Context, address
 	params.Add("apikey", e.apiKey)
 
 	var response EVMTransactionResponse
-	rawResponse, err := e.makeRequestWithRawResponse(ctx, params, &response)
+	rawResponse, err := e.aaa(ctx, params, &response)
 	if err != nil {
-		return nil, rawResponse, err
+		return nil, &EVMExplorerError{Err: err, RawResponse: rawResponse}
 	}
 
-	var result []EVMContractInfo
-	if err := json.Unmarshal(response.Result, &result); err != nil {
-		return nil, rawResponse, fmt.Errorf("%w: %v", ErrInvalidResponse, err)
+	var evmResult []EVMContractInfo
+	if err := json.Unmarshal(response.Result, &evmResult); err != nil {
+		return nil, &EVMExplorerError{Err: fmt.Errorf("%w: %v", ErrInvalidResponse, err), RawResponse: rawResponse}
 	}
 
-	if len(result) == 0 {
-		return nil, rawResponse, fmt.Errorf("%w: no contract info returned", ErrInvalidResponse)
+	if len(evmResult) == 0 {
+		return nil, &EVMExplorerError{Err: fmt.Errorf("%w: no contract info returned", ErrInvalidResponse), RawResponse: rawResponse}
 	}
 
-	// Check if contract is verified by looking at the source code
-	result[0].IsVerified = result[0].SourceCode != ""
-	return &result[0], rawResponse, nil
+	// Convert EVMContractInfo to ContractInfo
+	evmInfo := evmResult[0]
+
+	return &ContractInfo{
+		ABI:          evmInfo.ABI,
+		ContractName: evmInfo.ContractName,
+		SourceCode:   evmInfo.SourceCode,
+		IsVerified:   evmInfo.SourceCode != "",
+	}, nil
 }
 
 // GetTransactionHistory retrieves transaction history for an address
@@ -410,8 +432,8 @@ func (e *EVMExplorer) GetAddressBalance(ctx context.Context, address string) (*b
 	return balance, nil
 }
 
-// GetTokenBalances retrieves ERC20 token balances for an address
-func (e *EVMExplorer) GetTokenBalances(ctx context.Context, address string) (map[string]*big.Int, error) {
+// GetTokenBalances retrieves token balances for an address
+func (e *EVMExplorer) GetTokenBalances(ctx context.Context, address string) ([]*TokenBalance, error) {
 	if err := e.chain.ValidateAddress(address); err != nil {
 		return nil, ErrInvalidAddress
 	}
@@ -428,18 +450,26 @@ func (e *EVMExplorer) GetTokenBalances(ctx context.Context, address string) (map
 		return nil, err
 	}
 
-	var tokenBalances []EVMTokenBalance
-	if err := json.Unmarshal(response.Result, &tokenBalances); err != nil {
+	var evmBalances []EVMTokenBalance
+	if err := json.Unmarshal(response.Result, &evmBalances); err != nil {
 		// If the result is not an array, it might be a single token balance or not supported
-		return make(map[string]*big.Int), nil
+		return []*TokenBalance{}, nil
 	}
 
-	// Convert to map of token address to balance
-	balances := make(map[string]*big.Int)
-	for _, token := range tokenBalances {
+	// Convert EVMTokenBalance to TokenBalance
+	balances := make([]*TokenBalance, len(evmBalances))
+	for i, evmBalance := range evmBalances {
+		decimal, _ := strconv.ParseUint(evmBalance.TokenDecimal, 10, 8)
 		balance := new(big.Int)
-		balance.SetString(token.Balance, 10)
-		balances[token.TokenAddress] = balance
+		balance.SetString(evmBalance.Balance, 10)
+
+		balances[i] = &TokenBalance{
+			TokenAddress: evmBalance.TokenAddress,
+			TokenName:    evmBalance.TokenName,
+			TokenSymbol:  evmBalance.TokenSymbol,
+			TokenDecimal: uint8(decimal),
+			Balance:      balance,
+		}
 	}
 
 	return balances, nil
@@ -677,7 +707,7 @@ func (e *EVMExplorer) convertEVMTransactionsToTransactions(evmTxs []EVMTransacti
 }
 
 // makeRequestWithRawResponse makes an HTTP request and returns both the parsed response and raw response body
-func (e *EVMExplorer) makeRequestWithRawResponse(ctx context.Context, params url.Values, response interface{}) (string, error) {
+func (e *EVMExplorer) aaa(ctx context.Context, params url.Values, response interface{}) (string, error) {
 	maxRetries := 3
 	baseDelay := time.Second
 

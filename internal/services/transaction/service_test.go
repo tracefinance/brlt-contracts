@@ -145,46 +145,61 @@ type MockBlockExplorer struct {
 	GetTransactionsByHashFunc func(ctx context.Context, hashes []string) ([]*types.Transaction, error)
 	GetTransactionHistoryFunc func(ctx context.Context, address string, options blockexplorer.TransactionHistoryOptions) ([]*types.Transaction, error)
 	GetAddressBalanceFunc     func(ctx context.Context, address string) (*big.Int, error)
-	GetTokenBalancesFunc      func(ctx context.Context, address string) (map[string]*big.Int, error)
+	GetTokenBalancesFunc      func(ctx context.Context, address string) ([]*blockexplorer.TokenBalance, error)
+	GetContractFunc           func(ctx context.Context, address string) (*blockexplorer.ContractInfo, error)
 	ChainFunc                 func() types.Chain
 	CloseFunc                 func() error
 }
 
+// GetContract implements the Explorer interface
+func (m *MockBlockExplorer) GetContract(ctx context.Context, address string) (*blockexplorer.ContractInfo, error) {
+	if m.GetContractFunc != nil {
+		return m.GetContractFunc(ctx, address)
+	}
+	return nil, nil
+}
+
+// GetTransactionsByHash implements the Explorer interface
 func (m *MockBlockExplorer) GetTransactionsByHash(ctx context.Context, hashes []string) ([]*types.Transaction, error) {
 	if m.GetTransactionsByHashFunc != nil {
 		return m.GetTransactionsByHashFunc(ctx, hashes)
 	}
-	return []*types.Transaction{}, nil
+	return nil, nil
 }
 
+// GetTransactionHistory implements the Explorer interface
 func (m *MockBlockExplorer) GetTransactionHistory(ctx context.Context, address string, options blockexplorer.TransactionHistoryOptions) ([]*types.Transaction, error) {
 	if m.GetTransactionHistoryFunc != nil {
 		return m.GetTransactionHistoryFunc(ctx, address, options)
 	}
-	return []*types.Transaction{}, nil
+	return nil, nil
 }
 
+// GetAddressBalance implements the Explorer interface
 func (m *MockBlockExplorer) GetAddressBalance(ctx context.Context, address string) (*big.Int, error) {
 	if m.GetAddressBalanceFunc != nil {
 		return m.GetAddressBalanceFunc(ctx, address)
 	}
-	return big.NewInt(0), nil
+	return nil, nil
 }
 
-func (m *MockBlockExplorer) GetTokenBalances(ctx context.Context, address string) (map[string]*big.Int, error) {
+// GetTokenBalances implements the Explorer interface
+func (m *MockBlockExplorer) GetTokenBalances(ctx context.Context, address string) ([]*blockexplorer.TokenBalance, error) {
 	if m.GetTokenBalancesFunc != nil {
 		return m.GetTokenBalancesFunc(ctx, address)
 	}
-	return make(map[string]*big.Int), nil
+	return nil, nil
 }
 
+// Chain implements the Explorer interface
 func (m *MockBlockExplorer) Chain() types.Chain {
 	if m.ChainFunc != nil {
 		return m.ChainFunc()
 	}
-	return types.Chain{Type: types.ChainTypeEthereum}
+	return types.Chain{}
 }
 
+// Close implements the Explorer interface
 func (m *MockBlockExplorer) Close() error {
 	if m.CloseFunc != nil {
 		return m.CloseFunc()
@@ -192,17 +207,17 @@ func (m *MockBlockExplorer) Close() error {
 	return nil
 }
 
-// MockBlockExplorerFactory mocks the blockexplorer.Factory interface
+// MockBlockExplorerFactory mocks the block explorer factory
 type MockBlockExplorerFactory struct {
 	GetExplorerFunc func(chainType types.ChainType) (blockexplorer.BlockExplorer, error)
 }
 
+// GetExplorer implements the block explorer factory interface
 func (m *MockBlockExplorerFactory) GetExplorer(chainType types.ChainType) (blockexplorer.BlockExplorer, error) {
 	if m.GetExplorerFunc != nil {
 		return m.GetExplorerFunc(chainType)
 	}
-	explorer := &MockBlockExplorer{}
-	return explorer, nil
+	return nil, nil
 }
 
 // MockTransactionService is a mock implementation of the Service interface

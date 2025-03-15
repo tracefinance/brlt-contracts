@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -100,9 +101,15 @@ func verifyTokens(
 		}
 
 		// Get contract information to verify it exists and is verified
-		info, rawResponse, err := explorer.(*blockexplorer.EVMExplorer).VerifyContractWithRawResponse(ctx, token.Address)
+		info, err := explorer.GetContract(ctx, token.Address)
 		if err != nil {
-			results <- fmt.Sprintf("❌ [%s] %s (%s): Error - %v\nRaw Response: %s",
+			var evmErr *blockexplorer.EVMExplorerError
+			rawResponse := ""
+			if errors.As(err, &evmErr) {
+				rawResponse = fmt.Sprintf("\nRaw Response: %s", evmErr.RawResponse)
+			}
+
+			results <- fmt.Sprintf("❌ [%s] %s (%s): Error - %v%s",
 				strings.ToUpper(string(chainType)),
 				token.Symbol,
 				token.Address,
