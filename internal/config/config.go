@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
+	"gopkg.in/yaml.v3"
 )
 
 // LogLevel represents the logging level
@@ -37,141 +39,169 @@ const (
 // LogConfig holds configuration for application logging
 type LogConfig struct {
 	// Level is the minimum log level to output
-	Level LogLevel
+	Level LogLevel `yaml:"level"`
 	// Format is the log output format (json or console)
-	Format LogFormat
+	Format LogFormat `yaml:"format"`
 	// OutputPath is the path to the log file (empty for stdout)
-	OutputPath string
+	OutputPath string `yaml:"output_path"`
 	// RequestLogging enables HTTP request logging when true
-	RequestLogging bool
+	RequestLogging bool `yaml:"request_logging"`
 	// SQLLogging enables SQL query logging when true
-	SQLLogging bool
+	SQLLogging bool `yaml:"sql_logging"`
 }
 
 // BlockchainConfig holds configuration for a specific blockchain
 type BlockchainConfig struct {
 	// RPCURL is the RPC URL for the blockchain
-	RPCURL string
+	RPCURL string `yaml:"rpc_url"`
 	// ChainID is the chain ID for the blockchain
-	ChainID int64
+	ChainID int64 `yaml:"chain_id"`
 	// DefaultGasPrice is the default gas price for transactions in Gwei
-	DefaultGasPrice uint64
+	DefaultGasPrice uint64 `yaml:"default_gas_price"`
 	// DefaultGasLimit is the default gas limit for transactions
-	DefaultGasLimit uint64
+	DefaultGasLimit uint64 `yaml:"default_gas_limit"`
 	// ExplorerURL is the block explorer URL for the blockchain
-	ExplorerURL string
+	ExplorerURL string `yaml:"explorer_url"`
 	// ExplorerAPIKey is the API key for the block explorer
-	ExplorerAPIKey string
+	ExplorerAPIKey string `yaml:"explorer_api_key"`
 }
 
 // BlockchainsConfig holds configuration for all supported blockchains
 type BlockchainsConfig struct {
 	// Ethereum holds Ethereum blockchain configuration
-	Ethereum BlockchainConfig
+	Ethereum BlockchainConfig `yaml:"ethereum"`
 	// Polygon holds Polygon blockchain configuration
-	Polygon BlockchainConfig
+	Polygon BlockchainConfig `yaml:"polygon"`
 	// Base holds Base blockchain configuration
-	Base BlockchainConfig
+	Base BlockchainConfig `yaml:"base"`
 }
 
 // Config holds the application configuration
 type Config struct {
 	// DBPath is the path to the SQLite database file
-	DBPath string
+	DBPath string `yaml:"db_path"`
 	// Port is the server port to listen on
-	Port string
+	Port string `yaml:"port"`
 	// UIPath is the path to the static React UI files
-	UIPath string
+	UIPath string `yaml:"ui_path"`
 	// MigrationsPath is the path to the migration files
-	MigrationsPath string
+	MigrationsPath string `yaml:"migrations_path"`
 	// DBEncryptionKey is the base64-encoded key used for encrypting sensitive data in the database
-	DBEncryptionKey string
+	DBEncryptionKey string `yaml:"db_encryption_key"`
 	// SmartContractsPath is the path to the compiled smart contract artifacts
-	SmartContractsPath string
+	SmartContractsPath string `yaml:"smart_contracts_path"`
 	// KeyStoreType specifies the type of key store to use (db or kms)
-	KeyStoreType string
+	KeyStoreType string `yaml:"key_store_type"`
 	// Log holds the logging configuration
-	Log LogConfig
+	Log LogConfig `yaml:"log"`
 	// Blockchains holds configuration for all supported blockchains
-	Blockchains BlockchainsConfig
+	Blockchains BlockchainsConfig `yaml:"blockchains"`
 }
 
-// LoadConfig loads the application configuration from environment variables
-// or falls back to default values
-func LoadConfig() *Config {
-	// Try to load environment variables from .env files
+// LoadConfig loads the application configuration from YAML file and environment variables
+func LoadConfig() (*Config, error) {
+	// Try to load environment variables from .env files first
 	loadEnvFiles()
 
-	// Get base directory for paths
+	config := &Config{}
+	var yamlData []byte
+	var err error
+
+	// Try to load YAML config from CONFIG_PATH or default locations
+	configPaths := []string{
+		os.Getenv("CONFIG_PATH"),
+		".config.yaml",
+		"../.config.yaml",
+	}
+
+	for _, path := range configPaths {
+		if path == "" {
+			continue
+		}
+
+		if yamlData, err = os.ReadFile(path); err == nil {
+			fmt.Printf("Loading config from %s\n", path)
+			break
+		}
+	}
+
+	if err != nil {
+		fmt.Printf("No config file found, using environment variables\n")
+		return loadFromEnvironment(), nil
+	}
+
+	// Parse YAML with environment variable interpolation
+	interpolatedYaml := interpolateEnvVars(string(yamlData))
+	if err := yaml.Unmarshal([]byte(interpolatedYaml), config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	return config, nil
+}
+
+// interpolateEnvVars replaces environment variables with their values, supporting default values
+func interpolateEnvVars(content string) string {
+	// Match ${VAR:-default} and $VAR formats
+	re := regexp.MustCompile(`\$\{([^}]+)\}|\$([A-Za-z0-9_]+)`)
+
+	return re.ReplaceAllStringFunc(content, func(match string) string {
+		// Extract var name and default value
+		varName := match
+		defaultValue := ""
+
+		// Remove ${ and }
+		varName = strings.TrimPrefix(varName, "${")
+		varName = strings.TrimPrefix(varName, "$")
+		varName = strings.TrimSuffix(varName, "}")
+
+		// Check for default value syntax: VAR:-default
+		if strings.Contains(varName, ":-") {
+			parts := strings.SplitN(varName, ":-", 2)
+			varName = parts[0]
+			defaultValue = parts[1]
+		}
+
+		// Get environment variable value
+		if value, exists := os.LookupEnv(varName); exists && value != "" {
+			return value
+		}
+
+		// Return default value if specified, otherwise empty string
+		return defaultValue
+	})
+}
+
+// loadFromEnvironment creates a config from environment variables
+func loadFromEnvironment() *Config {
 	baseDir := os.Getenv("APP_BASE_DIR")
 	if baseDir == "" {
-		// Default to current working directory if not specified
 		currentDir, _ := os.Getwd()
 		baseDir = currentDir
 	}
 
-	// Get the database path from environment or use default
-	dbPath := os.Getenv("DB_PATH")
-	if dbPath == "" {
-		// Default to a db file in the project root
-		dbPath = filepath.Join(baseDir, "vault0.db")
+	config := &Config{
+		DBPath:             getEnv("DB_PATH", filepath.Join(baseDir, "vault0.db")),
+		Port:               getEnv("SERVER_PORT", "8080"),
+		UIPath:             getEnv("UI_PATH", filepath.Join(baseDir, "ui", "dist")),
+		MigrationsPath:     getEnv("MIGRATIONS_PATH", filepath.Join(baseDir, "migrations")),
+		DBEncryptionKey:    os.Getenv("DB_ENCRYPTION_KEY"),
+		SmartContractsPath: getEnv("SMART_CONTRACTS_PATH", filepath.Join(baseDir, "contracts", "artifacts")),
+		KeyStoreType:       getEnv("KEYSTORE_TYPE", "db"),
+		Log: LogConfig{
+			Level:          LogLevel(getEnv("LOG_LEVEL", string(LogLevelInfo))),
+			Format:         LogFormat(getEnv("LOG_FORMAT", string(LogFormatConsole))),
+			OutputPath:     os.Getenv("LOG_OUTPUT_PATH"),
+			RequestLogging: parseEnvBool("LOG_REQUESTS", true),
+			SQLLogging:     parseEnvBool("LOG_SQL", false),
+		},
+		Blockchains: BlockchainsConfig{
+			Ethereum: loadEthereumConfig(),
+			Polygon:  loadPolygonConfig(),
+			Base:     loadBaseConfig(),
+		},
 	}
 
-	// Get the port from environment or use default
-	port := os.Getenv("SERVER_PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	// Set UI path, default to ui/dist
-	uiPath := os.Getenv("UI_PATH")
-	if uiPath == "" {
-		uiPath = filepath.Join(baseDir, "ui", "dist")
-	}
-
-	// Set migrations path
-	migrationsPath := os.Getenv("MIGRATIONS_PATH")
-	if migrationsPath == "" {
-		migrationsPath = filepath.Join(baseDir, "migrations")
-	}
-
-	// Get DB encryption key from environment
-	dbEncryptionKey := os.Getenv("DB_ENCRYPTION_KEY")
-	// No default for encryption key, it must be provided
-
-	// Get Smart Contracts path from environment
-	smartContractsPath := os.Getenv("SMART_CONTRACTS_PATH")
-	if smartContractsPath == "" {
-		smartContractsPath = filepath.Join(baseDir, "contracts", "artifacts")
-	}
-
-	// Get KeyStore type from environment or use default
-	keyStoreType := os.Getenv("KEYSTORE_TYPE")
-	if keyStoreType == "" {
-		keyStoreType = "db" // Default to database key store
-	}
-
-	// Load blockchain configurations
-	blockchains := BlockchainsConfig{
-		Ethereum: loadEthereumConfig(),
-		Polygon:  loadPolygonConfig(),
-		Base:     loadBaseConfig(),
-	}
-
-	// Load logging configuration
-	logging := loadLoggingConfig()
-
-	return &Config{
-		DBPath:             dbPath,
-		Port:               port,
-		UIPath:             uiPath,
-		MigrationsPath:     migrationsPath,
-		DBEncryptionKey:    dbEncryptionKey,
-		SmartContractsPath: smartContractsPath,
-		KeyStoreType:       keyStoreType,
-		Log:                logging,
-		Blockchains:        blockchains,
-	}
+	return config
 }
 
 // loadEthereumConfig loads Ethereum configuration from environment variables
