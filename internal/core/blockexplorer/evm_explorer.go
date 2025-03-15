@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -74,6 +75,16 @@ type EVMTokenBalance struct {
 	Balance      string `json:"balance"`
 }
 
+// EVMContractInfo represents contract information returned by Etherscan-like APIs
+type EVMContractInfo struct {
+	ABI              string `json:"ABI"`
+	ContractName     string `json:"ContractName"`
+	CompilerVersion  string `json:"CompilerVersion"`
+	OptimizationUsed string `json:"OptimizationUsed"`
+	SourceCode       string `json:"SourceCode"`
+	IsVerified       bool
+}
+
 // NewEVMExplorer creates a new EVMExplorer instance
 func NewEVMExplorer(chain types.Chain, baseURL, apiKey string) (*EVMExplorer, error) {
 	if apiKey == "" {
@@ -95,6 +106,45 @@ func NewEVMExplorer(chain types.Chain, baseURL, apiKey string) (*EVMExplorer, er
 		chain:       chain,
 		rateLimiter: time.NewTicker(time.Second / defaultMaxRequestsPerSecond),
 	}, nil
+}
+
+// VerifyContract checks if a contract is verified and returns its information
+func (e *EVMExplorer) VerifyContract(ctx context.Context, address string) (*EVMContractInfo, error) {
+	info, _, err := e.VerifyContractWithRawResponse(ctx, address)
+	return info, err
+}
+
+// VerifyContractWithRawResponse checks if a contract is verified and returns its information along with the raw response
+func (e *EVMExplorer) VerifyContractWithRawResponse(ctx context.Context, address string) (*EVMContractInfo, string, error) {
+	if err := e.chain.ValidateAddress(address); err != nil {
+		return nil, "", ErrInvalidAddress
+	}
+
+	// Prepare request parameters
+	params := url.Values{}
+	params.Add("module", "contract")
+	params.Add("action", "getsourcecode")
+	params.Add("address", address)
+	params.Add("apikey", e.apiKey)
+
+	var response EVMTransactionResponse
+	rawResponse, err := e.makeRequestWithRawResponse(ctx, params, &response)
+	if err != nil {
+		return nil, rawResponse, err
+	}
+
+	var result []EVMContractInfo
+	if err := json.Unmarshal(response.Result, &result); err != nil {
+		return nil, rawResponse, fmt.Errorf("%w: %v", ErrInvalidResponse, err)
+	}
+
+	if len(result) == 0 {
+		return nil, rawResponse, fmt.Errorf("%w: no contract info returned", ErrInvalidResponse)
+	}
+
+	// Check if contract is verified by looking at the source code
+	result[0].IsVerified = result[0].SourceCode != ""
+	return &result[0], rawResponse, nil
 }
 
 // GetTransactionHistory retrieves transaction history for an address
@@ -624,4 +674,81 @@ func (e *EVMExplorer) convertEVMTransactionsToTransactions(evmTxs []EVMTransacti
 	}
 
 	return txs
+}
+
+// makeRequestWithRawResponse makes an HTTP request and returns both the parsed response and raw response body
+func (e *EVMExplorer) makeRequestWithRawResponse(ctx context.Context, params url.Values, response interface{}) (string, error) {
+	maxRetries := 3
+	baseDelay := time.Second
+
+	var lastErr error
+	var body string
+	var rawResp EVMTransactionResponse
+	var bodyBytes []byte
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Rate limiting
+		select {
+		case <-e.rateLimiter.C:
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+
+		// Build request URL
+		reqURL := fmt.Sprintf("%s/api?%s", e.baseURL, params.Encode())
+
+		// Create request
+		req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+		if err != nil {
+			return "", fmt.Errorf("failed to create request: %w", err)
+		}
+
+		// Make request
+		resp, err := e.httpClient.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to make request: %w", err)
+			goto retry
+		}
+		defer resp.Body.Close()
+
+		// Read response body
+		bodyBytes, err = io.ReadAll(resp.Body)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to read response body: %w", err)
+			goto retry
+		}
+		body = string(bodyBytes)
+
+		// Check for rate limit response
+		if err := json.Unmarshal(bodyBytes, &rawResp); err != nil {
+			lastErr = fmt.Errorf("%w: %v", ErrInvalidResponse, err)
+			goto retry
+		}
+
+		if rawResp.Status == "0" && strings.Contains(string(rawResp.Result), "rate limit") {
+			lastErr = fmt.Errorf("rate limit exceeded")
+			goto retry
+		}
+
+		// Parse final response
+		if err := json.Unmarshal(bodyBytes, response); err != nil {
+			return body, fmt.Errorf("%w: %v", ErrInvalidResponse, err)
+		}
+
+		return body, nil
+
+	retry:
+		if attempt < maxRetries-1 {
+			// Exponential backoff
+			delay := baseDelay * time.Duration(1<<uint(attempt))
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				return "", ctx.Err()
+			}
+			continue
+		}
+	}
+
+	return body, lastErr
 }

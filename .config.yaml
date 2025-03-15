@@ -1,45 +1,45 @@
 # Server configuration
-db_path: ${DB_PATH:-./vault0.db}
-port: ${SERVER_PORT:-8080}
-ui_path: ${UI_PATH:-./ui/dist}
-migrations_path: ${MIGRATIONS_PATH:-./migrations}
+db_path: ./vault0.db
+port: 8080
+ui_path: ./ui/dist
+migrations_path: ./migrations
 db_encryption_key: ${DB_ENCRYPTION_KEY}  # No default for security-sensitive values
-smart_contracts_path: ${SMART_CONTRACTS_PATH:-./contracts/artifacts}
-key_store_type: ${KEYSTORE_TYPE:-db}
+smart_contracts_path: ./contracts/artifacts
+key_store_type: db
 
 # Logging configuration
 log:
-  level: ${LOG_LEVEL:-info}
-  format: ${LOG_FORMAT:-console}
-  output_path: ${LOG_OUTPUT_PATH:-}  # Empty default means stdout
-  request_logging: ${LOG_REQUESTS:-true}
-  sql_logging: ${LOG_SQL:-false}
+  level: info
+  format: console
+  output_path: ""  # Empty means stdout
+  request_logging: true
+  sql_logging: false
 
 # Blockchain configurations
 blockchains:
   ethereum:
-    rpc_url: ${ETHEREUM_RPC_URL:-https://ethereum-rpc.publicnode.com}
-    chain_id: ${ETHEREUM_CHAIN_ID:-1}
-    default_gas_price: ${ETHEREUM_GAS_PRICE:-20}
-    default_gas_limit: ${ETHEREUM_GAS_LIMIT:-21000}
-    explorer_url: ${ETHEREUM_EXPLORER_URL:-https://etherscan.io}
-    explorer_api_key: ${ETHEREUM_EXPLORER_API_KEY:-}
+    rpc_url: https://ethereum-rpc.publicnode.com
+    chain_id: 1
+    default_gas_price: 20
+    default_gas_limit: 21000
+    explorer_url: https://etherscan.io
+    explorer_api_key: ${ETHEREUM_EXPLORER_API_KEY:-}  # Keep as env var for security
 
   polygon:
-    rpc_url: ${POLYGON_RPC_URL:-https://polygon-rpc.com}
-    chain_id: ${POLYGON_CHAIN_ID:-137}
-    default_gas_price: ${POLYGON_GAS_PRICE:-30}
-    default_gas_limit: ${POLYGON_GAS_LIMIT:-21000}
-    explorer_url: ${POLYGON_EXPLORER_URL:-https://polygonscan.com}
-    explorer_api_key: ${POLYGON_EXPLORER_API_KEY:-}
+    rpc_url: https://polygon-rpc.com
+    chain_id: 137
+    default_gas_price: 30
+    default_gas_limit: 21000
+    explorer_url: https://polygonscan.com
+    explorer_api_key: ${POLYGON_EXPLORER_API_KEY:-}  # Keep as env var for security
 
   base:
-    rpc_url: ${BASE_RPC_URL:-https://mainnet.base.org}
-    chain_id: ${BASE_CHAIN_ID:-8453}
-    default_gas_price: ${BASE_GAS_PRICE:-10}
-    default_gas_limit: ${BASE_GAS_LIMIT:-21000}
-    explorer_url: ${BASE_EXPLORER_URL:-https://basescan.org}
-    explorer_api_key: ${BASE_EXPLORER_API_KEY:-} 
+    rpc_url: https://mainnet.base.org
+    chain_id: 8453
+    default_gas_price: 10
+    default_gas_limit: 21000
+    explorer_url: https://basescan.org
+    explorer_api_key: ${BASE_EXPLORER_API_KEY:-}  # Keep as env var for security
 
 # Token configurations
 tokens:

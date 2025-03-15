@@ -11,6 +11,7 @@ GOCLEAN = $(GOCMD) clean
 # Binary names
 SERVER_BIN = vault0
 GENKEY_BIN = genkey
+VERIFY_TOKENS_BIN = verify-tokens
 
 # Build directory
 BUILD_DIR = bin
@@ -18,6 +19,7 @@ BUILD_DIR = bin
 # Source directories
 SERVER_SRC = ./cmd/server
 GENKEY_SRC = ./cmd/genkey
+VERIFY_TOKENS_SRC = ./cmd/verify-tokens
 
 # UI directory
 UI_DIR = ./ui
@@ -28,7 +30,7 @@ CONTRACTS_DIR = ./contracts
 # Package name
 PACKAGE = vault0
 
-.PHONY: all build clean server server-test server-test-coverage server-deps server-install genkey genkey-install server-dev server-clean git-reset git-status git-pull git-push ui ui-deps ui-dev ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests git-diff-setup
+.PHONY: all build clean server server-test server-test-coverage server-deps server-install genkey genkey-install server-dev server-clean git-reset git-status git-pull git-push ui ui-deps ui-dev ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests git-diff-setup verify-tokens verify-tokens-run
 
 # Count lines of code in the project
 count-lines:
@@ -38,7 +40,7 @@ count-lines:
 all: clean build
 
 # Build all binaries
-build: server genkey ui contracts-build
+build: server genkey verify-tokens ui contracts-build
 
 # Build server binary
 server: wire
@@ -51,6 +53,12 @@ genkey:
 	@echo "Building genkey binary..."
 	@mkdir -p $(BUILD_DIR)
 	$(GOBUILD) -o $(BUILD_DIR)/$(GENKEY_BIN) $(GENKEY_SRC)
+
+# Build verify-tokens binary
+verify-tokens:
+	@echo "Building verify-tokens binary..."
+	@mkdir -p $(BUILD_DIR)
+	$(GOBUILD) -o $(BUILD_DIR)/$(VERIFY_TOKENS_BIN) $(VERIFY_TOKENS_SRC)
 
 # Run tests
 server-test:
@@ -170,4 +178,9 @@ contracts-deploy-polygon-test:
 contracts-deploy-polygon:
 	@echo "Deploying contracts to Polygon zkEVM mainnet..."
 	cd $(CONTRACTS_DIR) && npm run deploy:polygon
+
+# Run verify-tokens
+verify-tokens-run: verify-tokens
+	@echo "Running verify-tokens..."
+	@$(BUILD_DIR)/$(VERIFY_TOKENS_BIN)
 

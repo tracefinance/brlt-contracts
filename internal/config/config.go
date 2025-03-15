@@ -376,41 +376,6 @@ func getEnv(key, defaultValue string) string {
 	return value
 }
 
-// loadLoggingConfig loads logging configuration from environment variables
-func loadLoggingConfig() LogConfig {
-	// Get log level from environment or use default
-	levelStr := strings.ToLower(getEnv("LOG_LEVEL", "info"))
-	level := LogLevelInfo
-	switch LogLevel(levelStr) {
-	case LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError:
-		level = LogLevel(levelStr)
-	}
-
-	// Get log format from environment or use default
-	formatStr := strings.ToLower(getEnv("LOG_FORMAT", "console"))
-	format := LogFormatConsole
-	if formatStr == string(LogFormatJSON) {
-		format = LogFormatJSON
-	}
-
-	// Get log output path from environment
-	outputPath := os.Getenv("LOG_OUTPUT_PATH")
-
-	// Get request logging setting from environment
-	requestLogging := parseEnvBool("LOG_REQUESTS", true)
-
-	// Get SQL logging setting from environment
-	sqlLogging := parseEnvBool("LOG_SQL", false)
-
-	return LogConfig{
-		Level:          level,
-		Format:         format,
-		OutputPath:     outputPath,
-		RequestLogging: requestLogging,
-		SQLLogging:     sqlLogging,
-	}
-}
-
 // parseEnvBool parses a boolean from an environment variable
 func parseEnvBool(key string, defaultValue bool) bool {
 	valueStr := os.Getenv(key)
