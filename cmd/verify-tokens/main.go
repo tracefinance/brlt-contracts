@@ -95,7 +95,7 @@ func verifyTokens(
 	// Check each token
 	for _, token := range tokens {
 		if token.Type == "native" {
-			results <- fmt.Sprintf("✅ [%s] %s (native token)", strings.ToUpper(string(chainType)), token.Name)
+			results <- fmt.Sprintf("✅ [%s] %s (native token)", strings.ToUpper(string(chainType)), token.Symbol)
 			continue
 		}
 
@@ -104,7 +104,7 @@ func verifyTokens(
 		if err != nil {
 			results <- fmt.Sprintf("❌ [%s] %s (%s): Error - %v\nRaw Response: %s",
 				strings.ToUpper(string(chainType)),
-				token.Name,
+				token.Symbol,
 				token.Address,
 				err,
 				rawResponse,
@@ -115,14 +115,14 @@ func verifyTokens(
 		if info.IsVerified {
 			results <- fmt.Sprintf("✅ [%s] %s (%s): Verified contract - %s",
 				strings.ToUpper(string(chainType)),
-				token.Name,
+				token.Symbol,
 				token.Address,
 				info.ContractName,
 			)
 		} else {
 			results <- fmt.Sprintf("⚠️ [%s] %s (%s): Unverified contract",
 				strings.ToUpper(string(chainType)),
-				token.Name,
+				token.Symbol,
 				token.Address,
 			)
 		}

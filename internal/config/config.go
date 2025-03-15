@@ -100,8 +100,8 @@ const (
 
 // TokenConfig holds configuration for a specific token
 type TokenConfig struct {
-	// Name is the token name (e.g., "ETH", "USDC")
-	Name string `yaml:"name"`
+	// Symbol is the token symbol (e.g., "ETH", "USDC")
+	Symbol string `yaml:"symbol"`
 	// Type is the token type (native, erc20)
 	Type TokenType `yaml:"type"`
 	// ChainType is the blockchain type this token belongs to

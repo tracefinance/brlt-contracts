@@ -31,18 +31,18 @@ log:
 # Token configurations
 tokens:
   ethereum:
-    - name: ETH
+    - symbol: ETH
       type: native
       chain_type: ethereum
       decimals: 18
-    - name: USDC
+    - symbol: USDC
       type: erc20
       chain_type: ethereum
       address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
       decimals: 6
 
   polygon:
-    - name: MATIC
+    - symbol: MATIC
       type: native
       chain_type: polygon
       decimals: 18
@@ -114,13 +114,13 @@ blockchains:
 
 	// Test ETH token
 	eth := ethTokens[0]
-	if eth.Name != "ETH" || eth.Type != TokenTypeNative || eth.ChainType != ChainTypeEthereum || eth.Decimals != 18 {
+	if eth.Symbol != "ETH" || eth.Type != TokenTypeNative || eth.ChainType != ChainTypeEthereum || eth.Decimals != 18 {
 		t.Errorf("Unexpected ETH token configuration: %+v", eth)
 	}
 
 	// Test USDC token
 	usdc := ethTokens[1]
-	if usdc.Name != "USDC" || usdc.Type != TokenTypeERC20 || usdc.ChainType != ChainTypeEthereum ||
+	if usdc.Symbol != "USDC" || usdc.Type != TokenTypeERC20 || usdc.ChainType != ChainTypeEthereum ||
 		usdc.Address != "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" || usdc.Decimals != 6 {
 		t.Errorf("Unexpected USDC token configuration: %+v", usdc)
 	}
@@ -133,7 +133,7 @@ blockchains:
 
 	// Test MATIC token
 	matic := polygonTokens[0]
-	if matic.Name != "MATIC" || matic.Type != TokenTypeNative || matic.ChainType != ChainTypePolygon || matic.Decimals != 18 {
+	if matic.Symbol != "MATIC" || matic.Type != TokenTypeNative || matic.ChainType != ChainTypePolygon || matic.Decimals != 18 {
 		t.Errorf("Unexpected MATIC token configuration: %+v", matic)
 	}
 
