@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -12,6 +13,7 @@ import (
 
 	"vault0/internal/config"
 	"vault0/internal/core/blockexplorer"
+	"vault0/internal/core/tokenstore"
 	"vault0/internal/types"
 )
 
@@ -44,6 +46,16 @@ func main() {
 	// Create block explorer factory
 	factory := blockexplorer.NewFactory(chains, cfg)
 
+	// Connect to the database
+	db, err := sql.Open("sqlite3", cfg.DBPath)
+	if err != nil {
+		log.Fatalf("Error connecting to database: %v", err)
+	}
+	defer db.Close()
+
+	// Create token store
+	tokenStore := tokenstore.NewDBTokenStore(db)
+
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -52,17 +64,17 @@ func main() {
 	var wg sync.WaitGroup
 	results := make(chan verificationResult, 100)
 
-	// Process Ethereum tokens
-	wg.Add(1)
-	go verifyTokens(ctx, &wg, results, factory, types.ChainTypeEthereum, cfg.Tokens.Ethereum)
+	// Get tokens for each chain
+	for chainType := range chains {
+		tokens, err := tokenStore.GetTokensByChain(ctx, chainType)
+		if err != nil {
+			log.Printf("Error getting tokens for %s: %v", chainType, err)
+			continue
+		}
 
-	// Process Polygon tokens
-	wg.Add(1)
-	go verifyTokens(ctx, &wg, results, factory, types.ChainTypePolygon, cfg.Tokens.Polygon)
-
-	// Process Base tokens
-	wg.Add(1)
-	go verifyTokens(ctx, &wg, results, factory, types.ChainTypeBase, cfg.Tokens.Base)
+		wg.Add(1)
+		go verifyTokens(ctx, &wg, results, factory, chainType, tokens)
+	}
 
 	// Collect and group results
 	go func() {
@@ -123,7 +135,7 @@ func verifyTokens(
 	results chan<- verificationResult,
 	factory blockexplorer.Factory,
 	chainType types.ChainType,
-	tokens []config.TokenConfig,
+	tokens []*types.Token,
 ) {
 	defer wg.Done()
 
@@ -140,7 +152,7 @@ func verifyTokens(
 
 	// Check each token
 	for _, token := range tokens {
-		if token.Type == "native" {
+		if token.IsNative() {
 			url := explorer.GetTokenURL(token.Address)
 			results <- verificationResult{
 				chainType: chainType,

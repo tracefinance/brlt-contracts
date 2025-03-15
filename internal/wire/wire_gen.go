@@ -47,6 +47,7 @@ func BuildContainer() (*Container, error) {
 	if err != nil {
 		return nil, err
 	}
+	tokenStore := NewTokenStore(dbDB)
 	chains, err := types.NewChains(configConfig)
 	if err != nil {
 		return nil, err
@@ -55,7 +56,7 @@ func BuildContainer() (*Container, error) {
 	registry := blockchain.NewRegistry(chains, configConfig)
 	contractFactory := contract.NewFactory(registry, factory, configConfig)
 	blockexplorerFactory := blockexplorer.NewFactory(chains, configConfig)
-	core := NewCore(configConfig, dbDB, loggerLogger, keyStore, chains, factory, registry, contractFactory, blockexplorerFactory)
+	core := NewCore(configConfig, dbDB, loggerLogger, keyStore, tokenStore, chains, factory, registry, contractFactory, blockexplorerFactory)
 	repository := user.NewRepository(dbDB)
 	service := user.NewService(repository)
 	handler := user2.NewHandler(service)

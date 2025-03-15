@@ -27,6 +27,9 @@ func main() {
 		log.Fatal("Failed to migrate database", logger.Error(err))
 	}
 
+	// Initialize token store with tokens from database
+	log.Info("Initializing token store")
+
 	// Create root context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

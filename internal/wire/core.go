@@ -9,6 +9,7 @@ import (
 	"vault0/internal/core/contract"
 	"vault0/internal/core/db"
 	"vault0/internal/core/keystore"
+	"vault0/internal/core/tokenstore"
 	"vault0/internal/core/wallet"
 	"vault0/internal/logger"
 	"vault0/internal/types"
@@ -20,6 +21,7 @@ type Core struct {
 	DB                   *db.DB
 	Logger               logger.Logger
 	KeyStore             keystore.KeyStore
+	TokenStore           tokenstore.TokenStore
 	Chains               types.Chains
 	WalletFactory        wallet.Factory
 	BlockchainRegistry   blockchain.Registry
@@ -33,6 +35,7 @@ func NewCore(
 	db *db.DB,
 	logger logger.Logger,
 	keyStore keystore.KeyStore,
+	tokenStore tokenstore.TokenStore,
 	chains types.Chains,
 	walletFactory wallet.Factory,
 	blockchainRegistry blockchain.Registry,
@@ -44,6 +47,7 @@ func NewCore(
 		DB:                   db,
 		Logger:               logger,
 		KeyStore:             keyStore,
+		TokenStore:           tokenStore,
 		Chains:               chains,
 		WalletFactory:        walletFactory,
 		BlockchainRegistry:   blockchainRegistry,
@@ -52,12 +56,18 @@ func NewCore(
 	}
 }
 
+// NewTokenStore creates a new TokenStore instance
+func NewTokenStore(db *db.DB) tokenstore.TokenStore {
+	return tokenstore.NewDBTokenStore(db.GetConnection())
+}
+
 // CoreSet combines all core dependencies
 var CoreSet = wire.NewSet(
 	config.LoadConfig,
 	db.NewDatabase,
 	logger.NewLogger,
 	keystore.NewKeyStore,
+	NewTokenStore,
 	blockchain.NewRegistry,
 	wallet.NewFactory,
 	blockexplorer.NewFactory,

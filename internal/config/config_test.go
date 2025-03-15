@@ -29,25 +29,6 @@ log:
   request_logging: ${LOG_REQUESTS:-true}
   sql_logging: ${LOG_SQL:-true}
 
-# Token configurations
-tokens:
-  ethereum:
-    - symbol: ETH
-      type: native
-      chain_type: ethereum
-      decimals: 18
-    - symbol: USDC
-      type: erc20
-      chain_type: ethereum
-      address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
-      decimals: 6
-
-  polygon:
-    - symbol: MATIC
-      type: native
-      chain_type: polygon
-      decimals: 18
-
 # Blockchain configurations
 blockchains:
   ethereum:
@@ -92,37 +73,6 @@ blockchains:
 
 	// Test nested default values from YAML
 	assert.Equal(t, LogFormat("json"), config.Log.Format, "Log format should match default value")
-
-	// Test token configurations
-	// Test Ethereum tokens
-	ethTokens := config.Tokens.Ethereum
-	require.Len(t, ethTokens, 2, "Should have 2 Ethereum tokens")
-
-	// Test ETH token
-	eth := ethTokens[0]
-	assert.Equal(t, "ETH", eth.Symbol, "ETH symbol mismatch")
-	assert.Equal(t, TokenTypeNative, eth.Type, "ETH type mismatch")
-	assert.Equal(t, ChainTypeEthereum, eth.ChainType, "ETH chain type mismatch")
-	assert.Equal(t, uint8(18), eth.Decimals, "ETH decimals mismatch")
-
-	// Test USDC token
-	usdc := ethTokens[1]
-	assert.Equal(t, "USDC", usdc.Symbol, "USDC symbol mismatch")
-	assert.Equal(t, TokenTypeERC20, usdc.Type, "USDC type mismatch")
-	assert.Equal(t, ChainTypeEthereum, usdc.ChainType, "USDC chain type mismatch")
-	assert.Equal(t, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", usdc.Address, "USDC address mismatch")
-	assert.Equal(t, uint8(6), usdc.Decimals, "USDC decimals mismatch")
-
-	// Test Polygon tokens
-	polygonTokens := config.Tokens.Polygon
-	require.Len(t, polygonTokens, 1, "Should have 1 Polygon token")
-
-	// Test MATIC token
-	matic := polygonTokens[0]
-	assert.Equal(t, "MATIC", matic.Symbol, "MATIC symbol mismatch")
-	assert.Equal(t, TokenTypeNative, matic.Type, "MATIC type mismatch")
-	assert.Equal(t, ChainTypePolygon, matic.ChainType, "MATIC chain type mismatch")
-	assert.Equal(t, uint8(18), matic.Decimals, "MATIC decimals mismatch")
 
 	// Test blockchain configurations
 	assert.Equal(t, "https://test-eth-rpc.com", config.Blockchains.Ethereum.RPCURL, "Ethereum RPC URL mismatch")

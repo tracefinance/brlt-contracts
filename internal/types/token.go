@@ -1,0 +1,101 @@
+package types
+
+import (
+	"fmt"
+	"strings"
+)
+
+// TokenType represents the type of token
+type TokenType string
+
+// Supported token types
+const (
+	TokenTypeNative TokenType = "native"
+	TokenTypeERC20  TokenType = "erc20"
+)
+
+// Token represents a cryptocurrency token
+type Token struct {
+	// Address is the contract address of the token
+	// For native tokens, this is typically the zero address
+	Address string `json:"address"`
+
+	// ChainType is the blockchain network the token exists on
+	ChainType ChainType `json:"chain_type"`
+
+	// Symbol is the token's ticker symbol (e.g., ETH, USDC)
+	Symbol string `json:"symbol"`
+
+	// Decimals is the number of decimal places the token supports
+	Decimals uint8 `json:"decimals"`
+
+	// Type indicates if the token is native to the chain or an ERC20 token
+	Type TokenType `json:"type"`
+}
+
+// IsNative returns true if the token is a native token of its blockchain
+func (t *Token) IsNative() bool {
+	return t.Type == TokenTypeNative
+}
+
+// IsERC20 returns true if the token is an ERC20 token
+func (t *Token) IsERC20() bool {
+	return t.Type == TokenTypeERC20
+}
+
+// Validate checks if the token configuration is valid
+func (t *Token) Validate() error {
+	// Validate Symbol
+	if t.Symbol == "" {
+		return fmt.Errorf("token symbol cannot be empty")
+	}
+
+	// Validate Type
+	if t.Type != TokenTypeNative && t.Type != TokenTypeERC20 {
+		return fmt.Errorf("invalid token type: %s", t.Type)
+	}
+
+	// Validate Address
+	if t.Address == "" {
+		return fmt.Errorf("token address cannot be empty")
+	}
+
+	// For ERC20 tokens, the address cannot be the zero address
+	if t.Type == TokenTypeERC20 && (t.Address == ZeroAddress || strings.EqualFold(t.Address, ZeroAddress)) {
+		return fmt.Errorf("ERC20 token cannot have zero address")
+	}
+
+	// For native tokens, we typically expect the zero address
+	if t.Type == TokenTypeNative && !strings.EqualFold(t.Address, ZeroAddress) {
+		return fmt.Errorf("native token should use zero address, got: %s", t.Address)
+	}
+
+	// Validate ChainType
+	switch t.ChainType {
+	case ChainTypeEthereum, ChainTypePolygon, ChainTypeBase:
+		// These are valid chain types
+	default:
+		return fmt.Errorf("unsupported chain type: %s", t.ChainType)
+	}
+
+	return nil
+}
+
+// GetID returns a unique identifier for this token
+// combining the address and chain type
+func (t *Token) GetID() string {
+	return fmt.Sprintf("%s:%s", t.Address, t.ChainType)
+}
+
+// ParseTokenID parses a token ID into its components
+func ParseTokenID(id string) (address string, chainType ChainType, err error) {
+	parts := strings.Split(id, ":")
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("invalid token ID format: %s", id)
+	}
+
+	address = parts[0]
+	chainType = ChainType(parts[1])
+
+	return address, chainType, nil
+}

@@ -74,15 +74,7 @@ type BlockchainsConfig struct {
 	Base BlockchainConfig `yaml:"base"`
 }
 
-// TokenType represents the type of token (native, erc20, etc)
-type TokenType string
-
-const (
-	// TokenTypeNative represents native blockchain tokens (ETH, MATIC, etc)
-	TokenTypeNative TokenType = "native"
-	// TokenTypeERC20 represents ERC20 tokens
-	TokenTypeERC20 TokenType = "erc20"
-)
+// NOTE: Token types have been moved to internal/types/token.go
 
 // ChainType represents the blockchain type
 type ChainType string
@@ -96,29 +88,8 @@ const (
 	ChainTypeBase ChainType = "base"
 )
 
-// TokenConfig holds configuration for a specific token
-type TokenConfig struct {
-	// Symbol is the token symbol (e.g., "ETH", "USDC")
-	Symbol string `yaml:"symbol"`
-	// Type is the token type (native, erc20)
-	Type TokenType `yaml:"type"`
-	// ChainType is the blockchain type this token belongs to
-	ChainType ChainType `yaml:"chain_type"`
-	// Address is the token contract address (empty for native tokens)
-	Address string `yaml:"address,omitempty"`
-	// Decimals is the number of decimals for the token
-	Decimals uint8 `yaml:"decimals"`
-}
-
-// TokensConfig holds token configurations for each blockchain
-type TokensConfig struct {
-	// Ethereum holds Ethereum token configurations
-	Ethereum []TokenConfig `yaml:"ethereum"`
-	// Polygon holds Polygon token configurations
-	Polygon []TokenConfig `yaml:"polygon"`
-	// Base holds Base token configurations
-	Base []TokenConfig `yaml:"base"`
-}
+// NOTE: Token configuration has been moved to the database and is now handled by
+// the TokenStore in internal/core/tokenstore/
 
 // Config holds the application configuration
 type Config struct {
@@ -138,8 +109,6 @@ type Config struct {
 	KeyStoreType string `yaml:"key_store_type"`
 	// Log holds the logging configuration
 	Log LogConfig `yaml:"log"`
-	// Tokens holds token configurations for all supported blockchains
-	Tokens TokensConfig `yaml:"tokens"`
 	// Blockchains holds configuration for all supported blockchains
 	Blockchains BlockchainsConfig `yaml:"blockchains"`
 }

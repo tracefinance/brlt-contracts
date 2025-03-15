@@ -1,0 +1,2 @@
+-- No specific cleanup needed for down migration
+-- as tokens can be managed through the application
