@@ -28,6 +28,25 @@ log:
   request_logging: ${LOG_REQUESTS:-true}
   sql_logging: ${LOG_SQL:-true}
 
+# Token configurations
+tokens:
+  ethereum:
+    - name: ETH
+      type: native
+      chain_type: ethereum
+      decimals: 18
+    - name: USDC
+      type: erc20
+      chain_type: ethereum
+      address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+      decimals: 6
+
+  polygon:
+    - name: MATIC
+      type: native
+      chain_type: polygon
+      decimals: 18
+
 # Blockchain configurations
 blockchains:
   ethereum:
@@ -84,6 +103,38 @@ blockchains:
 	// Test nested default values from YAML
 	if config.Log.Format != "json" {
 		t.Errorf("Expected log format json, got %s", config.Log.Format)
+	}
+
+	// Test token configurations
+	// Test Ethereum tokens
+	ethTokens := config.Tokens.Ethereum
+	if len(ethTokens) != 2 {
+		t.Errorf("Expected 2 Ethereum tokens, got %d", len(ethTokens))
+	}
+
+	// Test ETH token
+	eth := ethTokens[0]
+	if eth.Name != "ETH" || eth.Type != TokenTypeNative || eth.ChainType != ChainTypeEthereum || eth.Decimals != 18 {
+		t.Errorf("Unexpected ETH token configuration: %+v", eth)
+	}
+
+	// Test USDC token
+	usdc := ethTokens[1]
+	if usdc.Name != "USDC" || usdc.Type != TokenTypeERC20 || usdc.ChainType != ChainTypeEthereum ||
+		usdc.Address != "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" || usdc.Decimals != 6 {
+		t.Errorf("Unexpected USDC token configuration: %+v", usdc)
+	}
+
+	// Test Polygon tokens
+	polygonTokens := config.Tokens.Polygon
+	if len(polygonTokens) != 1 {
+		t.Errorf("Expected 1 Polygon token, got %d", len(polygonTokens))
+	}
+
+	// Test MATIC token
+	matic := polygonTokens[0]
+	if matic.Name != "MATIC" || matic.Type != TokenTypeNative || matic.ChainType != ChainTypePolygon || matic.Decimals != 18 {
+		t.Errorf("Unexpected MATIC token configuration: %+v", matic)
 	}
 
 	if config.Blockchains.Ethereum.RPCURL != "https://test-eth-rpc.com" {
