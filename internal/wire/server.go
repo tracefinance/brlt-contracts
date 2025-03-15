@@ -1,7 +1,6 @@
 package wire
 
 import (
-	"vault0/internal/api/handlers/blockchain"
 	"vault0/internal/api/handlers/transaction"
 	"vault0/internal/api/handlers/user"
 	"vault0/internal/api/handlers/wallet"
@@ -14,7 +13,6 @@ import (
 var ServerSet = wire.NewSet(
 	wallet.NewHandler,
 	user.NewHandler,
-	blockchain.NewHandler,
 	transaction.NewHandler,
 	api.NewServer,
 )
