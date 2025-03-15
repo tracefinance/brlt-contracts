@@ -59,6 +59,33 @@ The current development focus is on the **user management** and **authentication
    - Develop transaction creation and approval interfaces
    - Set up blockchain integration on the client side
 
+## Version Control Practices
+
+**Decision**: Use Angular commit convention for descriptive and structured commit messages.
+
+**Format**:
+```
+<type>(<scope>): <short summary>
+```
+
+**Types**:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation only changes
+- `style`: Changes that don't affect code meaning (formatting, etc.)
+- `refactor`: Code change that neither fixes a bug nor adds a feature
+- `perf`: Code change that improves performance
+- `test`: Adding missing tests or correcting existing tests
+- `build`: Changes that affect the build system or dependencies
+- `ci`: Changes to CI configuration files and scripts
+- `chore`: Other changes that don't modify src or test files
+
+**Benefits**:
+- Enables automated changelog generation
+- Provides clear history of changes
+- Enforces structured commit messages
+- Improves project maintainability
+
 ## Active Decisions and Considerations
 
 ### Authentication Strategy
