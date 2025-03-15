@@ -37,17 +37,24 @@
 
 ## Project-Specific Patterns
 
-1. **Error Handling**
+1. **Commit Message Convention**
+   - Angular commit convention for all commits
+   - Format: `<type>(<scope>): <short summary>`
+   - Types include: feat, fix, docs, style, refactor, perf, test, build, ci, chore
+   - Used for automated changelog generation
+   - Enforces structured and descriptive commit history
+
+2. **Error Handling**
    - Domain-specific errors should be defined in the service layer
    - API responses should include structured error information
    - Logging should include correlation IDs for request tracing
 
-2. **Authentication Flow**
+3. **Authentication Flow**
    - OAuth2 used for all authentication
    - OAuth2 tokens stored in the database
    - Authentication middleware applied to protected endpoints
 
-3. **Blockchain Interaction**
+4. **Blockchain Interaction**
    - Abstracted through interfaces in the core layer
    - Implementation specific to EVM-compatible chains
    - Error handling includes retry logic for transient errors
