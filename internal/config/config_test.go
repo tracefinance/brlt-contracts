@@ -4,14 +4,15 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoadConfig(t *testing.T) {
 	// Create a temporary test directory
 	tmpDir, err := os.MkdirTemp("", "config-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
+	require.NoError(t, err, "Failed to create temp dir")
 	defer os.RemoveAll(tmpDir)
 
 	// Create a test config file
@@ -58,9 +59,8 @@ blockchains:
 `
 
 	configPath := filepath.Join(tmpDir, ".config.yaml")
-	if err := os.WriteFile(configPath, []byte(testConfig), 0644); err != nil {
-		t.Fatalf("Failed to write test config: %v", err)
-	}
+	err = os.WriteFile(configPath, []byte(testConfig), 0644)
+	require.NoError(t, err, "Failed to write test config")
 
 	// Set test environment variables
 	oldConfigPath := os.Getenv("CONFIG_PATH")
@@ -77,73 +77,56 @@ blockchains:
 
 	// Load configuration
 	config, err := LoadConfig()
-	if err != nil {
-		t.Fatalf("LoadConfig failed: %v", err)
-	}
+	require.NoError(t, err, "LoadConfig failed")
+	require.NotNil(t, config, "Config should not be nil")
 
 	// Test environment variable override
-	if config.Port != "8888" {
-		t.Errorf("Expected port 8888, got %s", config.Port)
-	}
+	assert.Equal(t, "8888", config.Port, "Port should match environment variable")
 
 	// Test environment variable override for nested config
-	if config.Log.Level != "warn" {
-		t.Errorf("Expected log level warn, got %s", config.Log.Level)
-	}
+	assert.Equal(t, LogLevel("warn"), config.Log.Level, "Log level should match environment variable")
 
 	// Test default values from YAML
-	if config.DBPath != "./test.db" {
-		t.Errorf("Expected DBPath ./test.db, got %s", config.DBPath)
-	}
-
-	if config.KeyStoreType != "test-store" {
-		t.Errorf("Expected KeyStoreType test-store, got %s", config.KeyStoreType)
-	}
+	assert.Equal(t, "./test.db", config.DBPath, "DBPath should match default value")
+	assert.Equal(t, "test-store", config.KeyStoreType, "KeyStoreType should match default value")
 
 	// Test nested default values from YAML
-	if config.Log.Format != "json" {
-		t.Errorf("Expected log format json, got %s", config.Log.Format)
-	}
+	assert.Equal(t, LogFormat("json"), config.Log.Format, "Log format should match default value")
 
 	// Test token configurations
 	// Test Ethereum tokens
 	ethTokens := config.Tokens.Ethereum
-	if len(ethTokens) != 2 {
-		t.Errorf("Expected 2 Ethereum tokens, got %d", len(ethTokens))
-	}
+	require.Len(t, ethTokens, 2, "Should have 2 Ethereum tokens")
 
 	// Test ETH token
 	eth := ethTokens[0]
-	if eth.Symbol != "ETH" || eth.Type != TokenTypeNative || eth.ChainType != ChainTypeEthereum || eth.Decimals != 18 {
-		t.Errorf("Unexpected ETH token configuration: %+v", eth)
-	}
+	assert.Equal(t, "ETH", eth.Symbol, "ETH symbol mismatch")
+	assert.Equal(t, TokenTypeNative, eth.Type, "ETH type mismatch")
+	assert.Equal(t, ChainTypeEthereum, eth.ChainType, "ETH chain type mismatch")
+	assert.Equal(t, uint8(18), eth.Decimals, "ETH decimals mismatch")
 
 	// Test USDC token
 	usdc := ethTokens[1]
-	if usdc.Symbol != "USDC" || usdc.Type != TokenTypeERC20 || usdc.ChainType != ChainTypeEthereum ||
-		usdc.Address != "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" || usdc.Decimals != 6 {
-		t.Errorf("Unexpected USDC token configuration: %+v", usdc)
-	}
+	assert.Equal(t, "USDC", usdc.Symbol, "USDC symbol mismatch")
+	assert.Equal(t, TokenTypeERC20, usdc.Type, "USDC type mismatch")
+	assert.Equal(t, ChainTypeEthereum, usdc.ChainType, "USDC chain type mismatch")
+	assert.Equal(t, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", usdc.Address, "USDC address mismatch")
+	assert.Equal(t, uint8(6), usdc.Decimals, "USDC decimals mismatch")
 
 	// Test Polygon tokens
 	polygonTokens := config.Tokens.Polygon
-	if len(polygonTokens) != 1 {
-		t.Errorf("Expected 1 Polygon token, got %d", len(polygonTokens))
-	}
+	require.Len(t, polygonTokens, 1, "Should have 1 Polygon token")
 
 	// Test MATIC token
 	matic := polygonTokens[0]
-	if matic.Symbol != "MATIC" || matic.Type != TokenTypeNative || matic.ChainType != ChainTypePolygon || matic.Decimals != 18 {
-		t.Errorf("Unexpected MATIC token configuration: %+v", matic)
-	}
+	assert.Equal(t, "MATIC", matic.Symbol, "MATIC symbol mismatch")
+	assert.Equal(t, TokenTypeNative, matic.Type, "MATIC type mismatch")
+	assert.Equal(t, ChainTypePolygon, matic.ChainType, "MATIC chain type mismatch")
+	assert.Equal(t, uint8(18), matic.Decimals, "MATIC decimals mismatch")
 
-	if config.Blockchains.Ethereum.RPCURL != "https://test-eth-rpc.com" {
-		t.Errorf("Expected Ethereum RPC URL https://test-eth-rpc.com, got %s", config.Blockchains.Ethereum.RPCURL)
-	}
-
-	if config.Blockchains.Ethereum.DefaultGasPrice != 25 {
-		t.Errorf("Expected Ethereum gas price 25, got %d", config.Blockchains.Ethereum.DefaultGasPrice)
-	}
+	// Test blockchain configurations
+	assert.Equal(t, "https://test-eth-rpc.com", config.Blockchains.Ethereum.RPCURL, "Ethereum RPC URL mismatch")
+	assert.Equal(t, uint64(25), config.Blockchains.Ethereum.DefaultGasPrice, "Ethereum gas price mismatch")
 }
 
 func TestLoadConfigWithoutYAML(t *testing.T) {
@@ -157,15 +140,11 @@ func TestLoadConfigWithoutYAML(t *testing.T) {
 
 	// Load configuration - should fail because no config file exists
 	_, err := LoadConfig()
-	if err == nil {
-		t.Fatal("LoadConfig should fail when no config file exists")
-	}
+	require.Error(t, err, "LoadConfig should fail when no config file exists")
 
 	// Verify error message
 	expectedErrMsg := "no config file found in paths: [ .config.yaml ../.config.yaml]"
-	if err.Error() != expectedErrMsg {
-		t.Errorf("Expected error message %q, got %q", expectedErrMsg, err.Error())
-	}
+	assert.Equal(t, expectedErrMsg, err.Error(), "Unexpected error message")
 
 	// Clean up environment variables
 	os.Unsetenv("SERVER_PORT")
@@ -226,9 +205,7 @@ func TestInterpolateEnvVars(t *testing.T) {
 			}()
 
 			result := interpolateEnvVars(tt.content)
-			if result != tt.expected {
-				t.Errorf("Expected %q, got %q", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "Interpolation result mismatch")
 		})
 	}
 }
