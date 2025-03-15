@@ -179,6 +179,15 @@ type BlockExplorer interface {
 	//   - error: ErrInvalidAddress if address is invalid, or API/network errors
 	GetTokenBalances(ctx context.Context, address string) ([]*TokenBalance, error)
 
+	// GetTokenURL returns the URL to view the token on the block explorer.
+	//
+	// Parameters:
+	//   - address: The token contract address
+	//
+	// Returns:
+	//   - string: The URL to view the token on the block explorer
+	GetTokenURL(address string) string
+
 	// Close releases any resources used by the explorer.
 	//
 	// This should be called when the explorer is no longer needed to clean up

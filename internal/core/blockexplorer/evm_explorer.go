@@ -492,6 +492,13 @@ func (e *EVMExplorer) Chain() types.Chain {
 	return e.chain
 }
 
+// GetTokenURL returns the URL to view the token on the block explorer.
+func (e *EVMExplorer) GetTokenURL(address string) string {
+	// Convert API URL to UI URL
+	uiURL := strings.Replace(e.baseURL, "//api.", "//", 1)
+	return fmt.Sprintf("%s/token/%s", uiURL, address)
+}
+
 // makeRequest makes a rate-limited request to the API
 func (e *EVMExplorer) makeRequest(ctx context.Context, params url.Values, result interface{}) error {
 	select {

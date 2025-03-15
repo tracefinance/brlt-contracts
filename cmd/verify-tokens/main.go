@@ -141,9 +141,10 @@ func verifyTokens(
 	// Check each token
 	for _, token := range tokens {
 		if token.Type == "native" {
+			url := explorer.GetTokenURL(token.Address)
 			results <- verificationResult{
 				chainType: chainType,
-				message:   fmt.Sprintf("[+] [%s] %s (native token)", strings.ToUpper(string(chainType)), token.Symbol),
+				message:   fmt.Sprintf("[+] [%s] %s (native token)\n    URL: %s", strings.ToUpper(string(chainType)), token.Symbol, url),
 			}
 			continue
 		}
@@ -157,36 +158,41 @@ func verifyTokens(
 				rawResponse = fmt.Sprintf("\nRaw Response: %s", evmErr.RawResponse)
 			}
 
+			url := explorer.GetTokenURL(token.Address)
 			results <- verificationResult{
 				chainType: chainType,
-				message: fmt.Sprintf("[-] [%s] %s (%s): Error - %v%s",
+				message: fmt.Sprintf("[-] [%s] %s (%s): Error - %v%s\n    URL: %s",
 					strings.ToUpper(string(chainType)),
 					token.Symbol,
 					token.Address,
 					err,
 					rawResponse,
+					url,
 				),
 			}
 			continue
 		}
 
+		url := explorer.GetTokenURL(token.Address)
 		if info.IsVerified {
 			results <- verificationResult{
 				chainType: chainType,
-				message: fmt.Sprintf("[+] [%s] %s (%s): Verified contract - %s",
+				message: fmt.Sprintf("[+] [%s] %s (%s): Verified contract - %s\n    URL: %s",
 					strings.ToUpper(string(chainType)),
 					token.Symbol,
 					token.Address,
 					info.ContractName,
+					url,
 				),
 			}
 		} else {
 			results <- verificationResult{
 				chainType: chainType,
-				message: fmt.Sprintf("[!] [%s] %s (%s): Unverified contract",
+				message: fmt.Sprintf("[!] [%s] %s (%s): Unverified contract\n    URL: %s",
 					strings.ToUpper(string(chainType)),
 					token.Symbol,
 					token.Address,
+					url,
 				),
 			}
 		}

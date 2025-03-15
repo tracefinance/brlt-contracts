@@ -142,11 +142,12 @@ func (m *MockWalletService) LifecycleEvents() <-chan *wallet.LifecycleEvent {
 
 // MockBlockExplorer mocks the blockexplorer interface
 type MockBlockExplorer struct {
+	GetContractFunc           func(ctx context.Context, address string) (*blockexplorer.ContractInfo, error)
 	GetTransactionsByHashFunc func(ctx context.Context, hashes []string) ([]*types.Transaction, error)
 	GetTransactionHistoryFunc func(ctx context.Context, address string, options blockexplorer.TransactionHistoryOptions) ([]*types.Transaction, error)
 	GetAddressBalanceFunc     func(ctx context.Context, address string) (*big.Int, error)
 	GetTokenBalancesFunc      func(ctx context.Context, address string) ([]*blockexplorer.TokenBalance, error)
-	GetContractFunc           func(ctx context.Context, address string) (*blockexplorer.ContractInfo, error)
+	GetTokenURLFunc           func(address string) string
 	ChainFunc                 func() types.Chain
 	CloseFunc                 func() error
 }
@@ -189,6 +190,14 @@ func (m *MockBlockExplorer) GetTokenBalances(ctx context.Context, address string
 		return m.GetTokenBalancesFunc(ctx, address)
 	}
 	return nil, nil
+}
+
+// GetTokenURL implements the Explorer interface
+func (m *MockBlockExplorer) GetTokenURL(address string) string {
+	if m.GetTokenURLFunc != nil {
+		return m.GetTokenURLFunc(address)
+	}
+	return ""
 }
 
 // Chain implements the Explorer interface
