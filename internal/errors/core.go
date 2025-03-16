@@ -494,3 +494,115 @@ func NewInvalidTokenError(msg string, err error) *AppError {
 		Err:     err,
 	}
 }
+
+// IsKeyNotFound checks if the error is a key not found error
+func IsKeyNotFound(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeKeyNotFound
+	}
+	return false
+}
+
+// IsResourceAlreadyExists checks if the error is a resource already exists error
+func IsResourceAlreadyExists(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeResourceExists
+	}
+	return false
+}
+
+// IsRPCError checks if the error is an RPC error
+func IsRPCError(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeRPCError
+	}
+	return false
+}
+
+// IsInvalidKeyType checks if the error is an invalid key type error
+func IsInvalidKeyType(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeInvalidKeyType
+	}
+	return false
+}
+
+// IsInvalidCurve checks if the error is an invalid curve error
+func IsInvalidCurve(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeInvalidCurve
+	}
+	return false
+}
+
+// IsInvalidAddress checks if the error is an invalid address error
+func IsInvalidAddress(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeInvalidAddress
+	}
+	return false
+}
+
+// IsInvalidAmount checks if the error is an invalid amount error
+func IsInvalidAmount(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeInvalidAmount
+	}
+	return false
+}
+
+// IsInvalidSignature checks if the error is an invalid signature error
+func IsInvalidSignature(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeInvalidSignature
+	}
+	return false
+}
+
+// IsSignatureRecovery checks if the error is a signature recovery error
+func IsSignatureRecovery(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeSignatureRecovery
+	}
+	return false
+}
+
+// IsAddressMismatch checks if the error is an address mismatch error
+func IsAddressMismatch(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeAddressMismatch
+	}
+	return false
+}
+
+// IsInvalidToken checks if the error is an invalid token error
+func IsInvalidToken(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeInvalidToken
+	}
+	return false
+}
+
+// IsInvalidEncryptionKey checks if the error is an invalid encryption key error
+func IsInvalidEncryptionKey(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeInvalidEncryptionKey
+	}
+	return false
+}
+
+// IsDecryptionError checks if the error is a decryption error
+func IsDecryptionError(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeDecryptionError
+	}
+	return false
+}
+
+// IsChainNotSupported checks if the error is a chain not supported error
+func IsChainNotSupported(err error) bool {
+	if appErr, ok := err.(*AppError); ok {
+		return appErr.Code == ErrCodeChainNotSupported
+	}
+	return false
+}

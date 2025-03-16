@@ -14,6 +14,7 @@ import (
 	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/db"
 	"vault0/internal/core/tokenstore"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
@@ -21,27 +22,24 @@ func main() {
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("Error loading config: %v", err)
+		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Create chains
-	chains, err := types.NewChains(cfg)
+	// Initialize logger
+	logger, err := logger.NewLogger(cfg)
 	if err != nil {
-		log.Fatalf("Error creating chains: %v", err)
+		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 
-	// Create block explorer factory
-	factory := blockexplorer.NewFactory(chains, cfg)
-
-	// Create database connection
-	database, err := db.NewDatabase(cfg)
+	// Initialize database
+	db, err := db.NewDatabase(cfg, logger)
 	if err != nil {
-		log.Fatalf("Error connecting to database: %v", err)
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer database.Close()
+	defer db.Close()
 
 	// Create token store
-	tokenStore := tokenstore.NewTokenStore(database)
+	tokenStore := tokenstore.NewTokenStore(db)
 
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -52,6 +50,10 @@ func main() {
 	results := make(chan verificationResult, 100)
 
 	// Get tokens for each chain
+	chains, err := types.NewChains(cfg)
+	if err != nil {
+		log.Fatalf("Error creating chains: %v", err)
+	}
 	chainList := chains.List()
 	for _, chain := range chainList {
 		tokens, err := tokenStore.GetTokensByChain(ctx, chain.Type)
@@ -61,7 +63,7 @@ func main() {
 		}
 
 		wg.Add(1)
-		go verifyTokens(ctx, &wg, results, factory, chain.Type, tokens)
+		go verifyTokens(ctx, &wg, results, chain.Type, tokens)
 	}
 
 	// Collect and group results
@@ -122,11 +124,13 @@ func verifyTokens(
 	ctx context.Context,
 	wg *sync.WaitGroup,
 	results chan<- verificationResult,
-	factory blockexplorer.Factory,
 	chainType types.ChainType,
 	tokens []*types.Token,
 ) {
 	defer wg.Done()
+
+	// Create block explorer factory
+	factory := blockexplorer.NewFactory(types.Chains{types.Chain{Type: chainType}}, nil)
 
 	// Get explorer for this chain
 	explorer, err := factory.GetExplorer(chainType)
@@ -153,24 +157,11 @@ func verifyTokens(
 		// Get contract information to verify it exists and is verified
 		info, err := explorer.GetContract(ctx, token.Address)
 		if err != nil {
-			var evmErr *blockexplorer.EVMExplorerError
-			rawResponse := ""
-			if errors.As(err, &evmErr) {
-				rawResponse = fmt.Sprintf("\nRaw Response: %s", evmErr.RawResponse)
+			if errors.IsRPCError(err) {
+				log.Printf("RPC error: %v", err)
+				continue
 			}
-
-			url := explorer.GetTokenURL(token.Address)
-			results <- verificationResult{
-				chainType: chainType,
-				message: fmt.Sprintf("[-] [%s] %s (%s): Error - %v%s\n    URL: %s",
-					strings.ToUpper(string(chainType)),
-					token.Symbol,
-					token.Address,
-					err,
-					rawResponse,
-					url,
-				),
-			}
+			log.Printf("Failed to verify token %s: %v", token.Address, err)
 			continue
 		}
 

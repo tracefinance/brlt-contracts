@@ -16,6 +16,7 @@ import (
 
 	coreCrypto "vault0/internal/core/crypto"
 	"vault0/internal/core/keystore"
+	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
@@ -88,6 +89,21 @@ func TestDeriveAddress(t *testing.T) {
 	require.NoError(t, err)
 	expectedAddress := crypto.PubkeyToAddress(privKey.PublicKey).Hex()
 	assert.Equal(t, expectedAddress, address, "Derived address should match expected address")
+
+	t.Run("key not found", func(t *testing.T) {
+		// Setup
+		mockKeyStore := keystore.NewMockKeyStore()
+		wallet, err := NewEVMWallet(mockKeyStore, testChain, "non-existent-key")
+		require.NoError(t, err)
+
+		// Execute
+		address, err := wallet.DeriveAddress(context.Background())
+
+		// Assert
+		assert.Error(t, err)
+		assert.Empty(t, address)
+		assert.True(t, errors.IsKeyNotFound(err))
+	})
 }
 
 // TestCreateNativeTransaction tests the CreateNativeTransaction method
@@ -150,6 +166,21 @@ func TestCreateNativeTransaction(t *testing.T) {
 	// Test failure case: invalid toAddress
 	_, err = wallet.CreateNativeTransaction(ctx, "invalid-address", amount, types.TransactionOptions{})
 	assert.Error(t, err, "CreateNativeTransaction should fail with invalid address")
+
+	t.Run("key not found", func(t *testing.T) {
+		// Setup
+		mockKeyStore := keystore.NewMockKeyStore()
+		wallet, err := NewEVMWallet(mockKeyStore, testChain, "non-existent-key")
+		require.NoError(t, err)
+
+		// Execute
+		tx, err := wallet.CreateNativeTransaction(context.Background(), "0x742d35Cc6634C0532925a3b844Bc454e4438f44e", big.NewInt(1), types.TransactionOptions{})
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, tx)
+		assert.True(t, errors.IsKeyNotFound(err))
+	})
 }
 
 // TestCreateTokenTransaction tests the CreateTokenTransaction method
@@ -268,6 +299,30 @@ func TestSignTransaction(t *testing.T) {
 	signedTx, err := wallet.SignTransaction(ctx, tx)
 	require.NoError(t, err)
 	assert.NotEmpty(t, signedTx, "Signed transaction should not be empty")
+
+	t.Run("key not found", func(t *testing.T) {
+		// Setup
+		mockKeyStore := keystore.NewMockKeyStore()
+		wallet, err := NewEVMWallet(mockKeyStore, testChain, "non-existent-key")
+		require.NoError(t, err)
+
+		tx := &types.Transaction{
+			Chain:    types.ChainTypeEthereum,
+			From:     "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+			To:       "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+			Value:    big.NewInt(1),
+			GasPrice: big.NewInt(1),
+			GasLimit: 21000,
+		}
+
+		// Execute
+		signature, err := wallet.SignTransaction(context.Background(), tx)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, signature)
+		assert.True(t, errors.IsKeyNotFound(err))
+	})
 }
 
 // TestNewEVMWalletValidation tests the validation in NewEVMWallet

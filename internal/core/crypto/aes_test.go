@@ -3,6 +3,8 @@ package crypto
 import (
 	"testing"
 
+	"vault0/internal/errors"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -104,4 +106,121 @@ func TestAESEncryptor(t *testing.T) {
 		assert.Empty(t, key)
 		assert.ErrorIs(t, err, ErrInvalidEncryptionKey)
 	})
+}
+
+func TestEncrypt(t *testing.T) {
+	tests := []struct {
+		name       string
+		key        []byte
+		data       []byte
+		wantErr    bool
+		errChecker func(err error) bool
+	}{
+		{
+			name:    "valid encryption",
+			key:     make([]byte, 32),
+			data:    []byte("test data"),
+			wantErr: false,
+		},
+		{
+			name:    "invalid key size",
+			key:     make([]byte, 31),
+			data:    []byte("test data"),
+			wantErr: true,
+			errChecker: func(err error) bool {
+				appErr, ok := err.(*errors.AppError)
+				return ok && appErr.Code == errors.ErrCodeInvalidEncryptionKey
+			},
+		},
+		{
+			name:    "nil key",
+			key:     nil,
+			data:    []byte("test data"),
+			wantErr: true,
+			errChecker: func(err error) bool {
+				appErr, ok := err.(*errors.AppError)
+				return ok && appErr.Code == errors.ErrCodeInvalidEncryptionKey
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Encrypt(tt.key, tt.data)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errChecker != nil {
+					assert.True(t, tt.errChecker(err))
+				}
+				return
+			}
+			assert.NoError(t, err)
+			assert.NotNil(t, got)
+		})
+	}
+}
+
+func TestDecrypt(t *testing.T) {
+	key := make([]byte, 32)
+	validCiphertext, _ := Encrypt(key, []byte("test data"))
+
+	tests := []struct {
+		name       string
+		key        []byte
+		ciphertext []byte
+		wantErr    bool
+		errChecker func(err error) bool
+	}{
+		{
+			name:       "valid decryption",
+			key:        key,
+			ciphertext: validCiphertext,
+			wantErr:    false,
+		},
+		{
+			name:       "invalid ciphertext",
+			key:        key,
+			ciphertext: []byte("invalid"),
+			wantErr:    true,
+			errChecker: func(err error) bool {
+				appErr, ok := err.(*errors.AppError)
+				return ok && appErr.Code == errors.ErrCodeDecryptionError
+			},
+		},
+		{
+			name:       "nil key",
+			key:        nil,
+			ciphertext: validCiphertext,
+			wantErr:    true,
+			errChecker: func(err error) bool {
+				appErr, ok := err.(*errors.AppError)
+				return ok && appErr.Code == errors.ErrCodeInvalidEncryptionKey
+			},
+		},
+		{
+			name:       "invalid key size",
+			key:        make([]byte, 31),
+			ciphertext: validCiphertext,
+			wantErr:    true,
+			errChecker: func(err error) bool {
+				appErr, ok := err.(*errors.AppError)
+				return ok && appErr.Code == errors.ErrCodeInvalidEncryptionKey
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Decrypt(tt.key, tt.ciphertext)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errChecker != nil {
+					assert.True(t, tt.errChecker(err))
+				}
+				return
+			}
+			assert.NoError(t, err)
+			assert.NotNil(t, got)
+		})
+	}
 }

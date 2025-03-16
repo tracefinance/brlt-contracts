@@ -10,6 +10,8 @@ import (
 	"vault0/internal/core/keygen"
 	"vault0/internal/types"
 
+	"vault0/internal/errors"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -158,7 +160,7 @@ func TestDBKeyStore_Create(t *testing.T) {
 		// Assert
 		assert.Error(t, err)
 		// The error may not be exactly ErrKeyAlreadyExists since SQLite will return a constraint violation
-		assert.Equal(t, ErrKeyAlreadyExists, err)
+		assert.True(t, errors.IsResourceAlreadyExists(err))
 	})
 
 	t.Run("Create_ECDSA_NilCurve", func(t *testing.T) {
@@ -265,7 +267,7 @@ func TestDBKeyStore_GetPublicKey(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
-		assert.Equal(t, ErrKeyNotFound, err)
+		assert.True(t, errors.IsKeyNotFound(err))
 	})
 }
 
@@ -342,7 +344,7 @@ func TestDBKeyStore_Update(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
-		assert.Equal(t, ErrKeyNotFound, err)
+		assert.True(t, errors.IsKeyNotFound(err))
 	})
 }
 
@@ -367,7 +369,7 @@ func TestDBKeyStore_Delete(t *testing.T) {
 		// Verify the key is deleted
 		_, err = keystore.GetPublicKey(ctx, key.ID)
 		assert.Error(t, err)
-		assert.Equal(t, ErrKeyNotFound, err)
+		assert.True(t, errors.IsKeyNotFound(err))
 	})
 
 	t.Run("Delete_NonExistentKey", func(t *testing.T) {
@@ -376,7 +378,7 @@ func TestDBKeyStore_Delete(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
-		assert.Equal(t, ErrKeyNotFound, err)
+		assert.True(t, errors.IsKeyNotFound(err))
 	})
 }
 
