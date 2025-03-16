@@ -2,7 +2,6 @@ package wallet
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"vault0/internal/core/db"
+	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
@@ -62,7 +62,7 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 	// Convert tags to JSON
 	tagsJSON, err := json.Marshal(wallet.Tags)
 	if err != nil {
-		return fmt.Errorf("failed to marshal tags: %w", err)
+		return errors.NewOperationFailedError("marshal wallet tags", err)
 	}
 
 	query := `
@@ -84,7 +84,7 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("failed to create wallet: %w", err)
+		return err
 	}
 
 	return nil
@@ -93,24 +93,24 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 // Get retrieves a wallet by its chain type and address
 func (r *repository) Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
 	query := `
-		SELECT id, key_id, chain_type, address, name, tags, created_at, updated_at, deleted_at
+		SELECT id, key_id, chain_type, address, name, tags, last_block_number, created_at, updated_at, deleted_at
 		FROM wallets
 		WHERE chain_type = ? AND address = ? AND deleted_at IS NULL
 	`
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, address)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query wallet: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, sql.ErrNoRows
+		return nil, errors.NewResourceNotFoundError("wallet", fmt.Sprintf("%s:%s", chainType, address))
 	}
 
 	wallet, err := ScanWallet(rows)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan wallet: %w", err)
+		return nil, errors.NewOperationFailedError("scan wallet", err)
 	}
 
 	return wallet, nil
@@ -119,24 +119,24 @@ func (r *repository) Get(ctx context.Context, chainType types.ChainType, address
 // GetByID retrieves a wallet by its ID
 func (r *repository) GetByID(ctx context.Context, id string) (*Wallet, error) {
 	query := `
-		SELECT id, key_id, chain_type, address, name, tags, created_at, updated_at, deleted_at
+		SELECT id, key_id, chain_type, address, name, tags, last_block_number, created_at, updated_at, deleted_at
 		FROM wallets
 		WHERE id = ? AND deleted_at IS NULL
 	`
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query wallet: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, sql.ErrNoRows
+		return nil, errors.NewResourceNotFoundError("wallet", id)
 	}
 
 	wallet, err := ScanWallet(rows)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan wallet: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 
 	return wallet, nil
@@ -147,7 +147,7 @@ func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 	// Convert tags to JSON
 	tagsJSON, err := json.Marshal(wallet.Tags)
 	if err != nil {
-		return fmt.Errorf("failed to marshal tags: %w", err)
+		return errors.NewOperationFailedError("marshal wallet tags", err)
 	}
 
 	wallet.UpdatedAt = time.Now()
@@ -169,16 +169,16 @@ func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("failed to update wallet: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	if rowsAffected == 0 {
-		return sql.ErrNoRows
+		return errors.NewResourceNotFoundError("wallet", wallet.ID)
 	}
 
 	return nil
@@ -203,16 +203,16 @@ func (r *repository) Delete(ctx context.Context, chainType types.ChainType, addr
 	)
 
 	if err != nil {
-		return fmt.Errorf("failed to delete wallet: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	if rowsAffected == 0 {
-		return sql.ErrNoRows
+		return errors.NewResourceNotFoundError("wallet", fmt.Sprintf("%s:%s", chainType, address))
 	}
 
 	return nil
@@ -221,7 +221,7 @@ func (r *repository) Delete(ctx context.Context, chainType types.ChainType, addr
 // List retrieves wallets with optional filtering
 func (r *repository) List(ctx context.Context, limit, offset int) ([]*Wallet, error) {
 	query := `
-		SELECT id, key_id, chain_type, address, name, tags, created_at, updated_at, deleted_at
+		SELECT id, key_id, chain_type, address, name, tags, last_block_number, created_at, updated_at, deleted_at
 		FROM wallets
 		WHERE deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -230,7 +230,7 @@ func (r *repository) List(ctx context.Context, limit, offset int) ([]*Wallet, er
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query wallets: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
@@ -238,13 +238,13 @@ func (r *repository) List(ctx context.Context, limit, offset int) ([]*Wallet, er
 	for rows.Next() {
 		wallet, err := ScanWallet(rows)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan wallet: %w", err)
+			return nil, errors.NewDatabaseError(err)
 		}
 		wallets = append(wallets, wallet)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating wallet rows: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 
 	return wallets, nil
@@ -261,14 +261,14 @@ func (r *repository) Exists(ctx context.Context, chainType types.ChainType, addr
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, address)
 	if err != nil {
-		return false, fmt.Errorf("failed to check wallet existence: %w", err)
+		return false, err
 	}
 	defer rows.Close()
 
 	exists := rows.Next()
 
 	if err = rows.Err(); err != nil {
-		return false, fmt.Errorf("error checking wallet existence: %w", err)
+		return false, errors.NewDatabaseError(err)
 	}
 
 	return exists, nil

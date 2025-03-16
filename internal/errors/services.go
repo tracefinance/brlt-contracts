@@ -15,6 +15,8 @@ const (
 	ErrCodeWalletExists          = "wallet_exists"
 	ErrCodeInvalidWallet         = "invalid_wallet"
 	ErrCodeWalletOperationFailed = "wallet_operation_failed"
+	ErrCodeMissingKeyID          = "missing_key_id"
+	ErrCodeMissingWalletAddress  = "missing_wallet_address"
 
 	// User service errors
 	ErrCodeUserNotFound       = "user_not_found"
@@ -79,6 +81,31 @@ func NewInvalidWalletError(details map[string]any) *AppError {
 		Code:    ErrCodeInvalidWallet,
 		Message: "Invalid wallet data",
 		Details: details,
+	}
+}
+
+// NewMissingKeyIDError creates an error for when a wallet is missing a key ID
+func NewMissingKeyIDError() *AppError {
+	return &AppError{
+		Code:    ErrCodeMissingKeyID,
+		Message: "Internal wallet requires a key ID",
+	}
+}
+
+// NewMissingWalletAddressError creates an error for when a wallet is missing an address
+func NewMissingWalletAddressError() *AppError {
+	return &AppError{
+		Code:    ErrCodeMissingWalletAddress,
+		Message: "External wallet requires an address",
+	}
+}
+
+// NewWalletOperationFailedError creates an error for wallet operation failures
+func NewWalletOperationFailedError(operation string, err error) *AppError {
+	return &AppError{
+		Code:    ErrCodeWalletOperationFailed,
+		Message: fmt.Sprintf("Wallet %s operation failed", operation),
+		Err:     err,
 	}
 }
 

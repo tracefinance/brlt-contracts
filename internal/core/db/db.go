@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
 	"vault0/internal/config"
@@ -58,7 +59,7 @@ func (db *DB) GetConnection() *sql.DB {
 func (db *DB) ExecuteQuery(query string, args ...any) (*sql.Rows, error) {
 	rows, err := db.conn.Query(query, args...)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	return rows, nil
 }
@@ -67,7 +68,7 @@ func (db *DB) ExecuteQuery(query string, args ...any) (*sql.Rows, error) {
 func (db *DB) ExecuteQueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	rows, err := db.conn.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	return rows, nil
 }
@@ -76,7 +77,7 @@ func (db *DB) ExecuteQueryContext(ctx context.Context, query string, args ...any
 func (db *DB) ExecuteStatement(query string, args ...any) (sql.Result, error) {
 	result, err := db.conn.Exec(query, args...)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	return result, nil
 }
@@ -85,7 +86,23 @@ func (db *DB) ExecuteStatement(query string, args ...any) (sql.Result, error) {
 func (db *DB) ExecuteStatementContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	result, err := db.conn.ExecContext(ctx, query, args...)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	return result, nil
+}
+
+// UnmarshalJSONToMap unmarshals a SQL JSON string to a map[string]string
+// If the JSON is invalid or empty, it returns an initialized empty map
+func UnmarshalJSONToMap(jsonStr sql.NullString) map[string]string {
+	result := make(map[string]string)
+
+	if jsonStr.Valid && jsonStr.String != "" {
+		err := json.Unmarshal([]byte(jsonStr.String), &result)
+		if err != nil {
+			// If we can't parse the JSON, return the empty map
+			return result
+		}
+	}
+
+	return result
 }

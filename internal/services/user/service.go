@@ -73,8 +73,8 @@ func (s *service) Update(ctx context.Context, id int64, email, password string) 
 	if email != "" && email != user.Email {
 		// Check if new email already exists
 		existingUser, err := s.repository.FindByEmail(ctx, email)
-		if err != nil && err != sql.ErrNoRows {
-			return nil, errors.NewDatabaseError(err)
+		if err != nil {
+			return nil, err
 		}
 		if existingUser != nil {
 			return nil, errors.NewEmailExistsError(email)

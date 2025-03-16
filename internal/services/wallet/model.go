@@ -2,17 +2,10 @@ package wallet
 
 import (
 	"database/sql"
-	"encoding/json"
-	"errors"
 	"time"
 
+	"vault0/internal/core/db"
 	"vault0/internal/types"
-)
-
-// Common errors
-var (
-	ErrMissingKeyID   = errors.New("internal wallet requires a key ID")
-	ErrMissingAddress = errors.New("external wallet requires an address")
 )
 
 // Wallet represents a wallet entity stored in the database
@@ -52,16 +45,8 @@ func ScanWallet(row interface {
 		return nil, err
 	}
 
-	// Parse tags JSON if present
-	if tagsJSON.Valid && tagsJSON.String != "" {
-		err = json.Unmarshal([]byte(tagsJSON.String), &wallet.Tags)
-		if err != nil {
-			// If we can't parse the tags, initialize an empty map
-			wallet.Tags = make(map[string]string)
-		}
-	} else {
-		wallet.Tags = make(map[string]string)
-	}
+	// Use the utility function to unmarshal tags
+	wallet.Tags = db.UnmarshalJSONToMap(tagsJSON)
 
 	return wallet, nil
 }

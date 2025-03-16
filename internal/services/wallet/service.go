@@ -2,15 +2,13 @@ package wallet
 
 import (
 	"context"
-	"database/sql"
-	"errors"
-	"fmt"
 	"sync"
 
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/keystore"
 	coreWallet "vault0/internal/core/wallet"
+	"vault0/internal/errors"
 	"vault0/internal/logger"
 	"vault0/internal/types"
 )
@@ -230,23 +228,10 @@ func NewService(
 
 // emitBlockchainEvent sends a blockchain event to the blockchain events channel
 func (s *walletService) emitBlockchainEvent(event *BlockchainEvent) {
-	// Update wallet's last block number
-	if event.Log != nil && event.Log.BlockNumber != nil {
-		ctx := context.Background()
-		wallet, err := s.repository.GetByID(ctx, event.WalletID)
-		if err == nil {
-			// Convert current block number to int64
-			blockNumber := event.Log.BlockNumber.Int64()
-			if wallet.LastBlockNumber < blockNumber {
-				// Update the last block number if it's higher than current
-				if err := s.UpdateLastBlockNumber(ctx, wallet.ChainType, wallet.Address, blockNumber); err != nil {
-					s.logger.Error("Failed to update wallet's last block number",
-						logger.String("wallet_id", event.WalletID),
-						logger.Int64("block_number", blockNumber),
-						logger.Error(err))
-				}
-			}
-		}
+	if event == nil {
+		s.logger.Error("Received nil blockchain event",
+			logger.String("func", "emitBlockchainEvent"))
+		return
 	}
 
 	select {
@@ -272,31 +257,37 @@ func (s *walletService) emitLifecycleEvent(event *LifecycleEvent) {
 func (s *walletService) Create(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error) {
 	// Validate inputs
 	if name == "" {
-		return nil, fmt.Errorf("%w: name cannot be empty", ErrInvalidInput)
+		return nil, errors.NewInvalidInputError(map[string]any{
+			"name": "cannot be empty",
+		})
 	}
 
 	// Get chain information from chains
 	chain, err := s.chains.Get(chainType)
 	if err != nil {
+		// Return the error from chains directly
 		return nil, err
 	}
 
 	// Create the key in the keystore using the chain's specified key type and curve
 	key, err := s.keystore.Create(ctx, name, chain.KeyType, chain.Curve, tags)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create key: %w", err)
+		// Return the error from keystore directly
+		return nil, err
 	}
 
 	// Create a wallet instance using the factory
 	w, err := s.walletFactory.NewWallet(ctx, chainType, key.ID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create wallet: %w", err)
+		// Return the error from wallet factory directly
+		return nil, err
 	}
 
 	// Derive the wallet address
 	address, err := w.DeriveAddress(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to derive address: %w", err)
+		// Return the error from wallet directly
+		return nil, err
 	}
 
 	// Store the wallet info in the database
@@ -309,7 +300,7 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 	}
 
 	if err := s.repository.Create(ctx, wallet); err != nil {
-		return nil, fmt.Errorf("failed to store wallet: %w", err)
+		return nil, errors.NewOperationFailedError("create wallet", err)
 	}
 
 	// Subscribe to wallet events
@@ -335,32 +326,36 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 func (s *walletService) Update(ctx context.Context, chainType types.ChainType, address, name string, tags map[string]string) (*Wallet, error) {
 	// Validate inputs
 	if chainType == "" {
-		return nil, fmt.Errorf("%w: chain type cannot be empty", ErrInvalidInput)
+		return nil, errors.NewInvalidInputError(map[string]any{
+			"chain_type": "cannot be empty",
+		})
 	}
 	if address == "" {
-		return nil, fmt.Errorf("%w: address cannot be empty", ErrInvalidInput)
+		return nil, errors.NewInvalidInputError(map[string]any{
+			"address": "cannot be empty",
+		})
 	}
 	if name == "" {
-		return nil, fmt.Errorf("%w: name cannot be empty", ErrInvalidInput)
+		return nil, errors.NewInvalidInputError(map[string]any{
+			"name": "cannot be empty",
+		})
 	}
 
 	// Validate chain type
 	chain, err := s.chains.Get(chainType)
 	if err != nil {
+		// Return the error from chains directly
 		return nil, err
 	}
 
 	// Validate address format
-	if !chain.IsValidAddress(address) {
-		return nil, fmt.Errorf("%w: invalid address format for chain type %s", ErrInvalidInput, chainType)
+	if err := chain.ValidateAddress(address); err != nil {
+		return nil, err
 	}
 
 	// Get the wallet first
 	wallet, err := s.repository.Get(ctx, chainType, address)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrWalletNotFound
-		}
 		return nil, err
 	}
 
@@ -370,10 +365,7 @@ func (s *walletService) Update(ctx context.Context, chainType types.ChainType, a
 
 	// Update the wallet
 	if err := s.repository.Update(ctx, wallet); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrWalletNotFound
-		}
-		return nil, fmt.Errorf("failed to update wallet: %w", err)
+		return nil, err
 	}
 
 	return wallet, nil
@@ -383,32 +375,36 @@ func (s *walletService) Update(ctx context.Context, chainType types.ChainType, a
 func (s *walletService) UpdateLastBlockNumber(ctx context.Context, chainType types.ChainType, address string, blockNumber int64) error {
 	// Validate inputs
 	if chainType == "" {
-		return fmt.Errorf("%w: chain type cannot be empty", ErrInvalidInput)
+		return errors.NewInvalidInputError(map[string]any{
+			"chain_type": "cannot be empty",
+		})
 	}
 	if address == "" {
-		return fmt.Errorf("%w: address cannot be empty", ErrInvalidInput)
+		return errors.NewInvalidInputError(map[string]any{
+			"address": "cannot be empty",
+		})
 	}
 	if blockNumber < 0 {
-		return fmt.Errorf("%w: block number cannot be negative", ErrInvalidInput)
+		return errors.NewInvalidInputError(map[string]any{
+			"block_number": "cannot be negative",
+		})
 	}
 
 	// Validate chain type
 	chain, err := s.chains.Get(chainType)
 	if err != nil {
+		// Return the error from chains directly
 		return err
 	}
 
 	// Validate address format
 	if !chain.IsValidAddress(address) {
-		return fmt.Errorf("%w: invalid address format for chain type %s", ErrInvalidInput, chainType)
+		return errors.NewInvalidAddressError(address)
 	}
 
 	// Get the wallet first
 	wallet, err := s.repository.Get(ctx, chainType, address)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrWalletNotFound
-		}
 		return err
 	}
 
@@ -417,10 +413,7 @@ func (s *walletService) UpdateLastBlockNumber(ctx context.Context, chainType typ
 
 	// Update the wallet
 	if err := s.repository.Update(ctx, wallet); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrWalletNotFound
-		}
-		return fmt.Errorf("failed to update wallet's last block number: %w", err)
+		return err
 	}
 
 	return nil
@@ -430,29 +423,31 @@ func (s *walletService) UpdateLastBlockNumber(ctx context.Context, chainType typ
 func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, address string) error {
 	// Validate inputs
 	if chainType == "" {
-		return fmt.Errorf("%w: chain type cannot be empty", ErrInvalidInput)
+		return errors.NewInvalidInputError(map[string]any{
+			"chain_type": "cannot be empty",
+		})
 	}
 	if address == "" {
-		return fmt.Errorf("%w: address cannot be empty", ErrInvalidInput)
+		return errors.NewInvalidInputError(map[string]any{
+			"address": "cannot be empty",
+		})
 	}
 
 	// Validate chain type
 	chain, err := s.chains.Get(chainType)
 	if err != nil {
+		// Return the error from chains directly
 		return err
 	}
 
 	// Validate address format
 	if !chain.IsValidAddress(address) {
-		return fmt.Errorf("%w: invalid address format for chain type %s", ErrInvalidInput, chainType)
+		return errors.NewInvalidAddressError(address)
 	}
 
 	// Get the wallet first to get its ID for unsubscribing
 	wallet, err := s.repository.Get(ctx, chainType, address)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrWalletNotFound
-		}
 		return err
 	}
 
@@ -461,10 +456,7 @@ func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, a
 
 	// Then delete the wallet
 	if err := s.repository.Delete(ctx, chainType, address); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrWalletNotFound
-		}
-		return fmt.Errorf("failed to delete wallet: %w", err)
+		return err
 	}
 
 	// Emit wallet deleted event
@@ -482,29 +474,31 @@ func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, a
 func (s *walletService) Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
 	// Validate inputs
 	if chainType == "" {
-		return nil, fmt.Errorf("%w: chain type cannot be empty", ErrInvalidInput)
+		return nil, errors.NewInvalidInputError(map[string]any{
+			"chain_type": "cannot be empty",
+		})
 	}
 	if address == "" {
-		return nil, fmt.Errorf("%w: address cannot be empty", ErrInvalidInput)
+		return nil, errors.NewInvalidInputError(map[string]any{
+			"address": "cannot be empty",
+		})
 	}
 
 	// Validate chain type
 	chain, err := s.chains.Get(chainType)
 	if err != nil {
+		// Return the error from chains directly
 		return nil, err
 	}
 
 	// Validate address format
 	if !chain.IsValidAddress(address) {
-		return nil, fmt.Errorf("%w: invalid address format for chain type %s", ErrInvalidInput, chainType)
+		return nil, errors.NewInvalidAddressError(address)
 	}
 
 	// Get the wallet
 	wallet, err := s.repository.Get(ctx, chainType, address)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrWalletNotFound
-		}
 		return nil, err
 	}
 
@@ -524,7 +518,7 @@ func (s *walletService) List(ctx context.Context, limit, offset int) ([]*Wallet,
 	// Get the wallets
 	wallets, err := s.repository.List(ctx, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list wallets: %w", err)
+		return nil, errors.NewOperationFailedError("list wallets", err)
 	}
 
 	return wallets, nil
@@ -535,7 +529,7 @@ func (s *walletService) SubscribeToBlockchainEvents(ctx context.Context) error {
 	// Get all non-deleted wallets
 	wallets, err := s.repository.List(ctx, 0, 0)
 	if err != nil {
-		return fmt.Errorf("failed to list wallets: %w", err)
+		return errors.NewOperationFailedError("list wallets for subscription", err)
 	}
 
 	// Subscribe to each wallet
@@ -571,7 +565,7 @@ func (s *walletService) subscribeToWallet(ctx context.Context, wallet *Wallet) e
 	// Create blockchain client
 	client, err := s.blockchainRegistry.GetBlockchain(wallet.ChainType)
 	if err != nil {
-		return fmt.Errorf("failed to create blockchain client: %w", err)
+		return err
 	}
 
 	// Create context with cancellation
@@ -633,21 +627,26 @@ func (s *walletService) unsubscribeFromWallet(walletID string) {
 func (s *walletService) Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error) {
 	// Validate inputs
 	if chainType == "" {
-		return false, fmt.Errorf("%w: chain type cannot be empty", ErrInvalidInput)
+		return false, errors.NewInvalidInputError(map[string]any{
+			"chain_type": "cannot be empty",
+		})
 	}
 	if address == "" {
-		return false, fmt.Errorf("%w: address cannot be empty", ErrInvalidInput)
+		return false, errors.NewInvalidInputError(map[string]any{
+			"address": "cannot be empty",
+		})
 	}
 
 	// Validate chain type
 	chain, err := s.chains.Get(chainType)
 	if err != nil {
+		// Return the error from chains directly
 		return false, err
 	}
 
 	// Validate address format
 	if !chain.IsValidAddress(address) {
-		return false, fmt.Errorf("%w: invalid address format for chain type %s", ErrInvalidInput, chainType)
+		return false, errors.NewInvalidAddressError(address)
 	}
 
 	// Check if the wallet exists
@@ -658,16 +657,15 @@ func (s *walletService) Exists(ctx context.Context, chainType types.ChainType, a
 func (s *walletService) GetByID(ctx context.Context, id string) (*Wallet, error) {
 	// Validate input
 	if id == "" {
-		return nil, fmt.Errorf("%w: id cannot be empty", ErrInvalidInput)
+		return nil, errors.NewInvalidInputError(map[string]any{
+			"id": "cannot be empty",
+		})
 	}
 
 	// Get the wallet from repository
 	wallet, err := s.repository.GetByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrWalletNotFound
-		}
-		return nil, fmt.Errorf("failed to get wallet: %w", err)
+		return nil, err
 	}
 
 	return wallet, nil
