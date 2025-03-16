@@ -3,9 +3,11 @@ package user
 import (
 	"net/http"
 	"strconv"
-	"vault0/internal/services/user"
 
 	"github.com/gin-gonic/gin"
+
+	"vault0/internal/errors"
+	"vault0/internal/services/user"
 )
 
 // Handler handles user-related HTTP requests
@@ -24,13 +26,30 @@ func NewHandler(userService user.Service) *Handler {
 func (h *Handler) CreateUser(c *gin.Context) {
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, errors.NewInvalidRequestError("Invalid request body"))
 		return
 	}
 
 	createdUser, err := h.userService.Create(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// Return the service error directly without wrapping
+		var appErr *errors.AppError
+		if e, ok := err.(*errors.AppError); ok {
+			appErr = e
+		} else {
+			// If it's not an AppError, wrap it as an internal error
+			appErr = errors.NewInternalError(err)
+		}
+
+		// Map error codes to HTTP status codes
+		status := http.StatusInternalServerError
+		if appErr.Code == errors.ErrCodeInvalidInput {
+			status = http.StatusBadRequest
+		} else if appErr.Code == errors.ErrCodeEmailExists {
+			status = http.StatusConflict
+		}
+
+		c.JSON(status, appErr)
 		return
 	}
 
@@ -41,19 +60,38 @@ func (h *Handler) CreateUser(c *gin.Context) {
 func (h *Handler) UpdateUser(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		c.JSON(http.StatusBadRequest, errors.NewInvalidParameterError("id", "must be a valid integer"))
 		return
 	}
 
 	var req UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, errors.NewInvalidRequestError("Invalid request body"))
 		return
 	}
 
 	updatedUser, err := h.userService.Update(c.Request.Context(), id, req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// Return the service error directly without wrapping
+		var appErr *errors.AppError
+		if e, ok := err.(*errors.AppError); ok {
+			appErr = e
+		} else {
+			// If it's not an AppError, wrap it as an internal error
+			appErr = errors.NewInternalError(err)
+		}
+
+		// Map error codes to HTTP status codes
+		status := http.StatusInternalServerError
+		if appErr.Code == errors.ErrCodeUserNotFound {
+			status = http.StatusNotFound
+		} else if appErr.Code == errors.ErrCodeInvalidInput {
+			status = http.StatusBadRequest
+		} else if appErr.Code == errors.ErrCodeEmailExists {
+			status = http.StatusConflict
+		}
+
+		c.JSON(status, appErr)
 		return
 	}
 
@@ -64,12 +102,27 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 func (h *Handler) DeleteUser(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		c.JSON(http.StatusBadRequest, errors.NewInvalidParameterError("id", "must be a valid integer"))
 		return
 	}
 
 	if err := h.userService.Delete(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// Return the service error directly without wrapping
+		var appErr *errors.AppError
+		if e, ok := err.(*errors.AppError); ok {
+			appErr = e
+		} else {
+			// If it's not an AppError, wrap it as an internal error
+			appErr = errors.NewInternalError(err)
+		}
+
+		// Map error codes to HTTP status codes
+		status := http.StatusInternalServerError
+		if appErr.Code == errors.ErrCodeUserNotFound {
+			status = http.StatusNotFound
+		}
+
+		c.JSON(status, appErr)
 		return
 	}
 
@@ -80,13 +133,28 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 func (h *Handler) GetUser(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		c.JSON(http.StatusBadRequest, errors.NewInvalidParameterError("id", "must be a valid integer"))
 		return
 	}
 
 	foundUser, err := h.userService.Get(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// Return the service error directly without wrapping
+		var appErr *errors.AppError
+		if e, ok := err.(*errors.AppError); ok {
+			appErr = e
+		} else {
+			// If it's not an AppError, wrap it as an internal error
+			appErr = errors.NewInternalError(err)
+		}
+
+		// Map error codes to HTTP status codes
+		status := http.StatusInternalServerError
+		if appErr.Code == errors.ErrCodeUserNotFound {
+			status = http.StatusNotFound
+		}
+
+		c.JSON(status, appErr)
 		return
 	}
 
@@ -107,7 +175,16 @@ func (h *Handler) ListUsers(c *gin.Context) {
 
 	users, total, err := h.userService.List(c.Request.Context(), page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// Return the service error directly without wrapping
+		var appErr *errors.AppError
+		if e, ok := err.(*errors.AppError); ok {
+			appErr = e
+		} else {
+			// If it's not an AppError, wrap it as an internal error
+			appErr = errors.NewInternalError(err)
+		}
+
+		c.JSON(http.StatusInternalServerError, appErr)
 		return
 	}
 

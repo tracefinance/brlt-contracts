@@ -2,12 +2,12 @@ package wallet
 
 import (
 	"database/sql"
-	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
+	"vault0/internal/errors"
 	"vault0/internal/services/wallet"
 	"vault0/internal/types"
 )
@@ -28,18 +28,29 @@ func NewHandler(walletService wallet.Service) *Handler {
 func (h *Handler) CreateWallet(c *gin.Context) {
 	var req CreateWalletRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		c.JSON(http.StatusBadRequest, errors.NewInvalidRequestError("Invalid request body"))
 		return
 	}
 
 	// Create wallet
 	walletModel, err := h.walletService.Create(c.Request.Context(), req.ChainType, req.Name, req.Tags)
 	if err != nil {
-		if errors.Is(err, wallet.ErrInvalidInput) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
+		// Return the service error directly without wrapping
+		var appErr *errors.AppError
+		if e, ok := err.(*errors.AppError); ok {
+			appErr = e
+		} else {
+			// If it's not an AppError, wrap it as an internal error
+			appErr = errors.NewInternalError(err)
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create wallet"})
+
+		// Map error codes to HTTP status codes
+		status := http.StatusInternalServerError
+		if appErr.Code == errors.ErrCodeInvalidInput {
+			status = http.StatusBadRequest
+		}
+
+		c.JSON(status, appErr)
 		return
 	}
 
@@ -58,15 +69,24 @@ func (h *Handler) GetWallet(c *gin.Context) {
 	// Get the wallet
 	walletModel, err := h.walletService.Get(c.Request.Context(), chainType, address)
 	if err != nil {
-		if errors.Is(err, wallet.ErrWalletNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Wallet not found"})
-			return
+		// Return the service error directly without wrapping
+		var appErr *errors.AppError
+		if e, ok := err.(*errors.AppError); ok {
+			appErr = e
+		} else {
+			// If it's not an AppError, wrap it as an internal error
+			appErr = errors.NewInternalError(err)
 		}
-		if errors.Is(err, wallet.ErrInvalidInput) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
+
+		// Map error codes to HTTP status codes
+		status := http.StatusInternalServerError
+		if appErr.Code == errors.ErrCodeWalletNotFound {
+			status = http.StatusNotFound
+		} else if appErr.Code == errors.ErrCodeInvalidInput {
+			status = http.StatusBadRequest
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get wallet"})
+
+		c.JSON(status, appErr)
 		return
 	}
 
@@ -84,22 +104,31 @@ func (h *Handler) UpdateWallet(c *gin.Context) {
 
 	var req UpdateWalletRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		c.JSON(http.StatusBadRequest, errors.NewInvalidRequestError("Invalid request body"))
 		return
 	}
 
 	// Update the wallet
 	walletModel, err := h.walletService.Update(c.Request.Context(), chainType, address, req.Name, req.Tags)
 	if err != nil {
-		if errors.Is(err, wallet.ErrWalletNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Wallet not found"})
-			return
+		// Return the service error directly without wrapping
+		var appErr *errors.AppError
+		if e, ok := err.(*errors.AppError); ok {
+			appErr = e
+		} else {
+			// If it's not an AppError, wrap it as an internal error
+			appErr = errors.NewInternalError(err)
 		}
-		if errors.Is(err, wallet.ErrInvalidInput) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
+
+		// Map error codes to HTTP status codes
+		status := http.StatusInternalServerError
+		if appErr.Code == errors.ErrCodeWalletNotFound {
+			status = http.StatusNotFound
+		} else if appErr.Code == errors.ErrCodeInvalidInput {
+			status = http.StatusBadRequest
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update wallet"})
+
+		c.JSON(status, appErr)
 		return
 	}
 
@@ -118,15 +147,24 @@ func (h *Handler) DeleteWallet(c *gin.Context) {
 	// Delete the wallet
 	err := h.walletService.Delete(c.Request.Context(), chainType, address)
 	if err != nil {
-		if errors.Is(err, wallet.ErrWalletNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Wallet not found"})
-			return
+		// Return the service error directly without wrapping
+		var appErr *errors.AppError
+		if e, ok := err.(*errors.AppError); ok {
+			appErr = e
+		} else {
+			// If it's not an AppError, wrap it as an internal error
+			appErr = errors.NewInternalError(err)
 		}
-		if errors.Is(err, wallet.ErrInvalidInput) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
+
+		// Map error codes to HTTP status codes
+		status := http.StatusInternalServerError
+		if appErr.Code == errors.ErrCodeWalletNotFound {
+			status = http.StatusNotFound
+		} else if appErr.Code == errors.ErrCodeInvalidInput {
+			status = http.StatusBadRequest
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete wallet"})
+
+		c.JSON(status, appErr)
 		return
 	}
 
@@ -159,15 +197,23 @@ func (h *Handler) ListWallets(c *gin.Context) {
 	// Get the wallets
 	wallets, err := h.walletService.List(c.Request.Context(), limit, offset)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		// Return the service error directly without wrapping
+		var appErr *errors.AppError
+		if e, ok := err.(*errors.AppError); ok {
+			appErr = e
+		} else if err == sql.ErrNoRows {
 			// If no wallets found, return an empty list
 			c.JSON(http.StatusOK, ListWalletsResponse{
 				Wallets: []*WalletResponse{},
 				Total:   0,
 			})
 			return
+		} else {
+			// If it's not an AppError, wrap it as an internal error
+			appErr = errors.NewInternalError(err)
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list wallets"})
+
+		c.JSON(http.StatusInternalServerError, appErr)
 		return
 	}
 

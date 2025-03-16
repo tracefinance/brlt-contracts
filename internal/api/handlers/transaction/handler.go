@@ -1,12 +1,12 @@
 package transaction
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
+	"vault0/internal/errors"
 	"vault0/internal/services/transaction"
 	"vault0/internal/types"
 )
@@ -49,11 +49,22 @@ func (h *Handler) GetTransaction(c *gin.Context) {
 
 	tx, err := h.transactionService.GetTransaction(c.Request.Context(), chainType, hash)
 	if err != nil {
-		if errors.Is(err, transaction.ErrTransactionNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Transaction not found"})
-			return
+		// Return the service error directly without wrapping
+		var appErr *errors.AppError
+		if e, ok := err.(*errors.AppError); ok {
+			appErr = e
+		} else {
+			// If it's not an AppError, wrap it as an internal error
+			appErr = errors.NewInternalError(err)
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get transaction"})
+
+		// Map error codes to HTTP status codes
+		status := http.StatusInternalServerError
+		if appErr.Code == errors.ErrCodeTransactionNotFound {
+			status = http.StatusNotFound
+		}
+
+		c.JSON(status, appErr)
 		return
 	}
 
@@ -83,7 +94,16 @@ func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 	// Get transactions
 	txs, err := h.transactionService.GetTransactionsByAddress(c.Request.Context(), chainType, address, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get transactions"})
+		// Return the service error directly without wrapping
+		var appErr *errors.AppError
+		if e, ok := err.(*errors.AppError); ok {
+			appErr = e
+		} else {
+			// If it's not an AppError, wrap it as an internal error
+			appErr = errors.NewInternalError(err)
+		}
+
+		c.JSON(http.StatusInternalServerError, appErr)
 		return
 	}
 
@@ -116,7 +136,24 @@ func (h *Handler) SyncTransactions(c *gin.Context) {
 	// Sync transactions
 	count, err := h.transactionService.SyncTransactionsByAddress(c.Request.Context(), chainType, address)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to sync transactions"})
+		// Return the service error directly without wrapping
+		var appErr *errors.AppError
+		if e, ok := err.(*errors.AppError); ok {
+			appErr = e
+		} else {
+			// If it's not an AppError, wrap it as an internal error
+			appErr = errors.NewInternalError(err)
+		}
+
+		// Map error codes to HTTP status codes
+		status := http.StatusInternalServerError
+		if appErr.Code == errors.ErrCodeTransactionSyncFailed {
+			status = http.StatusBadGateway
+		} else if appErr.Code == errors.ErrCodeInvalidInput {
+			status = http.StatusBadRequest
+		}
+
+		c.JSON(status, appErr)
 		return
 	}
 
