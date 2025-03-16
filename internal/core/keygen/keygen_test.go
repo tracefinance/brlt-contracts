@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"testing"
 
-	"vault0/internal/errors"
 	"vault0/internal/types"
 
 	"github.com/stretchr/testify/assert"
@@ -126,7 +125,7 @@ func TestGenerateKeyPair_InvalidType(t *testing.T) {
 
 	privKey, pubKey, err := kg.GenerateKeyPair("invalid", nil)
 	assert.Error(t, err)
-	assert.True(t, errors.IsInvalidKeyType(err))
+	assert.ErrorContains(t, err, "Invalid key type")
 	assert.Nil(t, privKey)
 	assert.Nil(t, pubKey)
 }
@@ -235,6 +234,7 @@ func TestDefaultKeyGenerator_GenerateKeyPair(t *testing.T) {
 			privKey, pubKey, err := kg.GenerateKeyPair(tt.keyType, tt.curve)
 			if tt.wantErr {
 				assert.Error(t, err)
+				assert.ErrorContains(t, err, "Invalid key type")
 				return
 			}
 
