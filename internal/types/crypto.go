@@ -13,3 +13,8 @@ const (
 	// KeyTypeSymmetric represents symmetric keys
 	KeyTypeSymmetric KeyType = "symmetric"
 )
+
+const (
+	CurveNameP256      = "P-256"
+	CurveNameSecp256k1 = "secp256k1"
+)

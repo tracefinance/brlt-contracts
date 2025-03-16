@@ -10,8 +10,6 @@ import (
 	"vault0/internal/core/keygen"
 	"vault0/internal/types"
 
-	"vault0/internal/errors"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -159,8 +157,7 @@ func TestDBKeyStore_Create(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
-		// The error may not be exactly ErrKeyAlreadyExists since SQLite will return a constraint violation
-		assert.True(t, errors.IsResourceAlreadyExists(err))
+		assert.ErrorContains(t, err, "already exists")
 	})
 
 	t.Run("Create_ECDSA_NilCurve", func(t *testing.T) {
@@ -263,11 +260,12 @@ func TestDBKeyStore_GetPublicKey(t *testing.T) {
 
 	t.Run("GetPublicKey_NonExistentKey", func(t *testing.T) {
 		// Act
-		_, err := keystore.GetPublicKey(ctx, "non-existent-key")
+		retrievedKey, err := keystore.GetPublicKey(ctx, "non-existent-id")
 
 		// Assert
 		assert.Error(t, err)
-		assert.True(t, errors.IsKeyNotFound(err))
+		assert.ErrorContains(t, err, "key not found")
+		assert.Nil(t, retrievedKey)
 	})
 }
 
@@ -344,7 +342,7 @@ func TestDBKeyStore_Update(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
-		assert.True(t, errors.IsKeyNotFound(err))
+		assert.ErrorContains(t, err, "key not found")
 	})
 }
 
@@ -369,7 +367,7 @@ func TestDBKeyStore_Delete(t *testing.T) {
 		// Verify the key is deleted
 		_, err = keystore.GetPublicKey(ctx, key.ID)
 		assert.Error(t, err)
-		assert.True(t, errors.IsKeyNotFound(err))
+		assert.ErrorContains(t, err, "key not found")
 	})
 
 	t.Run("Delete_NonExistentKey", func(t *testing.T) {
@@ -378,7 +376,7 @@ func TestDBKeyStore_Delete(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
-		assert.True(t, errors.IsKeyNotFound(err))
+		assert.ErrorContains(t, err, "key not found")
 	})
 }
 
@@ -595,6 +593,25 @@ func TestDBKeyStore_Import(t *testing.T) {
 		assert.Equal(t, keyType, key.Type)
 		assert.Equal(t, tags, key.Tags)
 		assert.Equal(t, publicKey, key.PublicKey)
+	})
+
+	t.Run("Import_DuplicateName", func(t *testing.T) {
+		// Arrange
+		name := "Imported ECDSA Key"
+		keyType := types.KeyTypeECDSA
+		curve := elliptic.P256()
+		tags := map[string]string{"purpose": "testing", "source": "import"}
+
+		// Generate a keypair to import
+		privateKey, publicKey, err := generateTestKey(keyType, curve)
+		require.NoError(t, err)
+
+		// Act
+		_, err = keystore.Import(ctx, name, keyType, curve, privateKey, publicKey, tags)
+
+		// Assert
+		assert.Error(t, err)
+		assert.ErrorContains(t, err, "already exists")
 	})
 }
 

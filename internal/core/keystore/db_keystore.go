@@ -58,9 +58,9 @@ func NewDBKeyStore(db *sql.DB, cfg *config.Config) (*DBKeyStore, error) {
 // curveByName returns the elliptic.Curve instance for a given curve name
 func curveByName(name string) (elliptic.Curve, error) {
 	switch name {
-	case "P-256":
+	case types.CurveNameP256:
 		return elliptic.P256(), nil
-	case "secp256k1":
+	case types.CurveNameSecp256k1:
 		return coreCrypto.Secp256k1Curve, nil
 	default:
 		return nil, errors.NewInvalidCurveError("P-256 or secp256k1", name)
@@ -421,7 +421,7 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte, dataType
 	// Decrypt the private key
 	privateKey, err := ks.encryptor.Decrypt(key.PrivateKey)
 	if err != nil {
-		return nil, err // Propagate error from crypto package
+		return nil, err
 	}
 
 	// Sign the data
@@ -446,10 +446,21 @@ func (ks *DBKeyStore) signData(keyType types.KeyType, privateKeyBytes, data []by
 
 // signWithECDSA signs data using an ECDSA private key
 func (ks *DBKeyStore) signWithECDSA(privateKeyBytes, data []byte, dataType DataType, curveName string) ([]byte, error) {
-	// Parse the private key
-	privKey, err := x509.ParseECPrivateKey(privateKeyBytes)
-	if err != nil {
-		return nil, errors.NewInvalidKeyError("failed to parse ECDSA private key", err)
+	var privKey *ecdsa.PrivateKey
+	var err error
+
+	// Use custom unmarshal for secp256k1 curve
+	if curveName == types.CurveNameSecp256k1 {
+		privKey, err = coreCrypto.UnmarshalPrivateKey(privateKeyBytes)
+		if err != nil {
+			return nil, errors.NewInvalidKeyError("failed to parse secp256k1 private key", err)
+		}
+	} else {
+		// For standard curves, use ParseECPrivateKey
+		privKey, err = x509.ParseECPrivateKey(privateKeyBytes)
+		if err != nil {
+			return nil, errors.NewInvalidKeyError("failed to parse ECDSA private key", err)
+		}
 	}
 
 	// Hash the data if needed
@@ -503,8 +514,17 @@ func (ks *DBKeyStore) signWithRSA(privateKeyBytes, data []byte, dataType DataTyp
 
 // signWithEd25519 signs data using an Ed25519 private key
 func (ks *DBKeyStore) signWithEd25519(privateKeyBytes, data []byte) ([]byte, error) {
-	// Parse the private key
-	privKey := ed25519.PrivateKey(privateKeyBytes)
+	// Parse the PKCS#8 private key
+	key, err := x509.ParsePKCS8PrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, errors.NewInvalidKeyError("failed to parse Ed25519 private key", err)
+	}
+
+	// Convert to Ed25519 private key
+	privKey, ok := key.(ed25519.PrivateKey)
+	if !ok {
+		return nil, errors.NewInvalidKeyError("invalid Ed25519 private key", nil)
+	}
 
 	// Sign the data (Ed25519 performs its own hashing)
 	signature := ed25519.Sign(privKey, data)
