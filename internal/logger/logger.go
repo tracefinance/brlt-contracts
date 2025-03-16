@@ -96,7 +96,7 @@ func NewLogger(cfg *config.Config) (Logger, error) {
 	core := zapcore.NewCore(encoder, output, level)
 
 	// Create logger
-	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
+	logger := zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1), zap.AddStacktrace(zapcore.ErrorLevel))
 
 	return &zapLogger{logger: logger}, nil
 }

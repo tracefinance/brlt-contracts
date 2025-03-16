@@ -29,6 +29,7 @@ const (
 	ErrCodeInvalidAddress          = "invalid_address"
 	ErrCodeTransactionFailed       = "transaction_failed"
 	ErrCodeInvalidContract         = "invalid_contract"
+	ErrCodeContractNotFound        = "contract_not_found"
 
 	// Keystore errors
 	ErrCodeKeystoreError   = "keystore_error"
@@ -251,11 +252,14 @@ func NewInvalidAPIKeyError() *AppError {
 }
 
 // NewInvalidExplorerResponseError creates a new error for invalid responses from block explorer
-func NewInvalidExplorerResponseError(err error) *AppError {
+func NewInvalidExplorerResponseError(err error, response string) *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidExplorerResponse,
 		Message: fmt.Sprintf("Invalid response from block explorer: %v", err),
 		Err:     err,
+		Details: map[string]any{
+			"response": response,
+		},
 	}
 }
 
@@ -495,114 +499,14 @@ func NewInvalidTokenError(msg string, err error) *AppError {
 	}
 }
 
-// IsKeyNotFound checks if the error is a key not found error
-func IsKeyNotFound(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeKeyNotFound
+// NewContractNotFoundError creates a new error for when a contract is not found at the specified address
+func NewContractNotFoundError(address string, chainType string) *AppError {
+	return &AppError{
+		Code:    ErrCodeContractNotFound,
+		Message: fmt.Sprintf("Contract not found at address %s on chain %s", address, chainType),
+		Details: map[string]any{
+			"address": address,
+			"chain":   chainType,
+		},
 	}
-	return false
-}
-
-// IsResourceAlreadyExists checks if the error is a resource already exists error
-func IsResourceAlreadyExists(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeResourceExists
-	}
-	return false
-}
-
-// IsRPCError checks if the error is an RPC error
-func IsRPCError(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeRPCError
-	}
-	return false
-}
-
-// IsInvalidKeyType checks if the error is an invalid key type error
-func IsInvalidKeyType(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeInvalidKeyType
-	}
-	return false
-}
-
-// IsInvalidCurve checks if the error is an invalid curve error
-func IsInvalidCurve(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeInvalidCurve
-	}
-	return false
-}
-
-// IsInvalidAddress checks if the error is an invalid address error
-func IsInvalidAddress(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeInvalidAddress
-	}
-	return false
-}
-
-// IsInvalidAmount checks if the error is an invalid amount error
-func IsInvalidAmount(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeInvalidAmount
-	}
-	return false
-}
-
-// IsInvalidSignature checks if the error is an invalid signature error
-func IsInvalidSignature(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeInvalidSignature
-	}
-	return false
-}
-
-// IsSignatureRecovery checks if the error is a signature recovery error
-func IsSignatureRecovery(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeSignatureRecovery
-	}
-	return false
-}
-
-// IsAddressMismatch checks if the error is an address mismatch error
-func IsAddressMismatch(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeAddressMismatch
-	}
-	return false
-}
-
-// IsInvalidToken checks if the error is an invalid token error
-func IsInvalidToken(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeInvalidToken
-	}
-	return false
-}
-
-// IsInvalidEncryptionKey checks if the error is an invalid encryption key error
-func IsInvalidEncryptionKey(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeInvalidEncryptionKey
-	}
-	return false
-}
-
-// IsDecryptionError checks if the error is a decryption error
-func IsDecryptionError(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeDecryptionError
-	}
-	return false
-}
-
-// IsChainNotSupported checks if the error is a chain not supported error
-func IsChainNotSupported(err error) bool {
-	if appErr, ok := err.(*AppError); ok {
-		return appErr.Code == ErrCodeChainNotSupported
-	}
-	return false
 }

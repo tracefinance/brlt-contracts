@@ -39,6 +39,7 @@ type Chain struct {
 	Symbol          string         // Native currency symbol (ETH, MATIC)
 	RPCUrl          string         // JSON-RPC endpoint URL
 	ExplorerUrl     string         // Block explorer URL
+	ExplorerAPIUrl  string         // Block explorer API URL
 	ExplorerAPIKey  string         // Block explorer API key
 	Curve           elliptic.Curve // Elliptic curve for crypto operations
 	KeyType         KeyType        // Cryptographic key type
@@ -124,6 +125,7 @@ func newChain(cfg *config.Config, chainType ChainType) (Chain, error) {
 		Symbol:          getChainSymbol(chainType),
 		RPCUrl:          chainCfg.RPCURL,
 		ExplorerUrl:     chainCfg.ExplorerURL,
+		ExplorerAPIUrl:  chainCfg.ExplorerAPIURL,
 		ExplorerAPIKey:  chainCfg.ExplorerAPIKey,
 		KeyType:         keyType,
 		Curve:           curve,
@@ -156,7 +158,7 @@ func (c *Chain) ValidateAddress(address string) error {
 
 		// Convert to checksum address and verify
 		checksumAddr := common.HexToAddress(address).Hex()
-		if address != checksumAddr {
+		if common.HexToAddress(address) != common.HexToAddress(checksumAddr) {
 			return errors.NewInvalidAddressError(address)
 		}
 

@@ -253,7 +253,7 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 	// Save transactions to database
 	count := 0
 	var maxBlockNumber int64
-	for _, coreTx := range txs {
+	for _, coreTx := range txs.Items {
 		// Update max block number if this transaction's block number is higher
 		if coreTx.BlockNumber != nil {
 			blockNum := coreTx.BlockNumber.Int64()

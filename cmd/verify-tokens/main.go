@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -10,36 +9,26 @@ import (
 	"sync"
 	"time"
 
-	"vault0/internal/config"
-	"vault0/internal/core/blockexplorer"
-	"vault0/internal/core/db"
-	"vault0/internal/core/tokenstore"
-	"vault0/internal/logger"
 	"vault0/internal/types"
+	"vault0/internal/wire"
 )
 
+type TokenVerificationResult struct {
+	Chain        types.Chain
+	Token        *types.Token
+	URL          string
+	IsVerified   bool
+	Error        error
+	ContractName string
+}
+
 func main() {
-	// Load configuration
-	cfg, err := config.LoadConfig()
+	// Initialize container with all dependencies
+	container, err := wire.BuildContainer()
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		log.Fatalf("Failed to build container: %v", err)
 	}
-
-	// Initialize logger
-	logger, err := logger.NewLogger(cfg)
-	if err != nil {
-		log.Fatalf("Failed to initialize logger: %v", err)
-	}
-
-	// Initialize database
-	db, err := db.NewDatabase(cfg, logger)
-	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
-	}
-	defer db.Close()
-
-	// Create token store
-	tokenStore := tokenstore.NewTokenStore(db)
+	defer container.Core.DB.Close()
 
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -47,49 +36,37 @@ func main() {
 
 	// Process each chain's tokens
 	var wg sync.WaitGroup
-	results := make(chan verificationResult, 100)
+	results := make(chan TokenVerificationResult, 100)
 
 	// Get tokens for each chain
-	chains, err := types.NewChains(cfg)
-	if err != nil {
-		log.Fatalf("Error creating chains: %v", err)
-	}
-	chainList := chains.List()
+	chainList := container.Core.Chains.List()
 	for _, chain := range chainList {
-		tokens, err := tokenStore.GetTokensByChain(ctx, chain.Type)
+		tokens, err := container.Core.TokenStore.GetTokensByChain(ctx, chain.Type)
 		if err != nil {
-			log.Printf("Error getting tokens for %s: %v", chain.Type, err)
 			continue
 		}
 
 		wg.Add(1)
-		go verifyTokens(ctx, &wg, results, chain.Type, tokens)
+		go verifyTokens(ctx, &wg, results, chain, tokens, container)
 	}
 
-	// Collect and group results
+	// Wait for all verifications to complete
 	go func() {
 		wg.Wait()
 		close(results)
 	}()
 
 	// Group results by blockchain
-	groupedResults := make(map[types.ChainType][]string)
+	groupedResults := make(map[types.ChainType][]TokenVerificationResult)
 	for result := range results {
-		groupedResults[result.chainType] = append(groupedResults[result.chainType], result.message)
+		groupedResults[result.Chain.Type] = append(groupedResults[result.Chain.Type], result)
 	}
 
 	// Print results grouped by blockchain
-	printGroupedResults(groupedResults, chains)
+	printResults(groupedResults, container.Core.Chains)
 }
 
-// verificationResult represents a single token verification result
-type verificationResult struct {
-	chainType types.ChainType
-	message   string
-}
-
-// printGroupedResults prints verification results grouped by blockchain
-func printGroupedResults(groupedResults map[types.ChainType][]string, chains *types.Chains) {
+func printResults(groupedResults map[types.ChainType][]TokenVerificationResult, chains *types.Chains) {
 	// Sort network names for consistent output
 	chainList := chains.List()
 	networks := make([]string, 0, len(chainList))
@@ -105,17 +82,46 @@ func printGroupedResults(groupedResults map[types.ChainType][]string, chains *ty
 
 	// Print results for each network
 	for _, network := range networks {
-		fmt.Printf("\n> %s Network <\n\n", network)
+		fmt.Printf("\n%s Network\n", network)
+		fmt.Println(strings.Repeat("=", len(network)+8))
+		fmt.Println()
 
-		// Print messages for this network
 		chainType := nameToChainType[network]
 		results := groupedResults[chainType]
+
 		if len(results) == 0 {
-			fmt.Printf("  No tokens verified for %s\n", network)
-		} else {
-			for _, msg := range results {
-				fmt.Printf("  %s\n", msg)
+			fmt.Printf("No tokens found for %s\n", network)
+			continue
+		}
+
+		// Sort results by symbol
+		sort.Slice(results, func(i, j int) bool {
+			return results[i].Token.Symbol < results[j].Token.Symbol
+		})
+
+		// Print token information
+		for _, result := range results {
+			if result.Error != nil {
+				fmt.Printf("❌ %s (%s)\n", result.Token.Symbol, result.Token.Address)
+				fmt.Printf("   Error: %v\n", result.Error)
+				fmt.Printf("   URL: %s\n\n", result.URL)
+				continue
 			}
+
+			var status string
+			if result.Token.IsNative() {
+				status = "🟢 Native Token"
+			} else if result.IsVerified {
+				status = "✅ Verified"
+			} else {
+				status = "⚠️  Unverified"
+			}
+
+			fmt.Printf("%s %s (%s)\n", status, result.Token.Symbol, result.Token.Address)
+			if result.ContractName != "" {
+				fmt.Printf("   Contract: %s\n", result.ContractName)
+			}
+			fmt.Printf("   URL: %s\n\n", result.URL)
 		}
 	}
 }
@@ -123,21 +129,19 @@ func printGroupedResults(groupedResults map[types.ChainType][]string, chains *ty
 func verifyTokens(
 	ctx context.Context,
 	wg *sync.WaitGroup,
-	results chan<- verificationResult,
-	chainType types.ChainType,
+	results chan<- TokenVerificationResult,
+	chain types.Chain,
 	tokens []*types.Token,
+	container *wire.Container,
 ) {
 	defer wg.Done()
 
-	// Create block explorer factory
-	factory := blockexplorer.NewFactory(types.Chains{types.Chain{Type: chainType}}, nil)
-
 	// Get explorer for this chain
-	explorer, err := factory.GetExplorer(chainType)
+	explorer, err := container.Core.BlockExplorerFactory.GetExplorer(chain.Type)
 	if err != nil {
-		results <- verificationResult{
-			chainType: chainType,
-			message:   fmt.Sprintf("Error getting explorer for %s: %v", chainType, err),
+		results <- TokenVerificationResult{
+			Chain: chain,
+			Error: fmt.Errorf("error getting explorer: %v", err),
 		}
 		return
 	}
@@ -145,48 +149,27 @@ func verifyTokens(
 
 	// Check each token
 	for _, token := range tokens {
+		result := TokenVerificationResult{
+			Chain: chain,
+			Token: token,
+			URL:   explorer.GetTokenURL(token.Address),
+		}
+
 		if token.IsNative() {
-			url := explorer.GetTokenURL(token.Address)
-			results <- verificationResult{
-				chainType: chainType,
-				message:   fmt.Sprintf("[+] [%s] %s (native token)\n    URL: %s", strings.ToUpper(string(chainType)), token.Symbol, url),
-			}
+			results <- result
 			continue
 		}
 
 		// Get contract information to verify it exists and is verified
 		info, err := explorer.GetContract(ctx, token.Address)
 		if err != nil {
-			if errors.IsRPCError(err) {
-				log.Printf("RPC error: %v", err)
-				continue
-			}
-			log.Printf("Failed to verify token %s: %v", token.Address, err)
+			result.Error = err
+			results <- result
 			continue
 		}
 
-		url := explorer.GetTokenURL(token.Address)
-		if info.IsVerified {
-			results <- verificationResult{
-				chainType: chainType,
-				message: fmt.Sprintf("[+] [%s] %s (%s): Verified contract - %s\n    URL: %s",
-					strings.ToUpper(string(chainType)),
-					token.Symbol,
-					token.Address,
-					info.ContractName,
-					url,
-				),
-			}
-		} else {
-			results <- verificationResult{
-				chainType: chainType,
-				message: fmt.Sprintf("[!] [%s] %s (%s): Unverified contract\n    URL: %s",
-					strings.ToUpper(string(chainType)),
-					token.Symbol,
-					token.Address,
-					url,
-				),
-			}
-		}
+		result.IsVerified = info.IsVerified
+		result.ContractName = info.ContractName
+		results <- result
 	}
 }

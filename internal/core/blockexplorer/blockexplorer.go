@@ -6,59 +6,81 @@ import (
 	"vault0/internal/types"
 )
 
-// TokenBalance represents a token balance for any blockchain
+// TokenBalance represents a token balance for any blockchain.
+// It includes all necessary information about a token and its balance
+// for a specific address.
 type TokenBalance struct {
-	// Address of the token contract
+	// TokenAddress is the contract address of the token
 	TokenAddress string
-	// Name of the token
+	// TokenName is the human-readable name of the token
 	TokenName string
-	// Symbol of the token
+	// TokenSymbol is the trading symbol of the token (e.g., "USDC", "DAI")
 	TokenSymbol string
-	// Number of decimal places for the token
+	// TokenDecimal specifies the number of decimal places for the token
+	// For example, most ERC20 tokens use 18 decimals
 	TokenDecimal uint8
-	// Balance of the token in its smallest unit
+	// Balance represents the token balance in its smallest unit
+	// To get the actual balance, divide by 10^TokenDecimal
 	Balance *big.Int
 }
 
-// ContractInfo represents contract information for any blockchain
+// ContractInfo represents detailed information about a smart contract
+// retrieved from a blockchain explorer.
 type ContractInfo struct {
-	// Contract's ABI (Application Binary Interface)
+	// ABI is the contract's Application Binary Interface in JSON format
+	// It defines the methods and events available in the contract
 	ABI string
-	// Name of the contract
+	// ContractName is the name of the contract as defined in its source code
 	ContractName string
-	// Contract's source code
+	// SourceCode contains the verified source code of the contract
+	// This will be empty if the contract is not verified
 	SourceCode string
-	// Whether the contract is verified on the block explorer
+	// IsVerified indicates whether the contract's source code has been
+	// verified and published on the block explorer
 	IsVerified bool
 }
 
-// TransactionType represents different transaction categories for filtering
+// TransactionType represents different categories of blockchain transactions
+// that can be queried from the explorer.
 type TransactionType string
 
 const (
-	// TxTypeNormal represents standard transactions
+	// TxTypeNormal represents standard blockchain transactions
+	// These include native currency transfers and contract interactions
 	TxTypeNormal TransactionType = "normal"
 	// TxTypeInternal represents internal transactions
+	// These are transfers of native currency triggered by smart contract execution
 	TxTypeInternal TransactionType = "internal"
-	// TxTypeERC20 represents ERC20 token transfers
+	// TxTypeERC20 represents ERC20 token transfer transactions
+	// These track the movement of ERC20 tokens between addresses
 	TxTypeERC20 TransactionType = "erc20"
-	// TxTypeERC721 represents ERC721 token transfers (NFTs)
+	// TxTypeERC721 represents NFT transfer transactions
+	// These track the movement of NFTs (ERC721 tokens) between addresses
 	TxTypeERC721 TransactionType = "erc721"
 )
 
-// TransactionHistoryOptions contains parameters for fetching transaction history
+// TransactionHistoryOptions contains parameters for filtering and paginating
+// transaction history queries. It provides fine-grained control over which
+// transactions are returned.
 type TransactionHistoryOptions struct {
-	// StartBlock is the starting block for the history query
+	// StartBlock specifies the earliest block to include in the query
+	// Use 0 to start from the genesis block
 	StartBlock int64
-	// EndBlock is the ending block for the history query
+	// EndBlock specifies the latest block to include in the query
+	// Use 0 to include up to the latest block
 	EndBlock int64
-	// Page is the page number for pagination
+	// Page specifies which page of results to return (1-based)
+	// Must be greater than 0
 	Page int
-	// PageSize is the number of items per page
+	// PageSize specifies how many transactions to return per page
+	// The actual number of returned items may be less than this value
 	PageSize int
-	// TransactionTypes filters specific transaction types
+	// TransactionTypes filters which types of transactions to include
+	// If empty, all transaction types will be included
 	TransactionTypes []TransactionType
-	// SortAscending sorts by ascending timestamp if true
+	// SortAscending determines the order of returned transactions
+	// If true, transactions are sorted from oldest to newest
+	// If false, transactions are sorted from newest to oldest
 	SortAscending bool
 }
 
@@ -69,126 +91,70 @@ type TransactionHistoryOptions struct {
 // for various blockchains while providing a consistent API. It supports querying
 // transaction history, balances, and token information for any address on the
 // supported blockchain.
-//
-// Example usage:
-//
-//	factory := blockexplorer.NewFactory(chains, cfg)
-//	explorer, err := factory.GetExplorer(types.ChainTypeEthereum)
-//	if err != nil {
-//	    return err
-//	}
-//	defer explorer.Close()
-//
-//	// Fetch transaction history
-//	options := TransactionHistoryOptions{
-//	    StartBlock: 0,
-//	    EndBlock: 0, // Latest block
-//	    Page: 1,
-//	    PageSize: 10,
-//	}
-//	txs, err := explorer.GetTransactionHistory(ctx, address, options)
 type BlockExplorer interface {
-	// GetContract retrieves contract information and verifies if it's source code
-	// is published on the block explorer.
+	// GetTransactionHistory retrieves transaction history for an address with pagination.
+	// It supports filtering by transaction type and sorting by timestamp.
 	//
-	// This method fetches the contract's source code, ABI, and other metadata from
-	// the block explorer. It also checks if the contract is verified by looking for
-	// published source code.
-	//
-	// Parameters:
-	//   - ctx: Context for timeout and cancellation
-	//   - address: The contract address to query (must be valid for the chain)
+	// The method returns a Page containing the requested transactions and pagination info.
+	// If no TransactionTypes are specified in options, all types will be included.
 	//
 	// Returns:
-	//   - *ContractInfo: Contract information including verification status
-	//   - error: ErrInvalidAddress if address is invalid, or EVMExplorerError
-	//     containing the raw response for debugging if the request fails
-	GetContract(ctx context.Context, address string) (*ContractInfo, error)
+	//   - ErrInvalidAddress if the address is invalid for the chain
+	//   - ErrRateLimitExceeded if the explorer's rate limit is hit
+	//   - Other explorer-specific errors for API/network issues
+	GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions) (*types.Page[*types.Transaction], error)
 
-	// GetTransactionHistory retrieves transaction history for an address.
+	// GetTransactionsByHash retrieves detailed information about specific transactions
+	// given their hashes. This is useful for getting the current state of transactions
+	// or verifying their execution status.
 	//
-	// The method supports pagination and filtering through TransactionHistoryOptions.
-	// It returns a slice of Transaction objects containing details such as hash,
-	// from/to addresses, value, gas information, and status.
-	//
-	// Parameters:
-	//   - ctx: Context for timeout and cancellation
-	//   - address: The blockchain address to query (must be valid for the chain)
-	//   - options: Configuration for filtering and pagination
+	// The returned transactions will be in the same order as the input hashes.
+	// If a transaction is not found, it will be omitted from the results.
 	//
 	// Returns:
-	//   - []*types.Transaction: Slice of transactions matching the query
-	//   - error: ErrInvalidAddress if address is invalid, ErrRateLimitExceeded if
-	//     rate limit is hit, or other errors for API/network issues
-	GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions) ([]*types.Transaction, error)
-
-	// GetTransactionsByHash retrieves transaction details for multiple transaction hashes.
-	//
-	// This method is useful for getting detailed information about specific transactions
-	// when you have their hashes. It fetches complete transaction data including status,
-	// gas usage, and confirmations.
-	//
-	// Parameters:
-	//   - ctx: Context for timeout and cancellation
-	//   - hashes: Slice of transaction hashes to look up
-	//
-	// Returns:
-	//   - []*types.Transaction: Slice of transactions in the same order as the input hashes
-	//   - error: ErrRequestFailed for API issues, ErrInvalidResponse for parsing errors
+	//   - ErrExplorerRequestFailed for API/network issues
+	//   - ErrInvalidExplorerResponse if the response cannot be parsed
 	GetTransactionsByHash(ctx context.Context, hashes []string) ([]*types.Transaction, error)
 
-	// GetAddressBalance retrieves the native token balance for an address.
+	// GetAddressBalance retrieves the native token balance for an address
+	// (e.g., ETH for Ethereum, MATIC for Polygon).
 	//
 	// The balance is returned in the smallest unit of the native currency
-	// (e.g., Wei for Ethereum). For human-readable values, divide by the appropriate
-	// number of decimals (e.g., 1e18 for ETH).
-	//
-	// Parameters:
-	//   - ctx: Context for timeout and cancellation
-	//   - address: The blockchain address to query
+	// (e.g., Wei for Ethereum). To get the actual balance, divide by 10^18.
 	//
 	// Returns:
-	//   - *big.Int: The balance in the smallest unit of the native currency
-	//   - error: ErrInvalidAddress if address is invalid, or API/network errors
+	//   - ErrInvalidAddress if the address is invalid
+	//   - ErrExplorerRequestFailed for API/network issues
 	GetAddressBalance(ctx context.Context, address string) (*big.Int, error)
 
-	// GetTokenBalances retrieves token balances for an address.
+	// GetTokenBalances retrieves all token balances for an address.
+	// This includes both ERC20 and ERC721 tokens that the address has interacted with.
 	//
-	// Returns a map of token contract addresses to their respective balances.
-	// The balances are in the smallest unit of each token (need to be divided
-	// by the token's decimals for human-readable values).
-	//
-	// Parameters:
-	//   - ctx: Context for timeout and cancellation
-	//   - address: The blockchain address to query
+	// The balances are returned in the smallest unit of each token.
+	// To get the actual balance, divide by 10^TokenDecimal.
 	//
 	// Returns:
-	//   - []*TokenBalance: Slice of token balances
-	//   - error: ErrInvalidAddress if address is invalid, or API/network errors
+	//   - ErrInvalidAddress if the address is invalid
+	//   - ErrExplorerRequestFailed for API/network issues
 	GetTokenBalances(ctx context.Context, address string) ([]*TokenBalance, error)
 
-	// GetTokenURL returns the URL to view the token on the block explorer.
-	//
-	// Parameters:
-	//   - address: The token contract address
+	// GetContract retrieves detailed information about a smart contract.
+	// This includes the contract's ABI, source code (if verified), and other metadata.
 	//
 	// Returns:
-	//   - string: The URL to view the token on the block explorer
+	//   - ErrContractNotFound if no contract exists at the address
+	//   - ErrExplorerRequestFailed for API/network issues
+	GetContract(ctx context.Context, address string) (*ContractInfo, error)
+
+	// GetTokenURL returns the block explorer's URL for viewing a token's details.
+	// This URL can be used to direct users to the block explorer's web interface.
 	GetTokenURL(address string) string
 
-	// Close releases any resources used by the explorer.
-	//
-	// This should be called when the explorer is no longer needed to clean up
-	// resources like rate limiters and HTTP clients.
-	Close() error
-
-	// Chain returns information about the blockchain this explorer is connected to.
-	//
-	// The returned Chain object contains details about the blockchain network,
-	// including its type (e.g., Ethereum, Polygon), network ID, and other
-	// chain-specific information.
-	//
-	// Returns:
-	//   - types.Chain: Information about the blockchain
+	// Chain returns the configuration for the blockchain this explorer is connected to.
+	// This includes information like the chain type, network ID, and other chain-specific details.
 	Chain() types.Chain
+
+	// Close releases any resources held by the explorer.
+	// This should be called when the explorer is no longer needed.
+	Close() error
 }

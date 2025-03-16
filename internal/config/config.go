@@ -60,6 +60,8 @@ type BlockchainConfig struct {
 	DefaultGasLimit uint64 `yaml:"default_gas_limit"`
 	// ExplorerURL is the block explorer URL for the blockchain
 	ExplorerURL string `yaml:"explorer_url"`
+	// ExplorerAPIURL is the block explorer API URL for the blockchain
+	ExplorerAPIURL string `yaml:"explorer_api_url"`
 	// ExplorerAPIKey is the API key for the block explorer
 	ExplorerAPIKey string `yaml:"explorer_api_key"`
 }

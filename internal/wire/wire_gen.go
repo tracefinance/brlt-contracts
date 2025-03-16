@@ -56,7 +56,7 @@ func BuildContainer() (*Container, error) {
 	factory := wallet.NewFactory(keyStore, chains, configConfig)
 	registry := blockchain.NewRegistry(chains, configConfig)
 	contractFactory := contract.NewFactory(registry, factory, configConfig)
-	blockexplorerFactory := blockexplorer.NewFactory(chains, configConfig)
+	blockexplorerFactory := blockexplorer.NewFactory(chains, configConfig, loggerLogger)
 	core := NewCore(configConfig, dbDB, loggerLogger, keyStore, tokenStore, chains, factory, registry, contractFactory, blockexplorerFactory)
 	repository := user.NewRepository(dbDB)
 	service := user.NewService(repository)

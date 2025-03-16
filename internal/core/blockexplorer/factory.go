@@ -3,6 +3,7 @@ package blockexplorer
 import (
 	"vault0/internal/config"
 	"vault0/internal/errors"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
@@ -13,10 +14,11 @@ type Factory interface {
 }
 
 // NewFactory creates a new BlockExplorer factory
-func NewFactory(chains *types.Chains, cfg *config.Config) Factory {
+func NewFactory(chains *types.Chains, cfg *config.Config, logger logger.Logger) Factory {
 	return &factory{
 		chains:    chains,
 		cfg:       cfg,
+		logger:    logger,
 		explorers: make(map[types.ChainType]BlockExplorer),
 	}
 }
@@ -24,6 +26,7 @@ func NewFactory(chains *types.Chains, cfg *config.Config) Factory {
 type factory struct {
 	chains    *types.Chains
 	cfg       *config.Config
+	logger    logger.Logger
 	explorers map[types.ChainType]BlockExplorer
 }
 
@@ -46,13 +49,9 @@ func (f *factory) GetExplorer(chainType types.ChainType) (BlockExplorer, error) 
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
 		// Create EVM-compatible explorer
-		explorer, err = NewEVMExplorer(chain, chain.ExplorerUrl, chain.ExplorerAPIKey)
+		explorer = NewEtherscanExplorer(chain, chain.ExplorerAPIUrl, chain.ExplorerUrl, chain.ExplorerAPIKey, f.logger)
 	default:
 		return nil, errors.NewChainNotSupportedError(string(chainType))
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	// Store the explorer instance

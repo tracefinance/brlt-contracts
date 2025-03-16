@@ -356,23 +356,35 @@ func TestGetWallet(t *testing.T) {
 				ChainID:         1,
 				DefaultGasLimit: 21000,
 				DefaultGasPrice: 20000000000,
+				ExplorerURL:     "https://api.etherscan.io/api",
+				ExplorerAPIKey:  "test-key",
 			},
 			Polygon: config.BlockchainConfig{
 				RPCURL:          "http://localhost:8546",
 				ChainID:         137,
 				DefaultGasLimit: 21000,
 				DefaultGasPrice: 20000000000,
+				ExplorerURL:     "https://api.polygonscan.com/api",
+				ExplorerAPIKey:  "test-key",
 			},
 			Base: config.BlockchainConfig{
 				RPCURL:          "http://localhost:8547",
 				ChainID:         8453,
 				DefaultGasLimit: 21000,
 				DefaultGasPrice: 20000000000,
+				ExplorerURL:     "https://api.basescan.org/api",
+				ExplorerAPIKey:  "test-key",
 			},
 		},
 	}
 	chains, err := types.NewChains(cfg)
 	assert.NoError(t, err)
+
+	// Create mocks
+	mockRepository := &MockRepository{}
+	mockKeyStore := &MockKeyStore{}
+	mockWalletFactory := &MockWalletFactory{}
+	mockBlockchainRegistry := &MockBlockchainRegistry{}
 
 	// Define test cases
 	tests := []struct {
@@ -386,11 +398,11 @@ func TestGetWallet(t *testing.T) {
 		{
 			name:      "successful retrieval",
 			chainType: types.ChainTypeEthereum,
-			address:   "0x1234567890abcdef1234567890abcdef12345678",
+			address:   "0x1234567890AbCdEf1234567890aBcDeF12345678",
 			setupMocks: func(repo *MockRepository) {
 				repo.GetFunc = func(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
 					assert.Equal(t, types.ChainTypeEthereum, chainType)
-					assert.Equal(t, "0x1234567890abcdef1234567890abcdef12345678", address)
+					assert.Equal(t, "0x1234567890AbCdEf1234567890aBcDeF12345678", address)
 					return &Wallet{
 						ID:        "wallet123",
 						ChainType: chainType,
@@ -442,19 +454,13 @@ func TestGetWallet(t *testing.T) {
 				// No mocks needed; validation fails before repository is called
 			},
 			wantErr:     true,
-			errContains: "unsupported blockchain: unsupported",
+			errContains: "Chain not supported: unsupported",
 		},
 	}
 
 	// Run tests
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Initialize mocks
-			mockKeyStore := &MockKeyStore{}
-			mockWalletFactory := &MockWalletFactory{}
-			mockRepository := &MockRepository{}
-			mockBlockchainRegistry := &MockBlockchainRegistry{}
-
 			// Setup mock behavior
 			tt.setupMocks(mockRepository)
 
@@ -593,7 +599,7 @@ func TestUpdateLastBlockNumber(t *testing.T) {
 				// No mocks needed; validation fails before repository is called
 			},
 			wantErr:     true,
-			errContains: "unsupported blockchain: unsupported",
+			errContains: "Chain not supported: unsupported",
 		},
 	}
 
