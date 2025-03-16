@@ -2,13 +2,12 @@ package types
 
 import (
 	"crypto/elliptic"
-	"fmt"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 
 	"vault0/internal/config"
 	"vault0/internal/core/crypto"
+	"vault0/internal/errors"
 )
 
 type ChainType string
@@ -48,7 +47,7 @@ type Chain struct {
 
 // Chains represents a collection of blockchain configurations.
 type Chains struct {
-	chains map[ChainType]Chain // Map of chain types to their configurations
+	Chains map[ChainType]Chain // Map of chain types to their configurations
 }
 
 // NewChains creates a new Chains instance with configurations from the provided config.
@@ -62,23 +61,28 @@ func NewChains(cfg *config.Config) (*Chains, error) {
 		chainsMap[chainType] = chain
 	}
 	return &Chains{
-		chains: chainsMap,
+		Chains: chainsMap,
 	}, nil
 }
 
 // Get returns the Chain configuration for the specified chain type.
 func (c *Chains) Get(chainType ChainType) (Chain, error) {
-	chain, exists := c.chains[chainType]
+	chain, exists := c.Chains[chainType]
 	if !exists {
-		return Chain{}, &UnsupportedChainError{ChainType: chainType}
+		return Chain{}, errors.NewChainNotSupportedError(string(chainType))
 	}
+
+	if chain.RPCUrl == "" {
+		return Chain{}, errors.NewInvalidBlockchainConfigError(string(chainType), "rpc_url")
+	}
+
 	return chain, nil
 }
 
 // List returns a slice of all Chain configurations.
 func (c *Chains) List() []Chain {
-	chains := make([]Chain, 0, len(c.chains))
-	for _, chain := range c.chains {
+	chains := make([]Chain, 0, len(c.Chains))
+	for _, chain := range c.Chains {
 		chains = append(chains, chain)
 	}
 	return chains
@@ -93,8 +97,8 @@ func (c *Chains) List() []Chain {
 // Returns:
 //   - A fully initialized Chain struct if successful
 //   - Error if:
-//   - The chain type is unsupported (ErrUnsupportedChain)
-//   - The RPC URL is not configured (ErrMissingRPCURL)
+//   - The chain type is unsupported (ErrChainNotSupported)
+//   - The configuration is invalid (ErrInvalidBlockchainConfig)
 func newChain(cfg *config.Config, chainType ChainType) (Chain, error) {
 	chainCfg, err := getChainConfig(chainType, cfg)
 	if err != nil {
@@ -102,7 +106,7 @@ func newChain(cfg *config.Config, chainType ChainType) (Chain, error) {
 	}
 
 	if chainCfg.RPCURL == "" {
-		return Chain{}, fmt.Errorf("missing RPC URL for %s: %w", chainType, ErrMissingRPCURL)
+		return Chain{}, errors.NewInvalidBlockchainConfigError(string(chainType), "rpc_url")
 	}
 
 	// Determine the key type and curve for the chain
@@ -126,6 +130,40 @@ func newChain(cfg *config.Config, chainType ChainType) (Chain, error) {
 	}, nil
 }
 
+// ValidateAddress performs a thorough validation of a blockchain address.
+// For EVM-compatible chains, it checks the address format and checksum.
+//
+// Parameters:
+//   - address: The address to validate
+//
+// Returns:
+//   - nil if the address is valid
+//   - ErrInvalidAddress with details if the address is invalid
+func (c *Chain) ValidateAddress(address string) error {
+	if address == "" {
+		return errors.NewInvalidAddressError("")
+	}
+
+	// For EVM-compatible chains (Ethereum, Polygon, Base)
+	switch c.Type {
+	case ChainTypeEthereum, ChainTypePolygon, ChainTypeBase:
+		// Check if the address has the correct format (0x followed by 40 hex characters)
+		if !common.IsHexAddress(address) {
+			return errors.NewInvalidAddressError(address)
+		}
+
+		// Convert to checksum address and verify
+		checksumAddr := common.HexToAddress(address).Hex()
+		if address != checksumAddr {
+			return errors.NewInvalidAddressError(address)
+		}
+
+		return nil
+	default:
+		return errors.NewChainNotSupportedError(string(c.Type))
+	}
+}
+
 // IsValidAddress validates if the given address is a valid blockchain address.
 // This is a convenience method that returns a boolean instead of an error.
 //
@@ -139,36 +177,6 @@ func (c *Chain) IsValidAddress(address string) bool {
 	return c.ValidateAddress(address) == nil
 }
 
-// ValidateAddress performs a thorough validation of a blockchain address.
-// For EVM-compatible chains, it checks the address format and checksum.
-//
-// Parameters:
-//   - address: The address to validate
-//
-// Returns:
-//   - nil if the address is valid
-//   - ErrInvalidAddress with details if the address is invalid
-func (c *Chain) ValidateAddress(address string) error {
-	// For EVM-compatible chains (Ethereum, Polygon, Base)
-	switch c.Type {
-	case ChainTypeEthereum, ChainTypePolygon, ChainTypeBase:
-		// Check if the address has the correct format (0x followed by 40 hex characters)
-		if !common.IsHexAddress(address) {
-			return fmt.Errorf("%w: invalid format", ErrInvalidAddress)
-		}
-
-		// Convert to checksum address and verify
-		checksumAddr := common.HexToAddress(address)
-		if address != checksumAddr.Hex() && address != strings.ToLower(checksumAddr.Hex()) {
-			return fmt.Errorf("%w: checksum validation failed", ErrInvalidAddress)
-		}
-
-		return nil
-	default:
-		return ErrInvalidAddress
-	}
-}
-
 // getChainConfig returns the configuration for a given chain type.
 // It extracts the appropriate blockchain configuration from the provided config object.
 //
@@ -178,7 +186,7 @@ func (c *Chain) ValidateAddress(address string) error {
 //
 // Returns:
 //   - Pointer to the blockchain-specific configuration
-//   - ErrUnsupportedChain if the chain type is not supported
+//   - ErrChainNotSupported if the chain type is not supported
 func getChainConfig(chainType ChainType, config *config.Config) (*config.BlockchainConfig, error) {
 	switch chainType {
 	case ChainTypeEthereum:
@@ -188,7 +196,7 @@ func getChainConfig(chainType ChainType, config *config.Config) (*config.Blockch
 	case ChainTypeBase:
 		return &config.Blockchains.Base, nil
 	default:
-		return nil, &UnsupportedChainError{ChainType: chainType}
+		return nil, errors.NewChainNotSupportedError(string(chainType))
 	}
 }
 

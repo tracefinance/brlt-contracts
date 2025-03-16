@@ -3,6 +3,7 @@ package blockchain
 import (
 	"sync"
 	"vault0/internal/config"
+	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
@@ -52,6 +53,6 @@ func (r *registry) GetBlockchain(chainType types.ChainType) (Blockchain, error) 
 		r.clients[chainType] = client
 		return client, nil
 	default:
-		return nil, &types.UnsupportedChainError{ChainType: chainType}
+		return nil, errors.NewChainNotSupportedError(string(chainType))
 	}
 }
