@@ -25,25 +25,25 @@ type ecdsaSignature struct {
 	R, S *big.Int
 }
 
+// testChain is a test chain configuration
+var testChain = types.Chain{
+	ID:              1,
+	Type:            types.ChainTypeEthereum,
+	Name:            "Ethereum",
+	Symbol:          "ETH",
+	RPCUrl:          "https://mainnet.infura.io",
+	ExplorerUrl:     "https://etherscan.io",
+	KeyType:         types.KeyTypeECDSA,
+	Curve:           coreCrypto.Secp256k1Curve,
+	DefaultGasLimit: 21000,
+	DefaultGasPrice: 20000000000, // 20 Gwei
+}
+
 // setupTest creates a test wallet with mock dependencies
 func setupTest(t *testing.T) (*EVMWallet, *MockKeyStore) {
 	ks := &MockKeyStore{}
 
-	// Create a chain struct
-	chain := types.Chain{
-		ID:              1,
-		Type:            types.ChainTypeEthereum,
-		Name:            "Ethereum",
-		Symbol:          "ETH",
-		RPCUrl:          "https://mainnet.infura.io",
-		ExplorerUrl:     "https://etherscan.io",
-		KeyType:         types.KeyTypeECDSA,
-		Curve:           coreCrypto.Secp256k1Curve,
-		DefaultGasLimit: 21000,
-		DefaultGasPrice: 20000000000, // 20 Gwei
-	}
-
-	wallet, err := NewEVMWallet(ks, chain, "test")
+	wallet, err := NewEVMWallet(ks, testChain, "test")
 	require.NoError(t, err)
 	return wallet, ks
 }
@@ -81,7 +81,7 @@ func TestDeriveAddress(t *testing.T) {
 				PublicKey: pubKeyBytes,
 			}, nil
 		}
-		return nil, keystore.ErrKeyNotFound
+		return nil, errors.NewKeyNotFoundError(id)
 	}
 
 	// Derive address
@@ -102,7 +102,7 @@ func TestDeriveAddress(t *testing.T) {
 		// Assert
 		assert.Error(t, err)
 		assert.Empty(t, address)
-		assert.True(t, errors.IsKeyNotFound(err))
+		assert.ErrorContains(t, err, "Key not found: non-existent-key")
 	})
 }
 
@@ -138,7 +138,7 @@ func TestCreateNativeTransaction(t *testing.T) {
 				PublicKey: pubKeyBytes,
 			}, nil
 		}
-		return nil, keystore.ErrKeyNotFound
+		return nil, errors.NewKeyNotFoundError(id)
 	}
 
 	toAddress := "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
@@ -179,7 +179,7 @@ func TestCreateNativeTransaction(t *testing.T) {
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, tx)
-		assert.True(t, errors.IsKeyNotFound(err))
+		assert.ErrorContains(t, err, "Key not found: non-existent-key")
 	})
 }
 
@@ -215,7 +215,7 @@ func TestCreateTokenTransaction(t *testing.T) {
 				PublicKey: pubKeyBytes,
 			}, nil
 		}
-		return nil, keystore.ErrKeyNotFound
+		return nil, errors.NewKeyNotFoundError(id)
 	}
 
 	tokenAddress := "0xdAC17F958D2ee523a2206206994597C13D831ec7" // USDT address
@@ -321,7 +321,7 @@ func TestSignTransaction(t *testing.T) {
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, signature)
-		assert.True(t, errors.IsKeyNotFound(err))
+		assert.ErrorContains(t, err, "Key not found: non-existent-key")
 	})
 }
 
@@ -331,23 +331,27 @@ func TestNewEVMWalletValidation(t *testing.T) {
 
 	// Test with nil keystore
 	_, err := NewEVMWallet(nil, types.Chain{}, "test")
-	assert.Error(t, err, "NewEVMWallet should fail with nil keystore")
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "Invalid wallet configuration: keystore cannot be nil")
 
 	// Test with empty keyID
 	_, err = NewEVMWallet(ks, types.Chain{}, "")
-	assert.Error(t, err, "NewEVMWallet should fail with empty keyID")
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "Invalid wallet configuration: keyID cannot be empty")
 
 	// Test with invalid key type
 	_, err = NewEVMWallet(ks, types.Chain{
 		KeyType: types.KeyTypeRSA,
 		Curve:   coreCrypto.Secp256k1Curve,
 	}, "test")
-	assert.Error(t, err, "NewEVMWallet should fail with invalid key type")
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "Invalid key type: expected ecdsa, got rsa")
 
 	// Test with invalid curve
 	_, err = NewEVMWallet(ks, types.Chain{
 		KeyType: types.KeyTypeECDSA,
 		Curve:   elliptic.P256(),
 	}, "test")
-	assert.Error(t, err, "NewEVMWallet should fail with invalid curve")
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "Invalid curve: expected secp256k1, got P-256")
 }
