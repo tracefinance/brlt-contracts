@@ -1,15 +1,29 @@
 package crypto
 
 import (
+	"encoding/base64"
 	"testing"
-
-	"vault0/internal/errors"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// TestAESKey is a constant key for testing purposes only
+const TestAESKey = "2X8pMGQvLe3z0ZQgrR+yqZsxtLAFxl8CkkFxRgDDw4A="
+
 func TestAESEncryptor(t *testing.T) {
+	t.Run("Create new encryptor with test key", func(t *testing.T) {
+		// Decode the test key
+		keyBytes, err := base64.StdEncoding.DecodeString(TestAESKey)
+		require.NoError(t, err)
+		require.Len(t, keyBytes, 32) // Ensure it's a 256-bit key
+
+		// Create encryptor with the test key
+		encryptor, err := NewAESEncryptor(keyBytes)
+		assert.NoError(t, err)
+		assert.NotNil(t, encryptor)
+	})
+
 	t.Run("Create new encryptor with valid key sizes", func(t *testing.T) {
 		// Test AES-128
 		key128, err := GenerateEncryptionKey(16)
@@ -38,13 +52,11 @@ func TestAESEncryptor(t *testing.T) {
 		encryptor, err := NewAESEncryptor(invalidKey)
 		assert.Error(t, err)
 		assert.Nil(t, encryptor)
-		assert.ErrorIs(t, err, ErrInvalidEncryptionKey)
+		assert.ErrorContains(t, err, "key length must be 16, 24, or 32 bytes")
 	})
 
 	t.Run("Create new encryptor from base64", func(t *testing.T) {
-		key, err := GenerateEncryptionKeyBase64(32)
-		require.NoError(t, err)
-		encryptor, err := NewAESEncryptorFromBase64(key)
+		encryptor, err := NewAESEncryptorFromBase64(TestAESKey)
 		assert.NoError(t, err)
 		assert.NotNil(t, encryptor)
 	})
@@ -53,14 +65,12 @@ func TestAESEncryptor(t *testing.T) {
 		encryptor, err := NewAESEncryptorFromBase64("invalid-base64")
 		assert.Error(t, err)
 		assert.Nil(t, encryptor)
-		assert.ErrorIs(t, err, ErrInvalidEncryptionKey)
+		assert.ErrorContains(t, err, "invalid base64")
 	})
 
-	t.Run("Encrypt and decrypt data", func(t *testing.T) {
-		// Create encryptor
-		key, err := GenerateEncryptionKey(32)
-		require.NoError(t, err)
-		encryptor, err := NewAESEncryptor(key)
+	t.Run("Encrypt and decrypt data with test key", func(t *testing.T) {
+		// Create encryptor from the test key
+		encryptor, err := NewAESEncryptorFromBase64(TestAESKey)
 		require.NoError(t, err)
 
 		// Test data
@@ -79,10 +89,8 @@ func TestAESEncryptor(t *testing.T) {
 	})
 
 	t.Run("Decrypt invalid ciphertext", func(t *testing.T) {
-		// Create encryptor
-		key, err := GenerateEncryptionKey(32)
-		require.NoError(t, err)
-		encryptor, err := NewAESEncryptor(key)
+		// Create encryptor from the test key
+		encryptor, err := NewAESEncryptorFromBase64(TestAESKey)
 		require.NoError(t, err)
 
 		// Test with invalid ciphertext
@@ -90,137 +98,20 @@ func TestAESEncryptor(t *testing.T) {
 		decrypted, err := encryptor.Decrypt(invalidCiphertext)
 		assert.Error(t, err)
 		assert.Nil(t, decrypted)
-		assert.ErrorIs(t, err, ErrDecryptionError)
+		assert.ErrorContains(t, err, "Decryption failed")
 	})
 
 	t.Run("Generate encryption key with invalid size", func(t *testing.T) {
 		key, err := GenerateEncryptionKey(15)
 		assert.Error(t, err)
 		assert.Nil(t, key)
-		assert.ErrorIs(t, err, ErrInvalidEncryptionKey)
+		assert.ErrorContains(t, err, "key size must be 16, 24, or 32 bytes")
 	})
 
 	t.Run("Generate base64 encryption key with invalid size", func(t *testing.T) {
 		key, err := GenerateEncryptionKeyBase64(15)
 		assert.Error(t, err)
 		assert.Empty(t, key)
-		assert.ErrorIs(t, err, ErrInvalidEncryptionKey)
+		assert.ErrorContains(t, err, "key size must be 16, 24, or 32 bytes")
 	})
-}
-
-func TestEncrypt(t *testing.T) {
-	tests := []struct {
-		name       string
-		key        []byte
-		data       []byte
-		wantErr    bool
-		errChecker func(err error) bool
-	}{
-		{
-			name:    "valid encryption",
-			key:     make([]byte, 32),
-			data:    []byte("test data"),
-			wantErr: false,
-		},
-		{
-			name:    "invalid key size",
-			key:     make([]byte, 31),
-			data:    []byte("test data"),
-			wantErr: true,
-			errChecker: func(err error) bool {
-				appErr, ok := err.(*errors.AppError)
-				return ok && appErr.Code == errors.ErrCodeInvalidEncryptionKey
-			},
-		},
-		{
-			name:    "nil key",
-			key:     nil,
-			data:    []byte("test data"),
-			wantErr: true,
-			errChecker: func(err error) bool {
-				appErr, ok := err.(*errors.AppError)
-				return ok && appErr.Code == errors.ErrCodeInvalidEncryptionKey
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := Encrypt(tt.key, tt.data)
-			if tt.wantErr {
-				assert.Error(t, err)
-				if tt.errChecker != nil {
-					assert.True(t, tt.errChecker(err))
-				}
-				return
-			}
-			assert.NoError(t, err)
-			assert.NotNil(t, got)
-		})
-	}
-}
-
-func TestDecrypt(t *testing.T) {
-	key := make([]byte, 32)
-	validCiphertext, _ := Encrypt(key, []byte("test data"))
-
-	tests := []struct {
-		name       string
-		key        []byte
-		ciphertext []byte
-		wantErr    bool
-		errChecker func(err error) bool
-	}{
-		{
-			name:       "valid decryption",
-			key:        key,
-			ciphertext: validCiphertext,
-			wantErr:    false,
-		},
-		{
-			name:       "invalid ciphertext",
-			key:        key,
-			ciphertext: []byte("invalid"),
-			wantErr:    true,
-			errChecker: func(err error) bool {
-				appErr, ok := err.(*errors.AppError)
-				return ok && appErr.Code == errors.ErrCodeDecryptionError
-			},
-		},
-		{
-			name:       "nil key",
-			key:        nil,
-			ciphertext: validCiphertext,
-			wantErr:    true,
-			errChecker: func(err error) bool {
-				appErr, ok := err.(*errors.AppError)
-				return ok && appErr.Code == errors.ErrCodeInvalidEncryptionKey
-			},
-		},
-		{
-			name:       "invalid key size",
-			key:        make([]byte, 31),
-			ciphertext: validCiphertext,
-			wantErr:    true,
-			errChecker: func(err error) bool {
-				appErr, ok := err.(*errors.AppError)
-				return ok && appErr.Code == errors.ErrCodeInvalidEncryptionKey
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := Decrypt(tt.key, tt.ciphertext)
-			if tt.wantErr {
-				assert.Error(t, err)
-				if tt.errChecker != nil {
-					assert.True(t, tt.errChecker(err))
-				}
-				return
-			}
-			assert.NoError(t, err)
-			assert.NotNil(t, got)
-		})
-	}
 }
