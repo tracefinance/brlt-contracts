@@ -7,6 +7,7 @@ import (
 	"time"
 	"vault0/internal/core/db"
 	"vault0/internal/errors"
+	"vault0/internal/types"
 )
 
 // Repository defines the user data access interface
@@ -16,8 +17,7 @@ type Repository interface {
 	Delete(ctx context.Context, id int64) error
 	FindByID(ctx context.Context, id int64) (*User, error)
 	FindByEmail(ctx context.Context, email string) (*User, error)
-	List(ctx context.Context, limit, offset int) ([]*User, error)
-	Count(ctx context.Context) (int, error)
+	List(ctx context.Context, limit, offset int) (*types.Page[*User], error)
 }
 
 // repository implements Repository using SQLite database
@@ -161,7 +161,7 @@ func (r *repository) FindByEmail(ctx context.Context, email string) (*User, erro
 }
 
 // List retrieves a paginated list of users
-func (r *repository) List(ctx context.Context, limit, offset int) ([]*User, error) {
+func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*User], error) {
 	query := `
 		SELECT id, email, password_hash, created_at, updated_at
 		FROM users
@@ -189,27 +189,5 @@ func (r *repository) List(ctx context.Context, limit, offset int) ([]*User, erro
 		return nil, errors.NewDatabaseError(err)
 	}
 
-	return users, nil
-}
-
-// Count returns the total number of users
-func (r *repository) Count(ctx context.Context) (int, error) {
-	query := "SELECT COUNT(*) FROM users"
-
-	rows, err := r.db.ExecuteQueryContext(ctx, query)
-	if err != nil {
-		return 0, errors.NewDatabaseError(err)
-	}
-	defer rows.Close()
-
-	if !rows.Next() {
-		return 0, errors.NewDatabaseError(nil)
-	}
-
-	var count int
-	if err = rows.Scan(&count); err != nil {
-		return 0, errors.NewDatabaseError(err)
-	}
-
-	return count, nil
+	return types.NewPage(users, offset, limit), nil
 }

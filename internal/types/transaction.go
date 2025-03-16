@@ -14,20 +14,6 @@ const (
 	TransactionTypeContract TransactionType = "contract"
 )
 
-// Page represents a paginated response
-type Page[T any] struct {
-	// Items contains the page items
-	Items []T `json:"items"`
-	// Total number of items across all pages
-	Total int64 `json:"total"`
-	// Current page number (1-based)
-	Page int `json:"page"`
-	// Number of items per page
-	PageSize int `json:"page_size"`
-	// Whether there are more pages available
-	HasMore bool `json:"has_more"`
-}
-
 // Transaction represents a blockchain transaction
 type Transaction struct {
 	// Chain is the blockchain type

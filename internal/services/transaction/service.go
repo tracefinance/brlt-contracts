@@ -18,10 +18,10 @@ type Service interface {
 	GetTransaction(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error)
 
 	// GetTransactionsByWallet retrieves transactions for a specific wallet
-	GetTransactionsByWallet(ctx context.Context, walletID string, limit, offset int) ([]*Transaction, error)
+	GetTransactionsByWallet(ctx context.Context, walletID string, limit, offset int) (*types.Page[*Transaction], error)
 
 	// GetTransactionsByAddress retrieves transactions for a specific blockchain address
-	GetTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) ([]*Transaction, error)
+	GetTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
 
 	// SyncTransactions fetches and stores transactions for a wallet
 	SyncTransactions(ctx context.Context, walletID string) (int, error)
@@ -136,7 +136,7 @@ func (s *transactionService) GetTransaction(ctx context.Context, chainType types
 }
 
 // GetTransactionsByWallet retrieves transactions for a specific wallet
-func (s *transactionService) GetTransactionsByWallet(ctx context.Context, walletID string, limit, offset int) ([]*Transaction, error) {
+func (s *transactionService) GetTransactionsByWallet(ctx context.Context, walletID string, limit, offset int) (*types.Page[*Transaction], error) {
 	// Validate input
 	if walletID == "" {
 		return nil, errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "")
@@ -155,7 +155,7 @@ func (s *transactionService) GetTransactionsByWallet(ctx context.Context, wallet
 }
 
 // GetTransactionsByAddress retrieves transactions for a specific blockchain address
-func (s *transactionService) GetTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) ([]*Transaction, error) {
+func (s *transactionService) GetTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error) {
 	// Validate input
 	if chainType == "" {
 		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")

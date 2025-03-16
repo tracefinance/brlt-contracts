@@ -32,10 +32,12 @@ type WalletResponse struct {
 	UpdatedAt time.Time         `json:"updated_at"`
 }
 
-// ListWalletsResponse represents a response with a list of wallets
-type ListWalletsResponse struct {
+// PagedWalletsResponse represents a response with a list of wallets
+type PagedWalletsResponse struct {
 	Wallets []*WalletResponse `json:"wallets"`
-	Total   int               `json:"total"`
+	Limit   int               `json:"limit"`
+	Offset  int               `json:"offset"`
+	HasMore bool              `json:"has_more"`
 }
 
 // ToResponse converts a wallet model to a wallet response
@@ -59,4 +61,14 @@ func ToResponseList(wallets []*wallet.Wallet) []*WalletResponse {
 		responses[i] = ToResponse(w)
 	}
 	return responses
+}
+
+// ToPagedResponse converts a Page of wallet models to a PagedWalletsResponse
+func ToPagedResponse(page *types.Page[*wallet.Wallet]) *PagedWalletsResponse {
+	return &PagedWalletsResponse{
+		Wallets: ToResponseList(page.Items),
+		Limit:   page.Limit,
+		Offset:  page.Offset,
+		HasMore: page.HasMore,
+	}
 }

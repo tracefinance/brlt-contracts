@@ -3,6 +3,7 @@ package user
 import (
 	"time"
 	"vault0/internal/services/user"
+	"vault0/internal/types"
 )
 
 // CreateUserRequest represents data needed to create a user
@@ -25,6 +26,14 @@ type UserResponse struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// PagedUsersResponse represents a paginated list of users
+type PagedUsersResponse struct {
+	Items   []*UserResponse `json:"items"`
+	Limit   int             `json:"limit"`
+	Offset  int             `json:"offset"`
+	HasMore bool            `json:"has_more"`
+}
+
 // ToResponse converts a user model to a user response
 func ToResponse(user *user.User) *UserResponse {
 	return &UserResponse{
@@ -42,4 +51,14 @@ func ToResponseList(users []*user.User) []*UserResponse {
 		responses[i] = ToResponse(user)
 	}
 	return responses
+}
+
+// ToPagedResponse converts a Page of user models to a PagedUserResponse
+func ToPagedResponse(page *types.Page[*user.User]) *PagedUsersResponse {
+	return &PagedUsersResponse{
+		Items:   ToResponseList(page.Items),
+		Limit:   page.Limit,
+		Offset:  page.Offset,
+		HasMore: page.HasMore,
+	}
 }

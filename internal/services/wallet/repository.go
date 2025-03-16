@@ -30,7 +30,7 @@ type Repository interface {
 	Delete(ctx context.Context, chainType types.ChainType, address string) error
 
 	// List retrieves wallets with optional filtering
-	List(ctx context.Context, limit, offset int) ([]*Wallet, error)
+	List(ctx context.Context, limit, offset int) (*types.Page[*Wallet], error)
 
 	// Exists checks if a wallet exists by its chain type and address
 	Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error)
@@ -218,7 +218,7 @@ func (r *repository) Delete(ctx context.Context, chainType types.ChainType, addr
 }
 
 // List retrieves wallets with optional filtering
-func (r *repository) List(ctx context.Context, limit, offset int) ([]*Wallet, error) {
+func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*Wallet], error) {
 	query := `
 		SELECT id, key_id, chain_type, address, name, tags, last_block_number, created_at, updated_at, deleted_at
 		FROM wallets
@@ -246,7 +246,7 @@ func (r *repository) List(ctx context.Context, limit, offset int) ([]*Wallet, er
 		return nil, errors.NewDatabaseError(err)
 	}
 
-	return wallets, nil
+	return types.NewPage(wallets, offset, limit), nil
 }
 
 // Exists checks if a wallet exists by its chain type and address

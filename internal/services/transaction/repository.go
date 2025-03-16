@@ -20,10 +20,10 @@ type Repository interface {
 	Get(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error)
 
 	// GetByWallet retrieves transactions for a specific wallet
-	GetByWallet(ctx context.Context, walletID string, limit, offset int) ([]*Transaction, error)
+	GetByWallet(ctx context.Context, walletID string, limit, offset int) (*types.Page[*Transaction], error)
 
 	// GetByAddress retrieves transactions for a specific blockchain address
-	GetByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) ([]*Transaction, error)
+	GetByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
 
 	// Count counts transactions for a specific wallet
 	Count(ctx context.Context, walletID string) (int, error)
@@ -136,7 +136,7 @@ func (r *repository) Get(ctx context.Context, chainType types.ChainType, hash st
 }
 
 // GetByWallet retrieves transactions for a specific wallet
-func (r *repository) GetByWallet(ctx context.Context, walletID string, limit, offset int) ([]*Transaction, error) {
+func (r *repository) GetByWallet(ctx context.Context, walletID string, limit, offset int) (*types.Page[*Transaction], error) {
 	query := `
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
@@ -167,11 +167,11 @@ func (r *repository) GetByWallet(ctx context.Context, walletID string, limit, of
 		return nil, errors.NewDatabaseError(err)
 	}
 
-	return transactions, nil
+	return types.NewPage(transactions, offset, limit), nil
 }
 
 // GetByAddress retrieves transactions for a specific blockchain address
-func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) ([]*Transaction, error) {
+func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error) {
 	query := `
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
@@ -202,7 +202,7 @@ func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType
 		return nil, errors.NewDatabaseError(err)
 	}
 
-	return transactions, nil
+	return types.NewPage(transactions, offset, limit), nil
 }
 
 // Count counts transactions for a specific wallet

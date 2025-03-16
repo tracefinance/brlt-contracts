@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"vault0/internal/services/transaction"
+	"vault0/internal/types"
 )
 
 // TransactionResponse represents a transaction in API responses
@@ -27,12 +28,12 @@ type TransactionResponse struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
-// TransactionListResponse represents a paginated list of transactions
-type TransactionListResponse struct {
-	Transactions []TransactionResponse `json:"transactions"`
-	Total        int                   `json:"total"`
-	Limit        int                   `json:"limit"`
-	Offset       int                   `json:"offset"`
+// PagedTransactionsResponse represents a paginated list of transactions
+type PagedTransactionsResponse struct {
+	Items   []TransactionResponse `json:"items"`
+	Limit   int                   `json:"limit"`
+	Offset  int                   `json:"offset"`
+	HasMore bool                  `json:"has_more"`
 }
 
 // SyncTransactionsResponse represents the response for a transaction sync operation
@@ -75,5 +76,24 @@ func FromServiceTransaction(tx *transaction.Transaction) TransactionResponse {
 		Timestamp:    tx.Timestamp,
 		CreatedAt:    tx.CreatedAt,
 		UpdatedAt:    tx.UpdatedAt,
+	}
+}
+
+// ToResponseList converts a slice of service transactions to a slice of response transactions
+func ToResponseList(txs []*transaction.Transaction) []TransactionResponse {
+	responses := make([]TransactionResponse, len(txs))
+	for i, tx := range txs {
+		responses[i] = FromServiceTransaction(tx)
+	}
+	return responses
+}
+
+// ToPagedResponse converts a Page of service transactions to a TransactionListResponse
+func ToPagedResponse(page *types.Page[*transaction.Transaction]) *PagedTransactionsResponse {
+	return &PagedTransactionsResponse{
+		Items:   ToResponseList(page.Items),
+		Limit:   page.Limit,
+		Offset:  page.Offset,
+		HasMore: page.HasMore,
 	}
 }

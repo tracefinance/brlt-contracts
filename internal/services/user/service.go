@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"vault0/internal/errors"
+	"vault0/internal/types"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -15,7 +16,7 @@ type Service interface {
 	Update(ctx context.Context, id int64, email, password string) (*User, error)
 	Delete(ctx context.Context, id int64) error
 	Get(ctx context.Context, id int64) (*User, error)
-	List(ctx context.Context, page, pageSize int) ([]*User, int, error)
+	List(ctx context.Context, limit, offset int) (*types.Page[*User], error)
 }
 
 // service implements the Service interface
@@ -118,27 +119,13 @@ func (s *service) Get(ctx context.Context, id int64) (*User, error) {
 }
 
 // List retrieves a paginated list of users
-func (s *service) List(ctx context.Context, page, pageSize int) ([]*User, int, error) {
-	if page < 1 {
-		page = 1
+func (s *service) List(ctx context.Context, limit, offset int) (*types.Page[*User], error) {
+	if limit < 1 {
+		limit = 10
 	}
-	if pageSize < 1 {
-		pageSize = 10
-	}
-
-	offset := (page - 1) * pageSize
-
-	// Get the users
-	users, err := s.repository.List(ctx, pageSize, offset)
-	if err != nil {
-		return nil, 0, err
+	if offset < 0 {
+		offset = 0
 	}
 
-	// Get the total count
-	total, err := s.repository.Count(ctx)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return users, total, nil
+	return s.repository.List(ctx, limit, offset)
 }

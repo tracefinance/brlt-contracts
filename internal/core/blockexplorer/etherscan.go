@@ -538,11 +538,10 @@ func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address s
 
 	// Return paginated results
 	return &types.Page[*types.Transaction]{
-		Items:    allTransactions[start:end],
-		Total:    total,
-		Page:     options.Page,
-		PageSize: options.PageSize,
-		HasMore:  hasMore,
+		Items:   allTransactions[start:end],
+		Offset:  (options.Page - 1) * options.PageSize,
+		Limit:   options.PageSize,
+		HasMore: hasMore,
 	}, nil
 }
 

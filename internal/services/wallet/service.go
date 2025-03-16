@@ -124,8 +124,7 @@ type Service interface {
 	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
 	GetByID(ctx context.Context, id string) (*Wallet, error)
 
-	// List retrieves a paginated list of non-deleted wallets.
-	// Results are ordered by creation date (newest first).
+	// List retrieves a paginated list of non-deleted wallets
 	//
 	// Parameters:
 	//   - ctx: Context for the operation
@@ -133,9 +132,9 @@ type Service interface {
 	//   - offset: Number of wallets to skip (default: 0 if < 0)
 	//
 	// Returns:
-	//   - []*Wallet: List of wallets
+	//   - *types.Page[*Wallet]: Paginated list of wallets
 	//   - error: Any error that occurred during the operation
-	List(ctx context.Context, limit, offset int) ([]*Wallet, error)
+	List(ctx context.Context, limit, offset int) (*types.Page[*Wallet], error)
 
 	// Exists checks if a non-deleted wallet exists.
 	// This is a lightweight operation that doesn't return the wallet's data.
@@ -439,7 +438,7 @@ func (s *walletService) Get(ctx context.Context, chainType types.ChainType, addr
 }
 
 // List retrieves a paginated list of non-deleted wallets
-func (s *walletService) List(ctx context.Context, limit, offset int) ([]*Wallet, error) {
+func (s *walletService) List(ctx context.Context, limit, offset int) (*types.Page[*Wallet], error) {
 	if limit <= 0 {
 		limit = 10
 	}
@@ -457,12 +456,13 @@ func (s *walletService) List(ctx context.Context, limit, offset int) ([]*Wallet,
 
 // SubscribeToBlockchainEvents subscribes to events for all active wallets
 func (s *walletService) SubscribeToBlockchainEvents(ctx context.Context) error {
-	wallets, err := s.repository.List(ctx, 0, 0)
+	// Get all wallets without pagination to subscribe to all
+	walletPage, err := s.repository.List(ctx, 0, 0)
 	if err != nil {
 		return errors.NewOperationFailedError("list wallets for subscription", err)
 	}
 
-	for _, wallet := range wallets {
+	for _, wallet := range walletPage.Items {
 		if err := s.subscribeToWallet(ctx, wallet); err != nil {
 			s.logger.Error("Failed to subscribe to wallet events",
 				logger.String("wallet_id", wallet.ID),

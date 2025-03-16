@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"vault0/internal/errors"
+	"vault0/internal/api/middleares"
 	"vault0/internal/services/transaction"
 	"vault0/internal/types"
 )
@@ -25,14 +25,19 @@ func NewHandler(transactionService transaction.Service) *Handler {
 
 // SetupRoutes sets up the transaction routes
 func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
+	// Create error handler middleware
+	errorHandler := middleares.NewErrorHandler(nil)
+
 	// Wallet-scoped transaction routes
 	walletRoutes := router.Group("/wallets/:chain_type/:address/transactions")
+	walletRoutes.Use(errorHandler.Middleware())
 	walletRoutes.GET("", h.GetTransactionsByAddress)
 	walletRoutes.GET("/:hash", h.GetTransaction)
 	walletRoutes.POST("/sync", h.SyncTransactions)
 
 	// Direct transaction routes
 	transactionRoutes := router.Group("/transactions")
+	transactionRoutes.Use(errorHandler.Middleware())
 	transactionRoutes.GET("/:hash", h.GetTransaction)
 }
 
@@ -49,22 +54,7 @@ func (h *Handler) GetTransaction(c *gin.Context) {
 
 	tx, err := h.transactionService.GetTransaction(c.Request.Context(), chainType, hash)
 	if err != nil {
-		// Return the service error directly without wrapping
-		var appErr *errors.AppError
-		if e, ok := err.(*errors.AppError); ok {
-			appErr = e
-		} else {
-			// If it's not an AppError, wrap it as an internal error
-			appErr = errors.NewInternalError(err)
-		}
-
-		// Map error codes to HTTP status codes
-		status := http.StatusInternalServerError
-		if appErr.Code == errors.ErrCodeTransactionNotFound {
-			status = http.StatusNotFound
-		}
-
-		c.JSON(status, appErr)
+		c.Error(err)
 		return
 	}
 
@@ -91,40 +81,14 @@ func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 		offset = 0
 	}
 
-	// Get transactions
-	txs, err := h.transactionService.GetTransactionsByAddress(c.Request.Context(), chainType, address, limit, offset)
+	// Get transactions with pagination
+	page, err := h.transactionService.GetTransactionsByAddress(c.Request.Context(), chainType, address, limit, offset)
 	if err != nil {
-		// Return the service error directly without wrapping
-		var appErr *errors.AppError
-		if e, ok := err.(*errors.AppError); ok {
-			appErr = e
-		} else {
-			// If it's not an AppError, wrap it as an internal error
-			appErr = errors.NewInternalError(err)
-		}
-
-		c.JSON(http.StatusInternalServerError, appErr)
+		c.Error(err)
 		return
 	}
 
-	// Count total transactions
-	total, err := h.transactionService.CountTransactions(c.Request.Context(), "")
-	if err != nil {
-		total = len(txs)
-	}
-
-	// Convert to response format
-	var transactions []TransactionResponse
-	for _, tx := range txs {
-		transactions = append(transactions, FromServiceTransaction(tx))
-	}
-
-	c.JSON(http.StatusOK, TransactionListResponse{
-		Transactions: transactions,
-		Total:        total,
-		Limit:        limit,
-		Offset:       offset,
-	})
+	c.JSON(http.StatusOK, ToPagedResponse(page))
 }
 
 // SyncTransactions handles POST /wallets/:chain_type/:address/transactions/sync
@@ -136,24 +100,7 @@ func (h *Handler) SyncTransactions(c *gin.Context) {
 	// Sync transactions
 	count, err := h.transactionService.SyncTransactionsByAddress(c.Request.Context(), chainType, address)
 	if err != nil {
-		// Return the service error directly without wrapping
-		var appErr *errors.AppError
-		if e, ok := err.(*errors.AppError); ok {
-			appErr = e
-		} else {
-			// If it's not an AppError, wrap it as an internal error
-			appErr = errors.NewInternalError(err)
-		}
-
-		// Map error codes to HTTP status codes
-		status := http.StatusInternalServerError
-		if appErr.Code == errors.ErrCodeTransactionSyncFailed {
-			status = http.StatusBadGateway
-		} else if appErr.Code == errors.ErrCodeInvalidInput {
-			status = http.StatusBadRequest
-		}
-
-		c.JSON(status, appErr)
+		c.Error(err)
 		return
 	}
 
