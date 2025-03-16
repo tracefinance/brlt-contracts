@@ -67,10 +67,13 @@ func NewOperationFailedError(operation string, err error) *AppError {
 }
 
 // NewWalletNotFoundError creates an error for missing wallet
-func NewWalletNotFoundError() *AppError {
+func NewWalletNotFoundError(address string) *AppError {
 	return &AppError{
 		Code:    ErrCodeWalletNotFound,
-		Message: "Wallet not found",
+		Message: fmt.Sprintf("Wallet not found for address: %s", address),
+		Details: map[string]any{
+			"address": address,
+		},
 	}
 }
 
@@ -78,7 +81,10 @@ func NewWalletNotFoundError() *AppError {
 func NewWalletExistsError(address string) *AppError {
 	return &AppError{
 		Code:    ErrCodeWalletExists,
-		Message: fmt.Sprintf("Wallet already exists with address: %s", address),
+		Message: fmt.Sprintf("Wallet already exists for address: %s", address),
+		Details: map[string]any{
+			"address": address,
+		},
 	}
 }
 

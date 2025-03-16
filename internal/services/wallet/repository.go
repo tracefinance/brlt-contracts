@@ -3,7 +3,6 @@ package wallet
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -105,12 +104,12 @@ func (r *repository) Get(ctx context.Context, chainType types.ChainType, address
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, errors.NewResourceNotFoundError("wallet", fmt.Sprintf("%s:%s", chainType, address))
+		return nil, errors.NewWalletNotFoundError(address)
 	}
 
 	wallet, err := ScanWallet(rows)
 	if err != nil {
-		return nil, errors.NewOperationFailedError("scan wallet", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 
 	return wallet, nil
@@ -131,7 +130,7 @@ func (r *repository) GetByID(ctx context.Context, id string) (*Wallet, error) {
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, errors.NewResourceNotFoundError("wallet", id)
+		return nil, errors.NewWalletNotFoundError(id)
 	}
 
 	wallet, err := ScanWallet(rows)
@@ -178,7 +177,7 @@ func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 	}
 
 	if rowsAffected == 0 {
-		return errors.NewResourceNotFoundError("wallet", wallet.ID)
+		return errors.NewWalletNotFoundError(wallet.ID)
 	}
 
 	return nil
@@ -212,7 +211,7 @@ func (r *repository) Delete(ctx context.Context, chainType types.ChainType, addr
 	}
 
 	if rowsAffected == 0 {
-		return errors.NewResourceNotFoundError("wallet", fmt.Sprintf("%s:%s", chainType, address))
+		return errors.NewWalletNotFoundError(address)
 	}
 
 	return nil

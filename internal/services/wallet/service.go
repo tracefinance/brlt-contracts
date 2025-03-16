@@ -249,40 +249,30 @@ func (s *walletService) emitLifecycleEvent(event *LifecycleEvent) {
 
 // Create creates a new wallet with a key and derives its address
 func (s *walletService) Create(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error) {
-	// Validate inputs
 	if name == "" {
 		return nil, errors.NewInvalidInputError("Name is required", "name", "")
 	}
 
-	// Get chain information from chains
 	chain, err := s.chains.Get(chainType)
 	if err != nil {
-		// Return the error from chains directly
 		return nil, err
 	}
 
-	// Create the key in the keystore using the chain's specified key type and curve
 	key, err := s.keystore.Create(ctx, name, chain.KeyType, chain.Curve, tags)
 	if err != nil {
-		// Return the error from keystore directly
 		return nil, err
 	}
 
-	// Create a wallet instance using the factory
 	w, err := s.walletFactory.NewWallet(ctx, chainType, key.ID)
 	if err != nil {
-		// Return the error from wallet factory directly
 		return nil, err
 	}
 
-	// Derive the wallet address
 	address, err := w.DeriveAddress(ctx)
 	if err != nil {
-		// Return the error from wallet directly
 		return nil, err
 	}
 
-	// Store the wallet info in the database
 	wallet := &Wallet{
 		KeyID:     key.ID,
 		ChainType: chain.Type,
@@ -295,7 +285,6 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 		return nil, errors.NewOperationFailedError("create wallet", err)
 	}
 
-	// Subscribe to wallet events
 	if err := s.subscribeToWallet(ctx, wallet); err != nil {
 		s.logger.Error("Failed to subscribe to wallet events",
 			logger.String("wallet_id", wallet.ID),
@@ -303,7 +292,6 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 			logger.Error(err))
 	}
 
-	// Emit wallet created event
 	s.emitLifecycleEvent(&LifecycleEvent{
 		WalletID:  wallet.ID,
 		EventType: EventTypeWalletCreated,
@@ -316,7 +304,6 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 
 // Update updates a wallet's name and tags by chain type and address
 func (s *walletService) Update(ctx context.Context, chainType types.ChainType, address, name string, tags map[string]string) (*Wallet, error) {
-	// Validate inputs
 	if chainType == "" {
 		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -327,29 +314,23 @@ func (s *walletService) Update(ctx context.Context, chainType types.ChainType, a
 		return nil, errors.NewInvalidInputError("Name is required", "name", "")
 	}
 
-	// Validate chain type
 	chain, err := s.chains.Get(chainType)
 	if err != nil {
-		// Return the error from chains directly
 		return nil, err
 	}
 
-	// Validate address format
 	if err := chain.ValidateAddress(address); err != nil {
 		return nil, err
 	}
 
-	// Get the wallet first
 	wallet, err := s.repository.Get(ctx, chainType, address)
 	if err != nil {
 		return nil, err
 	}
 
-	// Update wallet fields
 	wallet.Name = name
 	wallet.Tags = tags
 
-	// Update the wallet
 	if err := s.repository.Update(ctx, wallet); err != nil {
 		return nil, err
 	}
@@ -359,7 +340,6 @@ func (s *walletService) Update(ctx context.Context, chainType types.ChainType, a
 
 // UpdateLastBlockNumber updates the last block number for a wallet
 func (s *walletService) UpdateLastBlockNumber(ctx context.Context, chainType types.ChainType, address string, blockNumber int64) error {
-	// Validate inputs
 	if chainType == "" {
 		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -370,28 +350,22 @@ func (s *walletService) UpdateLastBlockNumber(ctx context.Context, chainType typ
 		return errors.NewInvalidInputError("Block number cannot be negative", "block_number", blockNumber)
 	}
 
-	// Validate chain type
 	chain, err := s.chains.Get(chainType)
 	if err != nil {
-		// Return the error from chains directly
 		return err
 	}
 
-	// Validate address format
 	if !chain.IsValidAddress(address) {
 		return errors.NewInvalidAddressError(address)
 	}
 
-	// Get the wallet first
 	wallet, err := s.repository.Get(ctx, chainType, address)
 	if err != nil {
 		return err
 	}
 
-	// Update only the last block number
 	wallet.LastBlockNumber = blockNumber
 
-	// Update the wallet
 	if err := s.repository.Update(ctx, wallet); err != nil {
 		return err
 	}
@@ -401,7 +375,6 @@ func (s *walletService) UpdateLastBlockNumber(ctx context.Context, chainType typ
 
 // Delete soft-deletes a wallet by chain type and address
 func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, address string) error {
-	// Validate inputs
 	if chainType == "" {
 		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -409,33 +382,26 @@ func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, a
 		return errors.NewInvalidInputError("Address is required", "address", "")
 	}
 
-	// Validate chain type
 	chain, err := s.chains.Get(chainType)
 	if err != nil {
-		// Return the error from chains directly
 		return err
 	}
 
-	// Validate address format
 	if !chain.IsValidAddress(address) {
 		return errors.NewInvalidAddressError(address)
 	}
 
-	// Get the wallet first to get its ID for unsubscribing
 	wallet, err := s.repository.Get(ctx, chainType, address)
 	if err != nil {
 		return err
 	}
 
-	// Unsubscribe from wallet events first
 	s.unsubscribeFromWallet(wallet.ID)
 
-	// Then delete the wallet
 	if err := s.repository.Delete(ctx, chainType, address); err != nil {
 		return err
 	}
 
-	// Emit wallet deleted event
 	s.emitLifecycleEvent(&LifecycleEvent{
 		WalletID:  wallet.ID,
 		EventType: EventTypeWalletDeleted,
@@ -448,7 +414,6 @@ func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, a
 
 // Get retrieves a wallet by its chain type and address
 func (s *walletService) Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
-	// Validate inputs
 	if chainType == "" {
 		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -456,19 +421,15 @@ func (s *walletService) Get(ctx context.Context, chainType types.ChainType, addr
 		return nil, errors.NewInvalidInputError("Address is required", "address", "")
 	}
 
-	// Validate chain type
 	chain, err := s.chains.Get(chainType)
 	if err != nil {
-		// Return the error from chains directly
 		return nil, err
 	}
 
-	// Validate address format
 	if !chain.IsValidAddress(address) {
 		return nil, errors.NewInvalidAddressError(address)
 	}
 
-	// Get the wallet
 	wallet, err := s.repository.Get(ctx, chainType, address)
 	if err != nil {
 		return nil, err
@@ -477,9 +438,8 @@ func (s *walletService) Get(ctx context.Context, chainType types.ChainType, addr
 	return wallet, nil
 }
 
-// List retrieves a list of wallets
+// List retrieves a paginated list of non-deleted wallets
 func (s *walletService) List(ctx context.Context, limit, offset int) ([]*Wallet, error) {
-	// Set default pagination values if not provided
 	if limit <= 0 {
 		limit = 10
 	}
@@ -487,7 +447,6 @@ func (s *walletService) List(ctx context.Context, limit, offset int) ([]*Wallet,
 		offset = 0
 	}
 
-	// Get the wallets
 	wallets, err := s.repository.List(ctx, limit, offset)
 	if err != nil {
 		return nil, errors.NewOperationFailedError("list wallets", err)
@@ -498,13 +457,11 @@ func (s *walletService) List(ctx context.Context, limit, offset int) ([]*Wallet,
 
 // SubscribeToBlockchainEvents subscribes to events for all active wallets
 func (s *walletService) SubscribeToBlockchainEvents(ctx context.Context) error {
-	// Get all non-deleted wallets
 	wallets, err := s.repository.List(ctx, 0, 0)
 	if err != nil {
 		return errors.NewOperationFailedError("list wallets for subscription", err)
 	}
 
-	// Subscribe to each wallet
 	for _, wallet := range wallets {
 		if err := s.subscribeToWallet(ctx, wallet); err != nil {
 			s.logger.Error("Failed to subscribe to wallet events",
@@ -522,37 +479,30 @@ func (s *walletService) UnsubscribeFromBlockchainEvents() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Cancel all subscribers
 	for walletID, cancel := range s.subscriptions {
 		cancel()
 		delete(s.subscriptions, walletID)
 	}
 
-	// Close all event channels
 	close(s.blockchainEvents)
 	close(s.lifecycleEvents)
 }
 
 func (s *walletService) subscribeToWallet(ctx context.Context, wallet *Wallet) error {
-	// Create blockchain client
 	client, err := s.blockchainRegistry.GetBlockchain(wallet.ChainType)
 	if err != nil {
 		return err
 	}
 
-	// Create context with cancellation
 	subscriptionCtx, cancel := context.WithCancel(ctx)
 
-	// Store cancel function
 	s.mu.Lock()
 	s.subscriptions[wallet.ID] = cancel
 	s.mu.Unlock()
 
-	// Subscribe to events
 	go func() {
 		defer cancel()
 
-		// Subscribe to events for the wallet address
 		logCh, errCh, err := client.SubscribeToEvents(subscriptionCtx, []string{wallet.Address}, nil)
 		if err != nil {
 			s.logger.Error("Failed to subscribe to events",
@@ -573,7 +523,6 @@ func (s *walletService) subscribeToWallet(ctx context.Context, wallet *Wallet) e
 					logger.Error(err))
 				return
 			case log := <-logCh:
-				// Emit blockchain event
 				s.emitBlockchainEvent(&BlockchainEvent{
 					WalletID: wallet.ID,
 					Log:      &log,
@@ -597,7 +546,6 @@ func (s *walletService) unsubscribeFromWallet(walletID string) {
 
 // Exists checks if a wallet exists by its chain type and address
 func (s *walletService) Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error) {
-	// Validate inputs
 	if chainType == "" {
 		return false, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -605,30 +553,24 @@ func (s *walletService) Exists(ctx context.Context, chainType types.ChainType, a
 		return false, errors.NewInvalidInputError("Address is required", "address", "")
 	}
 
-	// Validate chain type
 	chain, err := s.chains.Get(chainType)
 	if err != nil {
-		// Return the error from chains directly
 		return false, err
 	}
 
-	// Validate address format
 	if !chain.IsValidAddress(address) {
 		return false, errors.NewInvalidAddressError(address)
 	}
 
-	// Check if the wallet exists
 	return s.repository.Exists(ctx, chainType, address)
 }
 
 // GetByID retrieves a wallet by its unique identifier
 func (s *walletService) GetByID(ctx context.Context, id string) (*Wallet, error) {
-	// Validate input
 	if id == "" {
 		return nil, errors.NewInvalidInputError("ID is required", "id", "")
 	}
 
-	// Get the wallet from repository
 	wallet, err := s.repository.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
