@@ -3,10 +3,9 @@ package tokenstore
 import (
 	"context"
 	"database/sql"
-	"fmt"
-	"strings"
 	"time"
 
+	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
@@ -17,12 +16,16 @@ type dbTokenStore struct {
 
 // AddToken adds a new token to the database
 func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
-	if err := ValidateTokenData(token); err != nil {
-		return err
+	if token == nil {
+		return errors.NewInvalidTokenError("token is nil", nil)
+	}
+
+	if err := token.Validate(); err != nil {
+		return errors.NewInvalidTokenError("validation failed", err)
 	}
 
 	// Normalize address for consistent storage
-	normalizedAddress := NormalizeAddress(token.Address)
+	normalizedAddress := types.NormalizeAddress(token.Address)
 
 	// Check if the token already exists
 	var exists bool
@@ -34,11 +37,11 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 	).Scan(&exists)
 
 	if err != nil && err != sql.ErrNoRows {
-		return fmt.Errorf("failed to check if token exists: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	if err == nil {
-		return ErrTokenAlreadyExists
+		return errors.NewResourceAlreadyExistsError("token", "address", normalizedAddress)
 	}
 
 	// Insert the new token
@@ -54,7 +57,7 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("failed to insert token: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	return nil
@@ -62,7 +65,7 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 
 // GetToken retrieves a token by its address and chain type
 func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType types.ChainType) (*types.Token, error) {
-	normalizedAddress := NormalizeAddress(address)
+	normalizedAddress := types.NormalizeAddress(address)
 
 	var token types.Token
 	err := s.db.QueryRowContext(
@@ -82,9 +85,9 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType t
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, ErrTokenNotFound
+			return nil, errors.NewResourceNotFoundError("token", normalizedAddress)
 		}
-		return nil, fmt.Errorf("failed to get token: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 
 	return &token, nil
@@ -94,7 +97,7 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType t
 func (s *dbTokenStore) GetTokenByID(ctx context.Context, id string) (*types.Token, error) {
 	address, chainType, err := types.ParseTokenID(id)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewInvalidTokenError("invalid token ID format", err)
 	}
 
 	return s.GetToken(ctx, address, chainType)
@@ -111,7 +114,7 @@ func (s *dbTokenStore) GetTokensByChain(ctx context.Context, chainType types.Cha
 		chainType,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query tokens by chain: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
@@ -129,7 +132,7 @@ func (s *dbTokenStore) GetTokensByType(ctx context.Context, tokenType types.Toke
 		tokenType,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query tokens by type: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
@@ -138,11 +141,15 @@ func (s *dbTokenStore) GetTokensByType(ctx context.Context, tokenType types.Toke
 
 // UpdateToken updates an existing token
 func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) error {
-	if err := ValidateTokenData(token); err != nil {
-		return err
+	if token == nil {
+		return errors.NewInvalidTokenError("token is nil", nil)
 	}
 
-	normalizedAddress := NormalizeAddress(token.Address)
+	if err := token.Validate(); err != nil {
+		return errors.NewInvalidTokenError("validation failed", err)
+	}
+
+	normalizedAddress := types.NormalizeAddress(token.Address)
 
 	result, err := s.db.ExecContext(
 		ctx,
@@ -157,16 +164,16 @@ func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 		token.ChainType,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to update token: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	if rowsAffected == 0 {
-		return ErrTokenNotFound
+		return errors.NewResourceNotFoundError("token", normalizedAddress)
 	}
 
 	return nil
@@ -174,7 +181,7 @@ func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 
 // DeleteToken removes a token from the store
 func (s *dbTokenStore) DeleteToken(ctx context.Context, address string, chainType types.ChainType) error {
-	normalizedAddress := NormalizeAddress(address)
+	normalizedAddress := types.NormalizeAddress(address)
 
 	result, err := s.db.ExecContext(
 		ctx,
@@ -183,16 +190,16 @@ func (s *dbTokenStore) DeleteToken(ctx context.Context, address string, chainTyp
 		chainType,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to delete token: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	if rowsAffected == 0 {
-		return ErrTokenNotFound
+		return errors.NewResourceNotFoundError("token", normalizedAddress)
 	}
 
 	return nil
@@ -207,7 +214,7 @@ func (s *dbTokenStore) ListAllTokens(ctx context.Context) ([]*types.Token, error
 		ORDER BY chain_type, symbol`,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list all tokens: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
@@ -227,102 +234,14 @@ func (s *dbTokenStore) scanTokensFromRows(rows *sql.Rows) ([]*types.Token, error
 			&token.Decimals,
 			&token.Type,
 		); err != nil {
-			return nil, fmt.Errorf("failed to scan token: %w", err)
+			return nil, errors.NewDatabaseError(err)
 		}
 		tokens = append(tokens, &token)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating tokens rows: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 
 	return tokens, nil
-}
-
-// ImportTokensFromConfig imports tokens from a string map representation
-// This is used for importing tokens from a configuration file
-func (s *dbTokenStore) ImportTokensFromConfig(ctx context.Context, configTokens map[string][]map[string]interface{}) error {
-	for chainTypeStr, tokens := range configTokens {
-		for _, tokenData := range tokens {
-			token, err := mapToToken(chainTypeStr, tokenData)
-			if err != nil {
-				return fmt.Errorf("failed to parse token data: %w", err)
-			}
-
-			// We use AddToken which handles validation and duplicate checking
-			if err := s.AddToken(ctx, token); err != nil {
-				// Skip already existing tokens
-				if err == ErrTokenAlreadyExists {
-					continue
-				}
-				return fmt.Errorf("failed to import token %s on %s: %w", token.Symbol, token.ChainType, err)
-			}
-		}
-	}
-
-	return nil
-}
-
-// mapToToken converts a map representation of a token to a types.Token
-func mapToToken(chainTypeStr string, data map[string]interface{}) (*types.Token, error) {
-	var token types.Token
-
-	// Process chain type
-	token.ChainType = types.ChainType(strings.ToLower(chainTypeStr))
-
-	// Process symbol
-	if symbolVal, ok := data["symbol"]; ok {
-		if symbol, ok := symbolVal.(string); ok {
-			token.Symbol = symbol
-		} else {
-			return nil, fmt.Errorf("invalid symbol type: %T", symbolVal)
-		}
-	} else {
-		return nil, fmt.Errorf("missing required field: symbol")
-	}
-
-	// Process type
-	if typeVal, ok := data["type"]; ok {
-		if tokenType, ok := typeVal.(string); ok {
-			token.Type = types.TokenType(strings.ToLower(tokenType))
-		} else {
-			return nil, fmt.Errorf("invalid type field type: %T", typeVal)
-		}
-	} else {
-		return nil, fmt.Errorf("missing required field: type")
-	}
-
-	// Process address
-	if addrVal, ok := data["address"]; ok {
-		if addr, ok := addrVal.(string); ok {
-			token.Address = NormalizeAddress(addr)
-		} else {
-			return nil, fmt.Errorf("invalid address field type: %T", addrVal)
-		}
-	} else {
-		return nil, fmt.Errorf("missing required field: address")
-	}
-
-	// Process decimals
-	if decVal, ok := data["decimals"]; ok {
-		switch v := decVal.(type) {
-		case int:
-			token.Decimals = uint8(v)
-		case float64:
-			token.Decimals = uint8(v)
-		case uint8:
-			token.Decimals = v
-		default:
-			return nil, fmt.Errorf("invalid decimals field type: %T", decVal)
-		}
-	} else {
-		return nil, fmt.Errorf("missing required field: decimals")
-	}
-
-	// Validate the token
-	if err := token.Validate(); err != nil {
-		return nil, err
-	}
-
-	return &token, nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
@@ -90,27 +90,10 @@ type EVMContractInfo struct {
 	IsVerified bool `json:"-"`
 }
 
-// EVMExplorerError represents an error that occurred during an EVM explorer operation
-// and includes the raw response from the API for debugging purposes.
-type EVMExplorerError struct {
-	Err         error
-	RawResponse string
-}
-
-// Error implements the error interface.
-func (e *EVMExplorerError) Error() string {
-	return fmt.Sprintf("%v (raw response: %s)", e.Err, e.RawResponse)
-}
-
-// Unwrap returns the underlying error.
-func (e *EVMExplorerError) Unwrap() error {
-	return e.Err
-}
-
 // NewEVMExplorer creates a new EVMExplorer instance
 func NewEVMExplorer(chain types.Chain, baseURL, apiKey string) (*EVMExplorer, error) {
 	if apiKey == "" {
-		return nil, ErrMissingAPIKey
+		return nil, errors.NewMissingAPIKeyError()
 	}
 
 	// Ensure the base URL does not end with a slash
@@ -133,7 +116,7 @@ func NewEVMExplorer(chain types.Chain, baseURL, apiKey string) (*EVMExplorer, er
 // GetContract checks if a contract is verified and returns its information
 func (e *EVMExplorer) GetContract(ctx context.Context, address string) (*ContractInfo, error) {
 	if err := e.chain.ValidateAddress(address); err != nil {
-		return nil, &EVMExplorerError{Err: ErrInvalidAddress, RawResponse: ""}
+		return nil, errors.NewInvalidAddressError(address)
 	}
 
 	// Prepare request parameters
@@ -144,18 +127,18 @@ func (e *EVMExplorer) GetContract(ctx context.Context, address string) (*Contrac
 	params.Add("apikey", e.apiKey)
 
 	var response EVMTransactionResponse
-	rawResponse, err := e.aaa(ctx, params, &response)
+	err := e.makeRequest(ctx, params, &response)
 	if err != nil {
-		return nil, &EVMExplorerError{Err: err, RawResponse: rawResponse}
+		return nil, errors.NewExplorerError(err)
 	}
 
 	var evmResult []EVMContractInfo
 	if err := json.Unmarshal(response.Result, &evmResult); err != nil {
-		return nil, &EVMExplorerError{Err: fmt.Errorf("%w: %v", ErrInvalidResponse, err), RawResponse: rawResponse}
+		return nil, errors.NewInvalidExplorerResponseError(err)
 	}
 
 	if len(evmResult) == 0 {
-		return nil, &EVMExplorerError{Err: fmt.Errorf("%w: no contract info returned", ErrInvalidResponse), RawResponse: rawResponse}
+		return nil, errors.NewInvalidExplorerResponseError(fmt.Errorf("no contract info returned"))
 	}
 
 	// Convert EVMContractInfo to ContractInfo
@@ -172,7 +155,7 @@ func (e *EVMExplorer) GetContract(ctx context.Context, address string) (*Contrac
 // GetTransactionHistory retrieves transaction history for an address
 func (e *EVMExplorer) GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions) ([]*types.Transaction, error) {
 	if err := e.chain.ValidateAddress(address); err != nil {
-		return nil, ErrInvalidAddress
+		return nil, errors.NewInvalidAddressError(address)
 	}
 
 	// Set default values if not provided
@@ -404,7 +387,7 @@ func (e *EVMExplorer) GetTransactionsByHash(ctx context.Context, hashes []string
 // GetAddressBalance retrieves the balance for an address
 func (e *EVMExplorer) GetAddressBalance(ctx context.Context, address string) (*big.Int, error) {
 	if err := e.chain.ValidateAddress(address); err != nil {
-		return nil, ErrInvalidAddress
+		return nil, errors.NewInvalidAddressError(address)
 	}
 
 	// Prepare request parameters
@@ -435,7 +418,7 @@ func (e *EVMExplorer) GetAddressBalance(ctx context.Context, address string) (*b
 // GetTokenBalances retrieves token balances for an address
 func (e *EVMExplorer) GetTokenBalances(ctx context.Context, address string) ([]*TokenBalance, error) {
 	if err := e.chain.ValidateAddress(address); err != nil {
-		return nil, ErrInvalidAddress
+		return nil, errors.NewInvalidAddressError(address)
 	}
 
 	// Prepare request parameters
@@ -514,26 +497,26 @@ func (e *EVMExplorer) makeRequest(ctx context.Context, params url.Values, result
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrRequestFailed, err)
+		return errors.NewExplorerRequestFailedError(err)
 	}
 
 	// Make the request
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrRequestFailed, err)
+		return errors.NewExplorerRequestFailedError(err)
 	}
 	defer resp.Body.Close()
 
 	// Check status code
 	if resp.StatusCode == http.StatusTooManyRequests {
-		return ErrRateLimitExceeded
+		return errors.NewRateLimitExceededError()
 	} else if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w: status code %d", ErrRequestFailed, resp.StatusCode)
+		return errors.NewExplorerRequestFailedError(fmt.Errorf("status code %d", resp.StatusCode))
 	}
 
 	// Parse the response
 	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidResponse, err)
+		return errors.NewInvalidExplorerResponseError(err)
 	}
 
 	return nil
@@ -573,7 +556,7 @@ func (e *EVMExplorer) getNormalTransactions(ctx context.Context, address, startB
 	// Parse transactions
 	var evmTxs []EVMTransaction
 	if err := json.Unmarshal(response.Result, &evmTxs); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidResponse, err)
+		return nil, errors.NewInvalidExplorerResponseError(err)
 	}
 
 	// Convert to our transaction model
@@ -614,7 +597,7 @@ func (e *EVMExplorer) getInternalTransactions(ctx context.Context, address, star
 	// Parse transactions
 	var evmTxs []EVMTransaction
 	if err := json.Unmarshal(response.Result, &evmTxs); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidResponse, err)
+		return nil, errors.NewInvalidExplorerResponseError(err)
 	}
 
 	// Convert to our transaction model
@@ -655,7 +638,7 @@ func (e *EVMExplorer) getTokenTransactions(ctx context.Context, address, action,
 	// Parse transactions
 	var evmTxs []EVMTransaction
 	if err := json.Unmarshal(response.Result, &evmTxs); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidResponse, err)
+		return nil, errors.NewInvalidExplorerResponseError(err)
 	}
 
 	// Determine transaction type based on action
@@ -711,81 +694,4 @@ func (e *EVMExplorer) convertEVMTransactionsToTransactions(evmTxs []EVMTransacti
 	}
 
 	return txs
-}
-
-// makeRequestWithRawResponse makes an HTTP request and returns both the parsed response and raw response body
-func (e *EVMExplorer) aaa(ctx context.Context, params url.Values, response interface{}) (string, error) {
-	maxRetries := 3
-	baseDelay := time.Second
-
-	var lastErr error
-	var body string
-	var rawResp EVMTransactionResponse
-	var bodyBytes []byte
-
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		// Rate limiting
-		select {
-		case <-e.rateLimiter.C:
-		case <-ctx.Done():
-			return "", ctx.Err()
-		}
-
-		// Build request URL
-		reqURL := fmt.Sprintf("%s/api?%s", e.baseURL, params.Encode())
-
-		// Create request
-		req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
-		if err != nil {
-			return "", fmt.Errorf("failed to create request: %w", err)
-		}
-
-		// Make request
-		resp, err := e.httpClient.Do(req)
-		if err != nil {
-			lastErr = fmt.Errorf("failed to make request: %w", err)
-			goto retry
-		}
-		defer resp.Body.Close()
-
-		// Read response body
-		bodyBytes, err = io.ReadAll(resp.Body)
-		if err != nil {
-			lastErr = fmt.Errorf("failed to read response body: %w", err)
-			goto retry
-		}
-		body = string(bodyBytes)
-
-		// Check for rate limit response
-		if err := json.Unmarshal(bodyBytes, &rawResp); err != nil {
-			lastErr = fmt.Errorf("%w: %v", ErrInvalidResponse, err)
-			goto retry
-		}
-
-		if rawResp.Status == "0" && strings.Contains(string(rawResp.Result), "rate limit") {
-			lastErr = fmt.Errorf("rate limit exceeded")
-			goto retry
-		}
-
-		// Parse final response
-		if err := json.Unmarshal(bodyBytes, response); err != nil {
-			return body, fmt.Errorf("%w: %v", ErrInvalidResponse, err)
-		}
-
-		return body, nil
-
-	retry:
-		if attempt < maxRetries-1 {
-			// Exponential backoff
-			delay := baseDelay * time.Duration(1<<uint(attempt))
-			select {
-			case <-time.After(delay):
-			case <-ctx.Done():
-				return "", ctx.Err()
-			}
-			continue
-		}
-	}
-
-	return body, lastErr
 }

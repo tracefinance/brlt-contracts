@@ -4,12 +4,6 @@ import (
 	"math/big"
 )
 
-// Common addresses
-const (
-	// ZeroAddress represents the Ethereum zero address (0x0)
-	ZeroAddress = "0x0000000000000000000000000000000000000000"
-)
-
 // TransactionType represents the type of transaction
 type TransactionType string
 

@@ -21,6 +21,7 @@ import (
 	"math/big"
 	"vault0/internal/config"
 	"vault0/internal/core/keystore"
+	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
@@ -128,12 +129,12 @@ func NewWallet(ctx context.Context, keystore keystore.KeyStore, chains *types.Ch
 		// Get chain struct from blockchain package
 		chain, err := chains.Get(chainType)
 		if err != nil {
-			return nil, err
+			return nil, errors.NewChainNotSupportedError(string(chainType))
 		}
 
 		// All EVM-compatible chains use the same implementation
 		return NewEVMWallet(keystore, chain, keyID)
 	default:
-		return nil, &types.UnsupportedChainError{ChainType: chainType}
+		return nil, errors.NewChainNotSupportedError(string(chainType))
 	}
 }

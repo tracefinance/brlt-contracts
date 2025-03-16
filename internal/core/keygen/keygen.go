@@ -22,10 +22,10 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"fmt"
 	"io"
 
 	"vault0/internal/core/crypto"
+	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
@@ -76,7 +76,7 @@ func (kg *defaultKeyGenerator) GenerateKeyPair(keyType types.KeyType, curve elli
 	case types.KeyTypeSymmetric:
 		return kg.generateSymmetricKey()
 	default:
-		return nil, nil, fmt.Errorf("unsupported key type: %s", keyType)
+		return nil, nil, errors.NewInvalidKeyTypeError(string(types.KeyTypeECDSA), string(keyType))
 	}
 }
 
@@ -104,7 +104,7 @@ func (kg *defaultKeyGenerator) generateECDSAKeyPair(curve elliptic.Curve) (priva
 	// Generate ECDSA key pair with the specified curve
 	privateECDSA, err := ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.NewCryptoError(err)
 	}
 
 	// Special handling for SECP256K1 curve
@@ -112,25 +112,25 @@ func (kg *defaultKeyGenerator) generateECDSAKeyPair(curve elliptic.Curve) (priva
 		// Use our custom marshalling for SECP256K1
 		privateKey, err = crypto.MarshalPrivateKey(privateECDSA)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to marshal SECP256K1 private key: %w", err)
+			return nil, nil, errors.NewCryptoError(err)
 		}
 
 		// Use custom marshalling for public key too
 		publicKey, err = crypto.MarshalPublicKey(&privateECDSA.PublicKey)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to marshal SECP256K1 public key: %w", err)
+			return nil, nil, errors.NewCryptoError(err)
 		}
 	} else {
 		// For standard curves, use the regular EC marshalling
 		privateKey, err = x509.MarshalECPrivateKey(privateECDSA)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, errors.NewCryptoError(err)
 		}
 
 		// Public key marshalling for standard curves
 		publicKey, err = x509.MarshalPKIXPublicKey(&privateECDSA.PublicKey)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, errors.NewCryptoError(err)
 		}
 	}
 
@@ -151,7 +151,7 @@ func (kg *defaultKeyGenerator) generateRSAKeyPair() (privateKey, publicKey []byt
 	// Generate RSA 2048-bit key pair
 	privateRSA, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.NewCryptoError(err)
 	}
 
 	// Convert private key to PKCS#1 DER format
@@ -160,7 +160,7 @@ func (kg *defaultKeyGenerator) generateRSAKeyPair() (privateKey, publicKey []byt
 	// Convert public key to PKIX DER format
 	publicKey, err = x509.MarshalPKIXPublicKey(&privateRSA.PublicKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.NewCryptoError(err)
 	}
 
 	return privateKey, publicKey, nil
@@ -180,13 +180,13 @@ func (kg *defaultKeyGenerator) generateEd25519KeyPair() (privateKey, publicKey [
 	// Generate Ed25519 key pair
 	pubKey, privKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.NewCryptoError(err)
 	}
 
 	// For Ed25519, we need to convert to PKCS8 format for PEM encoding
 	pkcs8Key, err := x509.MarshalPKCS8PrivateKey(privKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.NewCryptoError(err)
 	}
 
 	// Use the PKCS8 DER encoding for the private key
@@ -195,7 +195,7 @@ func (kg *defaultKeyGenerator) generateEd25519KeyPair() (privateKey, publicKey [
 	// Convert public key to DER format
 	pubDER, err := x509.MarshalPKIXPublicKey(pubKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.NewCryptoError(err)
 	}
 
 	// Return the DER-encoded keys directly instead of PEM encoding them
@@ -218,7 +218,7 @@ func (kg *defaultKeyGenerator) generateSymmetricKey() (privateKey, publicKey []b
 	// Generate a 32-byte (256-bit) symmetric key
 	privateKey = make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, privateKey); err != nil {
-		return nil, nil, err
+		return nil, nil, errors.NewCryptoError(err)
 	}
 	// No public key for symmetric keys
 	return privateKey, nil, nil

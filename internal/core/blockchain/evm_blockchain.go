@@ -226,7 +226,7 @@ func (c *EVMBlockchain) CallContract(ctx context.Context, from string, to string
 
 	result, err := c.client.CallContract(ctx, callMsg, nil)
 	if err != nil {
-		return nil, errors.NewInvalidContractError(to, err)
+		return nil, errors.NewInvalidContractCallError(to, err)
 	}
 
 	return result, nil

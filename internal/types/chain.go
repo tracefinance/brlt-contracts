@@ -39,6 +39,7 @@ type Chain struct {
 	Symbol          string         // Native currency symbol (ETH, MATIC)
 	RPCUrl          string         // JSON-RPC endpoint URL
 	ExplorerUrl     string         // Block explorer URL
+	ExplorerAPIKey  string         // Block explorer API key
 	Curve           elliptic.Curve // Elliptic curve for crypto operations
 	KeyType         KeyType        // Cryptographic key type
 	DefaultGasLimit uint64         // Default transaction gas limit
@@ -123,6 +124,7 @@ func newChain(cfg *config.Config, chainType ChainType) (Chain, error) {
 		Symbol:          getChainSymbol(chainType),
 		RPCUrl:          chainCfg.RPCURL,
 		ExplorerUrl:     chainCfg.ExplorerURL,
+		ExplorerAPIKey:  chainCfg.ExplorerAPIKey,
 		KeyType:         keyType,
 		Curve:           curve,
 		DefaultGasLimit: chainCfg.DefaultGasLimit,

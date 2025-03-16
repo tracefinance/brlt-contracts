@@ -4,8 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
-	"fmt"
+	stderrors "errors"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -16,13 +15,14 @@ import (
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/wallet"
-	coreTypes "vault0/internal/types"
+	"vault0/internal/errors"
+	"vault0/internal/types"
 )
 
 // EVMSmartContract implements the SmartContract interface for EVM compatible chains
 type EVMSmartContract struct {
 	// chainType is the type of blockchain
-	chainType coreTypes.ChainType
+	chainType types.ChainType
 	// blockchain is the blockchain client
 	blockchain blockchain.Blockchain
 	// wallet is the wallet client
@@ -41,10 +41,10 @@ func NewEVMSmartContract(
 	chain := wallet.Chain()
 
 	// Validate chain type
-	if chain.Type != coreTypes.ChainTypeEthereum &&
-		chain.Type != coreTypes.ChainTypePolygon &&
-		chain.Type != coreTypes.ChainTypeBase {
-		return nil, fmt.Errorf("unsupported chain type: %s", chain.Type)
+	if chain.Type != types.ChainTypeEthereum &&
+		chain.Type != types.ChainTypePolygon &&
+		chain.Type != types.ChainTypeBase {
+		return nil, errors.NewChainNotSupportedError(string(chain.Type))
 	}
 
 	return &EVMSmartContract{
@@ -56,7 +56,7 @@ func NewEVMSmartContract(
 }
 
 // ChainType returns the blockchain type
-func (c *EVMSmartContract) ChainType() coreTypes.ChainType {
+func (c *EVMSmartContract) ChainType() types.ChainType {
 	return c.wallet.Chain().Type
 }
 
@@ -75,31 +75,31 @@ func (c *EVMSmartContract) LoadArtifact(ctx context.Context, contractName string
 
 		// If still doesn't exist, return error
 		if _, err := os.Stat(artifactPath); os.IsNotExist(err) {
-			return nil, fmt.Errorf("contract artifact not found: %s", contractName)
+			return nil, errors.NewInvalidContractError(contractName, err)
 		}
 	}
 
 	// Read the artifact file
 	data, err := os.ReadFile(artifactPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read contract artifact: %w", err)
+		return nil, errors.NewInvalidContractError(contractName, err)
 	}
 
 	// Parse the artifact JSON - supporting both Hardhat and Truffle formats
 	var artifactData map[string]any
 	if err := json.Unmarshal(data, &artifactData); err != nil {
-		return nil, fmt.Errorf("failed to parse contract artifact: %w", err)
+		return nil, errors.NewInvalidContractError(contractName, err)
 	}
 
 	// Extract the ABI
 	abiData, ok := artifactData["abi"]
 	if !ok {
-		return nil, errors.New("ABI not found in contract artifact")
+		return nil, errors.NewInvalidContractError(contractName, stderrors.New("abi not found"))
 	}
 
 	abiJSON, err := json.Marshal(abiData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal ABI: %w", err)
+		return nil, errors.NewInvalidContractError(contractName, err)
 	}
 
 	// Extract the bytecode - checking multiple possible fields based on compiler
@@ -125,7 +125,7 @@ func (c *EVMSmartContract) LoadArtifact(ctx context.Context, contractName string
 	}
 
 	if bytecodeHex == "" {
-		return nil, errors.New("bytecode not found in contract artifact")
+		return nil, errors.NewInvalidContractError(contractName, err)
 	}
 
 	// Remove 0x prefix if present
@@ -134,7 +134,7 @@ func (c *EVMSmartContract) LoadArtifact(ctx context.Context, contractName string
 	// Convert hex to bytes
 	bytecode, err := hex.DecodeString(bytecodeHex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode bytecode: %w", err)
+		return nil, errors.NewInvalidContractError(contractName, err)
 	}
 
 	// Extract deployed bytecode if available
@@ -161,7 +161,7 @@ func (c *EVMSmartContract) LoadArtifact(ctx context.Context, contractName string
 		// Convert hex to bytes
 		deployedBytecode, err = hex.DecodeString(deployedBytecodeHex)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode deployed bytecode: %w", err)
+			return nil, errors.NewInvalidContractError(contractName, err)
 		}
 	}
 
@@ -182,7 +182,7 @@ func (c *EVMSmartContract) Deploy(
 	// Parse the ABI
 	parsedABI, err := abi.JSON(strings.NewReader(artifact.ABI))
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse ABI: %w", err)
+		return nil, errors.NewInvalidContractError(artifact.Name, err)
 	}
 
 	// Encode constructor parameters
@@ -191,7 +191,7 @@ func (c *EVMSmartContract) Deploy(
 		var err error
 		constructorInput, err = parsedABI.Pack("", options.ConstructorArgs...)
 		if err != nil {
-			return nil, fmt.Errorf("failed to encode constructor arguments: %w", err)
+			return nil, errors.NewInvalidContractError(artifact.Name, err)
 		}
 	}
 
@@ -199,7 +199,7 @@ func (c *EVMSmartContract) Deploy(
 	deployData := append(artifact.Bytecode, constructorInput...)
 
 	// Prepare transaction options
-	txOptions := coreTypes.TransactionOptions{
+	txOptions := types.TransactionOptions{
 		GasPrice: options.GasPrice,
 		GasLimit: options.GasLimit,
 		Data:     deployData,
@@ -213,24 +213,24 @@ func (c *EVMSmartContract) Deploy(
 	// Create transaction - using a zero address as "to" for contract creation
 	tx, err := c.wallet.CreateNativeTransaction(
 		ctx,
-		coreTypes.ZeroAddress, // Use zero address for contract deployment
+		types.ZeroAddress, // Use zero address for contract deployment
 		options.Value,
 		txOptions,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create deployment transaction: %w", err)
+		return nil, err
 	}
 
 	// Sign the transaction
 	signedTx, err := c.wallet.SignTransaction(ctx, tx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign deployment transaction: %w", err)
+		return nil, err
 	}
 
 	// Broadcast the transaction
 	txHash, err := c.blockchain.BroadcastTransaction(ctx, signedTx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to broadcast deployment transaction: %w", err)
+		return nil, err
 	}
 
 	// Return initial result with transaction hash, other fields will be populated by WaitForDeployment
@@ -247,38 +247,30 @@ func (c *EVMSmartContract) WaitForDeployment(
 	// Get transaction receipt
 	receipt, err := c.blockchain.GetTransactionReceipt(ctx, transactionHash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get transaction receipt: %w", err)
+		return nil, errors.NewTransactionNotFoundError(transactionHash)
 	}
 
-	// Check if the transaction was successful
+	// Check if transaction was successful
 	if receipt.Status == 0 {
-		return nil, errors.New("contract deployment failed")
+		return nil, errors.NewTransactionFailedError(err)
 	}
 
-	// Get transaction details
+	// Get transaction to get gas price
 	tx, err := c.blockchain.GetTransaction(ctx, transactionHash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get transaction details: %w", err)
+		return nil, err
 	}
 
 	// Calculate deployment cost
-	gasPrice := tx.GasPrice
-	gasUsed := receipt.GasUsed
-	deploymentCost := new(big.Int).Mul(gasPrice, big.NewInt(int64(gasUsed)))
-
-	// Convert block number to uint64
-	blockNumber := uint64(0)
-	if receipt.BlockNumber != nil {
-		blockNumber = receipt.BlockNumber.Uint64()
-	}
+	deploymentCost := new(big.Int).Mul(tx.GasPrice, big.NewInt(int64(receipt.GasUsed)))
 
 	// Return deployment result
 	return &DeploymentResult{
 		ContractAddress: receipt.Logs[0].Address, // Contract address is usually in the first log
 		TransactionHash: transactionHash,
-		BlockNumber:     blockNumber,
+		BlockNumber:     receipt.BlockNumber.Uint64(),
 		DeploymentCost:  deploymentCost,
-		GasUsed:         gasUsed,
+		GasUsed:         receipt.GasUsed,
 	}, nil
 }
 
@@ -293,46 +285,25 @@ func (c *EVMSmartContract) CallMethod(
 	// Parse the ABI
 	parsedABI, err := abi.JSON(strings.NewReader(artifact.ABI))
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse ABI: %w", err)
+		return nil, errors.NewInvalidContractError(artifact.Name, err)
 	}
 
 	// Pack the method call data
 	data, err := parsedABI.Pack(method, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode method call data: %w", err)
+		return nil, errors.NewInvalidContractCallError(artifact.Name, err)
 	}
 
 	// Call the contract
 	result, err := c.blockchain.CallContract(ctx, "", contractAddress, data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to call contract method: %w", err)
+		return nil, err
 	}
 
 	// Unpack the result
-	methodABI, exists := parsedABI.Methods[method]
-	if !exists {
-		return nil, fmt.Errorf("method %s not found in ABI", method)
-	}
-
-	// Prepare output variables array
-	outputs := make([]any, 0, len(methodABI.Outputs))
-
-	// Create an appropriate map to unpack outputs into
-	outputMap := make(map[string]any)
-
-	// Unpack the result into the output map
-	if err := parsedABI.UnpackIntoMap(outputMap, method, result); err != nil {
-		return nil, fmt.Errorf("failed to decode method return data: %w", err)
-	}
-
-	// Convert map values to array in the correct order
-	for _, output := range methodABI.Outputs {
-		if val, ok := outputMap[output.Name]; ok {
-			outputs = append(outputs, val)
-		} else {
-			// For unnamed outputs, we might need to reconstruct from a different approach
-			outputs = append(outputs, nil) // Placeholder for unnamed outputs
-		}
+	outputs, err := parsedABI.Unpack(method, result)
+	if err != nil {
+		return nil, errors.NewInvalidContractCallError(artifact.Name, err)
 	}
 
 	return outputs, nil
@@ -344,25 +315,25 @@ func (c *EVMSmartContract) ExecuteMethod(
 	contractAddress string,
 	artifact *Artifact,
 	method string,
-	options coreTypes.TransactionOptions,
+	options types.TransactionOptions,
 	args ...any,
 ) (string, error) {
 	// Parse the ABI
 	parsedABI, err := abi.JSON(strings.NewReader(artifact.ABI))
 	if err != nil {
-		return "", fmt.Errorf("failed to parse ABI: %w", err)
+		return "", errors.NewInvalidContractError(artifact.Name, err)
 	}
 
 	// Pack the method call data
 	data, err := parsedABI.Pack(method, args...)
 	if err != nil {
-		return "", fmt.Errorf("failed to encode method call data: %w", err)
+		return "", errors.NewInvalidContractCallError(artifact.Name, err)
 	}
 
-	// Set the transaction data
+	// Add method data to transaction options
 	options.Data = data
 
-	// Create the transaction
+	// Create transaction
 	tx, err := c.wallet.CreateNativeTransaction(
 		ctx,
 		contractAddress,
@@ -370,19 +341,19 @@ func (c *EVMSmartContract) ExecuteMethod(
 		options,
 	)
 	if err != nil {
-		return "", fmt.Errorf("failed to create method transaction: %w", err)
+		return "", err
 	}
 
 	// Sign the transaction
 	signedTx, err := c.wallet.SignTransaction(ctx, tx)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign method transaction: %w", err)
+		return "", err
 	}
 
 	// Broadcast the transaction
 	txHash, err := c.blockchain.BroadcastTransaction(ctx, signedTx)
 	if err != nil {
-		return "", fmt.Errorf("failed to broadcast method transaction: %w", err)
+		return "", err
 	}
 
 	return txHash, nil

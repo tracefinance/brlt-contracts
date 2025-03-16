@@ -2,6 +2,7 @@ package blockexplorer
 
 import (
 	"vault0/internal/config"
+	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
@@ -36,7 +37,7 @@ func (f *factory) GetExplorer(chainType types.ChainType) (BlockExplorer, error) 
 	// Get chain information
 	chain, err := f.chains.Get(chainType)
 	if err != nil {
-		return nil, ErrExplorerNotSupported
+		return nil, err
 	}
 
 	// Create a new explorer instance based on chain type
@@ -44,21 +45,10 @@ func (f *factory) GetExplorer(chainType types.ChainType) (BlockExplorer, error) 
 
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
-		// Get blockchain config
-		var blockchainCfg config.BlockchainConfig
-		switch chainType {
-		case types.ChainTypeEthereum:
-			blockchainCfg = f.cfg.Blockchains.Ethereum
-		case types.ChainTypePolygon:
-			blockchainCfg = f.cfg.Blockchains.Polygon
-		case types.ChainTypeBase:
-			blockchainCfg = f.cfg.Blockchains.Base
-		}
-
 		// Create EVM-compatible explorer
-		explorer, err = NewEVMExplorer(chain, blockchainCfg.ExplorerURL, blockchainCfg.ExplorerAPIKey)
+		explorer, err = NewEVMExplorer(chain, chain.ExplorerUrl, chain.ExplorerAPIKey)
 	default:
-		return nil, ErrExplorerNotSupported
+		return nil, errors.NewChainNotSupportedError(string(chainType))
 	}
 
 	if err != nil {

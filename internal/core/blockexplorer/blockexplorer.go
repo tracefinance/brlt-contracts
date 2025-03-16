@@ -2,20 +2,8 @@ package blockexplorer
 
 import (
 	"context"
-	"errors"
 	"math/big"
 	"vault0/internal/types"
-)
-
-// Common errors
-var (
-	ErrExplorerNotSupported = errors.New("explorer: explorer not supported")
-	ErrRateLimitExceeded    = errors.New("explorer: rate limit exceeded")
-	ErrInvalidAPIKey        = errors.New("explorer: invalid API key")
-	ErrInvalidAddress       = errors.New("explorer: invalid address")
-	ErrInvalidResponse      = errors.New("explorer: invalid response from explorer")
-	ErrRequestFailed        = errors.New("explorer: request failed")
-	ErrMissingAPIKey        = errors.New("explorer: missing API key")
 )
 
 // TokenBalance represents a token balance for any blockchain

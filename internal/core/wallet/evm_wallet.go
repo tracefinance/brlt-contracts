@@ -60,17 +60,17 @@ func (w *EVMWallet) Chain() types.Chain {
 func (w *EVMWallet) DeriveAddress(ctx context.Context) (string, error) {
 	key, err := w.keyStore.GetPublicKey(ctx, w.keyID)
 	if err != nil {
-		return "", errors.NewKeystoreError(err)
+		return "", err // Don't wrap keystore errors
 	}
 
 	publicKey := key.PublicKey
 	if len(publicKey) == 0 {
-		return "", errors.NewInvalidKeyError("empty public key")
+		return "", errors.NewInvalidKeyError("empty public key", nil)
 	}
 
 	pubKey, err := crypto.UnmarshalPubkey(publicKey)
 	if err != nil {
-		return "", errors.NewInvalidKeyError(err.Error())
+		return "", errors.NewInvalidKeyError("failed to unmarshal public key", err)
 	}
 
 	address := crypto.PubkeyToAddress(*pubKey)
@@ -80,7 +80,7 @@ func (w *EVMWallet) DeriveAddress(ctx context.Context) (string, error) {
 func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
 	fromAddress, err := w.DeriveAddress(ctx)
 	if err != nil {
-		return nil, errors.NewWalletError("failed to derive from address", err)
+		return nil, err // Don't wrap errors from DeriveAddress
 	}
 
 	// Allow zero address for contract creation, otherwise validate address
@@ -90,7 +90,7 @@ func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, toAddress strin
 
 	// For contract deployment (zero address), allow zero amount
 	if amount == nil || (toAddress != types.ZeroAddress && amount.Cmp(big.NewInt(0)) <= 0) {
-		return nil, errors.NewInvalidAmountError("amount must be greater than zero")
+		return nil, errors.NewInvalidAmountError(amount.String())
 	}
 
 	gasPrice := options.GasPrice
@@ -121,15 +121,19 @@ func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, toAddress strin
 func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, tokenAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
 	fromAddress, err := w.DeriveAddress(ctx)
 	if err != nil {
-		return nil, errors.NewWalletError("failed to derive from address", err)
+		return nil, err // Don't wrap errors from DeriveAddress
 	}
 
-	if !common.IsHexAddress(toAddress) || !common.IsHexAddress(tokenAddress) {
-		return nil, errors.NewInvalidAddressError("invalid address format")
+	if !common.IsHexAddress(toAddress) {
+		return nil, errors.NewInvalidAddressError(toAddress)
+	}
+
+	if !common.IsHexAddress(tokenAddress) {
+		return nil, errors.NewInvalidAddressError(tokenAddress)
 	}
 
 	if amount == nil || amount.Cmp(big.NewInt(0)) <= 0 {
-		return nil, errors.NewInvalidAmountError("amount must be greater than zero")
+		return nil, errors.NewInvalidAmountError(amount.String())
 	}
 
 	methodID := crypto.Keccak256([]byte(ERC20TransferMethodSignature))[:4]
@@ -167,7 +171,7 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, tokenAddress, to
 func (w *EVMWallet) SignTransaction(ctx context.Context, tx *types.Transaction) ([]byte, error) {
 	fromAddress, err := w.DeriveAddress(ctx)
 	if err != nil {
-		return nil, errors.NewWalletError("failed to derive address", err)
+		return nil, err // Don't wrap errors from DeriveAddress
 	}
 
 	if !strings.EqualFold(fromAddress, tx.From) {
@@ -197,7 +201,7 @@ func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethTypes.Transac
 	// Sign the hash using the keystore
 	signature, err := w.keyStore.Sign(ctx, w.keyID, hash.Bytes(), keystore.DataTypeDigest)
 	if err != nil {
-		return nil, errors.NewKeystoreError(err)
+		return nil, err // Don't wrap keystore errors
 	}
 
 	// Parse the DER-encoded signature into R and S components
@@ -225,11 +229,11 @@ func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethTypes.Transac
 	// Retrieve the expected public key from the keystore
 	key, err := w.keyStore.GetPublicKey(ctx, w.keyID)
 	if err != nil {
-		return nil, errors.NewKeystoreError(err)
+		return nil, err // Don't wrap keystore errors
 	}
 	publicKey, err := crypto.UnmarshalPubkey(key.PublicKey)
 	if err != nil {
-		return nil, errors.NewInvalidKeyError(err.Error())
+		return nil, errors.NewInvalidKeyError("failed to unmarshal public key", err)
 	}
 
 	// Test recovery ID {0, 1} to find the correct v
@@ -248,26 +252,11 @@ func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethTypes.Transac
 		}
 
 		// Check if the recovered public key matches the expected one
-		if recoveredPubKey.X.Cmp(publicKey.X) == 0 && recoveredPubKey.Y.Cmp(publicKey.Y) == 0 {
-			// Adjust v for EIP-155: v = 35 + 2*chainID + recoveryID
-			v := new(big.Int).Mul(big.NewInt(w.chain.ID), big.NewInt(2))
-			v.Add(v, big.NewInt(35+int64(recoveryID)))
-			// Build the final signature with the adjusted v value
-			finalSig := append(rBytes, sBytes...)
-			finalSig = append(finalSig, byte(v.Uint64()))
-
-			// Apply the signature to the transaction
-			signedTx, err := tx.WithSignature(signer, finalSig)
-			if err != nil {
-				return nil, errors.NewInvalidSignatureError(err)
-			}
-
-			// Serialize the signed transaction
-			txBytes, err := signedTx.MarshalBinary()
-			if err != nil {
-				return nil, errors.NewWalletError("failed to encode transaction", err)
-			}
-			return txBytes, nil
+		if recoveredPubKey.Equal(publicKey) {
+			// Found the correct v value, now create the final signature
+			v := byte(recoveryID) + 27 + byte(w.chain.ID*2+35)
+			signature := append(rBytes, append(sBytes, v)...)
+			return signature, nil
 		}
 	}
 

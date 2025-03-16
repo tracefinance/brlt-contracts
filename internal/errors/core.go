@@ -11,6 +11,13 @@ const (
 	ErrCodeDatabaseError    = "database_error"
 	ErrCodeDatabaseNotFound = "database_not_found"
 
+	// Resource errors
+	ErrCodeResourceNotFound = "resource_not_found"
+	ErrCodeResourceExists   = "resource_exists"
+
+	// Token errors
+	ErrCodeInvalidToken = "invalid_token"
+
 	// Blockchain errors
 	ErrCodeBlockchainError         = "blockchain_error"
 	ErrCodeInvalidBlockchainConfig = "invalid_blockchain_config"
@@ -21,12 +28,15 @@ const (
 	ErrCodeRPCError                = "rpc_error"
 	ErrCodeInvalidAddress          = "invalid_address"
 	ErrCodeTransactionFailed       = "transaction_failed"
+	ErrCodeInvalidContract         = "invalid_contract"
 
 	// Keystore errors
-	ErrCodeKeystoreError = "keystore_error"
-	ErrCodeKeyNotFound   = "key_not_found"
-	ErrCodeKeyExists     = "key_exists"
-	ErrCodeInvalidKey    = "invalid_key"
+	ErrCodeKeystoreError   = "keystore_error"
+	ErrCodeKeyNotFound     = "key_not_found"
+	ErrCodeKeyExists       = "key_exists"
+	ErrCodeInvalidKey      = "invalid_key"
+	ErrCodeSigningError    = "signing_error"
+	ErrCodeInvalidKeystore = "invalid_keystore"
 
 	// Wallet errors
 	ErrCodeWalletError         = "wallet_error"
@@ -52,14 +62,11 @@ const (
 	ErrCodeMissingAPIKey           = "missing_api_key"
 
 	// Blockchain transaction errors
-	ErrCodeInvalidNonce    = "invalid_nonce"
-	ErrCodeInvalidGasPrice = "invalid_gas_price"
-	ErrCodeInvalidGasLimit = "invalid_gas_limit"
-	ErrCodeInvalidContract = "invalid_contract"
-	ErrCodeInvalidAmount   = "invalid_amount"
-
-	// New error code
-	ErrCodeRPC = "RPC_ERROR"
+	ErrCodeInvalidNonce        = "invalid_nonce"
+	ErrCodeInvalidGasPrice     = "invalid_gas_price"
+	ErrCodeInvalidGasLimit     = "invalid_gas_limit"
+	ErrCodeInvalidContractCall = "invalid_contract_call"
+	ErrCodeInvalidAmount       = "invalid_amount"
 )
 
 // NewInvalidBlockchainConfigError creates an error for invalid blockchain configuration
@@ -143,10 +150,11 @@ func NewKeyNotFoundError(keyID string) *AppError {
 }
 
 // NewInvalidKeyError creates an error for invalid keys
-func NewInvalidKeyError(msg string) *AppError {
+func NewInvalidKeyError(msg string, err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidKey,
-		Message: fmt.Sprintf("Invalid key: %s", msg),
+		Message: msg,
+		Err:     err,
 	}
 }
 
@@ -182,9 +190,7 @@ func NewExplorerError(err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeExplorerError,
 		Message: fmt.Sprintf("Block explorer error: %v", err),
-		Details: map[string]any{
-			"error": err.Error(),
-		},
+		Err:     err,
 	}
 }
 
@@ -223,9 +229,7 @@ func NewRPCError(err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeRPCError,
 		Message: fmt.Sprintf("RPC error: %v", err),
-		Details: map[string]any{
-			"error": err.Error(),
-		},
+		Err:     err,
 	}
 }
 
@@ -234,9 +238,7 @@ func NewInvalidTransactionError(err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidTransaction,
 		Message: fmt.Sprintf("Invalid transaction: %v", err),
-		Details: map[string]any{
-			"error": err.Error(),
-		},
+		Err:     err,
 	}
 }
 
@@ -253,9 +255,7 @@ func NewInvalidExplorerResponseError(err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidExplorerResponse,
 		Message: fmt.Sprintf("Invalid response from block explorer: %v", err),
-		Details: map[string]any{
-			"error": err.Error(),
-		},
+		Err:     err,
 	}
 }
 
@@ -264,9 +264,7 @@ func NewExplorerRequestFailedError(err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeExplorerRequestFailed,
 		Message: fmt.Sprintf("Block explorer request failed: %v", err),
-		Details: map[string]any{
-			"error": err.Error(),
-		},
+		Err:     err,
 	}
 }
 
@@ -312,11 +310,25 @@ func NewInvalidGasLimitError(gasLimit uint64) *AppError {
 	}
 }
 
-// NewInvalidContractError creates a new error for invalid contract calls
+// NewInvalidContractCallError creates a new error for invalid contract calls
+func NewInvalidContractCallError(contract string, err error) *AppError {
+	return &AppError{
+		Code:    ErrCodeInvalidContractCall,
+		Message: fmt.Sprintf("Invalid contract call to %s: %v", contract, err),
+		Err:     err,
+		Details: map[string]any{
+			"contract": contract,
+			"error":    err.Error(),
+		},
+	}
+}
+
+// NewInvalidContractError creates a new error for invalid contracts
 func NewInvalidContractError(contract string, err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidContract,
-		Message: fmt.Sprintf("Invalid contract call to %s: %v", contract, err),
+		Message: fmt.Sprintf("Invalid contract: %s", contract),
+		Err:     err,
 		Details: map[string]any{
 			"contract": contract,
 			"error":    err.Error(),
@@ -386,9 +398,6 @@ func NewSignatureRecoveryError(err error) *AppError {
 		Code:    ErrCodeSignatureRecovery,
 		Message: "Failed to recover signature",
 		Err:     err,
-		Details: map[string]any{
-			"error": err.Error(),
-		},
 	}
 }
 
@@ -425,9 +434,63 @@ func NewTransactionFailedError(err error) *AppError {
 }
 
 // NewInvalidEncryptionKeyError creates a new error for invalid encryption keys
-func NewInvalidEncryptionKeyError(msg string) *AppError {
+func NewInvalidEncryptionKeyError(key string) *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidEncryptionKey,
-		Message: fmt.Sprintf("Invalid encryption key: %s", msg),
+		Message: fmt.Sprintf("Invalid encryption key: %s", key),
+	}
+}
+
+// NewResourceNotFoundError creates an error for when a resource is not found
+func NewResourceNotFoundError(resource, id string) *AppError {
+	return &AppError{
+		Code:    ErrCodeResourceNotFound,
+		Message: fmt.Sprintf("%s not found: %s", resource, id),
+		Details: map[string]any{
+			"resource": resource,
+			"id":       id,
+		},
+	}
+}
+
+// NewResourceAlreadyExistsError creates an error for when a resource already exists
+func NewResourceAlreadyExistsError(resource, attribute, value string) *AppError {
+	return &AppError{
+		Code:    ErrCodeResourceExists,
+		Message: fmt.Sprintf("%s with %s '%s' already exists", resource, attribute, value),
+		Details: map[string]any{
+			"resource":  resource,
+			"attribute": attribute,
+			"value":     value,
+		},
+	}
+}
+
+// NewSigningError creates an error for signing operations
+func NewSigningError(err error) *AppError {
+	return &AppError{
+		Code:    ErrCodeSigningError,
+		Message: "Signing operation failed",
+		Err:     err,
+		Details: map[string]any{
+			"error": err.Error(),
+		},
+	}
+}
+
+// NewInvalidKeystoreError creates an error for invalid or uninitialized keystore
+func NewInvalidKeystoreError(keystore string) *AppError {
+	return &AppError{
+		Code:    ErrCodeInvalidKeystore,
+		Message: fmt.Sprintf("Invalid keystore: %s", keystore),
+	}
+}
+
+// NewInvalidTokenError creates an error for invalid token data
+func NewInvalidTokenError(msg string, err error) *AppError {
+	return &AppError{
+		Code:    ErrCodeInvalidToken,
+		Message: fmt.Sprintf("Invalid token: %s", msg),
+		Err:     err,
 	}
 }

@@ -5,11 +5,11 @@ package contract
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/wallet"
+	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
@@ -69,7 +69,7 @@ func (f *factory) NewContract(ctx context.Context, chainType types.ChainType) (S
 	// Get blockchain client for the chain type
 	blockchainClient, err := f.blockchainRegistry.GetBlockchain(chainType)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get blockchain client: %w", err)
+		return nil, errors.NewBlockchainError(err)
 	}
 
 	// Create a wallet for the chain type
@@ -77,7 +77,7 @@ func (f *factory) NewContract(ctx context.Context, chainType types.ChainType) (S
 	// or we might need to modify the interface to accept keyID
 	walletClient, err := f.walletFactory.NewWallet(ctx, chainType, "default")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create wallet: %w", err)
+		return nil, errors.NewWalletError("failed to create wallet", err)
 	}
 
 	// Create a new contract instance based on chain type
@@ -87,11 +87,11 @@ func (f *factory) NewContract(ctx context.Context, chainType types.ChainType) (S
 		// Create EVM-compatible contract manager
 		contract, err = NewEVMSmartContract(blockchainClient, walletClient, f.cfg)
 	default:
-		return nil, &types.UnsupportedChainError{ChainType: chainType}
+		return nil, errors.NewChainNotSupportedError(string(chainType))
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to create contract for chain %s: %w", chainType, err)
+		return nil, errors.NewInvalidContractCallError("", err)
 	}
 
 	// Store the contract instance

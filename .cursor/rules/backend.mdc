@@ -220,10 +220,69 @@ var ServerSet = wire.NewSet(
 ## Development Guidelines
 
 ### Error Handling
-- Use early returns for error handling
-- Wrap errors with context using `fmt.Errorf("context: %w", err)`
-- Use custom error types for domain-specific errors
-- Implement proper error recovery mechanisms
+
+The project uses a structured error handling approach based on the `AppError` type. 
+
+#### Error Structure
+
+```go
+type AppError struct {
+    Code    string         // Unique identifier for the error type
+    Message string         // Human-readable error message
+    Details map[string]any // Additional error context (optional)
+    Err     error         // Internal error reference (not exposed in JSON)
+}
+```
+
+#### Core Principles
+
+**No Error Wrapping Between Modules**
+- Instead of wrapping errors from other modules, create a new domain-specific error
+- Each module should define its own error types and codes
+- Use the predefined error constructors from the `errors` package
+
+**Error Categories**
+- Database errors (e.g., `ErrCodeDatabaseError`, `ErrCodeDatabaseNotFound`)
+- Blockchain errors (e.g., `ErrCodeBlockchainError`, `ErrCodeChainNotSupported`)
+- Keystore errors (e.g., `ErrCodeKeystoreError`, `ErrCodeKeyNotFound`)
+- Wallet errors (e.g., `ErrCodeWalletError`, `ErrCodeInvalidWalletConfig`)
+- Crypto errors (e.g., `ErrCodeCryptoError`, `ErrCodeEncryptionError`)
+- Explorer errors (e.g., `ErrCodeExplorerError`, `ErrCodeRateLimitExceeded`)
+
+**Error Creation**
+```go
+// Instead of this:
+return fmt.Errorf("failed to process transaction: %w", err)
+// Do this:
+return errors.NewTransactionFailedError(err)
+```
+
+**Error Handling in Services**
+```go
+func (s *service) ProcessTransaction(ctx context.Context, tx *Transaction) error {
+    // Don't wrap errors from other modules
+    if err := s.validate(tx); err != nil {
+        return errors.NewInvalidTransactionError(err)
+    }
+    // Create specific error types
+    if tx.Amount.Cmp(s.balance) > 0 {
+        return errors.NewInsufficientFundsError(
+            s.balance.String(), 
+            tx.Amount.String(),
+        )
+    }
+    // ... rest of the implementation
+}
+```
+
+**Error Handling in API**
+- Use middleware to convert `AppError` to appropriate HTTP responses
+- Maintain error codes to HTTP status code mapping
+- Include error details in JSON responses when appropriate
+- Log internal errors but return safe error messages to clients
+- Implement recovery middleware to catch panics
+- Convert unexpected errors to internal server errors
+- Log full error context for debugging
 
 ### Database Operations
 - Use prepared statements for all SQL queries

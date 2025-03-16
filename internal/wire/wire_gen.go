@@ -36,11 +36,11 @@ func BuildContainer() (*Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	dbDB, err := db.NewDatabase(configConfig)
+	loggerLogger, err := logger.NewLogger(configConfig)
 	if err != nil {
 		return nil, err
 	}
-	loggerLogger, err := logger.NewLogger(configConfig)
+	dbDB, err := db.NewDatabase(configConfig, loggerLogger)
 	if err != nil {
 		return nil, err
 	}

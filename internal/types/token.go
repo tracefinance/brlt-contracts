@@ -5,6 +5,11 @@ import (
 	"strings"
 )
 
+const (
+	// ZeroAddress represents the native token address (0x0)
+	ZeroAddress = "0x0000000000000000000000000000000000000000"
+)
+
 // TokenType represents the type of token
 type TokenType string
 
@@ -43,6 +48,25 @@ func (t *Token) IsERC20() bool {
 	return t.Type == TokenTypeERC20
 }
 
+// NormalizeAddress ensures consistent address format for storage and comparison
+func NormalizeAddress(address string) string {
+	// Convert to lowercase for case-insensitive comparisons
+	address = strings.ToLower(address)
+
+	// Ensure the address has 0x prefix for EVM addresses
+	if !strings.HasPrefix(address, "0x") {
+		address = "0x" + address
+	}
+
+	return address
+}
+
+// IsZeroAddress checks if the address is the zero address
+func IsZeroAddress(address string) bool {
+	normalized := NormalizeAddress(address)
+	return normalized == ZeroAddress || normalized == "0x0"
+}
+
 // Validate checks if the token configuration is valid
 func (t *Token) Validate() error {
 	// Validate Symbol
@@ -61,12 +85,12 @@ func (t *Token) Validate() error {
 	}
 
 	// For ERC20 tokens, the address cannot be the zero address
-	if t.Type == TokenTypeERC20 && (t.Address == ZeroAddress || strings.EqualFold(t.Address, ZeroAddress)) {
+	if t.Type == TokenTypeERC20 && IsZeroAddress(t.Address) {
 		return fmt.Errorf("ERC20 token cannot have zero address")
 	}
 
 	// For native tokens, we typically expect the zero address
-	if t.Type == TokenTypeNative && !strings.EqualFold(t.Address, ZeroAddress) {
+	if t.Type == TokenTypeNative && !IsZeroAddress(t.Address) {
 		return fmt.Errorf("native token should use zero address, got: %s", t.Address)
 	}
 

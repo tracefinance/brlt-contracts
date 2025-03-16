@@ -1,8 +1,9 @@
 package db
 
 import (
-	"fmt"
-	"log"
+	"vault0/internal/errors"
+
+	"vault0/internal/logger"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
@@ -14,25 +15,26 @@ func (db *DB) MigrateDatabase() error {
 	// Get the database driver
 	driver, err := sqlite3.WithInstance(db.GetConnection(), &sqlite3.Config{})
 	if err != nil {
-		return fmt.Errorf("failed to create database driver: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	// Create the migrate instance
-	sourceURL := fmt.Sprintf("file://%s", db.config.MigrationsPath)
+	sourceURL := "file://" + db.config.MigrationsPath
 	m, err := migrate.NewWithDatabaseInstance(
 		sourceURL,
 		"sqlite3", // Database name (just a label for migrate)
 		driver,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create migration instance: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	// Apply all up migrations
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		return fmt.Errorf("failed to apply migrations: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
-	log.Println("Database migrations applied successfully")
+	db.logger.Info("Database migrations applied successfully",
+		logger.String("path", db.config.MigrationsPath))
 	return nil
 }

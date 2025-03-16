@@ -9,10 +9,10 @@ const (
 	ErrCodeInvalidParameter = "invalid_parameter"
 
 	// Authentication errors
-	ErrCodeUnauthorized = "unauthorized"
-	ErrCodeForbidden    = "forbidden"
-	ErrCodeInvalidToken = "invalid_token"
-	ErrCodeTokenExpired = "token_expired"
+	ErrCodeUnauthorized       = "unauthorized"
+	ErrCodeForbidden          = "forbidden"
+	ErrCodeInvalidAccessToken = "invalid_access_token"
+	ErrCodeAccessTokenExpired = "access_token_expired"
 
 	// Response errors
 	ErrCodeInternalError      = "internal_error"
@@ -73,18 +73,18 @@ func NewForbiddenError() *AppError {
 	}
 }
 
-// NewInvalidTokenError creates an error for invalid authentication tokens
-func NewInvalidTokenError() *AppError {
+// NewInvalidAccessTokenError creates an error for invalid authentication tokens
+func NewInvalidAccessTokenError() *AppError {
 	return &AppError{
-		Code:    ErrCodeInvalidToken,
+		Code:    ErrCodeInvalidAccessToken,
 		Message: "Invalid authentication token",
 	}
 }
 
-// NewTokenExpiredError creates an error for expired authentication tokens
-func NewTokenExpiredError() *AppError {
+// NewAccessTokenExpiredError creates an error for expired authentication tokens
+func NewAccessTokenExpiredError() *AppError {
 	return &AppError{
-		Code:    ErrCodeTokenExpired,
+		Code:    ErrCodeAccessTokenExpired,
 		Message: "Authentication token has expired",
 	}
 }

@@ -15,35 +15,11 @@ package keystore
 import (
 	"context"
 	"crypto/elliptic"
-	"errors"
-	"fmt"
 
 	"vault0/internal/config"
 	"vault0/internal/core/db"
+	"vault0/internal/errors"
 	"vault0/internal/types"
-)
-
-// Common errors returned by keystore operations.
-var (
-	// ErrKeyNotFound is returned when attempting to access a non-existent key.
-	ErrKeyNotFound = errors.New("key not found")
-
-	// ErrKeyAlreadyExists is returned when attempting to create a key with a name
-	// that is already in use.
-	ErrKeyAlreadyExists = errors.New("key already exists")
-
-	// ErrInvalidKey is returned when a key's format or content is invalid.
-	ErrInvalidKey = errors.New("invalid key")
-
-	// ErrEncryptionFailed is returned when key material encryption fails.
-	ErrEncryptionFailed = errors.New("encryption failed")
-
-	// ErrDecryptionFailed is returned when key material decryption fails.
-	ErrDecryptionFailed = errors.New("decryption failed")
-
-	// ErrInvalidCurve is returned when an unsupported elliptic curve is specified
-	// for ECDSA key generation.
-	ErrInvalidCurve = errors.New("invalid curve")
 )
 
 // KeyStoreType represents the type of key store implementation to use.
@@ -218,9 +194,7 @@ func NewKeyStore(db *db.DB, cfg *config.Config) (KeyStore, error) {
 	switch keyStoreType {
 	case KeyStoreTypeDB:
 		return NewDBKeyStore(db.GetConnection(), cfg)
-	case KeyStoreTypeKMS:
-		return nil, errors.New("KMS key store not implemented yet")
 	default:
-		return nil, fmt.Errorf("unsupported key store type: %s", keyStoreType)
+		return nil, errors.NewInvalidKeystoreError(cfg.KeyStoreType)
 	}
 }
