@@ -3,9 +3,10 @@ package user
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"strconv"
 	"time"
 	"vault0/internal/core/db"
+	"vault0/internal/errors"
 )
 
 // Repository defines the user data access interface
@@ -43,13 +44,13 @@ func (r *repository) Create(ctx context.Context, user *User) error {
 	result, err := r.db.ExecuteStatementContext(ctx, query,
 		user.Email, user.PasswordHash, user.CreatedAt, user.UpdatedAt)
 	if err != nil {
-		return fmt.Errorf("failed to create user: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	// Get the last insert ID
 	id, err := result.LastInsertId()
 	if err != nil {
-		return fmt.Errorf("failed to get last insert ID: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	user.ID = id
@@ -69,16 +70,16 @@ func (r *repository) Update(ctx context.Context, user *User) error {
 	result, err := r.db.ExecuteStatementContext(ctx, query,
 		user.Email, user.PasswordHash, user.UpdatedAt, user.ID)
 	if err != nil {
-		return fmt.Errorf("failed to update user: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("user with ID %d not found", user.ID)
+		return errors.NewResourceNotFoundError("User", strconv.FormatInt(user.ID, 10))
 	}
 
 	return nil
@@ -90,16 +91,16 @@ func (r *repository) Delete(ctx context.Context, id int64) error {
 
 	result, err := r.db.ExecuteStatementContext(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("failed to delete user: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("user with ID %d not found", id)
+		return errors.NewResourceNotFoundError("User", strconv.FormatInt(id, 10))
 	}
 
 	return nil
@@ -115,18 +116,18 @@ func (r *repository) FindByID(ctx context.Context, id int64) (*User, error) {
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find user by ID: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, fmt.Errorf("user with ID %d not found", id)
+		return nil, errors.NewUserNotFoundError()
 	}
 
 	var user User
 	err = rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan user: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 
 	return &user, nil
@@ -142,7 +143,7 @@ func (r *repository) FindByEmail(ctx context.Context, email string) (*User, erro
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, email)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find user by email: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
@@ -153,7 +154,7 @@ func (r *repository) FindByEmail(ctx context.Context, email string) (*User, erro
 	var user User
 	err = rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan user: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 
 	return &user, nil
@@ -170,7 +171,7 @@ func (r *repository) List(ctx context.Context, limit, offset int) ([]*User, erro
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list users: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
@@ -179,13 +180,13 @@ func (r *repository) List(ctx context.Context, limit, offset int) ([]*User, erro
 		var user User
 		err = rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan user: %w", err)
+			return nil, errors.NewDatabaseError(err)
 		}
 		users = append(users, &user)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error during rows iteration: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 
 	return users, nil
@@ -197,17 +198,17 @@ func (r *repository) Count(ctx context.Context) (int, error) {
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query)
 	if err != nil {
-		return 0, fmt.Errorf("failed to count users: %w", err)
+		return 0, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return 0, fmt.Errorf("failed to get count")
+		return 0, errors.NewDatabaseError(nil)
 	}
 
 	var count int
 	if err = rows.Scan(&count); err != nil {
-		return 0, fmt.Errorf("failed to scan count: %w", err)
+		return 0, errors.NewDatabaseError(err)
 	}
 
 	return count, nil

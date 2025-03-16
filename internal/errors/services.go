@@ -1,5 +1,7 @@
 package errors
 
+import "fmt"
+
 // Service module error codes
 const (
 	// Common service errors
@@ -34,7 +36,7 @@ func NewInvalidInputError(details map[string]any) *AppError {
 func NewNotFoundError(entity string) *AppError {
 	return &AppError{
 		Code:    ErrCodeNotFound,
-		Message: entity + " not found",
+		Message: fmt.Sprintf("%s not found", entity),
 	}
 }
 
@@ -42,7 +44,7 @@ func NewNotFoundError(entity string) *AppError {
 func NewAlreadyExistsError(entity string) *AppError {
 	return &AppError{
 		Code:    ErrCodeAlreadyExists,
-		Message: entity + " already exists",
+		Message: fmt.Sprintf("%s already exists", entity),
 	}
 }
 
@@ -50,7 +52,7 @@ func NewAlreadyExistsError(entity string) *AppError {
 func NewOperationFailedError(operation string, err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeOperationFailed,
-		Message: operation + " operation failed",
+		Message: fmt.Sprintf("%s operation failed", operation),
 		Err:     err,
 	}
 }
@@ -67,7 +69,7 @@ func NewWalletNotFoundError() *AppError {
 func NewWalletExistsError(address string) *AppError {
 	return &AppError{
 		Code:    ErrCodeWalletExists,
-		Message: "Wallet already exists with address: " + address,
+		Message: fmt.Sprintf("Wallet already exists with address: %s", address),
 	}
 }
 
@@ -92,7 +94,7 @@ func NewUserNotFoundError() *AppError {
 func NewUserExistsError(email string) *AppError {
 	return &AppError{
 		Code:    ErrCodeUserExists,
-		Message: "User already exists with email: " + email,
+		Message: fmt.Sprintf("User already exists with email: %s", email),
 	}
 }
 
@@ -101,5 +103,16 @@ func NewInvalidCredentialsError() *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidCredentials,
 		Message: "Invalid email or password",
+	}
+}
+
+// NewEmailExistsError creates an error for when an email is already registered
+func NewEmailExistsError(email string) *AppError {
+	return &AppError{
+		Code:    ErrCodeEmailExists,
+		Message: fmt.Sprintf("Email already exists: %s", email),
+		Details: map[string]any{
+			"email": email,
+		},
 	}
 }

@@ -3,7 +3,8 @@ package user
 import (
 	"context"
 	"database/sql"
-	"fmt"
+
+	"vault0/internal/errors"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -34,16 +35,16 @@ func (s *service) Create(ctx context.Context, email, password string) (*User, er
 	// Check if email already exists
 	existingUser, err := s.repository.FindByEmail(ctx, email)
 	if err != nil && err != sql.ErrNoRows {
-		return nil, fmt.Errorf("failed to check email: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 	if existingUser != nil {
-		return nil, fmt.Errorf("email already exists")
+		return nil, errors.NewEmailExistsError(email)
 	}
 
 	// Hash the password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, fmt.Errorf("failed to hash password: %w", err)
+		return nil, errors.NewOperationFailedError("password hashing", err)
 	}
 
 	// Create the user
@@ -54,7 +55,7 @@ func (s *service) Create(ctx context.Context, email, password string) (*User, er
 
 	// Save the user
 	if err := s.repository.Create(ctx, user); err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
+		return nil, err
 	}
 
 	return user, nil
@@ -65,7 +66,7 @@ func (s *service) Update(ctx context.Context, id int64, email, password string) 
 	// Get the existing user
 	user, err := s.repository.FindByID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find user: %w", err)
+		return nil, err
 	}
 
 	// Update fields if provided
@@ -73,10 +74,10 @@ func (s *service) Update(ctx context.Context, id int64, email, password string) 
 		// Check if new email already exists
 		existingUser, err := s.repository.FindByEmail(ctx, email)
 		if err != nil && err != sql.ErrNoRows {
-			return nil, fmt.Errorf("failed to check email: %w", err)
+			return nil, errors.NewDatabaseError(err)
 		}
 		if existingUser != nil {
-			return nil, fmt.Errorf("email already exists")
+			return nil, errors.NewEmailExistsError(email)
 		}
 
 		user.Email = email
@@ -86,14 +87,14 @@ func (s *service) Update(ctx context.Context, id int64, email, password string) 
 	if password != "" {
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 		if err != nil {
-			return nil, fmt.Errorf("failed to hash password: %w", err)
+			return nil, errors.NewOperationFailedError("password hashing", err)
 		}
 		user.PasswordHash = string(hashedPassword)
 	}
 
 	// Save the updated user
 	if err := s.repository.Update(ctx, user); err != nil {
-		return nil, fmt.Errorf("failed to update user: %w", err)
+		return nil, err
 	}
 
 	return user, nil
@@ -102,7 +103,7 @@ func (s *service) Update(ctx context.Context, id int64, email, password string) 
 // Delete removes a user
 func (s *service) Delete(ctx context.Context, id int64) error {
 	if err := s.repository.Delete(ctx, id); err != nil {
-		return fmt.Errorf("failed to delete user: %w", err)
+		return err
 	}
 	return nil
 }
@@ -111,7 +112,7 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 func (s *service) Get(ctx context.Context, id int64) (*User, error) {
 	user, err := s.repository.FindByID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return nil, err
 	}
 	return user, nil
 }
@@ -130,13 +131,13 @@ func (s *service) List(ctx context.Context, page, pageSize int) ([]*User, int, e
 	// Get the users
 	users, err := s.repository.List(ctx, pageSize, offset)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list users: %w", err)
+		return nil, 0, err
 	}
 
 	// Get the total count
 	total, err := s.repository.Count(ctx)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to count users: %w", err)
+		return nil, 0, err
 	}
 
 	return users, total, nil
