@@ -13,12 +13,6 @@ import (
 	"vault0/internal/types"
 )
 
-// Common service errors
-var (
-	ErrWalletNotFound = errors.New("wallet not found")
-	ErrInvalidInput   = errors.New("invalid input")
-)
-
 // Event types for wallet lifecycle events
 const (
 	EventTypeWalletCreated = "WALLET_CREATED"
@@ -257,9 +251,7 @@ func (s *walletService) emitLifecycleEvent(event *LifecycleEvent) {
 func (s *walletService) Create(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error) {
 	// Validate inputs
 	if name == "" {
-		return nil, errors.NewInvalidInputError(map[string]any{
-			"name": "cannot be empty",
-		})
+		return nil, errors.NewInvalidInputError("Name is required", "name", "")
 	}
 
 	// Get chain information from chains
@@ -326,19 +318,13 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 func (s *walletService) Update(ctx context.Context, chainType types.ChainType, address, name string, tags map[string]string) (*Wallet, error) {
 	// Validate inputs
 	if chainType == "" {
-		return nil, errors.NewInvalidInputError(map[string]any{
-			"chain_type": "cannot be empty",
-		})
+		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
 	if address == "" {
-		return nil, errors.NewInvalidInputError(map[string]any{
-			"address": "cannot be empty",
-		})
+		return nil, errors.NewInvalidInputError("Address is required", "address", "")
 	}
 	if name == "" {
-		return nil, errors.NewInvalidInputError(map[string]any{
-			"name": "cannot be empty",
-		})
+		return nil, errors.NewInvalidInputError("Name is required", "name", "")
 	}
 
 	// Validate chain type
@@ -375,19 +361,13 @@ func (s *walletService) Update(ctx context.Context, chainType types.ChainType, a
 func (s *walletService) UpdateLastBlockNumber(ctx context.Context, chainType types.ChainType, address string, blockNumber int64) error {
 	// Validate inputs
 	if chainType == "" {
-		return errors.NewInvalidInputError(map[string]any{
-			"chain_type": "cannot be empty",
-		})
+		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
 	if address == "" {
-		return errors.NewInvalidInputError(map[string]any{
-			"address": "cannot be empty",
-		})
+		return errors.NewInvalidInputError("Address is required", "address", "")
 	}
 	if blockNumber < 0 {
-		return errors.NewInvalidInputError(map[string]any{
-			"block_number": "cannot be negative",
-		})
+		return errors.NewInvalidInputError("Block number cannot be negative", "block_number", blockNumber)
 	}
 
 	// Validate chain type
@@ -423,14 +403,10 @@ func (s *walletService) UpdateLastBlockNumber(ctx context.Context, chainType typ
 func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, address string) error {
 	// Validate inputs
 	if chainType == "" {
-		return errors.NewInvalidInputError(map[string]any{
-			"chain_type": "cannot be empty",
-		})
+		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
 	if address == "" {
-		return errors.NewInvalidInputError(map[string]any{
-			"address": "cannot be empty",
-		})
+		return errors.NewInvalidInputError("Address is required", "address", "")
 	}
 
 	// Validate chain type
@@ -474,14 +450,10 @@ func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, a
 func (s *walletService) Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
 	// Validate inputs
 	if chainType == "" {
-		return nil, errors.NewInvalidInputError(map[string]any{
-			"chain_type": "cannot be empty",
-		})
+		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
 	if address == "" {
-		return nil, errors.NewInvalidInputError(map[string]any{
-			"address": "cannot be empty",
-		})
+		return nil, errors.NewInvalidInputError("Address is required", "address", "")
 	}
 
 	// Validate chain type
@@ -627,14 +599,10 @@ func (s *walletService) unsubscribeFromWallet(walletID string) {
 func (s *walletService) Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error) {
 	// Validate inputs
 	if chainType == "" {
-		return false, errors.NewInvalidInputError(map[string]any{
-			"chain_type": "cannot be empty",
-		})
+		return false, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
 	if address == "" {
-		return false, errors.NewInvalidInputError(map[string]any{
-			"address": "cannot be empty",
-		})
+		return false, errors.NewInvalidInputError("Address is required", "address", "")
 	}
 
 	// Validate chain type
@@ -657,9 +625,7 @@ func (s *walletService) Exists(ctx context.Context, chainType types.ChainType, a
 func (s *walletService) GetByID(ctx context.Context, id string) (*Wallet, error) {
 	// Validate input
 	if id == "" {
-		return nil, errors.NewInvalidInputError(map[string]any{
-			"id": "cannot be empty",
-		})
+		return nil, errors.NewInvalidInputError("ID is required", "id", "")
 	}
 
 	// Get the wallet from repository

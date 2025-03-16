@@ -2,19 +2,13 @@ package transaction
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
 	"vault0/internal/core/db"
+	"vault0/internal/errors"
 	"vault0/internal/types"
-)
-
-// Common repository errors
-var (
-	ErrTransactionNotFound = errors.New("transaction not found")
 )
 
 // Repository defines the interface for transaction data access
@@ -106,7 +100,7 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("failed to create transaction: %w", err)
+		return errors.NewDatabaseError(err)
 	}
 
 	return nil
@@ -125,17 +119,17 @@ func (r *repository) Get(ctx context.Context, chainType types.ChainType, hash st
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, hash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query transaction: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, ErrTransactionNotFound
+		return nil, errors.NewTransactionNotFoundError(hash)
 	}
 
 	tx, err := ScanTransaction(rows)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan transaction: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 
 	return tx, nil
@@ -156,7 +150,7 @@ func (r *repository) GetByWallet(ctx context.Context, walletID string, limit, of
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, walletID, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query transactions: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
@@ -164,13 +158,13 @@ func (r *repository) GetByWallet(ctx context.Context, walletID string, limit, of
 	for rows.Next() {
 		tx, err := ScanTransaction(rows)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan transaction: %w", err)
+			return nil, errors.NewDatabaseError(err)
 		}
 		transactions = append(transactions, tx)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating transaction rows: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 
 	return transactions, nil
@@ -191,7 +185,7 @@ func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, address, address, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query transactions: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
@@ -199,13 +193,13 @@ func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType
 	for rows.Next() {
 		tx, err := ScanTransaction(rows)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan transaction: %w", err)
+			return nil, errors.NewDatabaseError(err)
 		}
 		transactions = append(transactions, tx)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating transaction rows: %w", err)
+		return nil, errors.NewDatabaseError(err)
 	}
 
 	return transactions, nil
@@ -221,17 +215,17 @@ func (r *repository) Count(ctx context.Context, walletID string) (int, error) {
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, walletID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to count transactions: %w", err)
+		return 0, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return 0, fmt.Errorf("failed to get count result")
+		return 0, errors.NewDatabaseError(nil)
 	}
 
 	var count int
 	if err := rows.Scan(&count); err != nil {
-		return 0, fmt.Errorf("failed to scan count: %w", err)
+		return 0, errors.NewDatabaseError(err)
 	}
 
 	return count, nil
@@ -247,17 +241,17 @@ func (r *repository) CountByAddress(ctx context.Context, chainType types.ChainTy
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, address, address)
 	if err != nil {
-		return 0, fmt.Errorf("failed to count transactions: %w", err)
+		return 0, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return 0, fmt.Errorf("failed to get count result")
+		return 0, errors.NewDatabaseError(nil)
 	}
 
 	var count int
 	if err := rows.Scan(&count); err != nil {
-		return 0, fmt.Errorf("failed to scan count: %w", err)
+		return 0, errors.NewDatabaseError(err)
 	}
 
 	return count, nil
@@ -274,7 +268,7 @@ func (r *repository) Exists(ctx context.Context, chainType types.ChainType, hash
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, hash)
 	if err != nil {
-		return false, fmt.Errorf("failed to check transaction existence: %w", err)
+		return false, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 

@@ -23,14 +23,21 @@ const (
 	ErrCodeUserExists         = "user_exists"
 	ErrCodeInvalidCredentials = "invalid_credentials"
 	ErrCodeEmailExists        = "email_exists"
+
+	// Transaction service errors
+	ErrCodeTransactionSyncFailed = "transaction_sync_failed"
 )
 
-// NewInvalidInputError creates an error for invalid input data
-func NewInvalidInputError(details map[string]any) *AppError {
+// NewInvalidInputError creates an error for invalid input data with a custom message
+func NewInvalidInputError(message string, field string, value any) *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidInput,
-		Message: "Invalid input data",
-		Details: details,
+		Message: message,
+		Details: map[string]any{
+			"field":   field,
+			"value":   value,
+			"message": message,
+		},
 	}
 }
 
@@ -141,5 +148,14 @@ func NewEmailExistsError(email string) *AppError {
 		Details: map[string]any{
 			"email": email,
 		},
+	}
+}
+
+// NewTransactionSyncFailedError creates an error for transaction sync failure
+func NewTransactionSyncFailedError(operation string, err error) *AppError {
+	return &AppError{
+		Code:    ErrCodeTransactionSyncFailed,
+		Message: fmt.Sprintf("Transaction sync failed: %s", operation),
+		Err:     err,
 	}
 }

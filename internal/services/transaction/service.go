@@ -2,20 +2,14 @@ package transaction
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"sync"
 
 	"vault0/internal/config"
 	"vault0/internal/core/blockexplorer"
+	"vault0/internal/errors"
 	"vault0/internal/logger"
 	"vault0/internal/services/wallet"
 	"vault0/internal/types"
-)
-
-// Common service errors
-var (
-	ErrInvalidInput = errors.New("invalid input")
 )
 
 // Service defines the transaction service interface
@@ -83,10 +77,10 @@ func NewService(
 func (s *transactionService) GetTransaction(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error) {
 	// Validate input
 	if chainType == "" {
-		return nil, fmt.Errorf("%w: chain type is required", ErrInvalidInput)
+		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
 	if hash == "" {
-		return nil, fmt.Errorf("%w: hash is required", ErrInvalidInput)
+		return nil, errors.NewInvalidInputError("Hash is required", "hash", "")
 	}
 
 	// Try to get from database first
@@ -96,22 +90,22 @@ func (s *transactionService) GetTransaction(ctx context.Context, chainType types
 	}
 
 	// If not found in database, fetch from blockchain explorer
-	if errors.Is(err, ErrTransactionNotFound) {
+	if _, ok := err.(*errors.AppError); ok && err.(*errors.AppError).Code == errors.ErrCodeTransactionNotFound {
 		// Get explorer for the chain
 		explorer, err := s.blockExplorerFactory.GetExplorer(chainType)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get explorer: %w", err)
+			return nil, err
 		}
 		defer explorer.Close()
 
 		// Fetch transaction from explorer
 		txs, err := explorer.GetTransactionsByHash(ctx, []string{hash})
 		if err != nil {
-			return nil, fmt.Errorf("failed to get transaction from explorer: %w", err)
+			return nil, err
 		}
 
 		if len(txs) == 0 {
-			return nil, ErrTransactionNotFound
+			return nil, errors.NewTransactionNotFoundError(hash)
 		}
 
 		// Convert to service transaction
@@ -145,7 +139,7 @@ func (s *transactionService) GetTransaction(ctx context.Context, chainType types
 func (s *transactionService) GetTransactionsByWallet(ctx context.Context, walletID string, limit, offset int) ([]*Transaction, error) {
 	// Validate input
 	if walletID == "" {
-		return nil, fmt.Errorf("%w: wallet ID is required", ErrInvalidInput)
+		return nil, errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "")
 	}
 
 	// Set default values
@@ -164,10 +158,10 @@ func (s *transactionService) GetTransactionsByWallet(ctx context.Context, wallet
 func (s *transactionService) GetTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) ([]*Transaction, error) {
 	// Validate input
 	if chainType == "" {
-		return nil, fmt.Errorf("%w: chain type is required", ErrInvalidInput)
+		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
 	if address == "" {
-		return nil, fmt.Errorf("%w: address is required", ErrInvalidInput)
+		return nil, errors.NewInvalidInputError("Address is required", "address", "")
 	}
 
 	// Set default values
@@ -190,7 +184,7 @@ func (s *transactionService) SyncTransactions(ctx context.Context, walletID stri
 
 	// Validate input
 	if walletID == "" {
-		return 0, fmt.Errorf("%w: wallet ID is required", ErrInvalidInput)
+		return 0, errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "")
 	}
 
 	// Get wallet from wallet service by ID
@@ -207,16 +201,16 @@ func (s *transactionService) SyncTransactions(ctx context.Context, walletID stri
 func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string) (int, error) {
 	// Validate input
 	if chainType == "" {
-		return 0, fmt.Errorf("%w: chain type is required", ErrInvalidInput)
+		return 0, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
 	if address == "" {
-		return 0, fmt.Errorf("%w: address is required", ErrInvalidInput)
+		return 0, errors.NewInvalidInputError("Address is required", "address", "")
 	}
 
 	// Get explorer for the chain
 	explorer, err := s.blockExplorerFactory.GetExplorer(chainType)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get explorer: %w", err)
+		return 0, err
 	}
 	defer explorer.Close()
 
@@ -247,7 +241,7 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 	// Fetch transactions from explorer
 	txs, err := explorer.GetTransactionHistory(ctx, address, options)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get transaction history: %w", err)
+		return 0, errors.NewTransactionSyncFailedError("fetch_history", err)
 	}
 
 	// Save transactions to database
@@ -265,7 +259,9 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 		// Check if transaction already exists
 		exists, err := s.repository.Exists(ctx, chainType, coreTx.Hash)
 		if err != nil {
-			s.logger.Warn(fmt.Sprintf("Failed to check transaction existence: %v, hash: %s", err, coreTx.Hash))
+			s.logger.Warn("Failed to check transaction existence",
+				logger.String("hash", coreTx.Hash),
+				logger.Error(err))
 			continue
 		}
 
@@ -279,7 +275,9 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 		// Save to database
 		err = s.repository.Create(ctx, tx)
 		if err != nil {
-			s.logger.Warn(fmt.Sprintf("Failed to save transaction: %v, hash: %s", err, coreTx.Hash))
+			s.logger.Warn("Failed to save transaction",
+				logger.String("hash", coreTx.Hash),
+				logger.Error(err))
 			continue
 		}
 
@@ -303,7 +301,7 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 func (s *transactionService) CountTransactions(ctx context.Context, walletID string) (int, error) {
 	// Validate input
 	if walletID == "" {
-		return 0, fmt.Errorf("%w: wallet ID is required", ErrInvalidInput)
+		return 0, errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "")
 	}
 
 	return s.repository.Count(ctx, walletID)
@@ -313,22 +311,22 @@ func (s *transactionService) CountTransactions(ctx context.Context, walletID str
 func (s *transactionService) OnWalletEvent(ctx context.Context, walletID string, event *types.Log) error {
 	// Validate input
 	if walletID == "" {
-		return fmt.Errorf("%w: wallet ID is required", ErrInvalidInput)
+		return errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "")
 	}
 	if event == nil {
-		return fmt.Errorf("%w: event is required", ErrInvalidInput)
+		return errors.NewInvalidInputError("Event is required", "event", nil)
 	}
 
 	// Get wallet information
 	wallet, err := s.walletService.GetByID(ctx, walletID)
 	if err != nil {
-		return fmt.Errorf("failed to get wallet: %w", err)
+		return err
 	}
 
 	// Check if transaction already exists
 	exists, err := s.repository.Exists(ctx, wallet.ChainType, event.TransactionHash)
 	if err != nil {
-		return fmt.Errorf("failed to check transaction existence: %w", err)
+		return err
 	}
 
 	if exists {
@@ -339,18 +337,18 @@ func (s *transactionService) OnWalletEvent(ctx context.Context, walletID string,
 	// Get explorer for the chain
 	explorer, err := s.blockExplorerFactory.GetExplorer(wallet.ChainType)
 	if err != nil {
-		return fmt.Errorf("failed to get explorer: %w", err)
+		return err
 	}
 	defer explorer.Close()
 
 	// Fetch full transaction details
 	txs, err := explorer.GetTransactionsByHash(ctx, []string{event.TransactionHash})
 	if err != nil {
-		return fmt.Errorf("failed to get transaction from explorer: %w", err)
+		return errors.NewTransactionSyncFailedError("fetch_transaction", err)
 	}
 
 	if len(txs) == 0 {
-		return fmt.Errorf("transaction not found: %s", event.TransactionHash)
+		return errors.NewTransactionNotFoundError(event.TransactionHash)
 	}
 
 	// Convert to service transaction
@@ -374,7 +372,7 @@ func (s *transactionService) OnWalletEvent(ctx context.Context, walletID string,
 
 	// Save to database
 	if err := s.repository.Create(ctx, tx); err != nil {
-		return fmt.Errorf("failed to save transaction: %w", err)
+		return err
 	}
 
 	s.logger.Info("New transaction processed",
@@ -450,7 +448,7 @@ func (s *transactionService) handleWalletCreated(ctx context.Context, event *wal
 	// Sync historical transactions for the new wallet
 	count, err := s.SyncTransactionsByAddress(ctx, event.ChainType, event.Address)
 	if err != nil {
-		return fmt.Errorf("failed to sync transactions: %w", err)
+		return errors.NewTransactionSyncFailedError("sync_history", err)
 	}
 
 	s.logger.Info("Synced historical transactions for new wallet",
