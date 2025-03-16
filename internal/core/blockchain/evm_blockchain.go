@@ -2,8 +2,7 @@ package blockchain
 
 import (
 	"context"
-	"errors"
-	"fmt"
+	stderrors "errors"
 	"math/big"
 	"strings"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
@@ -26,13 +26,13 @@ type EVMBlockchain struct {
 // NewEVMBlockchain creates a new EVM blockchain client
 func NewEVMBlockchain(chain types.Chain) (*EVMBlockchain, error) {
 	if chain.RPCUrl == "" {
-		return nil, fmt.Errorf("RPC URL is required for %s", chain.Name)
+		return nil, errors.NewInvalidBlockchainConfigError(string(chain.Type), "rpc_url")
 	}
 
 	// Create a new Ethereum RPC client
 	rpcClient, err := rpc.Dial(chain.RPCUrl)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to RPC endpoint: %w", err)
+		return nil, errors.NewRPCError(err)
 	}
 
 	// Create an Ethereum client from the RPC client
@@ -50,7 +50,7 @@ func NewEVMBlockchain(chain types.Chain) (*EVMBlockchain, error) {
 	if err != nil {
 		// Close the connections before returning
 		evm.Close()
-		return nil, fmt.Errorf("evm: failed to get chain ID: %w", err)
+		return nil, errors.NewBlockchainError(err)
 	}
 
 	return evm, nil
@@ -60,7 +60,7 @@ func NewEVMBlockchain(chain types.Chain) (*EVMBlockchain, error) {
 func (c *EVMBlockchain) GetChainID(ctx context.Context) (int64, error) {
 	chainID, err := c.client.ChainID(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("evm: failed to get chain ID: %w", err)
+		return 0, errors.NewRPCError(err)
 	}
 	return chainID.Int64(), nil
 }
@@ -74,7 +74,7 @@ func (c *EVMBlockchain) GetBalance(ctx context.Context, address string) (*big.In
 	addr := common.HexToAddress(address)
 	balance, err := c.client.BalanceAt(ctx, addr, nil) // Use nil for latest block
 	if err != nil {
-		return nil, fmt.Errorf("evm: failed to get balance: %w", err)
+		return nil, errors.NewRPCError(err)
 	}
 
 	return balance, nil
@@ -88,7 +88,7 @@ func (c *EVMBlockchain) GetNonce(ctx context.Context, address string) (uint64, e
 
 	nonce, err := c.client.PendingNonceAt(ctx, common.HexToAddress(address))
 	if err != nil {
-		return 0, fmt.Errorf("evm: failed to get nonce: %w", err)
+		return 0, errors.NewRPCError(err)
 	}
 
 	return nonce, nil
@@ -103,10 +103,10 @@ func (c *EVMBlockchain) GetTransaction(ctx context.Context, hash string) (*types
 	txHash := common.HexToHash(hash)
 	tx, isPending, err := c.client.TransactionByHash(ctx, txHash)
 	if err != nil {
-		if errors.Is(err, ethereum.NotFound) {
-			return nil, fmt.Errorf("evm: transaction not found: %w", err)
+		if stderrors.Is(err, ethereum.NotFound) {
+			return nil, errors.NewTransactionNotFoundError(hash)
 		}
-		return nil, fmt.Errorf("evm: failed to get transaction: %w", err)
+		return nil, errors.NewRPCError(err)
 	}
 
 	var blockNumber *big.Int
@@ -116,7 +116,10 @@ func (c *EVMBlockchain) GetTransaction(ctx context.Context, hash string) (*types
 	if !isPending {
 		receipt, err = c.client.TransactionReceipt(ctx, txHash)
 		if err != nil {
-			return nil, fmt.Errorf("evm: failed to get transaction receipt: %w", err)
+			if stderrors.Is(err, ethereum.NotFound) {
+				return nil, errors.NewTransactionNotFoundError(hash)
+			}
+			return nil, errors.NewRPCError(err)
 		}
 
 		blockNumber = receipt.BlockNumber
@@ -124,7 +127,7 @@ func (c *EVMBlockchain) GetTransaction(ctx context.Context, hash string) (*types
 		// Get block to get timestamp
 		block, err := c.client.BlockByNumber(ctx, blockNumber)
 		if err != nil {
-			return nil, fmt.Errorf("evm: failed to get block: %w", err)
+			return nil, errors.NewRPCError(err)
 		}
 		timestamp = block.Time()
 	}
@@ -140,10 +143,10 @@ func (c *EVMBlockchain) GetTransactionReceipt(ctx context.Context, hash string) 
 
 	receipt, err := c.client.TransactionReceipt(ctx, common.HexToHash(hash))
 	if err != nil {
-		if errors.Is(err, ethereum.NotFound) {
-			return nil, fmt.Errorf("evm: transaction receipt not found: %w", err)
+		if stderrors.Is(err, ethereum.NotFound) {
+			return nil, errors.NewTransactionNotFoundError(hash)
 		}
-		return nil, fmt.Errorf("evm: failed to get transaction receipt: %w", err)
+		return nil, errors.NewRPCError(err)
 	}
 
 	return &types.TransactionReceipt{
@@ -185,7 +188,7 @@ func (c *EVMBlockchain) EstimateGas(ctx context.Context, tx *types.Transaction) 
 
 	gas, err := c.client.EstimateGas(ctx, callMsg)
 	if err != nil {
-		return 0, fmt.Errorf("evm: failed to estimate gas: %w", err)
+		return 0, errors.NewInvalidGasLimitError(gas)
 	}
 
 	return gas, nil
@@ -195,7 +198,7 @@ func (c *EVMBlockchain) EstimateGas(ctx context.Context, tx *types.Transaction) 
 func (c *EVMBlockchain) GetGasPrice(ctx context.Context) (*big.Int, error) {
 	gasPrice, err := c.client.SuggestGasPrice(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("evm: failed to get gas price: %w", err)
+		return nil, errors.NewRPCError(err)
 	}
 	return gasPrice, nil
 }
@@ -223,7 +226,7 @@ func (c *EVMBlockchain) CallContract(ctx context.Context, from string, to string
 
 	result, err := c.client.CallContract(ctx, callMsg, nil)
 	if err != nil {
-		return nil, fmt.Errorf("evm: contract call failed: %w", err)
+		return nil, errors.NewInvalidContractError(to, err)
 	}
 
 	return result, nil
@@ -233,11 +236,11 @@ func (c *EVMBlockchain) CallContract(ctx context.Context, from string, to string
 func (c *EVMBlockchain) BroadcastTransaction(ctx context.Context, signedTx []byte) (string, error) {
 	var tx ethTypes.Transaction
 	if err := tx.UnmarshalBinary(signedTx); err != nil {
-		return "", fmt.Errorf("evm: failed to decode transaction: %w", err)
+		return "", errors.NewInvalidTransactionError(err)
 	}
 
 	if err := c.client.SendTransaction(ctx, &tx); err != nil {
-		return "", fmt.Errorf("evm: failed to send transaction: %w", err)
+		return "", errors.NewRPCError(err)
 	}
 
 	return tx.Hash().Hex(), nil
@@ -288,7 +291,7 @@ func (c *EVMBlockchain) FilterLogs(ctx context.Context, addresses []string, topi
 	// Filter logs
 	logs, err := c.client.FilterLogs(ctx, filterQuery)
 	if err != nil {
-		return nil, fmt.Errorf("evm: failed to filter logs: %w", err)
+		return nil, errors.NewRPCError(err)
 	}
 
 	// Convert ethereum logs to our log format
@@ -354,7 +357,7 @@ func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []strin
 	ethLogChan := make(chan ethTypes.Log)
 	sub, err := c.client.SubscribeFilterLogs(ctx, filterQuery, ethLogChan)
 	if err != nil {
-		return nil, nil, fmt.Errorf("evm: failed to subscribe to logs: %w", err)
+		return nil, nil, errors.NewRPCError(err)
 	}
 
 	// Handle the subscription in a goroutine
@@ -368,7 +371,7 @@ func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []strin
 			case <-ctx.Done():
 				return
 			case err := <-sub.Err():
-				errChan <- fmt.Errorf("evm: subscription error: %w", err)
+				errChan <- errors.NewRPCError(err)
 				return
 			case log := <-ethLogChan:
 				// Convert ethereum log to our log format

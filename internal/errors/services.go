@@ -19,10 +19,6 @@ const (
 	ErrCodeUserExists         = "user_exists"
 	ErrCodeInvalidCredentials = "invalid_credentials"
 	ErrCodeEmailExists        = "email_exists"
-
-	// Transaction service errors
-	ErrCodeTransactionNotFound = "transaction_not_found"
-	ErrCodeTransactionFailed   = "transaction_failed"
 )
 
 // NewInvalidInputError creates an error for invalid input data
@@ -105,22 +101,5 @@ func NewInvalidCredentialsError() *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidCredentials,
 		Message: "Invalid email or password",
-	}
-}
-
-// NewTransactionNotFoundError creates an error for missing transaction
-func NewTransactionNotFoundError() *AppError {
-	return &AppError{
-		Code:    ErrCodeTransactionNotFound,
-		Message: "Transaction not found",
-	}
-}
-
-// NewTransactionFailedError creates an error for failed transaction
-func NewTransactionFailedError(err error) *AppError {
-	return &AppError{
-		Code:    ErrCodeTransactionFailed,
-		Message: "Transaction failed",
-		Err:     err,
 	}
 }

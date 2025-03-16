@@ -2,22 +2,8 @@ package blockchain
 
 import (
 	"context"
-	"errors"
 	"math/big"
 	"vault0/internal/types"
-)
-
-// Blockchain errors
-var (
-	ErrChainNotSupported   = errors.New("blockchain: chain not supported")
-	ErrTransactionFailed   = errors.New("blockchain: transaction failed")
-	ErrInsufficientFunds   = errors.New("blockchain: insufficient funds")
-	ErrInvalidAmount       = errors.New("blockchain: invalid amount")
-	ErrInvalidNonce        = errors.New("blockchain: invalid nonce")
-	ErrInvalidGasPrice     = errors.New("blockchain: invalid gas price")
-	ErrInvalidGasLimit     = errors.New("blockchain: invalid gas limit")
-	ErrInvalidContractCall = errors.New("blockchain: invalid contract call")
-	ErrRPCConnectionFailed = errors.New("blockchain: RPC connection failed")
 )
 
 // Blockchain defines a blockchain client interface that abstracts interactions with

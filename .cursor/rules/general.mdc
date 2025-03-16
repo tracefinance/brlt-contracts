@@ -68,6 +68,7 @@ vault0/
 
 ### Backend (Go)
 - Follow standard Go project layout
+- Always prefer to use `any` as `interface{}`
 - Use proper error handling with context
 - Implement proper middleware
 - Use prepared statements for database operations

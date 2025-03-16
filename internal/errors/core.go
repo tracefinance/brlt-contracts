@@ -1,29 +1,41 @@
 package errors
 
-import "fmt"
+import (
+	"fmt"
+	"math/big"
+)
 
 // Core module error codes
 const (
-	// Configuration errors
-	ErrCodeInvalidBlockchainConfig = "invalid_blockchain_config"
-
 	// Database errors
 	ErrCodeDatabaseError    = "database_error"
 	ErrCodeDatabaseNotFound = "database_not_found"
 
 	// Blockchain errors
-	ErrCodeBlockchainError    = "blockchain_error"
-	ErrCodeChainNotSupported  = "chain_not_supported"
-	ErrCodeInsufficientFunds  = "insufficient_funds"
-	ErrCodeInvalidTransaction = "invalid_transaction"
-	ErrCodeRPCError           = "rpc_error"
-	ErrCodeInvalidAddress     = "invalid_address"
+	ErrCodeBlockchainError         = "blockchain_error"
+	ErrCodeInvalidBlockchainConfig = "invalid_blockchain_config"
+	ErrCodeChainNotSupported       = "chain_not_supported"
+	ErrCodeInsufficientFunds       = "insufficient_funds"
+	ErrCodeInvalidTransaction      = "invalid_transaction"
+	ErrCodeTransactionNotFound     = "transaction_not_found"
+	ErrCodeRPCError                = "rpc_error"
+	ErrCodeInvalidAddress          = "invalid_address"
+	ErrCodeTransactionFailed       = "transaction_failed"
 
 	// Keystore errors
 	ErrCodeKeystoreError = "keystore_error"
 	ErrCodeKeyNotFound   = "key_not_found"
 	ErrCodeKeyExists     = "key_exists"
 	ErrCodeInvalidKey    = "invalid_key"
+
+	// Wallet errors
+	ErrCodeWalletError         = "wallet_error"
+	ErrCodeInvalidWalletConfig = "invalid_wallet_config"
+	ErrCodeInvalidKeyType      = "invalid_key_type"
+	ErrCodeInvalidCurve        = "invalid_curve"
+	ErrCodeInvalidSignature    = "invalid_signature"
+	ErrCodeSignatureRecovery   = "signature_recovery_failed"
+	ErrCodeAddressMismatch     = "address_mismatch"
 
 	// Crypto errors
 	ErrCodeCryptoError          = "crypto_error"
@@ -39,8 +51,12 @@ const (
 	ErrCodeExplorerRequestFailed   = "explorer_request_failed"
 	ErrCodeMissingAPIKey           = "missing_api_key"
 
-	// Transaction error codes
-	ErrCodeInvalidAmount = "invalid_amount"
+	// Blockchain transaction errors
+	ErrCodeInvalidNonce    = "invalid_nonce"
+	ErrCodeInvalidGasPrice = "invalid_gas_price"
+	ErrCodeInvalidGasLimit = "invalid_gas_limit"
+	ErrCodeInvalidContract = "invalid_contract"
+	ErrCodeInvalidAmount   = "invalid_amount"
 
 	// New error code
 	ErrCodeRPC = "RPC_ERROR"
@@ -51,7 +67,7 @@ func NewInvalidBlockchainConfigError(chain string, key string) *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidBlockchainConfig,
 		Message: fmt.Sprintf("Invalid blockchain configuration for %s: missing %s", chain, key),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"chain": chain,
 			"key":   key,
 		},
@@ -80,7 +96,7 @@ func NewBlockchainError(err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeBlockchainError,
 		Message: fmt.Sprintf("Blockchain error: %v", err),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"error": err.Error(),
 		},
 	}
@@ -91,7 +107,7 @@ func NewChainNotSupportedError(chain string) *AppError {
 	return &AppError{
 		Code:    ErrCodeChainNotSupported,
 		Message: fmt.Sprintf("Chain not supported: %s", chain),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"chain": chain,
 		},
 	}
@@ -102,7 +118,7 @@ func NewInsufficientFundsError(balance string, required string) *AppError {
 	return &AppError{
 		Code:    ErrCodeInsufficientFunds,
 		Message: fmt.Sprintf("Insufficient funds: have %s, need %s", balance, required),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"balance":  balance,
 			"required": required,
 		},
@@ -123,6 +139,14 @@ func NewKeyNotFoundError(keyID string) *AppError {
 	return &AppError{
 		Code:    ErrCodeKeyNotFound,
 		Message: "Key not found: " + keyID,
+	}
+}
+
+// NewInvalidKeyError creates an error for invalid keys
+func NewInvalidKeyError(msg string) *AppError {
+	return &AppError{
+		Code:    ErrCodeInvalidKey,
+		Message: fmt.Sprintf("Invalid key: %s", msg),
 	}
 }
 
@@ -158,7 +182,7 @@ func NewExplorerError(err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeExplorerError,
 		Message: fmt.Sprintf("Block explorer error: %v", err),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"error": err.Error(),
 		},
 	}
@@ -177,7 +201,7 @@ func NewInvalidAddressError(address string) *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidAddress,
 		Message: fmt.Sprintf("Invalid address: %s", address),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"address": address,
 		},
 	}
@@ -188,7 +212,7 @@ func NewInvalidAmountError(amount string) *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidAmount,
 		Message: fmt.Sprintf("Invalid amount: %s", amount),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"amount": amount,
 		},
 	}
@@ -199,7 +223,7 @@ func NewRPCError(err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeRPCError,
 		Message: fmt.Sprintf("RPC error: %v", err),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"error": err.Error(),
 		},
 	}
@@ -210,7 +234,7 @@ func NewInvalidTransactionError(err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidTransaction,
 		Message: fmt.Sprintf("Invalid transaction: %v", err),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"error": err.Error(),
 		},
 	}
@@ -229,7 +253,7 @@ func NewInvalidExplorerResponseError(err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeInvalidExplorerResponse,
 		Message: fmt.Sprintf("Invalid response from block explorer: %v", err),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"error": err.Error(),
 		},
 	}
@@ -240,7 +264,7 @@ func NewExplorerRequestFailedError(err error) *AppError {
 	return &AppError{
 		Code:    ErrCodeExplorerRequestFailed,
 		Message: fmt.Sprintf("Block explorer request failed: %v", err),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"error": err.Error(),
 		},
 	}
@@ -251,5 +275,159 @@ func NewMissingAPIKeyError() *AppError {
 	return &AppError{
 		Code:    ErrCodeMissingAPIKey,
 		Message: "Missing API key for block explorer",
+	}
+}
+
+// NewInvalidNonceError creates a new error for invalid nonce
+func NewInvalidNonceError(address string, nonce uint64) *AppError {
+	return &AppError{
+		Code:    ErrCodeInvalidNonce,
+		Message: fmt.Sprintf("Invalid nonce for address %s: %d", address, nonce),
+		Details: map[string]any{
+			"address": address,
+			"nonce":   nonce,
+		},
+	}
+}
+
+// NewInvalidGasPriceError creates a new error for invalid gas price
+func NewInvalidGasPriceError(gasPrice *big.Int) *AppError {
+	return &AppError{
+		Code:    ErrCodeInvalidGasPrice,
+		Message: fmt.Sprintf("Invalid gas price: %s", gasPrice.String()),
+		Details: map[string]any{
+			"gas_price": gasPrice.String(),
+		},
+	}
+}
+
+// NewInvalidGasLimitError creates a new error for invalid gas limit
+func NewInvalidGasLimitError(gasLimit uint64) *AppError {
+	return &AppError{
+		Code:    ErrCodeInvalidGasLimit,
+		Message: fmt.Sprintf("Invalid gas limit: %d", gasLimit),
+		Details: map[string]any{
+			"gas_limit": gasLimit,
+		},
+	}
+}
+
+// NewInvalidContractError creates a new error for invalid contract calls
+func NewInvalidContractError(contract string, err error) *AppError {
+	return &AppError{
+		Code:    ErrCodeInvalidContract,
+		Message: fmt.Sprintf("Invalid contract call to %s: %v", contract, err),
+		Details: map[string]any{
+			"contract": contract,
+			"error":    err.Error(),
+		},
+	}
+}
+
+// NewWalletError creates a new error for general wallet operations
+func NewWalletError(msg string, err error) *AppError {
+	return &AppError{
+		Code:    ErrCodeWalletError,
+		Message: fmt.Sprintf("Wallet error: %s", msg),
+		Err:     err,
+		Details: map[string]any{
+			"error": err.Error(),
+		},
+	}
+}
+
+// NewInvalidWalletConfigError creates a new error for invalid wallet configuration
+func NewInvalidWalletConfigError(msg string) *AppError {
+	return &AppError{
+		Code:    ErrCodeInvalidWalletConfig,
+		Message: fmt.Sprintf("Invalid wallet configuration: %s", msg),
+	}
+}
+
+// NewInvalidKeyTypeError creates a new error for invalid key types
+func NewInvalidKeyTypeError(expected, got string) *AppError {
+	return &AppError{
+		Code:    ErrCodeInvalidKeyType,
+		Message: fmt.Sprintf("Invalid key type: expected %s, got %s", expected, got),
+		Details: map[string]any{
+			"expected": expected,
+			"got":      got,
+		},
+	}
+}
+
+// NewInvalidCurveError creates a new error for invalid curves
+func NewInvalidCurveError(expected, got string) *AppError {
+	return &AppError{
+		Code:    ErrCodeInvalidCurve,
+		Message: fmt.Sprintf("Invalid curve: expected %s, got %s", expected, got),
+		Details: map[string]any{
+			"expected": expected,
+			"got":      got,
+		},
+	}
+}
+
+// NewInvalidSignatureError creates a new error for invalid signatures
+func NewInvalidSignatureError(err error) *AppError {
+	return &AppError{
+		Code:    ErrCodeInvalidSignature,
+		Message: "Invalid signature",
+		Err:     err,
+		Details: map[string]any{
+			"error": err.Error(),
+		},
+	}
+}
+
+// NewSignatureRecoveryError creates a new error for signature recovery failures
+func NewSignatureRecoveryError(err error) *AppError {
+	return &AppError{
+		Code:    ErrCodeSignatureRecovery,
+		Message: "Failed to recover signature",
+		Err:     err,
+		Details: map[string]any{
+			"error": err.Error(),
+		},
+	}
+}
+
+// NewAddressMismatchError creates a new error for address mismatches
+func NewAddressMismatchError(expected, got string) *AppError {
+	return &AppError{
+		Code:    ErrCodeAddressMismatch,
+		Message: fmt.Sprintf("Address mismatch: expected %s, got %s", expected, got),
+		Details: map[string]any{
+			"expected": expected,
+			"got":      got,
+		},
+	}
+}
+
+// NewTransactionNotFoundError creates a new error for transaction not found
+func NewTransactionNotFoundError(hash string) *AppError {
+	return &AppError{
+		Code:    ErrCodeTransactionNotFound,
+		Message: fmt.Sprintf("Transaction not found: %s", hash),
+		Details: map[string]any{
+			"hash": hash,
+		},
+	}
+}
+
+// NewTransactionFailedError creates an error for failed transaction
+func NewTransactionFailedError(err error) *AppError {
+	return &AppError{
+		Code:    ErrCodeTransactionFailed,
+		Message: "Transaction failed",
+		Err:     err,
+	}
+}
+
+// NewInvalidEncryptionKeyError creates a new error for invalid encryption keys
+func NewInvalidEncryptionKeyError(msg string) *AppError {
+	return &AppError{
+		Code:    ErrCodeInvalidEncryptionKey,
+		Message: fmt.Sprintf("Invalid encryption key: %s", msg),
 	}
 }
