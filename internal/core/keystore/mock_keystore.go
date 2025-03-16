@@ -15,6 +15,7 @@ import (
 
 	"vault0/internal/core/crypto"
 	"vault0/internal/core/keygen"
+	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
@@ -43,7 +44,7 @@ func (ks *MockKeyStore) Create(ctx context.Context, name string, keyType types.K
 
 	// Check if key exists
 	if _, exists := ks.Keys[id]; exists {
-		return nil, ErrKeyAlreadyExists
+		return nil, errors.NewResourceAlreadyExistsError("key", "id", id)
 	}
 
 	// Create key
@@ -82,7 +83,7 @@ func (ks *MockKeyStore) Import(ctx context.Context, name string, keyType types.K
 
 	// Check if key exists
 	if _, exists := ks.Keys[id]; exists {
-		return nil, ErrKeyAlreadyExists
+		return nil, errors.NewResourceAlreadyExistsError("key", "id", id)
 	}
 
 	// Create key
@@ -111,7 +112,7 @@ func (ks *MockKeyStore) Sign(ctx context.Context, id string, data []byte, dataTy
 	// Get the key
 	key, exists := ks.Keys[id]
 	if !exists {
-		return nil, ErrKeyNotFound
+		return nil, errors.NewKeyNotFoundError(id)
 	}
 
 	// For ECDSA keys, use proper signing
@@ -178,7 +179,7 @@ func (ks *MockKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, erro
 	// Get the key
 	key, exists := ks.Keys[id]
 	if !exists {
-		return nil, ErrKeyNotFound
+		return nil, errors.NewKeyNotFoundError(id)
 	}
 
 	// Return a copy of the key without the private key material
@@ -223,7 +224,7 @@ func (ks *MockKeyStore) Update(ctx context.Context, id string, name string, tags
 	// Get the key
 	key, exists := ks.Keys[id]
 	if !exists {
-		return nil, ErrKeyNotFound
+		return nil, errors.NewKeyNotFoundError(id)
 	}
 
 	// Update the key
@@ -249,7 +250,7 @@ func (ks *MockKeyStore) Delete(ctx context.Context, id string) error {
 
 	// Check if key exists
 	if _, exists := ks.Keys[id]; !exists {
-		return ErrKeyNotFound
+		return errors.NewKeyNotFoundError(id)
 	}
 
 	// Delete the key
