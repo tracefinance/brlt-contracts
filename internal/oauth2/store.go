@@ -211,7 +211,7 @@ func (s *TokenStore) Create(ctx context.Context, info oauth2.TokenInfo) error {
 	}
 
 	query := `
-	INSERT INTO tokens (
+	INSERT INTO oauth_tokens (
 		client_id, user_id, redirect_uri, scope, 
 		code, code_created_at, code_expires_in,
 		access, access_created_at, access_expires_in,
@@ -244,7 +244,7 @@ func (s *TokenStore) Create(ctx context.Context, info oauth2.TokenInfo) error {
 
 // RemoveByCode deletes the authorization code
 func (s *TokenStore) RemoveByCode(ctx context.Context, code string) error {
-	query := "UPDATE tokens SET code = '' WHERE code = ?"
+	query := "UPDATE oauth_tokens SET code = '' WHERE code = ?"
 	_, err := s.db.ExecuteStatementContext(ctx, query, code)
 	if err != nil {
 		return fmt.Errorf("failed to remove code: %w", err)
@@ -254,7 +254,7 @@ func (s *TokenStore) RemoveByCode(ctx context.Context, code string) error {
 
 // RemoveByAccess deletes the access token
 func (s *TokenStore) RemoveByAccess(ctx context.Context, access string) error {
-	query := "UPDATE tokens SET access = '' WHERE access = ?"
+	query := "UPDATE oauth_tokens SET access = '' WHERE access = ?"
 	_, err := s.db.ExecuteStatementContext(ctx, query, access)
 	if err != nil {
 		return fmt.Errorf("failed to remove access token: %w", err)
@@ -264,7 +264,7 @@ func (s *TokenStore) RemoveByAccess(ctx context.Context, access string) error {
 
 // RemoveByRefresh deletes the refresh token
 func (s *TokenStore) RemoveByRefresh(ctx context.Context, refresh string) error {
-	query := "UPDATE tokens SET refresh = '' WHERE refresh = ?"
+	query := "UPDATE oauth_tokens SET refresh = '' WHERE refresh = ?"
 	_, err := s.db.ExecuteStatementContext(ctx, query, refresh)
 	if err != nil {
 		return fmt.Errorf("failed to remove refresh token: %w", err)
@@ -280,7 +280,7 @@ func (s *TokenStore) GetByCode(ctx context.Context, code string) (oauth2.TokenIn
 		code, code_created_at, code_expires_in,
 		access, access_created_at, access_expires_in,
 		refresh, refresh_created_at, refresh_expires_in
-	FROM tokens WHERE code = ?
+	FROM oauth_tokens WHERE code = ?
 	`
 
 	rows, err := s.db.ExecuteQueryContext(ctx, query, code)
@@ -305,7 +305,7 @@ func (s *TokenStore) GetByAccess(ctx context.Context, access string) (oauth2.Tok
 		code, code_created_at, code_expires_in,
 		access, access_created_at, access_expires_in,
 		refresh, refresh_created_at, refresh_expires_in
-	FROM tokens WHERE access = ?
+	FROM oauth_tokens WHERE access = ?
 	`
 
 	rows, err := s.db.ExecuteQueryContext(ctx, query, access)
@@ -330,7 +330,7 @@ func (s *TokenStore) GetByRefresh(ctx context.Context, refresh string) (oauth2.T
 		code, code_created_at, code_expires_in,
 		access, access_created_at, access_expires_in,
 		refresh, refresh_created_at, refresh_expires_in
-	FROM tokens WHERE refresh = ?
+	FROM oauth_tokens WHERE refresh = ?
 	`
 
 	rows, err := s.db.ExecuteQueryContext(ctx, query, refresh)
@@ -423,7 +423,7 @@ func NewClientStore(database *db.DB) (*ClientStore, error) {
 
 // GetByID retrieves a client by ID
 func (s *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo, error) {
-	query := "SELECT client_id, client_secret, redirect_uri FROM clients WHERE client_id = ?"
+	query := "SELECT client_id, client_secret, redirect_uri FROM oauth_clients WHERE client_id = ?"
 	rows, err := s.db.ExecuteQueryContext(ctx, query, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query client: %w", err)
@@ -459,7 +459,7 @@ func (s *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo
 
 // Create adds a new client
 func (s *ClientStore) Create(clientID, clientSecret, redirectURI string) error {
-	query := "INSERT INTO clients (client_id, client_secret, redirect_uri) VALUES (?, ?, ?)"
+	query := "INSERT INTO oauth_clients (client_id, client_secret, redirect_uri) VALUES (?, ?, ?)"
 	_, err := s.db.ExecuteStatement(query, clientID, clientSecret, redirectURI)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)

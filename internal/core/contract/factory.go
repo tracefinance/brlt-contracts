@@ -87,7 +87,7 @@ func (f *factory) NewContract(ctx context.Context, chainType types.ChainType) (S
 		// Create EVM-compatible contract manager
 		contract, err = NewEVMSmartContract(blockchainClient, walletClient, f.cfg)
 	default:
-		return nil, fmt.Errorf("unsupported chain type: %s: %w", chainType, types.ErrUnsupportedChain)
+		return nil, &types.UnsupportedChainError{ChainType: chainType}
 	}
 
 	if err != nil {

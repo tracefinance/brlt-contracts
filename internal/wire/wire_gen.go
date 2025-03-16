@@ -18,6 +18,7 @@ import (
 	"vault0/internal/core/contract"
 	"vault0/internal/core/db"
 	"vault0/internal/core/keystore"
+	"vault0/internal/core/tokenstore"
 	"vault0/internal/core/wallet"
 	"vault0/internal/logger"
 	"vault0/internal/services/transaction"
@@ -47,7 +48,7 @@ func BuildContainer() (*Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	tokenStore := NewTokenStore(dbDB)
+	tokenStore := tokenstore.NewTokenStore(dbDB)
 	chains, err := types.NewChains(configConfig)
 	if err != nil {
 		return nil, err

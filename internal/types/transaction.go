@@ -1,15 +1,7 @@
 package types
 
 import (
-	"errors"
 	"math/big"
-)
-
-// Common errors
-var (
-	ErrInvalidAmount       = errors.New("invalid amount")
-	ErrTransactionFailed   = errors.New("transaction failed")
-	ErrInsufficientBalance = errors.New("insufficient balance")
 )
 
 // Common addresses

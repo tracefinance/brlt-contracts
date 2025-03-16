@@ -12,7 +12,7 @@ type Factory interface {
 }
 
 // NewFactory creates a new BlockExplorer factory
-func NewFactory(chains types.Chains, cfg *config.Config) Factory {
+func NewFactory(chains *types.Chains, cfg *config.Config) Factory {
 	return &factory{
 		chains:    chains,
 		cfg:       cfg,
@@ -21,7 +21,7 @@ func NewFactory(chains types.Chains, cfg *config.Config) Factory {
 }
 
 type factory struct {
-	chains    types.Chains
+	chains    *types.Chains
 	cfg       *config.Config
 	explorers map[types.ChainType]BlockExplorer
 }
@@ -34,14 +34,13 @@ func (f *factory) GetExplorer(chainType types.ChainType) (BlockExplorer, error) 
 	}
 
 	// Get chain information
-	chain, ok := f.chains[chainType]
-	if !ok {
+	chain, err := f.chains.Get(chainType)
+	if err != nil {
 		return nil, ErrExplorerNotSupported
 	}
 
 	// Create a new explorer instance based on chain type
 	var explorer BlockExplorer
-	var err error
 
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:

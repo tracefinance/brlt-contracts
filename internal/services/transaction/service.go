@@ -54,7 +54,7 @@ type transactionService struct {
 	repository           Repository
 	walletService        wallet.Service
 	blockExplorerFactory blockexplorer.Factory
-	chains               types.Chains
+	chains               *types.Chains
 	syncMutex            sync.Mutex
 	eventCtx             context.Context
 	eventCancel          context.CancelFunc
@@ -67,7 +67,7 @@ func NewService(
 	repository Repository,
 	walletService wallet.Service,
 	blockExplorerFactory blockexplorer.Factory,
-	chains types.Chains,
+	chains *types.Chains,
 ) Service {
 	return &transactionService{
 		config:               config,

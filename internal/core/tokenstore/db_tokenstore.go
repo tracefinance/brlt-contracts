@@ -10,20 +10,13 @@ import (
 	"vault0/internal/types"
 )
 
-// DBTokenStore implements the TokenStore interface using an SQL database
-type DBTokenStore struct {
+// dbTokenStore implements the TokenStore interface using an SQL database
+type dbTokenStore struct {
 	db *sql.DB
 }
 
-// NewDBTokenStore creates a new database-backed token store
-func NewDBTokenStore(db *sql.DB) TokenStore {
-	return &DBTokenStore{
-		db: db,
-	}
-}
-
 // AddToken adds a new token to the database
-func (s *DBTokenStore) AddToken(ctx context.Context, token *types.Token) error {
+func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 	if err := ValidateTokenData(token); err != nil {
 		return err
 	}
@@ -68,7 +61,7 @@ func (s *DBTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 }
 
 // GetToken retrieves a token by its address and chain type
-func (s *DBTokenStore) GetToken(ctx context.Context, address string, chainType types.ChainType) (*types.Token, error) {
+func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType types.ChainType) (*types.Token, error) {
 	normalizedAddress := NormalizeAddress(address)
 
 	var token types.Token
@@ -98,7 +91,7 @@ func (s *DBTokenStore) GetToken(ctx context.Context, address string, chainType t
 }
 
 // GetTokenByID retrieves a token by its composite ID (address:chainType)
-func (s *DBTokenStore) GetTokenByID(ctx context.Context, id string) (*types.Token, error) {
+func (s *dbTokenStore) GetTokenByID(ctx context.Context, id string) (*types.Token, error) {
 	address, chainType, err := types.ParseTokenID(id)
 	if err != nil {
 		return nil, err
@@ -108,7 +101,7 @@ func (s *DBTokenStore) GetTokenByID(ctx context.Context, id string) (*types.Toke
 }
 
 // GetTokensByChain retrieves all tokens for a specific blockchain
-func (s *DBTokenStore) GetTokensByChain(ctx context.Context, chainType types.ChainType) ([]*types.Token, error) {
+func (s *dbTokenStore) GetTokensByChain(ctx context.Context, chainType types.ChainType) ([]*types.Token, error) {
 	rows, err := s.db.QueryContext(
 		ctx,
 		`SELECT address, chain_type, symbol, decimals, type 
@@ -126,7 +119,7 @@ func (s *DBTokenStore) GetTokensByChain(ctx context.Context, chainType types.Cha
 }
 
 // GetTokensByType retrieves all tokens of a specific type (native, ERC20)
-func (s *DBTokenStore) GetTokensByType(ctx context.Context, tokenType types.TokenType) ([]*types.Token, error) {
+func (s *dbTokenStore) GetTokensByType(ctx context.Context, tokenType types.TokenType) ([]*types.Token, error) {
 	rows, err := s.db.QueryContext(
 		ctx,
 		`SELECT address, chain_type, symbol, decimals, type 
@@ -144,7 +137,7 @@ func (s *DBTokenStore) GetTokensByType(ctx context.Context, tokenType types.Toke
 }
 
 // UpdateToken updates an existing token
-func (s *DBTokenStore) UpdateToken(ctx context.Context, token *types.Token) error {
+func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) error {
 	if err := ValidateTokenData(token); err != nil {
 		return err
 	}
@@ -180,7 +173,7 @@ func (s *DBTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 }
 
 // DeleteToken removes a token from the store
-func (s *DBTokenStore) DeleteToken(ctx context.Context, address string, chainType types.ChainType) error {
+func (s *dbTokenStore) DeleteToken(ctx context.Context, address string, chainType types.ChainType) error {
 	normalizedAddress := NormalizeAddress(address)
 
 	result, err := s.db.ExecContext(
@@ -206,7 +199,7 @@ func (s *DBTokenStore) DeleteToken(ctx context.Context, address string, chainTyp
 }
 
 // ListAllTokens retrieves all tokens in the store
-func (s *DBTokenStore) ListAllTokens(ctx context.Context) ([]*types.Token, error) {
+func (s *dbTokenStore) ListAllTokens(ctx context.Context) ([]*types.Token, error) {
 	rows, err := s.db.QueryContext(
 		ctx,
 		`SELECT address, chain_type, symbol, decimals, type 
@@ -222,7 +215,7 @@ func (s *DBTokenStore) ListAllTokens(ctx context.Context) ([]*types.Token, error
 }
 
 // scanTokensFromRows is a helper function to scan tokens from sql.Rows
-func (s *DBTokenStore) scanTokensFromRows(rows *sql.Rows) ([]*types.Token, error) {
+func (s *dbTokenStore) scanTokensFromRows(rows *sql.Rows) ([]*types.Token, error) {
 	var tokens []*types.Token
 
 	for rows.Next() {
@@ -248,7 +241,7 @@ func (s *DBTokenStore) scanTokensFromRows(rows *sql.Rows) ([]*types.Token, error
 
 // ImportTokensFromConfig imports tokens from a string map representation
 // This is used for importing tokens from a configuration file
-func (s *DBTokenStore) ImportTokensFromConfig(ctx context.Context, configTokens map[string][]map[string]interface{}) error {
+func (s *dbTokenStore) ImportTokensFromConfig(ctx context.Context, configTokens map[string][]map[string]interface{}) error {
 	for chainTypeStr, tokens := range configTokens {
 		for _, tokenData := range tokens {
 			token, err := mapToToken(chainTypeStr, tokenData)

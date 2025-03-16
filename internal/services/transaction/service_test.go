@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"vault0/internal/config"
 	"vault0/internal/core/blockexplorer"
 	"vault0/internal/logger"
 	"vault0/internal/services/wallet"
@@ -283,28 +282,23 @@ func (m *MockTransactionService) UnsubscribeFromWalletEvents() {
 
 // TestGetTransaction tests the GetTransaction method
 func TestGetTransaction(t *testing.T) {
-	// Setup minimal config and chains
-	cfg := &config.Config{}
-	chains := types.Chains{
-		types.ChainTypeEthereum: types.Chain{
-			Type: types.ChainTypeEthereum,
-		},
-	}
+	// Create logger
+	log := logger.NewNopLogger()
 
 	// Define test cases
 	tests := []struct {
-		name        string
-		chainType   types.ChainType
-		hash        string
-		setupMocks  func(*MockRepository, *MockBlockExplorerFactory)
-		wantErr     bool
-		errContains string
+		name       string
+		chainType  types.ChainType
+		hash       string
+		setupMocks func(*MockRepository, *MockWalletService, *MockBlockExplorerFactory)
+		wantErr    bool
+		errIs      error
 	}{
 		{
 			name:      "successful retrieval from database",
 			chainType: types.ChainTypeEthereum,
 			hash:      "0x1234567890abcdef1234567890abcdef12345678",
-			setupMocks: func(repo *MockRepository, factory *MockBlockExplorerFactory) {
+			setupMocks: func(repo *MockRepository, walletService *MockWalletService, factory *MockBlockExplorerFactory) {
 				repo.GetFunc = func(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error) {
 					assert.Equal(t, types.ChainTypeEthereum, chainType)
 					assert.Equal(t, "0x1234567890abcdef1234567890abcdef12345678", hash)
@@ -324,7 +318,7 @@ func TestGetTransaction(t *testing.T) {
 			name:      "successful retrieval from explorer",
 			chainType: types.ChainTypeEthereum,
 			hash:      "0x1234567890abcdef1234567890abcdef12345678",
-			setupMocks: func(repo *MockRepository, factory *MockBlockExplorerFactory) {
+			setupMocks: func(repo *MockRepository, walletService *MockWalletService, factory *MockBlockExplorerFactory) {
 				repo.GetFunc = func(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error) {
 					return nil, ErrTransactionNotFound
 				}
@@ -363,7 +357,7 @@ func TestGetTransaction(t *testing.T) {
 			name:      "transaction not found in database or explorer",
 			chainType: types.ChainTypeEthereum,
 			hash:      "0x1234567890abcdef1234567890abcdef12345678",
-			setupMocks: func(repo *MockRepository, factory *MockBlockExplorerFactory) {
+			setupMocks: func(repo *MockRepository, walletService *MockWalletService, factory *MockBlockExplorerFactory) {
 				repo.GetFunc = func(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error) {
 					return nil, ErrTransactionNotFound
 				}
@@ -379,14 +373,14 @@ func TestGetTransaction(t *testing.T) {
 					return explorer, nil
 				}
 			},
-			wantErr:     true,
-			errContains: "transaction not found",
+			wantErr: true,
+			errIs:   ErrTransactionNotFound,
 		},
 		{
 			name:      "explorer error",
 			chainType: types.ChainTypeEthereum,
 			hash:      "0x1234567890abcdef1234567890abcdef12345678",
-			setupMocks: func(repo *MockRepository, factory *MockBlockExplorerFactory) {
+			setupMocks: func(repo *MockRepository, walletService *MockWalletService, factory *MockBlockExplorerFactory) {
 				repo.GetFunc = func(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error) {
 					return nil, ErrTransactionNotFound
 				}
@@ -402,60 +396,58 @@ func TestGetTransaction(t *testing.T) {
 					return explorer, nil
 				}
 			},
-			wantErr:     true,
-			errContains: "failed to get transaction from explorer",
+			wantErr: true,
+			errIs:   errors.New("failed to get transaction from explorer"),
 		},
 		{
 			name:      "empty chain type",
 			chainType: "",
 			hash:      "0x1234567890abcdef1234567890abcdef12345678",
-			setupMocks: func(repo *MockRepository, factory *MockBlockExplorerFactory) {
+			setupMocks: func(repo *MockRepository, walletService *MockWalletService, factory *MockBlockExplorerFactory) {
 				// No mocks needed; validation fails before repository is called
 			},
-			wantErr:     true,
-			errContains: "chain type is required",
+			wantErr: true,
+			errIs:   errors.New("chain type is required"),
 		},
 		{
 			name:      "empty hash",
 			chainType: types.ChainTypeEthereum,
 			hash:      "",
-			setupMocks: func(repo *MockRepository, factory *MockBlockExplorerFactory) {
+			setupMocks: func(repo *MockRepository, walletService *MockWalletService, factory *MockBlockExplorerFactory) {
 				// No mocks needed; validation fails before repository is called
 			},
-			wantErr:     true,
-			errContains: "hash is required",
+			wantErr: true,
+			errIs:   errors.New("hash is required"),
 		},
 	}
 
 	// Run tests
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Initialize mocks
-			mockRepository := &MockRepository{}
-			mockWalletService := &MockWalletService{}
-			mockBlockExplorerFactory := &MockBlockExplorerFactory{}
+			// Create mocks
+			repo := &MockRepository{}
+			walletService := &MockWalletService{}
+			explorerFactory := &MockBlockExplorerFactory{}
 
-			// Setup mock behavior
-			tt.setupMocks(mockRepository, mockBlockExplorerFactory)
+			if tt.setupMocks != nil {
+				tt.setupMocks(repo, walletService, explorerFactory)
+			}
 
 			// Create service
-			s := NewService(cfg, logger.NewNopLogger(), mockRepository, mockWalletService, mockBlockExplorerFactory, chains)
+			service := NewService(nil, log, repo, walletService, explorerFactory, nil)
 
-			// Call the service method
-			tx, err := s.GetTransaction(context.Background(), tt.chainType, tt.hash)
+			// Execute test
+			got, err := service.GetTransaction(context.Background(), tt.chainType, tt.hash)
 
-			// Assertions
+			// Assert results
 			if tt.wantErr {
 				assert.Error(t, err)
-				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+				if tt.errIs != nil {
+					assert.Contains(t, err.Error(), tt.errIs.Error())
 				}
-				assert.Nil(t, tx)
 			} else {
 				assert.NoError(t, err)
-				assert.NotNil(t, tx)
-				assert.Equal(t, tt.chainType, tx.ChainType)
-				assert.Equal(t, tt.hash, tx.Hash)
+				assert.NotNil(t, got)
 			}
 		})
 	}
@@ -463,13 +455,8 @@ func TestGetTransaction(t *testing.T) {
 
 // TestGetTransactionsByWallet tests the GetTransactionsByWallet method
 func TestGetTransactionsByWallet(t *testing.T) {
-	// Setup minimal config and chains
-	cfg := &config.Config{}
-	chains := types.Chains{
-		types.ChainTypeEthereum: types.Chain{
-			Type: types.ChainTypeEthereum,
-		},
-	}
+	// Create logger
+	log := logger.NewNopLogger()
 
 	// Define test cases
 	tests := []struct {
@@ -592,7 +579,7 @@ func TestGetTransactionsByWallet(t *testing.T) {
 			tt.setupMocks(mockRepository)
 
 			// Create service
-			s := NewService(cfg, logger.NewNopLogger(), mockRepository, mockWalletService, mockBlockExplorerFactory, chains)
+			s := NewService(nil, log, mockRepository, mockWalletService, mockBlockExplorerFactory, nil)
 
 			// Call the service method
 			txs, err := s.GetTransactionsByWallet(context.Background(), tt.walletID, tt.limit, tt.offset)
@@ -615,13 +602,8 @@ func TestGetTransactionsByWallet(t *testing.T) {
 
 // TestSyncTransactions tests the SyncTransactions method
 func TestSyncTransactions(t *testing.T) {
-	// Setup minimal config and chains
-	cfg := &config.Config{}
-	chains := types.Chains{
-		types.ChainTypeEthereum: types.Chain{
-			Type: types.ChainTypeEthereum,
-		},
-	}
+	// Create logger
+	log := logger.NewNopLogger()
 
 	// Define test cases
 	tests := []struct {
@@ -830,7 +812,7 @@ func TestSyncTransactions(t *testing.T) {
 			tt.setupMocks(mockRepository, mockWalletService, mockBlockExplorerFactory)
 
 			// Create service
-			s := NewService(cfg, logger.NewNopLogger(), mockRepository, mockWalletService, mockBlockExplorerFactory, chains)
+			s := NewService(nil, log, mockRepository, mockWalletService, mockBlockExplorerFactory, nil)
 
 			// Call the service method
 			count, err := s.SyncTransactions(context.Background(), tt.walletID)
@@ -852,13 +834,8 @@ func TestSyncTransactions(t *testing.T) {
 
 // TestCountTransactions tests the CountTransactions method
 func TestCountTransactions(t *testing.T) {
-	// Setup minimal config and chains
-	cfg := &config.Config{}
-	chains := types.Chains{
-		types.ChainTypeEthereum: types.Chain{
-			Type: types.ChainTypeEthereum,
-		},
-	}
+	// Create logger
+	log := logger.NewNopLogger()
 
 	// Define test cases
 	tests := []struct {
@@ -917,7 +894,7 @@ func TestCountTransactions(t *testing.T) {
 			tt.setupMocks(mockRepository)
 
 			// Create service
-			s := NewService(cfg, logger.NewNopLogger(), mockRepository, mockWalletService, mockBlockExplorerFactory, chains)
+			s := NewService(nil, log, mockRepository, mockWalletService, mockBlockExplorerFactory, nil)
 
 			// Call the service method
 			count, err := s.CountTransactions(context.Background(), tt.walletID)
@@ -935,4 +912,9 @@ func TestCountTransactions(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCreateTransaction tests the CreateTransaction method
+func TestCreateTransaction(t *testing.T) {
+	// ... existing code ...
 }

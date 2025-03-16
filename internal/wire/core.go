@@ -22,7 +22,7 @@ type Core struct {
 	Logger               logger.Logger
 	KeyStore             keystore.KeyStore
 	TokenStore           tokenstore.TokenStore
-	Chains               types.Chains
+	Chains               *types.Chains
 	WalletFactory        wallet.Factory
 	BlockchainRegistry   blockchain.Registry
 	ContractFactory      contract.Factory
@@ -36,7 +36,7 @@ func NewCore(
 	logger logger.Logger,
 	keyStore keystore.KeyStore,
 	tokenStore tokenstore.TokenStore,
-	chains types.Chains,
+	chains *types.Chains,
 	walletFactory wallet.Factory,
 	blockchainRegistry blockchain.Registry,
 	contractFactory contract.Factory,
@@ -56,18 +56,13 @@ func NewCore(
 	}
 }
 
-// NewTokenStore creates a new TokenStore instance
-func NewTokenStore(db *db.DB) tokenstore.TokenStore {
-	return tokenstore.NewDBTokenStore(db.GetConnection())
-}
-
 // CoreSet combines all core dependencies
 var CoreSet = wire.NewSet(
 	config.LoadConfig,
 	db.NewDatabase,
 	logger.NewLogger,
 	keystore.NewKeyStore,
-	NewTokenStore,
+	tokenstore.NewTokenStore,
 	blockchain.NewRegistry,
 	wallet.NewFactory,
 	blockexplorer.NewFactory,

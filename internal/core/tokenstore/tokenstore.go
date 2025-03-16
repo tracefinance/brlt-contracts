@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"vault0/internal/core/db"
 	"vault0/internal/types"
 )
 
@@ -45,6 +46,13 @@ type TokenStore interface {
 
 	// ListAllTokens retrieves all tokens in the store
 	ListAllTokens(ctx context.Context) ([]*types.Token, error)
+}
+
+// NewTokenStore creates a new TokenStore instance
+func NewTokenStore(db *db.DB) TokenStore {
+	return &dbTokenStore{
+		db: db.GetConnection(),
+	}
 }
 
 // NormalizeAddress ensures consistent address format for storage and comparison

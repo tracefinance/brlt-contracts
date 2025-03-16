@@ -2,7 +2,6 @@ package types
 
 import (
 	"crypto/elliptic"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -21,10 +20,13 @@ const (
 	ChainTypeBase     ChainType = "base"
 )
 
-var (
-	ErrInvalidAddress   = errors.New("invalid address")
-	ErrUnsupportedChain = errors.New("unsupported blockchain")
-	ErrMissingRPCURL    = errors.New("missing RPC URL")
+// ChainLayer represents the layer classification of a blockchain
+type ChainLayer string
+
+// Supported blockchain layers
+const (
+	ChainLayerLayer1 ChainLayer = "layer1"
+	ChainLayerLayer2 ChainLayer = "layer2"
 )
 
 // Chain represents a blockchain network configuration and its operational parameters.
@@ -33,6 +35,7 @@ var (
 type Chain struct {
 	ID              int64          // Network identifier (e.g., 1 for Ethereum mainnet)
 	Type            ChainType      // Blockchain platform (Ethereum, Polygon, etc.)
+	Layer           ChainLayer     // Blockchain layer (Layer1, Layer2)
 	Name            string         // Human-readable network name
 	Symbol          string         // Native currency symbol (ETH, MATIC)
 	RPCUrl          string         // JSON-RPC endpoint URL
@@ -43,18 +46,42 @@ type Chain struct {
 	DefaultGasPrice uint64         // Default transaction gas price
 }
 
-type Chains map[ChainType]Chain
+// Chains represents a collection of blockchain configurations.
+type Chains struct {
+	chains map[ChainType]Chain // Map of chain types to their configurations
+}
 
-func NewChains(cfg *config.Config) (Chains, error) {
-	chains := make(Chains)
+// NewChains creates a new Chains instance with configurations from the provided config.
+func NewChains(cfg *config.Config) (*Chains, error) {
+	chainsMap := make(map[ChainType]Chain)
 	for _, chainType := range []ChainType{ChainTypeEthereum, ChainTypePolygon, ChainTypeBase} {
 		chain, err := newChain(cfg, chainType)
 		if err != nil {
 			return nil, err
 		}
-		chains[chainType] = chain
+		chainsMap[chainType] = chain
 	}
-	return chains, nil
+	return &Chains{
+		chains: chainsMap,
+	}, nil
+}
+
+// Get returns the Chain configuration for the specified chain type.
+func (c *Chains) Get(chainType ChainType) (Chain, error) {
+	chain, exists := c.chains[chainType]
+	if !exists {
+		return Chain{}, &UnsupportedChainError{ChainType: chainType}
+	}
+	return chain, nil
+}
+
+// List returns a slice of all Chain configurations.
+func (c *Chains) List() []Chain {
+	chains := make([]Chain, 0, len(c.chains))
+	for _, chain := range c.chains {
+		chains = append(chains, chain)
+	}
+	return chains
 }
 
 // newChain creates a new Chain instance for the specified blockchain type.
@@ -81,9 +108,13 @@ func newChain(cfg *config.Config, chainType ChainType) (Chain, error) {
 	// Determine the key type and curve for the chain
 	keyType, curve := getChainCryptoParams(chainType)
 
+	// Determine the chain layer
+	layer := getChainLayer(chainType)
+
 	return Chain{
 		ID:              chainCfg.ChainID,
 		Type:            chainType,
+		Layer:           layer,
 		Name:            getChainName(chainType),
 		Symbol:          getChainSymbol(chainType),
 		RPCUrl:          chainCfg.RPCURL,
@@ -157,7 +188,7 @@ func getChainConfig(chainType ChainType, config *config.Config) (*config.Blockch
 	case ChainTypeBase:
 		return &config.Blockchains.Base, nil
 	default:
-		return nil, fmt.Errorf("unsupported chain type %s: %w", chainType, ErrUnsupportedChain)
+		return nil, &UnsupportedChainError{ChainType: chainType}
 	}
 }
 
@@ -202,6 +233,28 @@ func getChainSymbol(chainType ChainType) string {
 		return "ETH"
 	default:
 		return "UNKNOWN"
+	}
+}
+
+// getChainLayer returns the layer classification for a given blockchain type.
+// This classification categorizes blockchains into Layer 1 (base chains) and
+// Layer 2 (scaling solutions).
+//
+// Parameters:
+//   - chainType: The type of blockchain to get the layer for
+//
+// Returns:
+//   - ChainLayer indicating whether the blockchain is Layer 1 or Layer 2
+func getChainLayer(chainType ChainType) ChainLayer {
+	switch chainType {
+	case ChainTypeEthereum:
+		return ChainLayerLayer1
+	case ChainTypePolygon:
+		return ChainLayerLayer2
+	case ChainTypeBase:
+		return ChainLayerLayer2
+	default:
+		return ChainLayerLayer1 // Default to Layer 1 for unknown chains
 	}
 }
 

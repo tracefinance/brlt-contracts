@@ -224,14 +224,30 @@ func (m *MockBlockchain) GetTransactionReceipt(ctx context.Context, txHash strin
 // TestCreateWallet tests the CreateWallet method
 func TestCreateWallet(t *testing.T) {
 	// Setup minimal config and chains
-	cfg := &config.Config{}
-	chains := types.Chains{
-		types.ChainTypeEthereum: types.Chain{
-			Type:    types.ChainTypeEthereum,
-			KeyType: types.KeyTypeECDSA,
-			Curve:   elliptic.P256(),
+	cfg := &config.Config{
+		Blockchains: config.BlockchainsConfig{
+			Ethereum: config.BlockchainConfig{
+				RPCURL:          "http://localhost:8545",
+				ChainID:         1,
+				DefaultGasLimit: 21000,
+				DefaultGasPrice: 20000000000,
+			},
+			Polygon: config.BlockchainConfig{
+				RPCURL:          "http://localhost:8546",
+				ChainID:         137,
+				DefaultGasLimit: 21000,
+				DefaultGasPrice: 20000000000,
+			},
+			Base: config.BlockchainConfig{
+				RPCURL:          "http://localhost:8547",
+				ChainID:         8453,
+				DefaultGasLimit: 21000,
+				DefaultGasPrice: 20000000000,
+			},
 		},
 	}
+	chains, err := types.NewChains(cfg)
+	assert.NoError(t, err)
 
 	// Define test cases
 	tests := []struct {
@@ -333,14 +349,30 @@ func TestCreateWallet(t *testing.T) {
 // TestGetWallet tests the GetWallet method
 func TestGetWallet(t *testing.T) {
 	// Setup minimal config and chains
-	cfg := &config.Config{}
-	chains := types.Chains{
-		types.ChainTypeEthereum: types.Chain{
-			Type:    types.ChainTypeEthereum,
-			KeyType: types.KeyTypeECDSA,
-			Curve:   elliptic.P256(),
+	cfg := &config.Config{
+		Blockchains: config.BlockchainsConfig{
+			Ethereum: config.BlockchainConfig{
+				RPCURL:          "http://localhost:8545",
+				ChainID:         1,
+				DefaultGasLimit: 21000,
+				DefaultGasPrice: 20000000000,
+			},
+			Polygon: config.BlockchainConfig{
+				RPCURL:          "http://localhost:8546",
+				ChainID:         137,
+				DefaultGasLimit: 21000,
+				DefaultGasPrice: 20000000000,
+			},
+			Base: config.BlockchainConfig{
+				RPCURL:          "http://localhost:8547",
+				ChainID:         8453,
+				DefaultGasLimit: 21000,
+				DefaultGasPrice: 20000000000,
+			},
 		},
 	}
+	chains, err := types.NewChains(cfg)
+	assert.NoError(t, err)
 
 	// Define test cases
 	tests := []struct {
@@ -410,7 +442,7 @@ func TestGetWallet(t *testing.T) {
 				// No mocks needed; validation fails before repository is called
 			},
 			wantErr:     true,
-			errContains: "unsupported chain type",
+			errContains: "unsupported blockchain: unsupported",
 		},
 	}
 
@@ -450,14 +482,30 @@ func TestGetWallet(t *testing.T) {
 // TestUpdateLastBlockNumber tests the UpdateLastBlockNumber method
 func TestUpdateLastBlockNumber(t *testing.T) {
 	// Setup minimal config and chains
-	cfg := &config.Config{}
-	chains := types.Chains{
-		types.ChainTypeEthereum: types.Chain{
-			Type:    types.ChainTypeEthereum,
-			KeyType: types.KeyTypeECDSA,
-			Curve:   elliptic.P256(),
+	cfg := &config.Config{
+		Blockchains: config.BlockchainsConfig{
+			Ethereum: config.BlockchainConfig{
+				RPCURL:          "http://localhost:8545",
+				ChainID:         1,
+				DefaultGasLimit: 21000,
+				DefaultGasPrice: 20000000000,
+			},
+			Polygon: config.BlockchainConfig{
+				RPCURL:          "http://localhost:8546",
+				ChainID:         137,
+				DefaultGasLimit: 21000,
+				DefaultGasPrice: 20000000000,
+			},
+			Base: config.BlockchainConfig{
+				RPCURL:          "http://localhost:8547",
+				ChainID:         8453,
+				DefaultGasLimit: 21000,
+				DefaultGasPrice: 20000000000,
+			},
 		},
 	}
+	chains, err := types.NewChains(cfg)
+	assert.NoError(t, err)
 
 	// Define test cases
 	tests := []struct {
@@ -545,7 +593,7 @@ func TestUpdateLastBlockNumber(t *testing.T) {
 				// No mocks needed; validation fails before repository is called
 			},
 			wantErr:     true,
-			errContains: "unsupported chain type",
+			errContains: "unsupported blockchain: unsupported",
 		},
 	}
 

@@ -1,3 +1,3 @@
--- Drop clients table and related indexes
-DROP INDEX IF EXISTS idx_clients_client_id;
-DROP TABLE IF EXISTS clients;
+-- Drop OAuth2 clients table
+DROP INDEX IF EXISTS idx_oauth_clients_client_id;
+DROP TABLE IF EXISTS oauth_clients;

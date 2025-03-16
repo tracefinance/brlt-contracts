@@ -18,7 +18,6 @@ package wallet
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"vault0/internal/config"
 	"vault0/internal/core/keystore"
@@ -123,15 +122,18 @@ type Wallet interface {
 // Returns:
 //   - Wallet: Chain-specific wallet implementation
 //   - error: ErrUnsupportedChain if chain type is not supported, or other errors
-func NewWallet(ctx context.Context, keystore keystore.KeyStore, chains types.Chains, cfg *config.Config, chainType types.ChainType, keyID string) (Wallet, error) {
+func NewWallet(ctx context.Context, keystore keystore.KeyStore, chains *types.Chains, cfg *config.Config, chainType types.ChainType, keyID string) (Wallet, error) {
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
 		// Get chain struct from blockchain package
-		chain := chains[chainType]
+		chain, err := chains.Get(chainType)
+		if err != nil {
+			return nil, err
+		}
 
 		// All EVM-compatible chains use the same implementation
 		return NewEVMWallet(keystore, chain, keyID)
 	default:
-		return nil, fmt.Errorf("%w: %s", types.ErrUnsupportedChain, chainType)
+		return nil, &types.UnsupportedChainError{ChainType: chainType}
 	}
 }

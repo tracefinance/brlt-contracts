@@ -2,7 +2,6 @@ package contract
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
@@ -149,8 +148,7 @@ func NewSmartContract(blockchain blockchain.Blockchain, wallet wallet.Wallet, co
 
 	// Validate that the wallet and blockchain have matching chain types
 	if blockchainChain.Type != walletChain.Type {
-		return nil, fmt.Errorf("blockchain chain type %s does not match wallet chain type %s: %w",
-			blockchainChain.Type, walletChain.Type, types.ErrUnsupportedChain)
+		return nil, &types.UnsupportedChainError{ChainType: blockchainChain.Type}
 	}
 
 	// Create the appropriate implementation based on chain type
@@ -159,6 +157,6 @@ func NewSmartContract(blockchain blockchain.Blockchain, wallet wallet.Wallet, co
 		// These are all EVM-compatible chains, so use EVMSmartContract
 		return NewEVMSmartContract(blockchain, wallet, config)
 	default:
-		return nil, fmt.Errorf("unsupported chain type: %s: %w", blockchainChain.Type, types.ErrUnsupportedChain)
+		return nil, &types.UnsupportedChainError{ChainType: blockchainChain.Type}
 	}
 }

@@ -18,19 +18,19 @@ const (
 type Token struct {
 	// Address is the contract address of the token
 	// For native tokens, this is typically the zero address
-	Address string `json:"address"`
+	Address string
 
 	// ChainType is the blockchain network the token exists on
-	ChainType ChainType `json:"chain_type"`
+	ChainType ChainType
 
 	// Symbol is the token's ticker symbol (e.g., ETH, USDC)
-	Symbol string `json:"symbol"`
+	Symbol string
 
 	// Decimals is the number of decimal places the token supports
-	Decimals uint8 `json:"decimals"`
+	Decimals uint8
 
 	// Type indicates if the token is native to the chain or an ERC20 token
-	Type TokenType `json:"type"`
+	Type TokenType
 }
 
 // IsNative returns true if the token is a native token of its blockchain

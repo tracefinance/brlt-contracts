@@ -1,7 +1,6 @@
 package blockchain
 
 import (
-	"fmt"
 	"sync"
 	"vault0/internal/config"
 	"vault0/internal/types"
@@ -14,13 +13,13 @@ type Registry interface {
 // Factory creates blockchain implementations
 type registry struct {
 	cfg        *config.Config
-	chains     types.Chains
+	chains     *types.Chains
 	clients    map[types.ChainType]Blockchain
 	clientsMux sync.RWMutex
 }
 
 // NewRegistry creates a new blockchain registry with the given configuration
-func NewRegistry(chains types.Chains, cfg *config.Config) Registry {
+func NewRegistry(chains *types.Chains, cfg *config.Config) Registry {
 	return &registry{
 		cfg:     cfg,
 		chains:  chains,
@@ -38,7 +37,10 @@ func (r *registry) GetBlockchain(chainType types.ChainType) (Blockchain, error) 
 		return client, nil
 	}
 
-	chain := r.chains[chainType]
+	chain, err := r.chains.Get(chainType)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create a new client
 	switch chainType {
@@ -50,6 +52,6 @@ func (r *registry) GetBlockchain(chainType types.ChainType) (Blockchain, error) 
 		r.clients[chainType] = client
 		return client, nil
 	default:
-		return nil, fmt.Errorf("unsupported chain type: %s", chain.Type)
+		return nil, &types.UnsupportedChainError{ChainType: chainType}
 	}
 }

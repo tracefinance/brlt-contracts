@@ -195,7 +195,7 @@ type walletService struct {
 	keystore           keystore.KeyStore
 	walletFactory      coreWallet.Factory
 	blockchainRegistry blockchain.Registry
-	chains             types.Chains
+	chains             *types.Chains
 	subscriptions      map[string]context.CancelFunc
 	mu                 sync.RWMutex
 	blockchainEvents   chan *BlockchainEvent
@@ -210,7 +210,7 @@ func NewService(
 	keyStore keystore.KeyStore,
 	walletFactory coreWallet.Factory,
 	blockchainRegistry blockchain.Registry,
-	chains types.Chains,
+	chains *types.Chains,
 ) Service {
 	const channelBuffer = 100
 	return &walletService{
@@ -276,9 +276,9 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 	}
 
 	// Get chain information from chains
-	chain, exists := s.chains[chainType]
-	if !exists {
-		return nil, fmt.Errorf("unsupported chain type: %s", chainType)
+	chain, err := s.chains.Get(chainType)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create the key in the keystore using the chain's specified key type and curve
@@ -345,9 +345,9 @@ func (s *walletService) Update(ctx context.Context, chainType types.ChainType, a
 	}
 
 	// Validate chain type
-	chain, exists := s.chains[chainType]
-	if !exists {
-		return nil, fmt.Errorf("%w: unsupported chain type: %s", ErrInvalidInput, chainType)
+	chain, err := s.chains.Get(chainType)
+	if err != nil {
+		return nil, err
 	}
 
 	// Validate address format
@@ -393,9 +393,9 @@ func (s *walletService) UpdateLastBlockNumber(ctx context.Context, chainType typ
 	}
 
 	// Validate chain type
-	chain, exists := s.chains[chainType]
-	if !exists {
-		return fmt.Errorf("%w: unsupported chain type: %s", ErrInvalidInput, chainType)
+	chain, err := s.chains.Get(chainType)
+	if err != nil {
+		return err
 	}
 
 	// Validate address format
@@ -437,9 +437,9 @@ func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, a
 	}
 
 	// Validate chain type
-	chain, exists := s.chains[chainType]
-	if !exists {
-		return fmt.Errorf("%w: unsupported chain type: %s", ErrInvalidInput, chainType)
+	chain, err := s.chains.Get(chainType)
+	if err != nil {
+		return err
 	}
 
 	// Validate address format
@@ -489,9 +489,9 @@ func (s *walletService) Get(ctx context.Context, chainType types.ChainType, addr
 	}
 
 	// Validate chain type
-	chain, exists := s.chains[chainType]
-	if !exists {
-		return nil, fmt.Errorf("%w: unsupported chain type: %s", ErrInvalidInput, chainType)
+	chain, err := s.chains.Get(chainType)
+	if err != nil {
+		return nil, err
 	}
 
 	// Validate address format
@@ -640,9 +640,9 @@ func (s *walletService) Exists(ctx context.Context, chainType types.ChainType, a
 	}
 
 	// Validate chain type
-	chain, exists := s.chains[chainType]
-	if !exists {
-		return false, fmt.Errorf("%w: unsupported chain type: %s", ErrInvalidInput, chainType)
+	chain, err := s.chains.Get(chainType)
+	if err != nil {
+		return false, err
 	}
 
 	// Validate address format

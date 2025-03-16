@@ -15,12 +15,12 @@ type Factory interface {
 // Factory creates wallet instances for different chains
 type factory struct {
 	keystore keystore.KeyStore
-	chains   types.Chains
+	chains   *types.Chains
 	config   *config.Config
 }
 
 // NewFactory creates a new factory instance
-func NewFactory(keystore keystore.KeyStore, chains types.Chains, config *config.Config) Factory {
+func NewFactory(keystore keystore.KeyStore, chains *types.Chains, config *config.Config) Factory {
 	return &factory{
 		keystore: keystore,
 		chains:   chains,

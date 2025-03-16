@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -13,6 +12,7 @@ import (
 
 	"vault0/internal/config"
 	"vault0/internal/core/blockexplorer"
+	"vault0/internal/core/db"
 	"vault0/internal/core/tokenstore"
 	"vault0/internal/types"
 )
@@ -24,37 +24,24 @@ func main() {
 		log.Fatalf("Error loading config: %v", err)
 	}
 
-	// Create chains map
-	chains := types.Chains{
-		types.ChainTypeEthereum: {
-			Type: types.ChainTypeEthereum,
-			ID:   cfg.Blockchains.Ethereum.ChainID,
-			Name: "Ethereum",
-		},
-		types.ChainTypePolygon: {
-			Type: types.ChainTypePolygon,
-			ID:   cfg.Blockchains.Polygon.ChainID,
-			Name: "Polygon",
-		},
-		types.ChainTypeBase: {
-			Type: types.ChainTypeBase,
-			ID:   cfg.Blockchains.Base.ChainID,
-			Name: "Base",
-		},
+	// Create chains
+	chains, err := types.NewChains(cfg)
+	if err != nil {
+		log.Fatalf("Error creating chains: %v", err)
 	}
 
 	// Create block explorer factory
 	factory := blockexplorer.NewFactory(chains, cfg)
 
-	// Connect to the database
-	db, err := sql.Open("sqlite3", cfg.DBPath)
+	// Create database connection
+	database, err := db.NewDatabase(cfg)
 	if err != nil {
 		log.Fatalf("Error connecting to database: %v", err)
 	}
-	defer db.Close()
+	defer database.Close()
 
 	// Create token store
-	tokenStore := tokenstore.NewDBTokenStore(db)
+	tokenStore := tokenstore.NewTokenStore(database)
 
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -65,15 +52,16 @@ func main() {
 	results := make(chan verificationResult, 100)
 
 	// Get tokens for each chain
-	for chainType := range chains {
-		tokens, err := tokenStore.GetTokensByChain(ctx, chainType)
+	chainList := chains.List()
+	for _, chain := range chainList {
+		tokens, err := tokenStore.GetTokensByChain(ctx, chain.Type)
 		if err != nil {
-			log.Printf("Error getting tokens for %s: %v", chainType, err)
+			log.Printf("Error getting tokens for %s: %v", chain.Type, err)
 			continue
 		}
 
 		wg.Add(1)
-		go verifyTokens(ctx, &wg, results, factory, chainType, tokens)
+		go verifyTokens(ctx, &wg, results, factory, chain.Type, tokens)
 	}
 
 	// Collect and group results
@@ -99,16 +87,17 @@ type verificationResult struct {
 }
 
 // printGroupedResults prints verification results grouped by blockchain
-func printGroupedResults(groupedResults map[types.ChainType][]string, chains types.Chains) {
+func printGroupedResults(groupedResults map[types.ChainType][]string, chains *types.Chains) {
 	// Sort network names for consistent output
-	networks := make([]string, 0, len(groupedResults))
+	chainList := chains.List()
+	networks := make([]string, 0, len(chainList))
 	chainTypeToName := make(map[types.ChainType]string)
 	nameToChainType := make(map[string]types.ChainType)
 
-	for chainType, chain := range chains {
+	for _, chain := range chainList {
 		networks = append(networks, chain.Name)
-		chainTypeToName[chainType] = chain.Name
-		nameToChainType[chain.Name] = chainType
+		chainTypeToName[chain.Type] = chain.Name
+		nameToChainType[chain.Name] = chain.Type
 	}
 	sort.Strings(networks)
 

@@ -1,5 +1,5 @@
 -- Create OAuth2 tokens table
-CREATE TABLE IF NOT EXISTS tokens (
+CREATE TABLE IF NOT EXISTS oauth_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id TEXT,
     user_id TEXT,
@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS tokens (
 );
 
 -- Add indexes for faster lookups
-CREATE INDEX IF NOT EXISTS idx_tokens_client_id ON tokens(client_id);
-CREATE INDEX IF NOT EXISTS idx_tokens_user_id ON tokens(user_id);
-CREATE INDEX IF NOT EXISTS idx_tokens_code ON tokens(code);
-CREATE INDEX IF NOT EXISTS idx_tokens_access ON tokens(access);
-CREATE INDEX IF NOT EXISTS idx_tokens_refresh ON tokens(refresh);
+CREATE INDEX IF NOT EXISTS idx_oauth_tokens_client_id ON oauth_tokens(client_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_tokens_user_id ON oauth_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_tokens_code ON oauth_tokens(code);
+CREATE INDEX IF NOT EXISTS idx_oauth_tokens_access ON oauth_tokens(access);
+CREATE INDEX IF NOT EXISTS idx_oauth_tokens_refresh ON oauth_tokens(refresh);
