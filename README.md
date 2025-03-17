@@ -127,121 +127,23 @@ Vault0 is designed to work on:
 
 ```
 vault0/
-├── cmd/                                # Command-line applications
-│   ├── server/                         # Main server application
-│   │   └── main.go                     # Application entry point
-│   └── genkey/                         # Encryption key generation utility
-│       └── main.go                     # Key generation entry point
-├── internal/                           # Private application code
-│   ├── api/                            # Communication Layer (Layer 3)
-│   │   ├── handlers/                   # API request handlers by domain
-│   │   │   ├── user/                   # User-related endpoints
-│   │   │   │   ├── handler.go          # User handler implementation
-│   │   │   │   ├── dto.go              # User request/response structures
-│   │   │   │   └── route.go            # User routes configuration
-│   │   │   ├── wallet/                 # Wallet-related endpoints
-│   │   │   │   ├── handler.go          # Wallet handler implementation
-│   │   │   │   ├── dto.go              # Wallet request/response structures
-│   │   │   │   └── route.go            # Wallet routes configuration
-│   │   │   ├── auth/                   # Authentication endpoints
-│   │   │   │   ├── handler.go          # Auth handler implementation
-│   │   │   │   ├── dto.go              # Auth request/response structures
-│   │   │   │   └── route.go            # Auth routes configuration
-│   │   │   └── transaction/            # Transaction endpoints
-│   │   │       ├── handler.go          # Transaction handler implementation
-│   │   │       ├── dto.go              # Transaction request/response structures
-│   │   │       └── route.go            # Transaction routes configuration
-│   │   ├── middleware/                 # Request middleware components
-│   │   │   ├── auth.go                 # Authentication middleware
-│   │   │   ├── logging.go              # Request logging middleware
-│   │   │   └── errors.go               # Error handling middleware
-│   │   └── server.go                   # API server setup and configuration
-│   ├── core/                           # Core/Infrastructure Layer (Layer 1)
-│   │   ├── blockchain/                 # Blockchain interaction
-│   │   │   ├── blockchain.go           # Blockchain interface definitions
-│   │   │   ├── evm_blockchain.go       # Ethereum Virtual Machine implementation
-│   │   │   └── factory.go              # Blockchain factory
-│   │   ├── contract/                   # Smart contract interaction
-│   │   │   ├── contract.go             # Contract interface definitions
-│   │   │   ├── evm_contract.go         # EVM contract implementation
-│   │   │   └── factory.go              # Contract factory
-│   │   ├── crypto/                     # Cryptography utilities
-│   │   │   └── aes.go                  # AES encryption/decryption
-│   │   ├── db/                         # Database access
-│   │   │   ├── db.go                   # Database connection and management
-│   │   │   └── migrations.go           # Database migration handling
-│   │   ├── keygen/                     # Key generation utilities
-│   │   │   ├── keygen.go               # Key generator interface
-│   │   │   └── secp256k1.go            # secp256k1 curve implementation
-│   │   ├── keystore/                   # Key management
-│   │   │   ├── keystore.go             # Keystore interface
-│   │   │   ├── db_keystore.go          # Database-backed keystore implementation
-│   │   │   ├── mock_keystore.go        # Mock implementation for testing
-│   │   │   └── factory.go              # Keystore factory
-│   │   └── wallet/                     # Wallet operations
-│   │       ├── wallet.go               # Wallet interface
-│   │       ├── evm_wallet.go           # EVM wallet implementation
-│   │       └── factory.go              # Wallet factory
-│   ├── services/                       # Service Layer (Layer 2)
-│   │   ├── user/                       # User management domain
-│   │   │   ├── model.go                # User data models
-│   │   │   ├── service.go              # User service implementation
-│   │   │   └── repository.go           # User data access interface and implementation
-│   │   ├── wallet/                     # Wallet operations domain
-│   │   │   ├── model.go                # Wallet data models
-│   │   │   ├── service.go              # Wallet service implementation
-│   │   │   └── repository.go           # Wallet data access interface and implementation
-│   │   ├── auth/                       # Authentication domain
-│   │   │   ├── model.go                # Auth data models
-│   │   │   ├── service.go              # Auth service implementation
-│   │   │   └── jwt.go                  # JWT token utilities
-│   │   ├── blockchain/                 # Blockchain operations domain
-│   │   │   ├── model.go                # Blockchain data models
-│   │   │   ├── service.go              # Blockchain service implementation
-│   │   │   └── client.go               # Blockchain client interactions
-│   │   └── transaction/                # Transaction processing domain
-│   │       ├── model.go                # Transaction data models
-│   │       ├── service.go              # Transaction service implementation
-│   │       └── repository.go           # Transaction data access interface and implementation
-│   ├── config/                         # Configuration management
-│   ├── oauth2/                         # OAuth2 implementation
-│   └── types/                          # Shared type definitions
-├── migrations/                         # Database migrations
-├── contracts/                          # Smart contract codebase
-│   ├── solidity/                       # Solidity contracts
-│   │   ├── MultiSigWallet.sol          # Main wallet contract
-│   │   ├── interfaces/                 # Contract interfaces
-│   │   │   ├── IERC20.sol              # ERC20 token interface
-│   │   │   └── IMultiSigWallet.sol     # Wallet interface
-│   │   └── libraries/                  # Contract libraries
-│   │       └── AddressUtils.sol        # Address utility functions
-│   ├── test/                           # Contract test suite
-│   │   ├── MultiSigWallet.test.js      # Wallet contract tests
-│   │   └── helpers/                    # Test helpers
-│   │       └── setup.js                # Test setup utilities
-│   ├── scripts/                        # Deployment scripts
-│   │   ├── deploy.js                   # Main deployment script
-│   │   └── verify.js                   # Contract verification script
-│   └── hardhat.config.js               # Hardhat configuration
-└── ui/                                 # Frontend application
-    ├── public/                         # Static assets
-    │   ├── favicon.ico                 # Site favicon
-    │   └── images/                     # Image assets
-    └── src/                            # React components and pages
-        ├── components/                 # Reusable React components
-        │   ├── common/                 # Common UI components
-        │   ├── wallet/                 # Wallet-related components
-        │   └── layout/                 # Layout components
-        ├── pages/                      # Next.js pages
-        │   ├── index.tsx               # Homepage
-        │   ├── wallets/                # Wallet pages
-        │   ├── auth/                   # Authentication pages
-        │   └── api/                    # API routes
-        ├── hooks/                      # React hooks
-        ├── lib/                        # Utility libraries
-        ├── context/                    # React context providers
-        ├── styles/                     # CSS and style files
-        └── types/                      # TypeScript type definitions
+├── ui/              # Frontend NextJS application
+│   ├── components/  # React components
+│   ├── hooks/       # Custom React hooks
+│   ├── lib/         # Utility functions and constants
+│   ├── pages/       # Next.js pages
+│   ├── styles/      # Global styles and Tailwind config
+│   └── types/       # TypeScript type definitions
+├── contracts/       # Smart contracts
+│   ├── solidity/    # Contract source files
+│   ├── test/        # Contract tests
+│   └── scripts/     # Deployment and utility scripts
+├── cmd/             # Command-line applications
+├── internal/        # Backend application code
+│   ├── api/         # Communication Layer (Layer 3)
+│   ├── core/        # Core/Infrastructure Layer (Layer 1)
+│   └── services/    # Service Layer (Layer 2)
+└── migrations/      # Database migrations
 ```
 
 ## Development Setup

@@ -21,7 +21,7 @@ Vault0 is a full-stack web3 application that combines blockchain technology with
 ## Project Structure
 ```
 vault0/
-├── app/             # Frontend NextJS application
+├── ui/              # Frontend NextJS application
 │   ├── components/  # React components
 │   ├── hooks/       # Custom React hooks
 │   ├── lib/         # Utility functions and constants
@@ -29,14 +29,15 @@ vault0/
 │   ├── styles/      # Global styles and Tailwind config
 │   └── types/       # TypeScript type definitions
 ├── contracts/       # Smart contracts
-│   ├── src/         # Contract source files
+│   ├── solidity/    # Contract source files
 │   ├── test/        # Contract tests
 │   └── scripts/     # Deployment and utility scripts
-└── backend/         # Go backend service
-    ├── cmd/         # Command-line applications
-    ├── internal/    # Private application code
-    ├── migrations/  # Database migrations
-    └── pkg/         # Public packages
+├── cmd/             # Command-line applications
+├── internal/        # Backend application code
+│   ├── api/         # Communication Layer (Layer 3)
+│   ├── core/        # Core/Infrastructure Layer (Layer 1)
+│   └── services/    # Service Layer (Layer 2)
+└── migrations/      # Database migrations
 ```
 
 ## Technology Stack
@@ -130,28 +131,9 @@ vault0/
 - Implement proper caching
 - Optimize frontend bundle size
 - Optimize smart contract gas usage
-- Monitor performance metrics
 - Use proper indexing
 - Implement proper pagination
 - Handle large datasets efficiently
-
-## Deployment
-- Use proper CI/CD pipeline
-- Test in staging environment
-- Use proper environment variables
-- Document deployment procedures
-- Monitor deployment health
-- Handle rollbacks properly
-- Verify contract deployments
-
-## Maintenance
-- Keep dependencies updated
-- Monitor system health
-- Handle technical debt
-- Document maintenance procedures
-- Monitor resource usage
-- Handle backups properly
-- Plan for upgrades
 
 ## Error Handling
 - Use proper error types
@@ -160,15 +142,10 @@ vault0/
 - Handle edge cases
 - Return proper error responses
 - Document error conditions
-- Monitor error rates
 
 ## Monitoring and Logging
 - Implement proper logging
 - Use structured logging
-- Monitor system metrics
-- Set up proper alerts
-- Track user behavior
-- Monitor performance
 - Track errors and exceptions
 
 ## Development Environment
@@ -187,13 +164,4 @@ vault0/
 - Test responsive design
 - Test performance
 - Test security
-- Document QA procedures
 
-## Contribution Guidelines
-- Follow code style guide
-- Write proper tests
-- Update documentation
-- Review existing issues
-- Create meaningful PRs
-- Follow security guidelines
-- Update changelog
