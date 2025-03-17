@@ -18,6 +18,6 @@ func NewPage[T any](items []T, offset, limit int) *Page[T] {
 		Items:   items,
 		Offset:  offset,
 		Limit:   limit,
-		HasMore: len(items) >= limit,
+		HasMore: limit > 0 && len(items) >= limit, // limit 0 means no limit
 	}
 }

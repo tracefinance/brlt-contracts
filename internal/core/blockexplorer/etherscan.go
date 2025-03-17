@@ -528,10 +528,7 @@ func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address s
 
 	// Calculate pagination
 	start := (options.Page - 1) * options.PageSize
-	end := start + options.PageSize
-	if end > len(allTransactions) {
-		end = len(allTransactions)
-	}
+	end := min(start+options.PageSize, len(allTransactions))
 
 	// Check if there are more pages
 	hasMore := end < len(allTransactions)

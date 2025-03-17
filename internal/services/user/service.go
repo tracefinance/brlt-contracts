@@ -10,12 +10,26 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// Service defines the user service interface
+// Service defines the user management operations interface
 type Service interface {
+	// Create registers a new user with the given email and password
+	// Returns ErrEmailExists if the email is already registered
 	Create(ctx context.Context, email, password string) (*User, error)
+
+	// Update modifies an existing user's email and/or password
+	// Empty parameters are ignored. Returns ErrEmailExists if the new email is already in use
 	Update(ctx context.Context, id int64, email, password string) (*User, error)
+
+	// Delete removes a user by ID
+	// Returns ErrResourceNotFound if the user doesn't exist
 	Delete(ctx context.Context, id int64) error
+
+	// Get retrieves a user by ID
+	// Returns ErrResourceNotFound if the user doesn't exist
 	Get(ctx context.Context, id int64) (*User, error)
+
+	// List returns a paginated collection of users
+	// Default limit is 10 if limit < 1, offset is 0 if negative
 	List(ctx context.Context, limit, offset int) (*types.Page[*User], error)
 }
 
