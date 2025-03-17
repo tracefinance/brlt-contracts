@@ -75,11 +75,13 @@ backend/
 │   │   ├── auth/                       # Authentication domain
 │   │   └── blockchain/                 # Blockchain operations domain
 │   ├── config/                         # Configuration management
+│   ├── errors/                         # Error types and handling
 │   ├── logger/                         # Logging utilities
+│   ├── oauth2/                         # OAuth2 implementations
 │   ├── types/                          # Shared type definitions
 │   └── wire/                           # Dependency injection configuration
 ├── migrations/                         # Database migrations
-└── pkg/                               # Public packages
+└── pkg/                                # Public packages
 
 ```
 
@@ -217,72 +219,207 @@ var ServerSet = wire.NewSet(
 )
 ```
 
+## Error Handling System
+
+The project implements a comprehensive error handling system with a structured approach to creating, propagating, and handling errors across all layers.
+
+### Core Error Structure
+
+All application errors should use the `Vault0Error` type defined in `internal/errors/errors.go`:
+
+```go
+type Vault0Error struct {
+    // Code is a unique identifier for the error type
+    Code string `json:"code"`
+    // Message is a human-readable error message
+    Message string `json:"message"`
+    // Details contains additional error context (optional)
+    Details map[string]any `json:"details,omitempty"`
+    // Err is the underlying error (not exposed in JSON)
+    Err error `json:"-"`
+}
+```
+
+The `Vault0Error` type implements the standard error interface and provides additional methods for error identification and context:
+- `Error()`: Returns a formatted error message
+- `Unwrap()`: Returns the underlying error
+- `Is()`: Enables error comparison with `errors.Is()`
+- `MarshalJSON()`: Provides custom JSON serialization
+
+### Layer-Specific Error Types
+
+#### Layer 1: Core/Infrastructure Errors (`internal/errors/core.go`)
+
+Core-level components should use error types defined in `internal/errors/core.go`, organized by domain:
+
+- **Database Errors**: `ErrCodeDatabaseError`, `ErrCodeDatabaseNotFound`
+- **Blockchain Errors**: `ErrCodeBlockchainError`, `ErrCodeChainNotSupported`, etc.
+- **Keystore Errors**: `ErrCodeKeystoreError`, `ErrCodeKeyNotFound`
+- **Wallet Errors**: `ErrCodeWalletError`, `ErrCodeInvalidWalletConfig`
+- **Crypto Errors**: `ErrCodeCryptoError`, `ErrCodeEncryptionError`
+- **Explorer Errors**: `ErrCodeExplorerError`, `ErrCodeRateLimitExceeded`
+
+Example usage:
+```go
+// Instead of generic errors
+if err != nil {
+    return fmt.Errorf("failed to decrypt key: %w", err)
+}
+
+// Use structured errors
+if err != nil {
+    return errors.NewDecryptionError(err)
+}
+```
+
+#### Layer 2: Service Errors (`internal/errors/services.go`)
+
+Service-level components should use error types defined in `internal/errors/services.go`:
+
+- **Common Service Errors**: `ErrCodeInvalidInput`, `ErrCodeNotFound`
+- **Wallet Service Errors**: `ErrCodeWalletNotFound`, `ErrCodeWalletExists`
+- **User Service Errors**: `ErrCodeUserNotFound`, `ErrCodeInvalidCredentials`
+- **Transaction Service Errors**: `ErrCodeTransactionSyncFailed`
+
+Example usage:
+```go
+func (s *service) GetUser(ctx context.Context, id string) (*User, error) {
+    user, err := s.repository.FindByID(ctx, id)
+    if err != nil {
+        // Don't propagate database errors directly
+        if errors.Is(err, errors.ErrCodeDatabaseNotFound) {
+            return nil, errors.NewUserNotFoundError()
+        }
+        return nil, errors.NewOperationFailedError("get user", err)
+    }
+    return user, nil
+}
+```
+
+#### Layer 3: Handler Errors (`internal/errors/handlers.go`)
+
+API handlers should use error types defined in `internal/errors/handlers.go`:
+
+- **Request Validation**: `ErrCodeValidationError`, `ErrCodeInvalidRequest`
+- **Authentication**: `ErrCodeUnauthorized`, `ErrCodeInvalidAccessToken`
+- **Response Errors**: `ErrCodeInternalError`, `ErrCodeServiceUnavailable`
+
+Example usage:
+```go
+func (h *handler) CreateUser(c *gin.Context) {
+    var req CreateUserRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.Error(errors.NewInvalidRequestError("Invalid request format"))
+        return
+    }
+    
+    if req.Name == "" {
+        c.Error(errors.NewMissingParameterError("name"))
+        return
+    }
+    
+    // Process the request...
+}
+```
+
+### Error Handling in API Layer
+
+The API layer uses a middleware-based approach to handle errors consistently:
+
+1. **Error Middleware Configuration**:
+
+```go
+// In handler setup
+func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
+    // Create error handler middleware
+    errorHandler := middleware.NewErrorHandler(nil)
+    
+    // Apply middleware to routes group
+    routes := router.Group("/resource")
+    routes.Use(errorHandler.Middleware())
+    
+    // Setup routes
+    routes.POST("", h.Create)
+    routes.GET("/:id", h.Get)
+    // ...
+}
+```
+
+2. **Error Propagation in Handlers**:
+
+```go
+func (h *Handler) GetResource(c *gin.Context) {
+    id := c.Param("id")
+    
+    // Get the resource
+    resource, err := h.service.Get(c.Request.Context(), id)
+    if err != nil {
+        // Propagate the error to the middleware
+        c.Error(err)
+        return
+    }
+    
+    // Success response
+    c.JSON(http.StatusOK, resource)
+}
+```
+
+3. **Error Mapping**:
+
+The error middleware automatically maps `Vault0Error` instances to appropriate HTTP status codes and JSON responses:
+
+- Layer 1 errors typically map to 500-level errors (server errors)
+- Layer 2 errors map to either 400-level errors (client errors) or 500-level errors depending on the error type
+- Layer 3 errors map directly to their corresponding HTTP status codes
+
+Customized error mapping can be implemented by providing a custom mapper to the error handler:
+
+```go
+func CustomErrorMapper(err error) (int, any) {
+    // Custom error mapping logic
+    // ...
+}
+
+errorHandler := middleware.NewErrorHandler(CustomErrorMapper)
+```
+
+### Error Handling Principles
+
+1. **No Error Wrapping Between Modules**
+   - Don't wrap errors from other modules; create new domain-specific errors
+   - Each module should define its own error types and codes
+   - Use the predefined error constructors from the `errors` package
+
+2. **Clear Error Categories**
+   - Use appropriate error codes based on the error context
+   - Include relevant details in error messages
+   - Add context information to the `Details` field when helpful
+
+3. **Error Handling in Services**
+   - Services should not expose errors from lower layers directly
+   - Map infrastructure errors to domain-specific errors
+   - Include appropriate context in error details
+
+4. **Error Handling in API**
+   - Use middleware to convert `Vault0Error` to HTTP responses
+   - Log internal errors but return safe error messages to clients
+   - Convert unexpected errors to internal server errors
+
+### Logging Errors
+
+When handling errors, ensure proper logging for debugging and monitoring:
+
+```go
+if err != nil {
+    // Log the error with context
+    logger.WithContext(ctx).WithError(err).Error("Failed to process transaction")
+    
+    // Return a domain-specific error
+    return errors.NewTransactionFailedError(err)
+}
+```
+
 ## Development Guidelines
-
-### Error Handling
-
-The project uses a structured error handling approach based on the `AppError` type. 
-
-#### Error Structure
-
-```go
-type AppError struct {
-    Code    string         // Unique identifier for the error type
-    Message string         // Human-readable error message
-    Details map[string]any // Additional error context (optional)
-    Err     error         // Internal error reference (not exposed in JSON)
-}
-```
-
-#### Core Principles
-
-**No Error Wrapping Between Modules**
-- Instead of wrapping errors from other modules, create a new domain-specific error
-- Each module should define its own error types and codes
-- Use the predefined error constructors from the `errors` package
-
-**Error Categories**
-- Database errors (e.g., `ErrCodeDatabaseError`, `ErrCodeDatabaseNotFound`)
-- Blockchain errors (e.g., `ErrCodeBlockchainError`, `ErrCodeChainNotSupported`)
-- Keystore errors (e.g., `ErrCodeKeystoreError`, `ErrCodeKeyNotFound`)
-- Wallet errors (e.g., `ErrCodeWalletError`, `ErrCodeInvalidWalletConfig`)
-- Crypto errors (e.g., `ErrCodeCryptoError`, `ErrCodeEncryptionError`)
-- Explorer errors (e.g., `ErrCodeExplorerError`, `ErrCodeRateLimitExceeded`)
-
-**Error Creation**
-```go
-// Instead of this:
-return fmt.Errorf("failed to process transaction: %w", err)
-// Do this:
-return errors.NewTransactionFailedError(err)
-```
-
-**Error Handling in Services**
-```go
-func (s *service) ProcessTransaction(ctx context.Context, tx *Transaction) error {
-    // Don't wrap errors from other modules
-    if err := s.validate(tx); err != nil {
-        return errors.NewInvalidTransactionError(err)
-    }
-    // Create specific error types
-    if tx.Amount.Cmp(s.balance) > 0 {
-        return errors.NewInsufficientFundsError(
-            s.balance.String(), 
-            tx.Amount.String(),
-        )
-    }
-    // ... rest of the implementation
-}
-```
-
-**Error Handling in API**
-- Use middleware to convert `AppError` to appropriate HTTP responses
-- Maintain error codes to HTTP status code mapping
-- Include error details in JSON responses when appropriate
-- Log internal errors but return safe error messages to clients
-- Implement recovery middleware to catch panics
-- Convert unexpected errors to internal server errors
-- Log full error context for debugging
 
 ### Database Operations
 - Use prepared statements for all SQL queries
@@ -306,6 +443,16 @@ func (s *service) ProcessTransaction(ctx context.Context, tx *Transaction) error
 - Test error scenarios
 - Test edge cases
 - Maintain high test coverage
+- **Do not create custom error checking functions**, use `assert.ErrorContains` instead:
+  ```go
+  // Good practice
+  assert.ErrorContains(t, err, "Keystore operation failed")
+  
+  // Avoid creating custom error checking functions
+  func IsKeystoreError(err error) bool {
+	return err != nil && err.Error() == ErrCodeKeystoreError
+  }
+  ```
 
 ### Security
 - Implement proper authentication
@@ -325,9 +472,87 @@ func (s *service) ProcessTransaction(ctx context.Context, tx *Transaction) error
 - Implement proper pagination
 
 ### Logging
-- Use structured logging
-- Include proper context
-- Use appropriate log levels
-- Avoid logging sensitive data
-- Implement proper monitoring
-- Track error rates 
+The application uses a structured logging interface defined in `internal/logger/logger.go`:
+
+```go
+type Logger interface {
+    Debug(msg string, fields ...Field)
+    Info(msg string, fields ...Field)
+    Warn(msg string, fields ...Field)
+    Error(msg string, fields ...Field)
+    Fatal(msg string, fields ...Field)
+    With(fields ...Field) Logger
+}
+```
+
+#### Usage Guidelines
+**1. Dependency Injection**
+
+Always accept the logger as a dependency in services and components:
+
+```go
+type service struct {
+    repository Repository
+    logger     logger.Logger
+}
+
+func NewService(repository Repository, logger logger.Logger) Service {
+    return &service{repository: repository, logger: logger}
+}
+```
+
+**2. Structured Logging**
+```go
+// Don't: 
+l.Info(fmt.Sprintf("Processing %s", txID))
+
+// Do:
+l.Info("Processing transaction", 
+    logger.String("transaction_id", txID),
+    logger.String("user_id", userID))
+```
+
+**3. Contextual Logging**
+```go
+reqLogger := logger.With(
+    logger.String("request_id", requestID),
+    logger.String("user_id", userID),
+)
+```
+
+**4. Error Logging**
+```go
+if err != nil {
+    logger.Error("Operation failed", 
+        logger.Error(err),
+        logger.String("context", "additional info"))
+    return errors.NewAppropriateError(err)
+}
+```
+#### Field Types
+```go
+logger.String("key", "value")
+logger.Int("count", 42)
+logger.Float64("ratio", 0.9)
+logger.Bool("enabled", true)
+logger.Duration("elapsed", time.Since(start))
+logger.Time("timestamp", time.Now())
+logger.Error(err)
+logger.Any("data", complexStruct)
+```
+
+#### Best Practices
+
+1. **Use snake_case for field names**
+2. **Keep messages concise and descriptive**
+3. **Include operation context** (IDs, parameters)
+4. **Never log sensitive information**
+5. **Use appropriate log levels**
+6. **In API handlers**: 
+   - Include request_id for correlation
+7. **In services**:
+   - Include relevant IDs and parameters
+8. **With errors**:
+   - Always include the error object using `logger.Error(err)`
+   - Log context around the error
+   - Return appropriate domain error types
