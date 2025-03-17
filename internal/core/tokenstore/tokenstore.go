@@ -36,7 +36,5 @@ type TokenStore interface {
 
 // NewTokenStore creates a new TokenStore instance
 func NewTokenStore(db *db.DB) TokenStore {
-	return &dbTokenStore{
-		db: db.GetConnection(),
-	}
+	return &dbTokenStore{db: db}
 }

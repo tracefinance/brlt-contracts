@@ -6,6 +6,8 @@ import (
 
 	"vault0/internal/config"
 	"vault0/internal/core/crypto"
+	"vault0/internal/core/db"
+	"vault0/internal/logger"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,13 +27,13 @@ func testConfig() *config.Config {
 }
 
 // setupTestDB sets up a test database with the keys table
-func setupTestDB(t *testing.T) (*sql.DB, func()) {
-	db, err := sql.Open("sqlite3", ":memory:")
+func setupTestDB(t *testing.T) (*db.DB, func()) {
+	sqldb, err := sql.Open("sqlite3", ":memory:")
 	require.NoError(t, err)
 
 	// Create the keys table
 	// Note: Using the same schema as expected by the DBKeyStore implementation
-	_, err = db.Exec(`
+	_, err = sqldb.Exec(`
 		CREATE TABLE IF NOT EXISTS keys (
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL UNIQUE,
@@ -47,14 +49,18 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 
 	// Return a cleanup function
 	cleanup := func() {
-		db.Close()
+		sqldb.Close()
 	}
 
-	return db, cleanup
+	return &db.DB{
+		Conn:   sqldb,
+		Config: testConfig(),
+		Logger: logger.NewNopLogger(),
+	}, cleanup
 }
 
 // setupTestKeyStore creates a test KeyStore instance
-func setupTestKeyStore(t *testing.T) (KeyStore, *sql.DB, func()) {
+func setupTestKeyStore(t *testing.T) (KeyStore, *db.DB, func()) {
 	db, dbCleanup := setupTestDB(t)
 	cfg := testConfig()
 

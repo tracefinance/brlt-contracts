@@ -193,7 +193,7 @@ func NewKeyStore(db *db.DB, cfg *config.Config) (KeyStore, error) {
 
 	switch keyStoreType {
 	case KeyStoreTypeDB:
-		return NewDBKeyStore(db.GetConnection(), cfg)
+		return NewDBKeyStore(db, cfg)
 	default:
 		return nil, errors.NewInvalidKeystoreError(cfg.KeyStoreType)
 	}

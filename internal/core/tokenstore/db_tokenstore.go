@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"time"
 
+	"vault0/internal/core/db"
 	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
 // dbTokenStore implements the TokenStore interface using an SQL database
 type dbTokenStore struct {
-	db *sql.DB
+	db *db.DB
 }
 
 // AddToken adds a new token to the database
@@ -29,23 +30,28 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 
 	// Check if the token already exists
 	var exists bool
-	err := s.db.QueryRowContext(
+	rows, err := s.db.ExecuteQueryContext(
 		ctx,
 		"SELECT 1 FROM tokens WHERE address = ? AND chain_type = ? LIMIT 1",
 		normalizedAddress,
 		token.ChainType,
-	).Scan(&exists)
+	)
+	if err != nil {
+		return errors.NewDatabaseError(err)
+	}
+	defer rows.Close()
 
-	if err != nil && err != sql.ErrNoRows {
+	exists = rows.Next()
+	if err = rows.Err(); err != nil {
 		return errors.NewDatabaseError(err)
 	}
 
-	if err == nil {
+	if exists {
 		return errors.NewResourceAlreadyExistsError("token", "address", normalizedAddress)
 	}
 
 	// Insert the new token
-	_, err = s.db.ExecContext(
+	_, err = s.db.ExecuteStatementContext(
 		ctx,
 		`INSERT INTO tokens (address, chain_type, symbol, decimals, type) 
 		VALUES (?, ?, ?, ?, ?)`,
@@ -68,14 +74,24 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType t
 	normalizedAddress := types.NormalizeAddress(address)
 
 	var token types.Token
-	err := s.db.QueryRowContext(
+	rows, err := s.db.ExecuteQueryContext(
 		ctx,
 		`SELECT address, chain_type, symbol, decimals, type 
 		FROM tokens 
 		WHERE address = ? AND chain_type = ?`,
 		normalizedAddress,
 		chainType,
-	).Scan(
+	)
+	if err != nil {
+		return nil, errors.NewDatabaseError(err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return nil, errors.NewResourceNotFoundError("token", normalizedAddress)
+	}
+
+	err = rows.Scan(
 		&token.Address,
 		&token.ChainType,
 		&token.Symbol,
@@ -84,9 +100,6 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType t
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, errors.NewResourceNotFoundError("token", normalizedAddress)
-		}
 		return nil, errors.NewDatabaseError(err)
 	}
 
@@ -105,7 +118,7 @@ func (s *dbTokenStore) GetTokenByID(ctx context.Context, id string) (*types.Toke
 
 // GetTokensByChain retrieves all tokens for a specific blockchain
 func (s *dbTokenStore) GetTokensByChain(ctx context.Context, chainType types.ChainType) ([]*types.Token, error) {
-	rows, err := s.db.QueryContext(
+	rows, err := s.db.ExecuteQueryContext(
 		ctx,
 		`SELECT address, chain_type, symbol, decimals, type 
 		FROM tokens 
@@ -123,7 +136,7 @@ func (s *dbTokenStore) GetTokensByChain(ctx context.Context, chainType types.Cha
 
 // GetTokensByType retrieves all tokens of a specific type (native, ERC20)
 func (s *dbTokenStore) GetTokensByType(ctx context.Context, tokenType types.TokenType) ([]*types.Token, error) {
-	rows, err := s.db.QueryContext(
+	rows, err := s.db.ExecuteQueryContext(
 		ctx,
 		`SELECT address, chain_type, symbol, decimals, type 
 		FROM tokens 
@@ -151,7 +164,7 @@ func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 
 	normalizedAddress := types.NormalizeAddress(token.Address)
 
-	result, err := s.db.ExecContext(
+	result, err := s.db.ExecuteStatementContext(
 		ctx,
 		`UPDATE tokens 
 		SET symbol = ?, decimals = ?, type = ?, updated_at = ?
@@ -183,7 +196,7 @@ func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 func (s *dbTokenStore) DeleteToken(ctx context.Context, address string, chainType types.ChainType) error {
 	normalizedAddress := types.NormalizeAddress(address)
 
-	result, err := s.db.ExecContext(
+	result, err := s.db.ExecuteStatementContext(
 		ctx,
 		"DELETE FROM tokens WHERE address = ? AND chain_type = ?",
 		normalizedAddress,
@@ -207,7 +220,7 @@ func (s *dbTokenStore) DeleteToken(ctx context.Context, address string, chainTyp
 
 // ListAllTokens retrieves all tokens in the store
 func (s *dbTokenStore) ListAllTokens(ctx context.Context) ([]*types.Token, error) {
-	rows, err := s.db.QueryContext(
+	rows, err := s.db.ExecuteQueryContext(
 		ctx,
 		`SELECT address, chain_type, symbol, decimals, type 
 		FROM tokens 

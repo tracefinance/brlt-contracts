@@ -19,7 +19,7 @@ func (db *DB) MigrateDatabase() error {
 	}
 
 	// Create the migrate instance
-	sourceURL := "file://" + db.config.MigrationsPath
+	sourceURL := "file://" + db.Config.MigrationsPath
 	m, err := migrate.NewWithDatabaseInstance(
 		sourceURL,
 		"sqlite3", // Database name (just a label for migrate)
@@ -34,7 +34,7 @@ func (db *DB) MigrateDatabase() error {
 		return errors.NewDatabaseError(err)
 	}
 
-	db.logger.Info("Database migrations applied successfully",
-		logger.String("path", db.config.MigrationsPath))
+	db.Logger.Info("Database migrations applied successfully",
+		logger.String("path", db.Config.MigrationsPath))
 	return nil
 }

@@ -2,7 +2,6 @@ package keystore
 
 import (
 	"context"
-	"database/sql"
 	"encoding/asn1"
 	"encoding/json"
 	"fmt"
@@ -20,6 +19,7 @@ import (
 	"crypto/x509"
 	"vault0/internal/config"
 	coreCrypto "vault0/internal/core/crypto"
+	"vault0/internal/core/db"
 	"vault0/internal/core/keygen"
 	"vault0/internal/errors"
 	"vault0/internal/types"
@@ -29,14 +29,14 @@ import (
 
 // DBKeyStore implements the KeyStore interface using a local database
 type DBKeyStore struct {
-	db           *sql.DB
+	db           *db.DB
 	encryptor    coreCrypto.Encryptor
 	keyGenerator keygen.KeyGenerator
 	initialized  bool
 }
 
 // NewDBKeyStore creates a new DBKeyStore instance
-func NewDBKeyStore(db *sql.DB, cfg *config.Config) (*DBKeyStore, error) {
+func NewDBKeyStore(db *db.DB, cfg *config.Config) (*DBKeyStore, error) {
 	if cfg.DBEncryptionKey == "" {
 		return nil, errors.NewInvalidEncryptionKeyError("DB_ENCRYPTION_KEY environment variable is required")
 	}
@@ -75,10 +75,18 @@ type ECDSASignature struct {
 // checkKeyExists checks if a key with the given name already exists
 func (ks *DBKeyStore) checkKeyExists(ctx context.Context, name string) error {
 	var count int
-	err := ks.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM keys WHERE name = ?", name).Scan(&count)
+	rows, err := ks.db.ExecuteQueryContext(ctx, "SELECT COUNT(*) FROM keys WHERE name = ?", name)
 	if err != nil {
 		return errors.NewDatabaseError(err)
 	}
+	defer rows.Close()
+
+	if rows.Next() {
+		if err := rows.Scan(&count); err != nil {
+			return errors.NewDatabaseError(err)
+		}
+	}
+
 	if count > 0 {
 		return errors.NewResourceAlreadyExistsError("key", "name", name)
 	}
@@ -141,7 +149,7 @@ func (ks *DBKeyStore) Create(ctx context.Context, name string, keyType types.Key
 	}
 
 	// Insert the key into the database
-	_, err = ks.db.ExecContext(
+	_, err = ks.db.ExecuteStatementContext(
 		ctx,
 		"INSERT INTO keys (id, name, key_type, curve, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 		key.ID,
@@ -206,7 +214,7 @@ func (ks *DBKeyStore) Import(ctx context.Context, name string, keyType types.Key
 	}
 
 	// Insert the key into the database
-	_, err = ks.db.ExecContext(
+	_, err = ks.db.ExecuteStatementContext(
 		ctx,
 		"INSERT INTO keys (id, name, key_type, curve, tags, created_at, private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 		key.ID,
@@ -234,11 +242,21 @@ func (ks *DBKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, error)
 		curveName string
 	)
 
-	err := ks.db.QueryRowContext(
+	rows, err := ks.db.ExecuteQueryContext(
 		ctx,
 		"SELECT id, name, key_type, curve, tags, created_at, public_key FROM keys WHERE id = ?",
 		id,
-	).Scan(
+	)
+	if err != nil {
+		return nil, errors.NewDatabaseError(err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return nil, errors.NewResourceNotFoundError("key", id)
+	}
+
+	err = rows.Scan(
 		&key.ID,
 		&key.Name,
 		&keyType,
@@ -248,9 +266,6 @@ func (ks *DBKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, error)
 		&key.PublicKey,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, errors.NewResourceNotFoundError("key", id)
-		}
 		return nil, errors.NewDatabaseError(err)
 	}
 
@@ -278,7 +293,7 @@ func (ks *DBKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, error)
 
 // List retrieves all keys in the keystore
 func (ks *DBKeyStore) List(ctx context.Context) ([]*Key, error) {
-	rows, err := ks.db.QueryContext(
+	rows, err := ks.db.ExecuteQueryContext(
 		ctx,
 		"SELECT id, name, key_type, curve, tags, created_at, public_key FROM keys",
 	)
@@ -347,7 +362,7 @@ func (ks *DBKeyStore) Update(ctx context.Context, id string, name string, tags m
 	}
 
 	// Update the key in the database
-	result, err := ks.db.ExecContext(
+	result, err := ks.db.ExecuteStatementContext(
 		ctx,
 		"UPDATE keys SET name = ?, tags = ? WHERE id = ?",
 		name,
@@ -373,7 +388,7 @@ func (ks *DBKeyStore) Update(ctx context.Context, id string, name string, tags m
 
 // Delete removes a key from the keystore
 func (ks *DBKeyStore) Delete(ctx context.Context, id string) error {
-	result, err := ks.db.ExecContext(ctx, "DELETE FROM keys WHERE id = ?", id)
+	result, err := ks.db.ExecuteStatementContext(ctx, "DELETE FROM keys WHERE id = ?", id)
 	if err != nil {
 		return errors.NewDatabaseError(err)
 	}
@@ -397,11 +412,21 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte, dataType
 		curveName string
 	)
 
-	err := ks.db.QueryRowContext(
+	rows, err := ks.db.ExecuteQueryContext(
 		ctx,
 		"SELECT id, name, key_type, curve, private_key FROM keys WHERE id = ?",
 		id,
-	).Scan(
+	)
+	if err != nil {
+		return nil, errors.NewDatabaseError(err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return nil, errors.NewResourceNotFoundError("key", id)
+	}
+
+	err = rows.Scan(
 		&key.ID,
 		&key.Name,
 		&keyType,
@@ -409,9 +434,6 @@ func (ks *DBKeyStore) Sign(ctx context.Context, id string, data []byte, dataType
 		&key.PrivateKey,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, errors.NewResourceNotFoundError("key", id)
-		}
 		return nil, errors.NewDatabaseError(err)
 	}
 
