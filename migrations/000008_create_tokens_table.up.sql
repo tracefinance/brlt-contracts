@@ -1,5 +1,6 @@
 -- Create tokens table
 CREATE TABLE IF NOT EXISTS tokens (
+    id TEXT PRIMARY KEY,
     address TEXT NOT NULL,
     chain_type TEXT NOT NULL,
     symbol TEXT NOT NULL,
@@ -7,7 +8,7 @@ CREATE TABLE IF NOT EXISTS tokens (
     type TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (address, chain_type)
+    UNIQUE(address, chain_type)
 );
 
 -- Add indexes for faster lookups

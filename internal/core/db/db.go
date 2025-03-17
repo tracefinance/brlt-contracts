@@ -9,19 +9,21 @@ import (
 	"vault0/internal/config"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
+	"vault0/internal/snowflake"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 // DB represents the database connection
 type DB struct {
-	Conn   *sql.DB
-	Config *config.Config
-	Logger logger.Logger
+	Conn      *sql.DB
+	Config    *config.Config
+	Snowflake *snowflake.Snowflake
+	Logger    logger.Logger
 }
 
 // NewDatabase creates a new database connection
-func NewDatabase(cfg *config.Config, log logger.Logger) (*DB, error) {
+func NewDatabase(cfg *config.Config, snowflake *snowflake.Snowflake, log logger.Logger) (*DB, error) {
 	// Create a database connection string for SQLite
 	connStr := fmt.Sprintf("file:%s", cfg.DBPath)
 
@@ -105,4 +107,8 @@ func UnmarshalJSONToMap(jsonStr sql.NullString) map[string]string {
 	}
 
 	return result
+}
+
+func (db *DB) GenerateID() (int64, error) {
+	return db.Snowflake.GenerateID()
 }

@@ -15,3 +15,4 @@ CREATE TABLE IF NOT EXISTS wallets (
 CREATE INDEX IF NOT EXISTS idx_wallets_key_id ON wallets(key_id);
 CREATE INDEX IF NOT EXISTS idx_wallets_chain_type ON wallets(chain_type);
 CREATE INDEX IF NOT EXISTS idx_wallets_deleted_at ON wallets(deleted_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wallets_chain_address ON wallets(chain_type, address);

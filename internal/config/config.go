@@ -76,6 +76,14 @@ type BlockchainsConfig struct {
 	Base BlockchainConfig `yaml:"base"`
 }
 
+// SnowflakeConfig holds configuration for Twitter Snowflake ID generation
+type SnowflakeConfig struct {
+	// DataCenterID is the data center identifier (0-31)
+	DataCenterID int64 `yaml:"data_center_id"`
+	// MachineID is the machine identifier (0-31)
+	MachineID int64 `yaml:"machine_id"`
+}
+
 // NOTE: Token types have been moved to internal/types/token.go
 
 // ChainType represents the blockchain type
@@ -109,6 +117,8 @@ type Config struct {
 	SmartContractsPath string `yaml:"smart_contracts_path"`
 	// KeyStoreType specifies the type of key store to use (db or kms)
 	KeyStoreType string `yaml:"key_store_type"`
+	// Snowflake holds configuration for ID generation
+	Snowflake SnowflakeConfig `yaml:"snowflake"`
 	// Log holds the logging configuration
 	Log LogConfig `yaml:"log"`
 	// Blockchains holds configuration for all supported blockchains

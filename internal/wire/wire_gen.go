@@ -36,11 +36,15 @@ func BuildContainer() (*Container, error) {
 	if err != nil {
 		return nil, err
 	}
+	snowflake, err := NewSnowflake(configConfig)
+	if err != nil {
+		return nil, err
+	}
 	loggerLogger, err := logger.NewLogger(configConfig)
 	if err != nil {
 		return nil, err
 	}
-	dbDB, err := db.NewDatabase(configConfig, loggerLogger)
+	dbDB, err := db.NewDatabase(configConfig, snowflake, loggerLogger)
 	if err != nil {
 		return nil, err
 	}

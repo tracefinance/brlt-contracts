@@ -12,8 +12,13 @@ import (
 	"vault0/internal/core/tokenstore"
 	"vault0/internal/core/wallet"
 	"vault0/internal/logger"
+	"vault0/internal/snowflake"
 	"vault0/internal/types"
 )
+
+func NewSnowflake(config *config.Config) (*snowflake.Snowflake, error) {
+	return snowflake.NewSnowflake(config.Snowflake.DataCenterID, config.Snowflake.MachineID)
+}
 
 // Core holds all core infrastructure dependencies
 type Core struct {
@@ -59,6 +64,7 @@ func NewCore(
 // CoreSet combines all core dependencies
 var CoreSet = wire.NewSet(
 	config.LoadConfig,
+	NewSnowflake,
 	db.NewDatabase,
 	logger.NewLogger,
 	keystore.NewKeyStore,
