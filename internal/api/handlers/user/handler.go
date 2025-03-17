@@ -50,7 +50,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 
 	var req UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid request body"))
+		c.Error(err)
 		return
 	}
 

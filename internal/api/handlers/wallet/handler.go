@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"vault0/internal/api/middleares"
-	"vault0/internal/errors"
 	"vault0/internal/services/wallet"
 	"vault0/internal/types"
 )
@@ -28,7 +27,7 @@ func NewHandler(walletService wallet.Service) *Handler {
 func (h *Handler) CreateWallet(c *gin.Context) {
 	var req CreateWalletRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid request body"))
+		c.Error(err)
 		return
 	}
 
@@ -72,7 +71,7 @@ func (h *Handler) UpdateWallet(c *gin.Context) {
 
 	var req UpdateWalletRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid request body"))
+		c.Error(err)
 		return
 	}
 
