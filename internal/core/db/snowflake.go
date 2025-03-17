@@ -1,4 +1,4 @@
-package snowflake
+package db
 
 import (
 	"errors"

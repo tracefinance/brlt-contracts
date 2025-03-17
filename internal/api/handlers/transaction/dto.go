@@ -9,8 +9,8 @@ import (
 
 // TransactionResponse represents a transaction in API responses
 type TransactionResponse struct {
-	ID           string    `json:"id"`
-	WalletID     string    `json:"wallet_id,omitempty"`
+	ID           int64     `json:"id"`
+	WalletID     int64     `json:"wallet_id,omitempty"`
 	ChainType    string    `json:"chain_type"`
 	Hash         string    `json:"hash"`
 	FromAddress  string    `json:"from_address"`

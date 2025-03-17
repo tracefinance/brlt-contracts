@@ -9,7 +9,6 @@ import (
 	"vault0/internal/config"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
-	"vault0/internal/snowflake"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -18,12 +17,12 @@ import (
 type DB struct {
 	Conn      *sql.DB
 	Config    *config.Config
-	Snowflake *snowflake.Snowflake
+	Snowflake *Snowflake
 	Logger    logger.Logger
 }
 
 // NewDatabase creates a new database connection
-func NewDatabase(cfg *config.Config, snowflake *snowflake.Snowflake, log logger.Logger) (*DB, error) {
+func NewDatabase(cfg *config.Config, snowflake *Snowflake, log logger.Logger) (*DB, error) {
 	// Create a database connection string for SQLite
 	connStr := fmt.Sprintf("file:%s", cfg.DBPath)
 
@@ -61,7 +60,7 @@ func (db *DB) GetConnection() *sql.DB {
 func (db *DB) ExecuteQuery(query string, args ...any) (*sql.Rows, error) {
 	rows, err := db.Conn.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewDatabaseError(err)
 	}
 	return rows, nil
 }
@@ -70,7 +69,7 @@ func (db *DB) ExecuteQuery(query string, args ...any) (*sql.Rows, error) {
 func (db *DB) ExecuteQueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	rows, err := db.Conn.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewDatabaseError(err)
 	}
 	return rows, nil
 }
@@ -79,7 +78,7 @@ func (db *DB) ExecuteQueryContext(ctx context.Context, query string, args ...any
 func (db *DB) ExecuteStatement(query string, args ...any) (sql.Result, error) {
 	result, err := db.Conn.Exec(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewDatabaseError(err)
 	}
 	return result, nil
 }
@@ -88,7 +87,7 @@ func (db *DB) ExecuteStatement(query string, args ...any) (sql.Result, error) {
 func (db *DB) ExecuteStatementContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	result, err := db.Conn.ExecContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewDatabaseError(err)
 	}
 	return result, nil
 }
@@ -110,5 +109,9 @@ func UnmarshalJSONToMap(jsonStr sql.NullString) map[string]string {
 }
 
 func (db *DB) GenerateID() (int64, error) {
-	return db.Snowflake.GenerateID()
+	id, err := db.Snowflake.GenerateID()
+	if err != nil {
+		return 0, errors.NewDatabaseError(err)
+	}
+	return id, nil
 }

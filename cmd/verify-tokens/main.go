@@ -41,7 +41,7 @@ func main() {
 	// Get tokens for each chain
 	chainList := container.Core.Chains.List()
 	for _, chain := range chainList {
-		tokens, err := container.Core.TokenStore.GetTokensByChain(ctx, chain.Type)
+		tokens, err := container.Core.TokenStore.ListTokensByChain(ctx, chain.Type)
 		if err != nil {
 			continue
 		}

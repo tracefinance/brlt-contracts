@@ -3,9 +3,9 @@ package oauth2
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 	"vault0/internal/core/db"
+	"vault0/internal/errors"
 
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/models"
@@ -210,16 +210,23 @@ func (s *TokenStore) Create(ctx context.Context, info oauth2.TokenInfo) error {
 		RefreshExpiresIn: info.GetRefreshExpiresIn(),
 	}
 
+	// Generate ID for the record
+	id, err := s.db.GenerateID()
+	if err != nil {
+		return err
+	}
+
 	query := `
 	INSERT INTO oauth_tokens (
-		client_id, user_id, redirect_uri, scope, 
+		id, client_id, user_id, redirect_uri, scope, 
 		code, code_created_at, code_expires_in,
 		access, access_created_at, access_expires_in,
 		refresh, refresh_created_at, refresh_expires_in
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	_, err := s.db.ExecuteStatementContext(ctx, query,
+	_, err = s.db.ExecuteStatementContext(ctx, query,
+		id,
 		token.ClientID,
 		token.UserID,
 		token.RedirectURI,
@@ -236,7 +243,7 @@ func (s *TokenStore) Create(ctx context.Context, info oauth2.TokenInfo) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("failed to create token: %w", err)
+		return err
 	}
 
 	return nil
@@ -247,7 +254,7 @@ func (s *TokenStore) RemoveByCode(ctx context.Context, code string) error {
 	query := "UPDATE oauth_tokens SET code = '' WHERE code = ?"
 	_, err := s.db.ExecuteStatementContext(ctx, query, code)
 	if err != nil {
-		return fmt.Errorf("failed to remove code: %w", err)
+		return err
 	}
 	return nil
 }
@@ -257,7 +264,7 @@ func (s *TokenStore) RemoveByAccess(ctx context.Context, access string) error {
 	query := "UPDATE oauth_tokens SET access = '' WHERE access = ?"
 	_, err := s.db.ExecuteStatementContext(ctx, query, access)
 	if err != nil {
-		return fmt.Errorf("failed to remove access token: %w", err)
+		return err
 	}
 	return nil
 }
@@ -267,7 +274,7 @@ func (s *TokenStore) RemoveByRefresh(ctx context.Context, refresh string) error 
 	query := "UPDATE oauth_tokens SET refresh = '' WHERE refresh = ?"
 	_, err := s.db.ExecuteStatementContext(ctx, query, refresh)
 	if err != nil {
-		return fmt.Errorf("failed to remove refresh token: %w", err)
+		return err
 	}
 	return nil
 }
@@ -285,13 +292,13 @@ func (s *TokenStore) GetByCode(ctx context.Context, code string) (oauth2.TokenIn
 
 	rows, err := s.db.ExecuteQueryContext(ctx, query, code)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query token by code: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 
 	token, err := s.scanToken(rows)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewInvalidAccessTokenError()
 	}
 
 	return token, nil
@@ -310,13 +317,13 @@ func (s *TokenStore) GetByAccess(ctx context.Context, access string) (oauth2.Tok
 
 	rows, err := s.db.ExecuteQueryContext(ctx, query, access)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query token by access: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 
 	token, err := s.scanToken(rows)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewInvalidAccessTokenError()
 	}
 
 	return token, nil
@@ -335,13 +342,13 @@ func (s *TokenStore) GetByRefresh(ctx context.Context, refresh string) (oauth2.T
 
 	rows, err := s.db.ExecuteQueryContext(ctx, query, refresh)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query token by refresh: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 
 	token, err := s.scanToken(rows)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewInvalidAccessTokenError()
 	}
 
 	return token, nil
@@ -350,7 +357,7 @@ func (s *TokenStore) GetByRefresh(ctx context.Context, refresh string) (oauth2.T
 // scanToken scans a database row into a token
 func (s *TokenStore) scanToken(rows *sql.Rows) (*models.Token, error) {
 	if !rows.Next() {
-		return nil, fmt.Errorf("token not found")
+		return nil, errors.NewNotFoundError("token")
 	}
 
 	var (
@@ -385,7 +392,7 @@ func (s *TokenStore) scanToken(rows *sql.Rows) (*models.Token, error) {
 		&refreshExpiresIn,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan token: %w", err)
+		return nil, err
 	}
 
 	token := &models.Token{
@@ -426,12 +433,12 @@ func (s *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo
 	query := "SELECT client_id, client_secret, redirect_uri FROM oauth_clients WHERE client_id = ?"
 	rows, err := s.db.ExecuteQueryContext(ctx, query, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query client: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, fmt.Errorf("client not found")
+		return nil, errors.NewNotFoundError("client")
 	}
 
 	var (
@@ -442,7 +449,7 @@ func (s *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo
 
 	err = rows.Scan(&clientID, &clientSecret, &redirectURI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan client: %w", err)
+		return nil, err
 	}
 
 	client := &models.Client{
@@ -459,10 +466,16 @@ func (s *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo
 
 // Create adds a new client
 func (s *ClientStore) Create(clientID, clientSecret, redirectURI string) error {
-	query := "INSERT INTO oauth_clients (client_id, client_secret, redirect_uri) VALUES (?, ?, ?)"
-	_, err := s.db.ExecuteStatement(query, clientID, clientSecret, redirectURI)
+	// Generate ID for the record
+	id, err := s.db.GenerateID()
 	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
+		return err
+	}
+
+	query := "INSERT INTO oauth_clients (id, client_id, client_secret, redirect_uri) VALUES (?, ?, ?, ?)"
+	_, err = s.db.ExecuteStatement(query, id, clientID, clientSecret, redirectURI)
+	if err != nil {
+		return err
 	}
 	return nil
 }

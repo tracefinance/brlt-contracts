@@ -1,6 +1,6 @@
 -- Create tokens table
 CREATE TABLE IF NOT EXISTS tokens (
-    id TEXT PRIMARY KEY,
+    id BIGINT PRIMARY KEY NOT NULL,
     address TEXT NOT NULL,
     chain_type TEXT NOT NULL,
     symbol TEXT NOT NULL,

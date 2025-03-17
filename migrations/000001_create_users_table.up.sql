@@ -1,6 +1,6 @@
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGINT PRIMARY KEY NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS wallets (
-    id TEXT PRIMARY KEY,
-    key_id TEXT,
+    id BIGINT PRIMARY KEY NOT NULL,
+    key_id BIGINT,
     chain_type TEXT NOT NULL,
     address TEXT NOT NULL,
     name TEXT NOT NULL,

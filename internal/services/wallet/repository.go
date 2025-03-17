@@ -3,9 +3,8 @@ package wallet
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"time"
-
-	"github.com/google/uuid"
 
 	"vault0/internal/core/db"
 	"vault0/internal/errors"
@@ -21,7 +20,7 @@ type Repository interface {
 	Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
 
 	// GetByID retrieves a wallet by its ID
-	GetByID(ctx context.Context, id string) (*Wallet, error)
+	GetByID(ctx context.Context, id int64) (*Wallet, error)
 
 	// Update updates a wallet's name, tags and last block number
 	Update(ctx context.Context, wallet *Wallet) error
@@ -48,9 +47,13 @@ func NewRepository(db *db.DB) Repository {
 
 // Create inserts a new wallet into the database
 func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
-	// Generate a new UUID if not provided
-	if wallet.ID == "" {
-		wallet.ID = uuid.New().String()
+	// Generate a new Snowflake ID if not provided
+	if wallet.ID == 0 {
+		var err error
+		wallet.ID, err = r.db.GenerateID()
+		if err != nil {
+			return errors.NewOperationFailedError("generate wallet id", err)
+		}
 	}
 
 	// Set timestamps
@@ -116,7 +119,7 @@ func (r *repository) Get(ctx context.Context, chainType types.ChainType, address
 }
 
 // GetByID retrieves a wallet by its ID
-func (r *repository) GetByID(ctx context.Context, id string) (*Wallet, error) {
+func (r *repository) GetByID(ctx context.Context, id int64) (*Wallet, error) {
 	query := `
 		SELECT id, key_id, chain_type, address, name, tags, last_block_number, created_at, updated_at, deleted_at
 		FROM wallets
@@ -130,7 +133,7 @@ func (r *repository) GetByID(ctx context.Context, id string) (*Wallet, error) {
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, errors.NewWalletNotFoundError(id)
+		return nil, errors.NewWalletNotFoundError(strconv.FormatInt(id, 10))
 	}
 
 	wallet, err := ScanWallet(rows)
@@ -177,7 +180,7 @@ func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 	}
 
 	if rowsAffected == 0 {
-		return errors.NewWalletNotFoundError(wallet.ID)
+		return errors.NewWalletNotFoundError(strconv.FormatInt(wallet.ID, 10))
 	}
 
 	return nil

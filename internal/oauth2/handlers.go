@@ -5,10 +5,11 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"vault0/internal/errors"
+	"vault0/internal/logger"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-oauth2/oauth2/v4"
-	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/models"
 	"github.com/go-oauth2/oauth2/v4/server"
 	"golang.org/x/crypto/bcrypt"
@@ -18,6 +19,7 @@ import (
 type Handlers struct {
 	service *Service
 	server  *server.Server
+	log     logger.Logger
 }
 
 // NewHandlers creates a new handlers instance
@@ -25,6 +27,7 @@ func NewHandlers(service *Service) *Handlers {
 	return &Handlers{
 		service: service,
 		server:  service.Server(),
+		log:     service.log,
 	}
 }
 
@@ -39,8 +42,11 @@ func (h *Handlers) AuthorizeHandler(c *gin.Context) {
 	// Handle the authorization request
 	err := h.server.HandleAuthorizeRequest(w, r)
 	if err != nil {
-		// Format and return error
-		h.handleError(c, err)
+		// Log the error but let the OAuth2 server handle the response
+		h.log.Error("Failed to handle authorize request",
+			logger.String("path", r.URL.Path),
+			logger.String("method", r.Method),
+			logger.String("error", err.Error()))
 		return
 	}
 }
@@ -56,8 +62,11 @@ func (h *Handlers) TokenHandler(c *gin.Context) {
 	// Handle the token request
 	err := h.server.HandleTokenRequest(w, r)
 	if err != nil {
-		// Format and return error
-		h.handleError(c, err)
+		// Log the error but let the OAuth2 server handle the response
+		h.log.Error("Failed to handle token request",
+			logger.String("path", r.URL.Path),
+			logger.String("method", r.Method),
+			logger.String("error", err.Error()))
 		return
 	}
 }
@@ -73,14 +82,20 @@ type LoginRequest struct {
 func (h *Handlers) LoginHandler(c *gin.Context) {
 	var loginReq LoginRequest
 	if err := c.ShouldBindJSON(&loginReq); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request", "error_description": "Invalid request format"})
+		h.log.Error("Invalid login request format",
+			logger.String("path", c.Request.URL.Path),
+			logger.String("error", err.Error()))
+		c.Error(errors.NewInvalidRequestError("Invalid request format"))
 		return
 	}
 
 	// Authenticate user
 	userID, err := h.authenticateUser(c, loginReq.Email, loginReq.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_grant", "error_description": "Invalid credentials"})
+		h.log.Error("Authentication failed",
+			logger.String("email", loginReq.Email),
+			logger.String("error", err.Error()))
+		c.Error(errors.NewInvalidGrantError())
 		return
 	}
 
@@ -88,9 +103,17 @@ func (h *Handlers) LoginHandler(c *gin.Context) {
 	clientID := "default-client" // Use a default client or get from request
 	token, err := h.createToken(c, userID, clientID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error", "error_description": "Failed to generate token"})
+		h.log.Error("Failed to create token",
+			logger.String("user_id", userID),
+			logger.String("client_id", clientID),
+			logger.String("error", err.Error()))
+		c.Error(errors.NewInternalError(err))
 		return
 	}
+
+	h.log.Info("Login successful",
+		logger.String("user_id", userID),
+		logger.String("client_id", clientID))
 
 	// Return the token
 	c.JSON(http.StatusOK, gin.H{
@@ -113,11 +136,11 @@ func (h *Handlers) authenticateUser(c context.Context, email, password string) (
 	defer rows.Close()
 
 	if !rows.Next() {
-		return "", errors.ErrInvalidGrant
+		return "", errors.NewInvalidCredentialsError()
 	}
 
 	var (
-		userID       int
+		userID       int64
 		passwordHash string
 	)
 
@@ -129,11 +152,11 @@ func (h *Handlers) authenticateUser(c context.Context, email, password string) (
 	// Verify the password
 	err = bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password))
 	if err != nil {
-		return "", errors.ErrInvalidGrant
+		return "", errors.NewInvalidCredentialsError()
 	}
 
 	// Return the user ID as a string
-	return strconv.Itoa(userID), nil
+	return strconv.FormatInt(userID, 10), nil
 }
 
 // createToken creates and stores a new token for the user
@@ -175,22 +198,36 @@ func (h *Handlers) UserInfoHandler(c *gin.Context) {
 	// Extract token from the request
 	tokenString, err := h.extractBearerToken(c.GetHeader("Authorization"))
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		h.log.Error("Invalid bearer token",
+			logger.String("path", c.Request.URL.Path),
+			logger.String("error", err.Error()))
+		c.Error(errors.NewUnauthorizedError())
 		return
 	}
 
 	// Validate the token
 	token, err := h.server.Manager.LoadAccessToken(c, tokenString)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		h.log.Error("Failed to load access token",
+			logger.String("path", c.Request.URL.Path),
+			logger.String("error", err.Error()))
+		c.Error(errors.NewInvalidAccessTokenError())
 		return
 	}
 
 	// Check if the token is expired
 	if token.GetAccessCreateAt().Add(token.GetAccessExpiresIn()).Before(time.Now()) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "token expired"})
+		h.log.Error("Access token expired",
+			logger.String("path", c.Request.URL.Path),
+			logger.String("user_id", token.GetUserID()),
+			logger.String("client_id", token.GetClientID()))
+		c.Error(errors.NewAccessTokenExpiredError())
 		return
 	}
+
+	h.log.Info("User info request successful",
+		logger.String("user_id", token.GetUserID()),
+		logger.String("client_id", token.GetClientID()))
 
 	// Return user information
 	c.JSON(http.StatusOK, gin.H{
@@ -207,22 +244,40 @@ func (h *Handlers) HandleValidateToken() gin.HandlerFunc {
 		// Extract token from the request
 		tokenString, err := h.extractBearerToken(c.GetHeader("Authorization"))
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			h.log.Error("Invalid bearer token in middleware",
+				logger.String("path", c.Request.URL.Path),
+				logger.String("error", err.Error()))
+			c.Error(errors.NewUnauthorizedError())
+			c.Abort()
 			return
 		}
 
 		// Validate the token
 		token, err := h.server.Manager.LoadAccessToken(c, tokenString)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			h.log.Error("Failed to load access token in middleware",
+				logger.String("path", c.Request.URL.Path),
+				logger.String("error", err.Error()))
+			c.Error(errors.NewInvalidAccessTokenError())
+			c.Abort()
 			return
 		}
 
 		// Check if the token is expired
 		if token.GetAccessCreateAt().Add(token.GetAccessExpiresIn()).Before(time.Now()) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token expired"})
+			h.log.Error("Access token expired in middleware",
+				logger.String("path", c.Request.URL.Path),
+				logger.String("user_id", token.GetUserID()),
+				logger.String("client_id", token.GetClientID()))
+			c.Error(errors.NewAccessTokenExpiredError())
+			c.Abort()
 			return
 		}
+
+		h.log.Debug("Token validation successful",
+			logger.String("user_id", token.GetUserID()),
+			logger.String("client_id", token.GetClientID()),
+			logger.String("path", c.Request.URL.Path))
 
 		// Store token info in the context for downstream handlers
 		c.Set("oauth_token", token)
@@ -235,30 +290,17 @@ func (h *Handlers) HandleValidateToken() gin.HandlerFunc {
 // extractBearerToken extracts a bearer token from the Authorization header
 func (h *Handlers) extractBearerToken(auth string) (string, error) {
 	if auth == "" {
-		return "", errors.ErrInvalidAccessToken
+		return "", errors.NewUnauthorizedError()
 	}
 
 	const prefix = "Bearer "
 	if len(auth) < len(prefix) {
-		return "", errors.ErrInvalidAccessToken
+		return "", errors.NewInvalidAccessTokenError()
 	}
 
 	if auth[0:len(prefix)] != prefix {
-		return "", errors.ErrInvalidAccessToken
+		return "", errors.NewInvalidAccessTokenError()
 	}
 
 	return auth[len(prefix):], nil
-}
-
-// handleError formats and returns OAuth2 errors
-func (h *Handlers) handleError(c *gin.Context, err error) {
-	status := http.StatusInternalServerError
-	message := "internal server error"
-	description := err.Error()
-
-	// Just return a generic error response
-	c.JSON(status, gin.H{
-		"error":             message,
-		"error_description": description,
-	})
 }

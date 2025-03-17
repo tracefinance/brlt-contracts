@@ -1,12 +1,14 @@
 package oauth2
 
 import (
+	"strconv"
 	"time"
 	"vault0/internal/core/db"
+	"vault0/internal/logger"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-oauth2/oauth2/v4"
-	"github.com/go-oauth2/oauth2/v4/errors"
+	oauthErrors "github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/manage"
 	"github.com/go-oauth2/oauth2/v4/server"
 )
@@ -34,10 +36,11 @@ type Service struct {
 	config *Config
 	db     *db.DB
 	server *server.Server
+	log    logger.Logger
 }
 
 // New creates a new OAuth2 service
-func New(database *db.DB, config *Config) (*Service, error) {
+func New(database *db.DB, log logger.Logger, config *Config) (*Service, error) {
 	if config == nil {
 		config = DefaultConfig()
 	}
@@ -74,19 +77,28 @@ func New(database *db.DB, config *Config) (*Service, error) {
 	}, manager)
 
 	// Set custom error handler
-	srv.SetInternalErrorHandler(func(err error) (re *errors.Response) {
-		return errors.NewResponse(err, 500)
+	srv.SetInternalErrorHandler(func(err error) (re *oauthErrors.Response) {
+		log.Error("OAuth2 internal error",
+			logger.String("error", err.Error()),
+			logger.String("component", "oauth2_server"))
+		return oauthErrors.NewResponse(err, 500)
 	})
 
 	// Set response error handler
-	srv.SetResponseErrorHandler(func(re *errors.Response) {
-		// Log errors or handle them as needed
+	srv.SetResponseErrorHandler(func(re *oauthErrors.Response) {
+		// Log errors with context
+		log.Error("OAuth2 response error",
+			logger.String("error_code", re.Error.Error()),
+			logger.String("description", re.Description),
+			logger.String("status_code", strconv.Itoa(re.StatusCode)),
+			logger.String("component", "oauth2_server"))
 	})
 
 	return &Service{
 		config: config,
 		db:     database,
 		server: srv,
+		log:    log,
 	}, nil
 }
 

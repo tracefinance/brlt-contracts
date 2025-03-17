@@ -9,8 +9,8 @@ import (
 
 // Transaction represents a transaction entity stored in the database
 type Transaction struct {
-	ID           string          `db:"id"`
-	WalletID     string          `db:"wallet_id"`
+	ID           int64           `db:"id"`
+	WalletID     int64           `db:"wallet_id"`
 	ChainType    types.ChainType `db:"chain_type"`
 	Hash         string          `db:"hash"`
 	FromAddress  string          `db:"from_address"`
@@ -74,7 +74,7 @@ func ScanTransaction(row interface {
 }
 
 // FromCoreTransaction converts a core transaction to a service transaction
-func FromCoreTransaction(coreTx *types.Transaction, walletID string) *Transaction {
+func FromCoreTransaction(coreTx *types.Transaction, walletID int64) *Transaction {
 	return &Transaction{
 		WalletID:     walletID,
 		ChainType:    coreTx.Chain,

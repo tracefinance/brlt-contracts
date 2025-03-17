@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"database/sql"
 
 	"vault0/internal/errors"
 	"vault0/internal/types"
@@ -49,8 +48,8 @@ func NewService(repository Repository) Service {
 func (s *service) Create(ctx context.Context, email, password string) (*User, error) {
 	// Check if email already exists
 	existingUser, err := s.repository.FindByEmail(ctx, email)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, errors.NewDatabaseError(err)
+	if err != nil {
+		return nil, err
 	}
 	if existingUser != nil {
 		return nil, errors.NewEmailExistsError(email)

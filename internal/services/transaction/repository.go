@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
-
 	"vault0/internal/core/db"
 	"vault0/internal/errors"
 	"vault0/internal/types"
@@ -20,13 +18,13 @@ type Repository interface {
 	Get(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error)
 
 	// GetByWallet retrieves transactions for a specific wallet
-	GetByWallet(ctx context.Context, walletID string, limit, offset int) (*types.Page[*Transaction], error)
+	GetByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error)
 
 	// GetByAddress retrieves transactions for a specific blockchain address
 	GetByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
 
 	// Count counts transactions for a specific wallet
-	Count(ctx context.Context, walletID string) (int, error)
+	Count(ctx context.Context, walletID int64) (int, error)
 
 	// CountByAddress counts transactions for a specific blockchain address
 	CountByAddress(ctx context.Context, chainType types.ChainType, address string) (int, error)
@@ -47,9 +45,13 @@ func NewRepository(db *db.DB) Repository {
 
 // Create inserts a new transaction into the database
 func (r *repository) Create(ctx context.Context, tx *Transaction) error {
-	// Generate a new UUID if not provided
-	if tx.ID == "" {
-		tx.ID = uuid.New().String()
+	// Generate a Snowflake ID if not provided
+	if tx.ID == 0 {
+		id, err := r.db.GenerateID()
+		if err != nil {
+			return err
+		}
+		tx.ID = id
 	}
 
 	// Set timestamps
@@ -99,11 +101,7 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 		tx.UpdatedAt,
 	)
 
-	if err != nil {
-		return errors.NewDatabaseError(err)
-	}
-
-	return nil
+	return err
 }
 
 // Get retrieves a transaction by its chain type and hash
@@ -119,7 +117,7 @@ func (r *repository) Get(ctx context.Context, chainType types.ChainType, hash st
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, hash)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -129,14 +127,14 @@ func (r *repository) Get(ctx context.Context, chainType types.ChainType, hash st
 
 	tx, err := ScanTransaction(rows)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	return tx, nil
 }
 
 // GetByWallet retrieves transactions for a specific wallet
-func (r *repository) GetByWallet(ctx context.Context, walletID string, limit, offset int) (*types.Page[*Transaction], error) {
+func (r *repository) GetByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error) {
 	query := `
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
@@ -150,7 +148,7 @@ func (r *repository) GetByWallet(ctx context.Context, walletID string, limit, of
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, walletID, limit, offset)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -158,13 +156,13 @@ func (r *repository) GetByWallet(ctx context.Context, walletID string, limit, of
 	for rows.Next() {
 		tx, err := ScanTransaction(rows)
 		if err != nil {
-			return nil, errors.NewDatabaseError(err)
+			return nil, err
 		}
 		transactions = append(transactions, tx)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	return types.NewPage(transactions, offset, limit), nil
@@ -185,7 +183,7 @@ func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, address, address, limit, offset)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -193,20 +191,20 @@ func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType
 	for rows.Next() {
 		tx, err := ScanTransaction(rows)
 		if err != nil {
-			return nil, errors.NewDatabaseError(err)
+			return nil, err
 		}
 		transactions = append(transactions, tx)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	return types.NewPage(transactions, offset, limit), nil
 }
 
 // Count counts transactions for a specific wallet
-func (r *repository) Count(ctx context.Context, walletID string) (int, error) {
+func (r *repository) Count(ctx context.Context, walletID int64) (int, error) {
 	query := `
 		SELECT COUNT(*) 
 		FROM transactions
@@ -215,17 +213,17 @@ func (r *repository) Count(ctx context.Context, walletID string) (int, error) {
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, walletID)
 	if err != nil {
-		return 0, errors.NewDatabaseError(err)
+		return 0, err
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return 0, errors.NewDatabaseError(nil)
+		return 0, nil
 	}
 
 	var count int
 	if err := rows.Scan(&count); err != nil {
-		return 0, errors.NewDatabaseError(err)
+		return 0, err
 	}
 
 	return count, nil
@@ -241,17 +239,17 @@ func (r *repository) CountByAddress(ctx context.Context, chainType types.ChainTy
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, address, address)
 	if err != nil {
-		return 0, errors.NewDatabaseError(err)
+		return 0, err
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return 0, errors.NewDatabaseError(nil)
+		return 0, nil
 	}
 
 	var count int
 	if err := rows.Scan(&count); err != nil {
-		return 0, errors.NewDatabaseError(err)
+		return 0, err
 	}
 
 	return count, nil
@@ -268,7 +266,7 @@ func (r *repository) Exists(ctx context.Context, chainType types.ChainType, hash
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, hash)
 	if err != nil {
-		return false, errors.NewDatabaseError(err)
+		return false, err
 	}
 	defer rows.Close()
 

@@ -3,13 +3,12 @@ package tokenstore
 import (
 	"context"
 	"database/sql"
+	"strconv"
 	"time"
 
 	"vault0/internal/core/db"
 	"vault0/internal/errors"
 	"vault0/internal/types"
-
-	"github.com/google/uuid"
 )
 
 // dbTokenStore implements the TokenStore interface using an SQL database
@@ -52,8 +51,11 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 		return errors.NewResourceAlreadyExistsError("token", "address", normalizedAddress)
 	}
 
-	// Generate a new UUID for the token
-	tokenID := uuid.New().String()
+	// Generate a new Snowflake ID for the token
+	tokenID, err := s.db.GenerateID()
+	if err != nil {
+		return errors.NewOperationFailedError("generate token id", err)
+	}
 
 	// Insert the new token
 	_, err = s.db.ExecuteStatementContext(
@@ -78,8 +80,8 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 	return nil
 }
 
-// GetToken retrieves a token by its address and chain type
-func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType types.ChainType) (*types.Token, error) {
+// GetTokenByAddress retrieves a token by its address and chain type
+func (s *dbTokenStore) GetTokenByAddress(ctx context.Context, address string, chainType types.ChainType) (*types.Token, error) {
 	normalizedAddress := types.NormalizeAddress(address)
 
 	var token types.Token
@@ -116,8 +118,8 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType t
 	return &token, nil
 }
 
-// GetTokenByID retrieves a token by its primary ID
-func (s *dbTokenStore) GetTokenByID(ctx context.Context, id string) (*types.Token, error) {
+// GetToken retrieves a token by its primary ID
+func (s *dbTokenStore) GetToken(ctx context.Context, id int64) (*types.Token, error) {
 	var token types.Token
 	rows, err := s.db.ExecuteQueryContext(
 		ctx,
@@ -132,7 +134,7 @@ func (s *dbTokenStore) GetTokenByID(ctx context.Context, id string) (*types.Toke
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, errors.NewResourceNotFoundError("token", id)
+		return nil, errors.NewResourceNotFoundError("token", strconv.FormatInt(id, 10))
 	}
 
 	err = rows.Scan(
@@ -151,18 +153,8 @@ func (s *dbTokenStore) GetTokenByID(ctx context.Context, id string) (*types.Toke
 	return &token, nil
 }
 
-// GetTokenByCompositeID retrieves a token by its composite ID (address:chainType)
-func (s *dbTokenStore) GetTokenByCompositeID(ctx context.Context, compositeID string) (*types.Token, error) {
-	address, chainType, err := types.ParseTokenID(compositeID)
-	if err != nil {
-		return nil, errors.NewInvalidTokenError("invalid token ID format", err)
-	}
-
-	return s.GetToken(ctx, address, chainType)
-}
-
-// GetTokensByChain retrieves all tokens for a specific blockchain
-func (s *dbTokenStore) GetTokensByChain(ctx context.Context, chainType types.ChainType) ([]*types.Token, error) {
+// ListTokensByChain retrieves all tokens for a specific blockchain
+func (s *dbTokenStore) ListTokensByChain(ctx context.Context, chainType types.ChainType) ([]*types.Token, error) {
 	rows, err := s.db.ExecuteQueryContext(
 		ctx,
 		`SELECT id, address, chain_type, symbol, decimals, type 
@@ -170,24 +162,6 @@ func (s *dbTokenStore) GetTokensByChain(ctx context.Context, chainType types.Cha
 		WHERE chain_type = ?
 		ORDER BY symbol`,
 		chainType,
-	)
-	if err != nil {
-		return nil, errors.NewDatabaseError(err)
-	}
-	defer rows.Close()
-
-	return s.scanTokensFromRows(rows)
-}
-
-// GetTokensByType retrieves all tokens of a specific type (native, ERC20)
-func (s *dbTokenStore) GetTokensByType(ctx context.Context, tokenType types.TokenType) ([]*types.Token, error) {
-	rows, err := s.db.ExecuteQueryContext(
-		ctx,
-		`SELECT id, address, chain_type, symbol, decimals, type 
-		FROM tokens 
-		WHERE type = ?
-		ORDER BY chain_type, symbol`,
-		tokenType,
 	)
 	if err != nil {
 		return nil, errors.NewDatabaseError(err)
@@ -207,36 +181,19 @@ func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 		return errors.NewInvalidTokenError("validation failed", err)
 	}
 
-	normalizedAddress := types.NormalizeAddress(token.Address)
+	if token.ID == 0 {
+		return errors.NewInvalidTokenError("token ID is required for update", nil)
+	}
 
-	var query string
-	var args []any
-
-	if token.ID != "" {
-		// Update by primary ID if available
-		query = `UPDATE tokens 
-			SET symbol = ?, decimals = ?, type = ?, updated_at = ?
-			WHERE id = ?`
-		args = []any{
-			token.Symbol,
-			token.Decimals,
-			token.Type,
-			time.Now(),
-			token.ID,
-		}
-	} else {
-		// Fall back to composite key
-		query = `UPDATE tokens 
-			SET symbol = ?, decimals = ?, type = ?, updated_at = ?
-			WHERE address = ? AND chain_type = ?`
-		args = []any{
-			token.Symbol,
-			token.Decimals,
-			token.Type,
-			time.Now(),
-			normalizedAddress,
-			token.ChainType,
-		}
+	query := `UPDATE tokens 
+		SET symbol = ?, decimals = ?, type = ?, updated_at = ?
+		WHERE id = ?`
+	args := []any{
+		token.Symbol,
+		token.Decimals,
+		token.Type,
+		time.Now(),
+		token.ID,
 	}
 
 	result, err := s.db.ExecuteStatementContext(ctx, query, args...)
@@ -250,40 +207,14 @@ func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 	}
 
 	if rowsAffected == 0 {
-		return errors.NewResourceNotFoundError("token", normalizedAddress)
+		return errors.NewResourceNotFoundError("token", strconv.FormatInt(token.ID, 10))
 	}
 
 	return nil
 }
 
-// DeleteToken removes a token from the store
-func (s *dbTokenStore) DeleteToken(ctx context.Context, address string, chainType types.ChainType) error {
-	normalizedAddress := types.NormalizeAddress(address)
-
-	result, err := s.db.ExecuteStatementContext(
-		ctx,
-		"DELETE FROM tokens WHERE address = ? AND chain_type = ?",
-		normalizedAddress,
-		chainType,
-	)
-	if err != nil {
-		return errors.NewDatabaseError(err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return errors.NewDatabaseError(err)
-	}
-
-	if rowsAffected == 0 {
-		return errors.NewResourceNotFoundError("token", normalizedAddress)
-	}
-
-	return nil
-}
-
-// DeleteTokenByID removes a token from the store by its primary ID
-func (s *dbTokenStore) DeleteTokenByID(ctx context.Context, id string) error {
+// DeleteToken removes a token from the store by its ID
+func (s *dbTokenStore) DeleteToken(ctx context.Context, id int64) error {
 	result, err := s.db.ExecuteStatementContext(
 		ctx,
 		"DELETE FROM tokens WHERE id = ?",
@@ -299,14 +230,14 @@ func (s *dbTokenStore) DeleteTokenByID(ctx context.Context, id string) error {
 	}
 
 	if rowsAffected == 0 {
-		return errors.NewResourceNotFoundError("token", id)
+		return errors.NewResourceNotFoundError("token", strconv.FormatInt(id, 10))
 	}
 
 	return nil
 }
 
-// ListAllTokens retrieves all tokens in the store
-func (s *dbTokenStore) ListAllTokens(ctx context.Context) ([]*types.Token, error) {
+// ListTokens retrieves all tokens in the store
+func (s *dbTokenStore) ListTokens(ctx context.Context) ([]*types.Token, error) {
 	rows, err := s.db.ExecuteQueryContext(
 		ctx,
 		`SELECT id, address, chain_type, symbol, decimals, type 

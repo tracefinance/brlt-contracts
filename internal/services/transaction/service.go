@@ -18,19 +18,19 @@ type Service interface {
 	GetTransaction(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error)
 
 	// GetTransactionsByWallet retrieves transactions for a specific wallet
-	GetTransactionsByWallet(ctx context.Context, walletID string, limit, offset int) (*types.Page[*Transaction], error)
+	GetTransactionsByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error)
 
 	// GetTransactionsByAddress retrieves transactions for a specific blockchain address
 	GetTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
 
 	// SyncTransactions fetches and stores transactions for a wallet
-	SyncTransactions(ctx context.Context, walletID string) (int, error)
+	SyncTransactions(ctx context.Context, walletID int64) (int, error)
 
 	// SyncTransactionsByAddress fetches and stores transactions for an address
 	SyncTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string) (int, error)
 
 	// CountTransactions counts transactions for a specific wallet
-	CountTransactions(ctx context.Context, walletID string) (int, error)
+	CountTransactions(ctx context.Context, walletID int64) (int, error)
 
 	// SubscribeToWalletEvents starts listening for wallet events and processing transactions.
 	// This should be called after the service is initialized.
@@ -136,9 +136,9 @@ func (s *transactionService) GetTransaction(ctx context.Context, chainType types
 }
 
 // GetTransactionsByWallet retrieves transactions for a specific wallet
-func (s *transactionService) GetTransactionsByWallet(ctx context.Context, walletID string, limit, offset int) (*types.Page[*Transaction], error) {
+func (s *transactionService) GetTransactionsByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error) {
 	// Validate input
-	if walletID == "" {
+	if walletID <= 0 {
 		return nil, errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "")
 	}
 
@@ -177,13 +177,13 @@ func (s *transactionService) GetTransactionsByAddress(ctx context.Context, chain
 }
 
 // SyncTransactions fetches and stores transactions for a wallet
-func (s *transactionService) SyncTransactions(ctx context.Context, walletID string) (int, error) {
+func (s *transactionService) SyncTransactions(ctx context.Context, walletID int64) (int, error) {
 	// Prevent concurrent syncs
 	s.syncMutex.Lock()
 	defer s.syncMutex.Unlock()
 
 	// Validate input
-	if walletID == "" {
+	if walletID <= 0 {
 		return 0, errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "")
 	}
 
@@ -215,7 +215,7 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 	defer explorer.Close()
 
 	// Get wallet ID and last block number if exists
-	var walletID string
+	var walletID int64
 	var startBlock int64
 	wallet, err := s.walletService.Get(ctx, chainType, address)
 	if err == nil {
@@ -288,7 +288,7 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 	if wallet != nil && maxBlockNumber > wallet.LastBlockNumber {
 		if err := s.walletService.UpdateLastBlockNumber(ctx, wallet.ChainType, wallet.Address, maxBlockNumber); err != nil {
 			s.logger.Error("Failed to update wallet's last block number",
-				logger.String("wallet_id", wallet.ID),
+				logger.Int64("wallet_id", wallet.ID),
 				logger.Int64("block_number", maxBlockNumber),
 				logger.Error(err))
 		}
@@ -298,9 +298,9 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 }
 
 // CountTransactions counts transactions for a specific wallet
-func (s *transactionService) CountTransactions(ctx context.Context, walletID string) (int, error) {
+func (s *transactionService) CountTransactions(ctx context.Context, walletID int64) (int, error) {
 	// Validate input
-	if walletID == "" {
+	if walletID <= 0 {
 		return 0, errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "")
 	}
 
@@ -308,9 +308,9 @@ func (s *transactionService) CountTransactions(ctx context.Context, walletID str
 }
 
 // OnWalletEvent processes a blockchain event for a wallet and updates the transactions table
-func (s *transactionService) OnWalletEvent(ctx context.Context, walletID string, event *types.Log) error {
+func (s *transactionService) OnWalletEvent(ctx context.Context, walletID int64, event *types.Log) error {
 	// Validate input
-	if walletID == "" {
+	if walletID <= 0 {
 		return errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "")
 	}
 	if event == nil {
@@ -376,7 +376,7 @@ func (s *transactionService) OnWalletEvent(ctx context.Context, walletID string,
 	}
 
 	s.logger.Info("New transaction processed",
-		logger.String("wallet_id", walletID),
+		logger.Int64("wallet_id", walletID),
 		logger.String("tx_hash", event.TransactionHash),
 		logger.String("chain_type", string(wallet.ChainType)))
 
@@ -402,7 +402,7 @@ func (s *transactionService) SubscribeToWalletEvents(ctx context.Context) {
 				// Process blockchain event
 				if err := s.OnWalletEvent(s.eventCtx, event.WalletID, event.Log); err != nil {
 					s.logger.Error("Failed to process blockchain event",
-						logger.String("wallet_id", event.WalletID),
+						logger.Int64("wallet_id", event.WalletID),
 						logger.String("tx_hash", event.Log.TransactionHash),
 						logger.Error(err))
 				}
@@ -428,7 +428,7 @@ func (s *transactionService) SubscribeToWalletEvents(ctx context.Context) {
 					// When a new wallet is created, sync its historical transactions
 					if err := s.handleWalletCreated(s.eventCtx, event); err != nil {
 						s.logger.Error("Failed to handle wallet created event",
-							logger.String("wallet_id", event.WalletID),
+							logger.Int64("wallet_id", event.WalletID),
 							logger.Error(err))
 					}
 
@@ -436,7 +436,7 @@ func (s *transactionService) SubscribeToWalletEvents(ctx context.Context) {
 					// When a wallet is deleted, we don't need to do anything
 					// The transactions will remain in the database for historical purposes
 					s.logger.Info("Wallet deleted",
-						logger.String("wallet_id", event.WalletID))
+						logger.Int64("wallet_id", event.WalletID))
 				}
 			}
 		}
@@ -452,7 +452,7 @@ func (s *transactionService) handleWalletCreated(ctx context.Context, event *wal
 	}
 
 	s.logger.Info("Synced historical transactions for new wallet",
-		logger.String("wallet_id", event.WalletID),
+		logger.Int64("wallet_id", event.WalletID),
 		logger.String("address", event.Address),
 		logger.Int("transaction_count", count))
 

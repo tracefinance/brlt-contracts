@@ -1,6 +1,6 @@
 -- Create OAuth2 tokens table
 CREATE TABLE IF NOT EXISTS oauth_tokens (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGINT PRIMARY KEY NOT NULL,
     client_id TEXT,
     user_id TEXT,
     redirect_uri TEXT,

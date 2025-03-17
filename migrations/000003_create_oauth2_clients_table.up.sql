@@ -1,6 +1,6 @@
 -- Create OAuth2 clients table
 CREATE TABLE IF NOT EXISTS oauth_clients (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGINT PRIMARY KEY NOT NULL,
     client_id TEXT UNIQUE NOT NULL,
     client_secret TEXT NOT NULL,
     redirect_uri TEXT

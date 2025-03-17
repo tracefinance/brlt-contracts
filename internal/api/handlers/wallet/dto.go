@@ -22,7 +22,7 @@ type UpdateWalletRequest struct {
 
 // WalletResponse represents a wallet response
 type WalletResponse struct {
-	ID        string            `json:"id"`
+	ID        int64             `json:"id"`
 	KeyID     string            `json:"key_id"`
 	ChainType types.ChainType   `json:"chain_type"`
 	Address   string            `json:"address"`

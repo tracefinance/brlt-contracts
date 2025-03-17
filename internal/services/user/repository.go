@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"database/sql"
 	"strconv"
 	"time"
 	"vault0/internal/core/db"
@@ -36,24 +35,24 @@ func (r *repository) Create(ctx context.Context, user *User) error {
 	user.CreatedAt = now
 	user.UpdatedAt = now
 
+	// Generate a Snowflake ID
+	id, err := r.db.GenerateID()
+	if err != nil {
+		return err
+	}
+	user.ID = id
+
 	query := `
-		INSERT INTO users (email, password_hash, created_at, updated_at)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO users (id, email, password_hash, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
 	`
 
-	result, err := r.db.ExecuteStatementContext(ctx, query,
-		user.Email, user.PasswordHash, user.CreatedAt, user.UpdatedAt)
+	_, err = r.db.ExecuteStatementContext(ctx, query,
+		user.ID, user.Email, user.PasswordHash, user.CreatedAt, user.UpdatedAt)
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
-	// Get the last insert ID
-	id, err := result.LastInsertId()
-	if err != nil {
-		return errors.NewDatabaseError(err)
-	}
-
-	user.ID = id
 	return nil
 }
 
@@ -70,12 +69,12 @@ func (r *repository) Update(ctx context.Context, user *User) error {
 	result, err := r.db.ExecuteStatementContext(ctx, query,
 		user.Email, user.PasswordHash, user.UpdatedAt, user.ID)
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	if rowsAffected == 0 {
@@ -91,12 +90,12 @@ func (r *repository) Delete(ctx context.Context, id int64) error {
 
 	result, err := r.db.ExecuteStatementContext(ctx, query, id)
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	if rowsAffected == 0 {
@@ -116,7 +115,7 @@ func (r *repository) FindByID(ctx context.Context, id int64) (*User, error) {
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, id)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -127,7 +126,7 @@ func (r *repository) FindByID(ctx context.Context, id int64) (*User, error) {
 	var user User
 	err = rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	return &user, nil
@@ -143,18 +142,18 @@ func (r *repository) FindByEmail(ctx context.Context, email string) (*User, erro
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, email)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, sql.ErrNoRows
+		return nil, nil
 	}
 
 	var user User
 	err = rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	return &user, nil
@@ -171,7 +170,7 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, limit, offset)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -180,13 +179,13 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 		var user User
 		err = rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
-			return nil, errors.NewDatabaseError(err)
+			return nil, err
 		}
 		users = append(users, &user)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	return types.NewPage(users, offset, limit), nil

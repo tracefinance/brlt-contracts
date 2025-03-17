@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"context"
+	"strconv"
 	"sync"
 
 	"vault0/internal/config"
@@ -21,13 +22,13 @@ const (
 
 // BlockchainEvent represents a blockchain event associated with a wallet
 type BlockchainEvent struct {
-	WalletID string
+	WalletID int64
 	Log      *types.Log
 }
 
 // LifecycleEvent represents a wallet lifecycle event
 type LifecycleEvent struct {
-	WalletID  string
+	WalletID  int64
 	EventType string
 	ChainType types.ChainType
 	Address   string
@@ -122,7 +123,7 @@ type Service interface {
 	// Returns:
 	//   - *Wallet: The wallet information if found
 	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
-	GetByID(ctx context.Context, id string) (*Wallet, error)
+	GetByID(ctx context.Context, id int64) (*Wallet, error)
 
 	// List retrieves a paginated list of non-deleted wallets
 	//
@@ -231,7 +232,7 @@ func (s *walletService) emitBlockchainEvent(event *BlockchainEvent) {
 	case s.blockchainEvents <- event:
 	default:
 		s.logger.Warn("Blockchain events channel is full, dropping event",
-			logger.String("wallet_id", event.WalletID))
+			logger.Int64("wallet_id", event.WalletID))
 	}
 }
 
@@ -241,7 +242,7 @@ func (s *walletService) emitLifecycleEvent(event *LifecycleEvent) {
 	case s.lifecycleEvents <- event:
 	default:
 		s.logger.Warn("Lifecycle events channel is full, dropping event",
-			logger.String("wallet_id", event.WalletID),
+			logger.Int64("wallet_id", event.WalletID),
 			logger.String("event_type", event.EventType))
 	}
 }
@@ -286,7 +287,7 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 
 	if err := s.subscribeToWallet(ctx, wallet); err != nil {
 		s.logger.Error("Failed to subscribe to wallet events",
-			logger.String("wallet_id", wallet.ID),
+			logger.Int64("wallet_id", wallet.ID),
 			logger.String("address", wallet.Address),
 			logger.Error(err))
 	}
@@ -465,7 +466,7 @@ func (s *walletService) SubscribeToBlockchainEvents(ctx context.Context) error {
 	for _, wallet := range walletPage.Items {
 		if err := s.subscribeToWallet(ctx, wallet); err != nil {
 			s.logger.Error("Failed to subscribe to wallet events",
-				logger.String("wallet_id", wallet.ID),
+				logger.Int64("wallet_id", wallet.ID),
 				logger.String("address", wallet.Address),
 				logger.Error(err))
 		}
@@ -489,44 +490,71 @@ func (s *walletService) UnsubscribeFromBlockchainEvents() {
 }
 
 func (s *walletService) subscribeToWallet(ctx context.Context, wallet *Wallet) error {
+	// Get blockchain client for the wallet's chain type
 	client, err := s.blockchainRegistry.GetBlockchain(wallet.ChainType)
 	if err != nil {
 		return err
 	}
 
-	subscriptionCtx, cancel := context.WithCancel(ctx)
+	// Create a context with cancellation for this subscription
+	subscriptionCtx, cancel := context.WithCancel(context.Background())
 
+	// Store the cancellation function with the wallet ID as the key
 	s.mu.Lock()
-	s.subscriptions[wallet.ID] = cancel
+	walletIDStr := strconv.FormatInt(wallet.ID, 10)
+	s.subscriptions[walletIDStr] = cancel
 	s.mu.Unlock()
 
+	// Start a goroutine to monitor events
 	go func() {
 		defer cancel()
+		s.logger.Info("Starting event subscription for wallet",
+			logger.Int64("wallet_id", wallet.ID),
+			logger.String("address", wallet.Address))
 
+		// Subscribe to events
 		logCh, errCh, err := client.SubscribeToEvents(subscriptionCtx, []string{wallet.Address}, nil)
 		if err != nil {
 			s.logger.Error("Failed to subscribe to events",
-				logger.String("wallet_id", wallet.ID),
+				logger.Int64("wallet_id", wallet.ID),
 				logger.String("address", wallet.Address),
 				logger.Error(err))
 			return
 		}
 
+		// Process events
 		for {
 			select {
 			case <-subscriptionCtx.Done():
+				s.logger.Info("Event subscription stopped",
+					logger.Int64("wallet_id", wallet.ID),
+					logger.String("address", wallet.Address))
 				return
 			case err := <-errCh:
 				s.logger.Error("Event subscription error",
-					logger.String("wallet_id", wallet.ID),
+					logger.Int64("wallet_id", wallet.ID),
 					logger.String("address", wallet.Address),
 					logger.Error(err))
 				return
 			case log := <-logCh:
+				// Process the log
 				s.emitBlockchainEvent(&BlockchainEvent{
 					WalletID: wallet.ID,
 					Log:      &log,
 				})
+
+				// Update the last processed block if log's block number is greater
+				if log.BlockNumber != nil {
+					blockNum := log.BlockNumber.Int64()
+					if blockNum > wallet.LastBlockNumber {
+						if err := s.UpdateLastBlockNumber(ctx, wallet.ChainType, wallet.Address, blockNum); err != nil {
+							s.logger.Error("Failed to update last block number",
+								logger.Int64("wallet_id", wallet.ID),
+								logger.String("address", wallet.Address),
+								logger.Error(err))
+						}
+					}
+				}
 			}
 		}
 	}()
@@ -534,13 +562,14 @@ func (s *walletService) subscribeToWallet(ctx context.Context, wallet *Wallet) e
 	return nil
 }
 
-func (s *walletService) unsubscribeFromWallet(walletID string) {
+func (s *walletService) unsubscribeFromWallet(walletID int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if cancel, exists := s.subscriptions[walletID]; exists {
+	walletIDStr := strconv.FormatInt(walletID, 10)
+	if cancel, exists := s.subscriptions[walletIDStr]; exists {
 		cancel()
-		delete(s.subscriptions, walletID)
+		delete(s.subscriptions, walletIDStr)
 	}
 }
 
@@ -566,9 +595,9 @@ func (s *walletService) Exists(ctx context.Context, chainType types.ChainType, a
 }
 
 // GetByID retrieves a wallet by its unique identifier
-func (s *walletService) GetByID(ctx context.Context, id string) (*Wallet, error) {
-	if id == "" {
-		return nil, errors.NewInvalidInputError("ID is required", "id", "")
+func (s *walletService) GetByID(ctx context.Context, id int64) (*Wallet, error) {
+	if id == 0 {
+		return nil, errors.NewInvalidInputError("ID is required", "id", "0")
 	}
 
 	wallet, err := s.repository.GetByID(ctx, id)

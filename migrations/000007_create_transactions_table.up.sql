@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS transactions (
-    id TEXT PRIMARY KEY,
-    wallet_id TEXT NOT NULL,
+    id BIGINT PRIMARY KEY NOT NULL,
+    wallet_id BIGINT NOT NULL,
     chain_type TEXT NOT NULL,
     hash TEXT NOT NULL,
     from_address TEXT NOT NULL,

@@ -10,7 +10,7 @@ import (
 
 // Wallet represents a wallet entity stored in the database
 type Wallet struct {
-	ID              string            `db:"id"`
+	ID              int64             `db:"id"`
 	KeyID           string            `db:"key_id"`
 	ChainType       types.ChainType   `db:"chain_type"`
 	Address         string            `db:"address"`

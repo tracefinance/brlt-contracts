@@ -38,6 +38,9 @@ func DefaultErrorMapper(err error) (int, any) {
 		case errors.ErrCodeMissingKeyID:
 		case errors.ErrCodeMissingWalletAddress:
 		case errors.ErrCodeMissingAPIKey:
+		// OAuth2 validation errors
+		case errors.ErrCodeInvalidScope:
+		case errors.ErrCodeUnsupportedGrantType:
 			return http.StatusBadRequest, appErr
 
 		// Authentication errors - 401 Unauthorized
@@ -45,6 +48,9 @@ func DefaultErrorMapper(err error) (int, any) {
 		case errors.ErrCodeInvalidAccessToken:
 		case errors.ErrCodeAccessTokenExpired:
 		case errors.ErrCodeInvalidCredentials:
+		// OAuth2 authentication errors
+		case errors.ErrCodeInvalidClient:
+		case errors.ErrCodeInvalidGrant:
 			return http.StatusUnauthorized, appErr
 
 		// Permission errors - 403 Forbidden
@@ -104,6 +110,8 @@ func DefaultErrorMapper(err error) (int, any) {
 		case errors.ErrCodeChainNotSupported:
 		case errors.ErrCodeServiceUnavailable:
 		case errors.ErrCodeExplorerRequestFailed:
+		// OAuth2 server errors
+		case errors.ErrCodeServerOAuth2Error:
 		default:
 			return http.StatusInternalServerError, appErr
 		}
