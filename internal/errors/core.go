@@ -71,8 +71,8 @@ const (
 )
 
 // NewInvalidBlockchainConfigError creates an error for invalid blockchain configuration
-func NewInvalidBlockchainConfigError(chain string, key string) *AppError {
-	return &AppError{
+func NewInvalidBlockchainConfigError(chain string, key string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidBlockchainConfig,
 		Message: fmt.Sprintf("Invalid blockchain configuration for %s: missing %s", chain, key),
 		Details: map[string]any{
@@ -83,8 +83,8 @@ func NewInvalidBlockchainConfigError(chain string, key string) *AppError {
 }
 
 // NewDatabaseError creates an error for database failures
-func NewDatabaseError(err error) *AppError {
-	return &AppError{
+func NewDatabaseError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeDatabaseError,
 		Message: "Database operation failed",
 		Err:     err,
@@ -92,16 +92,16 @@ func NewDatabaseError(err error) *AppError {
 }
 
 // NewDatabaseNotFoundError creates an error for database record not found
-func NewDatabaseNotFoundError(entity string) *AppError {
-	return &AppError{
+func NewDatabaseNotFoundError(entity string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeDatabaseNotFound,
 		Message: entity + " not found",
 	}
 }
 
 // NewBlockchainError creates a new error for blockchain-related issues
-func NewBlockchainError(err error) *AppError {
-	return &AppError{
+func NewBlockchainError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeBlockchainError,
 		Message: fmt.Sprintf("Blockchain error: %v", err),
 		Details: map[string]any{
@@ -111,8 +111,8 @@ func NewBlockchainError(err error) *AppError {
 }
 
 // NewChainNotSupportedError creates a new error for unsupported chains
-func NewChainNotSupportedError(chain string) *AppError {
-	return &AppError{
+func NewChainNotSupportedError(chain string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeChainNotSupported,
 		Message: fmt.Sprintf("Chain not supported: %s", chain),
 		Details: map[string]any{
@@ -122,8 +122,8 @@ func NewChainNotSupportedError(chain string) *AppError {
 }
 
 // NewInsufficientFundsError creates a new error for insufficient funds
-func NewInsufficientFundsError(balance string, required string) *AppError {
-	return &AppError{
+func NewInsufficientFundsError(balance string, required string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInsufficientFunds,
 		Message: fmt.Sprintf("Insufficient funds: have %s, need %s", balance, required),
 		Details: map[string]any{
@@ -134,8 +134,8 @@ func NewInsufficientFundsError(balance string, required string) *AppError {
 }
 
 // NewKeystoreError creates an error for keystore operations
-func NewKeystoreError(err error) *AppError {
-	return &AppError{
+func NewKeystoreError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeKeystoreError,
 		Message: "Keystore operation failed",
 		Err:     err,
@@ -143,16 +143,16 @@ func NewKeystoreError(err error) *AppError {
 }
 
 // NewKeyNotFoundError creates an error for missing keys
-func NewKeyNotFoundError(keyID string) *AppError {
-	return &AppError{
+func NewKeyNotFoundError(keyID string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeKeyNotFound,
 		Message: "Key not found: " + keyID,
 	}
 }
 
 // NewInvalidKeyError creates an error for invalid keys
-func NewInvalidKeyError(msg string, err error) *AppError {
-	return &AppError{
+func NewInvalidKeyError(msg string, err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidKey,
 		Message: msg,
 		Err:     err,
@@ -160,8 +160,8 @@ func NewInvalidKeyError(msg string, err error) *AppError {
 }
 
 // NewCryptoError creates an error for cryptographic operations
-func NewCryptoError(err error) *AppError {
-	return &AppError{
+func NewCryptoError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeCryptoError,
 		Message: "Cryptographic operation failed",
 		Err:     err,
@@ -169,8 +169,8 @@ func NewCryptoError(err error) *AppError {
 }
 
 // NewEncryptionError creates an error for encryption failures
-func NewEncryptionError(err error) *AppError {
-	return &AppError{
+func NewEncryptionError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeEncryptionError,
 		Message: "Encryption failed",
 		Err:     err,
@@ -178,8 +178,8 @@ func NewEncryptionError(err error) *AppError {
 }
 
 // NewDecryptionError creates an error for decryption failures
-func NewDecryptionError(err error) *AppError {
-	return &AppError{
+func NewDecryptionError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeDecryptionError,
 		Message: "Decryption failed",
 		Err:     err,
@@ -187,8 +187,8 @@ func NewDecryptionError(err error) *AppError {
 }
 
 // NewExplorerError creates a new error for block explorer issues
-func NewExplorerError(err error) *AppError {
-	return &AppError{
+func NewExplorerError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeExplorerError,
 		Message: fmt.Sprintf("Block explorer error: %v", err),
 		Err:     err,
@@ -196,16 +196,16 @@ func NewExplorerError(err error) *AppError {
 }
 
 // NewRateLimitExceededError creates a new error for rate limit issues
-func NewRateLimitExceededError() *AppError {
-	return &AppError{
+func NewRateLimitExceededError() *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeRateLimitExceeded,
 		Message: "Rate limit exceeded",
 	}
 }
 
 // NewInvalidAddressError creates a new error for invalid addresses
-func NewInvalidAddressError(address string) *AppError {
-	return &AppError{
+func NewInvalidAddressError(address string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidAddress,
 		Message: fmt.Sprintf("Invalid address: %s", address),
 		Details: map[string]any{
@@ -215,8 +215,8 @@ func NewInvalidAddressError(address string) *AppError {
 }
 
 // NewInvalidAmountError creates a new error for invalid amounts
-func NewInvalidAmountError(amount string) *AppError {
-	return &AppError{
+func NewInvalidAmountError(amount string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidAmount,
 		Message: fmt.Sprintf("Invalid amount: %s", amount),
 		Details: map[string]any{
@@ -226,8 +226,8 @@ func NewInvalidAmountError(amount string) *AppError {
 }
 
 // NewRPCError creates a new error for RPC-related issues
-func NewRPCError(err error) *AppError {
-	return &AppError{
+func NewRPCError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeRPCError,
 		Message: fmt.Sprintf("RPC error: %v", err),
 		Err:     err,
@@ -235,8 +235,8 @@ func NewRPCError(err error) *AppError {
 }
 
 // NewInvalidTransactionError creates a new error for invalid transactions
-func NewInvalidTransactionError(err error) *AppError {
-	return &AppError{
+func NewInvalidTransactionError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidTransaction,
 		Message: fmt.Sprintf("Invalid transaction: %v", err),
 		Err:     err,
@@ -244,16 +244,16 @@ func NewInvalidTransactionError(err error) *AppError {
 }
 
 // NewInvalidAPIKeyError creates a new error for invalid API keys
-func NewInvalidAPIKeyError() *AppError {
-	return &AppError{
+func NewInvalidAPIKeyError() *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidAPIKey,
 		Message: "Invalid API key",
 	}
 }
 
 // NewInvalidExplorerResponseError creates a new error for invalid responses from block explorer
-func NewInvalidExplorerResponseError(err error, response string) *AppError {
-	return &AppError{
+func NewInvalidExplorerResponseError(err error, response string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidExplorerResponse,
 		Message: fmt.Sprintf("Invalid response from block explorer: %v", err),
 		Err:     err,
@@ -264,8 +264,8 @@ func NewInvalidExplorerResponseError(err error, response string) *AppError {
 }
 
 // NewExplorerRequestFailedError creates a new error for failed block explorer requests
-func NewExplorerRequestFailedError(err error) *AppError {
-	return &AppError{
+func NewExplorerRequestFailedError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeExplorerRequestFailed,
 		Message: fmt.Sprintf("Block explorer request failed: %v", err),
 		Err:     err,
@@ -273,16 +273,16 @@ func NewExplorerRequestFailedError(err error) *AppError {
 }
 
 // NewMissingAPIKeyError creates a new error for missing API key
-func NewMissingAPIKeyError() *AppError {
-	return &AppError{
+func NewMissingAPIKeyError() *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeMissingAPIKey,
 		Message: "Missing API key for block explorer",
 	}
 }
 
 // NewInvalidNonceError creates a new error for invalid nonce
-func NewInvalidNonceError(address string, nonce uint64) *AppError {
-	return &AppError{
+func NewInvalidNonceError(address string, nonce uint64) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidNonce,
 		Message: fmt.Sprintf("Invalid nonce for address %s: %d", address, nonce),
 		Details: map[string]any{
@@ -293,8 +293,8 @@ func NewInvalidNonceError(address string, nonce uint64) *AppError {
 }
 
 // NewInvalidGasPriceError creates a new error for invalid gas price
-func NewInvalidGasPriceError(gasPrice *big.Int) *AppError {
-	return &AppError{
+func NewInvalidGasPriceError(gasPrice *big.Int) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidGasPrice,
 		Message: fmt.Sprintf("Invalid gas price: %s", gasPrice.String()),
 		Details: map[string]any{
@@ -304,8 +304,8 @@ func NewInvalidGasPriceError(gasPrice *big.Int) *AppError {
 }
 
 // NewInvalidGasLimitError creates a new error for invalid gas limit
-func NewInvalidGasLimitError(gasLimit uint64) *AppError {
-	return &AppError{
+func NewInvalidGasLimitError(gasLimit uint64) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidGasLimit,
 		Message: fmt.Sprintf("Invalid gas limit: %d", gasLimit),
 		Details: map[string]any{
@@ -315,8 +315,8 @@ func NewInvalidGasLimitError(gasLimit uint64) *AppError {
 }
 
 // NewInvalidContractCallError creates a new error for invalid contract calls
-func NewInvalidContractCallError(contract string, err error) *AppError {
-	return &AppError{
+func NewInvalidContractCallError(contract string, err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidContractCall,
 		Message: fmt.Sprintf("Invalid contract call to %s: %v", contract, err),
 		Err:     err,
@@ -328,8 +328,8 @@ func NewInvalidContractCallError(contract string, err error) *AppError {
 }
 
 // NewInvalidContractError creates a new error for invalid contracts
-func NewInvalidContractError(contract string, err error) *AppError {
-	return &AppError{
+func NewInvalidContractError(contract string, err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidContract,
 		Message: fmt.Sprintf("Invalid contract: %s", contract),
 		Err:     err,
@@ -341,8 +341,8 @@ func NewInvalidContractError(contract string, err error) *AppError {
 }
 
 // NewWalletError creates a new error for general wallet operations
-func NewWalletError(msg string, err error) *AppError {
-	return &AppError{
+func NewWalletError(msg string, err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeWalletError,
 		Message: fmt.Sprintf("Wallet error: %s", msg),
 		Err:     err,
@@ -353,16 +353,16 @@ func NewWalletError(msg string, err error) *AppError {
 }
 
 // NewInvalidWalletConfigError creates a new error for invalid wallet configuration
-func NewInvalidWalletConfigError(msg string) *AppError {
-	return &AppError{
+func NewInvalidWalletConfigError(msg string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidWalletConfig,
 		Message: fmt.Sprintf("Invalid wallet configuration: %s", msg),
 	}
 }
 
 // NewInvalidKeyTypeError creates a new error for invalid key types
-func NewInvalidKeyTypeError(expected, got string) *AppError {
-	return &AppError{
+func NewInvalidKeyTypeError(expected, got string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidKeyType,
 		Message: fmt.Sprintf("Invalid key type: expected %s, got %s", expected, got),
 		Details: map[string]any{
@@ -373,8 +373,8 @@ func NewInvalidKeyTypeError(expected, got string) *AppError {
 }
 
 // NewInvalidCurveError creates a new error for invalid curves
-func NewInvalidCurveError(expected, got string) *AppError {
-	return &AppError{
+func NewInvalidCurveError(expected, got string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidCurve,
 		Message: fmt.Sprintf("Invalid curve: expected %s, got %s", expected, got),
 		Details: map[string]any{
@@ -385,8 +385,8 @@ func NewInvalidCurveError(expected, got string) *AppError {
 }
 
 // NewInvalidSignatureError creates a new error for invalid signatures
-func NewInvalidSignatureError(err error) *AppError {
-	return &AppError{
+func NewInvalidSignatureError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidSignature,
 		Message: "Invalid signature",
 		Err:     err,
@@ -397,8 +397,8 @@ func NewInvalidSignatureError(err error) *AppError {
 }
 
 // NewSignatureRecoveryError creates a new error for signature recovery failures
-func NewSignatureRecoveryError(err error) *AppError {
-	return &AppError{
+func NewSignatureRecoveryError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeSignatureRecovery,
 		Message: "Failed to recover signature",
 		Err:     err,
@@ -406,8 +406,8 @@ func NewSignatureRecoveryError(err error) *AppError {
 }
 
 // NewAddressMismatchError creates a new error for address mismatches
-func NewAddressMismatchError(expected, got string) *AppError {
-	return &AppError{
+func NewAddressMismatchError(expected, got string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeAddressMismatch,
 		Message: fmt.Sprintf("Address mismatch: expected %s, got %s", expected, got),
 		Details: map[string]any{
@@ -418,8 +418,8 @@ func NewAddressMismatchError(expected, got string) *AppError {
 }
 
 // NewTransactionNotFoundError creates a new error for transaction not found
-func NewTransactionNotFoundError(hash string) *AppError {
-	return &AppError{
+func NewTransactionNotFoundError(hash string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeTransactionNotFound,
 		Message: fmt.Sprintf("Transaction not found: %s", hash),
 		Details: map[string]any{
@@ -429,8 +429,8 @@ func NewTransactionNotFoundError(hash string) *AppError {
 }
 
 // NewTransactionFailedError creates an error for failed transaction
-func NewTransactionFailedError(err error) *AppError {
-	return &AppError{
+func NewTransactionFailedError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeTransactionFailed,
 		Message: "Transaction failed",
 		Err:     err,
@@ -438,16 +438,16 @@ func NewTransactionFailedError(err error) *AppError {
 }
 
 // NewInvalidEncryptionKeyError creates a new error for invalid encryption keys
-func NewInvalidEncryptionKeyError(key string) *AppError {
-	return &AppError{
+func NewInvalidEncryptionKeyError(key string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidEncryptionKey,
 		Message: fmt.Sprintf("Invalid encryption key: %s", key),
 	}
 }
 
 // NewResourceNotFoundError creates an error for when a resource is not found
-func NewResourceNotFoundError(resource, id string) *AppError {
-	return &AppError{
+func NewResourceNotFoundError(resource, id string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeResourceNotFound,
 		Message: fmt.Sprintf("%s not found: %s", resource, id),
 		Details: map[string]any{
@@ -458,8 +458,8 @@ func NewResourceNotFoundError(resource, id string) *AppError {
 }
 
 // NewResourceAlreadyExistsError creates an error for when a resource already exists
-func NewResourceAlreadyExistsError(resource, attribute, value string) *AppError {
-	return &AppError{
+func NewResourceAlreadyExistsError(resource, attribute, value string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeResourceExists,
 		Message: fmt.Sprintf("%s with %s '%s' already exists", resource, attribute, value),
 		Details: map[string]any{
@@ -471,8 +471,8 @@ func NewResourceAlreadyExistsError(resource, attribute, value string) *AppError 
 }
 
 // NewSigningError creates an error for signing operations
-func NewSigningError(err error) *AppError {
-	return &AppError{
+func NewSigningError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeSigningError,
 		Message: "Signing operation failed",
 		Err:     err,
@@ -483,16 +483,16 @@ func NewSigningError(err error) *AppError {
 }
 
 // NewInvalidKeystoreError creates an error for invalid or uninitialized keystore
-func NewInvalidKeystoreError(keystore string) *AppError {
-	return &AppError{
+func NewInvalidKeystoreError(keystore string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidKeystore,
 		Message: fmt.Sprintf("Invalid keystore: %s", keystore),
 	}
 }
 
 // NewInvalidTokenError creates an error for invalid token data
-func NewInvalidTokenError(msg string, err error) *AppError {
-	return &AppError{
+func NewInvalidTokenError(msg string, err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidToken,
 		Message: fmt.Sprintf("Invalid token: %s", msg),
 		Err:     err,
@@ -500,8 +500,8 @@ func NewInvalidTokenError(msg string, err error) *AppError {
 }
 
 // NewContractNotFoundError creates a new error for when a contract is not found at the specified address
-func NewContractNotFoundError(address string, chainType string) *AppError {
-	return &AppError{
+func NewContractNotFoundError(address string, chainType string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeContractNotFound,
 		Message: fmt.Sprintf("Contract not found at address %s on chain %s", address, chainType),
 		Details: map[string]any{

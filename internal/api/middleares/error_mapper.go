@@ -7,7 +7,7 @@ import (
 
 // DefaultErrorMapper provides fallback behavior for mapping errors to HTTP responses
 func DefaultErrorMapper(err error) (int, any) {
-	if appErr, ok := err.(*errors.AppError); ok {
+	if appErr, ok := err.(*errors.Vault0Error); ok {
 		switch appErr.Code {
 		// Input validation errors - 400 Bad Request
 		case errors.ErrCodeInvalidInput:
@@ -109,7 +109,7 @@ func DefaultErrorMapper(err error) (int, any) {
 		}
 	}
 	// Fallback for untyped errors
-	appErr := &errors.AppError{
+	appErr := &errors.Vault0Error{
 		Code:    errors.ErrCodeInternalError,
 		Message: err.Error(),
 		Err:     err,

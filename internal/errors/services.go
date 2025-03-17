@@ -29,8 +29,8 @@ const (
 )
 
 // NewInvalidInputError creates an error for invalid input data with a custom message
-func NewInvalidInputError(message string, field string, value any) *AppError {
-	return &AppError{
+func NewInvalidInputError(message string, field string, value any) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidInput,
 		Message: message,
 		Details: map[string]any{
@@ -42,24 +42,24 @@ func NewInvalidInputError(message string, field string, value any) *AppError {
 }
 
 // NewNotFoundError creates a generic not found error
-func NewNotFoundError(entity string) *AppError {
-	return &AppError{
+func NewNotFoundError(entity string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeNotFound,
 		Message: fmt.Sprintf("%s not found", entity),
 	}
 }
 
 // NewAlreadyExistsError creates a generic already exists error
-func NewAlreadyExistsError(entity string) *AppError {
-	return &AppError{
+func NewAlreadyExistsError(entity string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeAlreadyExists,
 		Message: fmt.Sprintf("%s already exists", entity),
 	}
 }
 
 // NewOperationFailedError creates a generic operation failed error
-func NewOperationFailedError(operation string, err error) *AppError {
-	return &AppError{
+func NewOperationFailedError(operation string, err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeOperationFailed,
 		Message: fmt.Sprintf("%s operation failed", operation),
 		Err:     err,
@@ -67,8 +67,8 @@ func NewOperationFailedError(operation string, err error) *AppError {
 }
 
 // NewWalletNotFoundError creates an error for missing wallet
-func NewWalletNotFoundError(address string) *AppError {
-	return &AppError{
+func NewWalletNotFoundError(address string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeWalletNotFound,
 		Message: fmt.Sprintf("Wallet not found for address: %s", address),
 		Details: map[string]any{
@@ -78,8 +78,8 @@ func NewWalletNotFoundError(address string) *AppError {
 }
 
 // NewWalletExistsError creates an error for duplicate wallet
-func NewWalletExistsError(address string) *AppError {
-	return &AppError{
+func NewWalletExistsError(address string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeWalletExists,
 		Message: fmt.Sprintf("Wallet already exists for address: %s", address),
 		Details: map[string]any{
@@ -89,8 +89,8 @@ func NewWalletExistsError(address string) *AppError {
 }
 
 // NewInvalidWalletError creates an error for invalid wallet data
-func NewInvalidWalletError(details map[string]any) *AppError {
-	return &AppError{
+func NewInvalidWalletError(details map[string]any) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidWallet,
 		Message: "Invalid wallet data",
 		Details: details,
@@ -98,24 +98,24 @@ func NewInvalidWalletError(details map[string]any) *AppError {
 }
 
 // NewMissingKeyIDError creates an error for when a wallet is missing a key ID
-func NewMissingKeyIDError() *AppError {
-	return &AppError{
+func NewMissingKeyIDError() *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeMissingKeyID,
 		Message: "Internal wallet requires a key ID",
 	}
 }
 
 // NewMissingWalletAddressError creates an error for when a wallet is missing an address
-func NewMissingWalletAddressError() *AppError {
-	return &AppError{
+func NewMissingWalletAddressError() *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeMissingWalletAddress,
 		Message: "External wallet requires an address",
 	}
 }
 
 // NewWalletOperationFailedError creates an error for wallet operation failures
-func NewWalletOperationFailedError(operation string, err error) *AppError {
-	return &AppError{
+func NewWalletOperationFailedError(operation string, err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeWalletOperationFailed,
 		Message: fmt.Sprintf("Wallet %s operation failed", operation),
 		Err:     err,
@@ -123,32 +123,32 @@ func NewWalletOperationFailedError(operation string, err error) *AppError {
 }
 
 // NewUserNotFoundError creates an error for missing user
-func NewUserNotFoundError() *AppError {
-	return &AppError{
+func NewUserNotFoundError() *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeUserNotFound,
 		Message: "User not found",
 	}
 }
 
 // NewUserExistsError creates an error for duplicate user
-func NewUserExistsError(email string) *AppError {
-	return &AppError{
+func NewUserExistsError(email string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeUserExists,
 		Message: fmt.Sprintf("User already exists with email: %s", email),
 	}
 }
 
 // NewInvalidCredentialsError creates an error for invalid login credentials
-func NewInvalidCredentialsError() *AppError {
-	return &AppError{
+func NewInvalidCredentialsError() *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidCredentials,
 		Message: "Invalid email or password",
 	}
 }
 
 // NewEmailExistsError creates an error for when an email is already registered
-func NewEmailExistsError(email string) *AppError {
-	return &AppError{
+func NewEmailExistsError(email string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeEmailExists,
 		Message: fmt.Sprintf("Email already exists: %s", email),
 		Details: map[string]any{
@@ -158,8 +158,8 @@ func NewEmailExistsError(email string) *AppError {
 }
 
 // NewTransactionSyncFailedError creates an error for transaction sync failure
-func NewTransactionSyncFailedError(operation string, err error) *AppError {
-	return &AppError{
+func NewTransactionSyncFailedError(operation string, err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeTransactionSyncFailed,
 		Message: fmt.Sprintf("Transaction sync failed: %s", operation),
 		Err:     err,

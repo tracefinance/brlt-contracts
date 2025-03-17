@@ -21,8 +21,8 @@ const (
 )
 
 // NewValidationError creates an error for request validation failures
-func NewValidationError(details map[string]any) *AppError {
-	return &AppError{
+func NewValidationError(details map[string]any) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeValidationError,
 		Message: "Request validation failed",
 		Details: details,
@@ -30,24 +30,24 @@ func NewValidationError(details map[string]any) *AppError {
 }
 
 // NewInvalidRequestError creates an error for malformed requests
-func NewInvalidRequestError(message string) *AppError {
-	return &AppError{
+func NewInvalidRequestError(message string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidRequest,
 		Message: message,
 	}
 }
 
 // NewMissingParameterError creates an error for missing required parameters
-func NewMissingParameterError(param string) *AppError {
-	return &AppError{
+func NewMissingParameterError(param string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeMissingParameter,
 		Message: "Missing required parameter: " + param,
 	}
 }
 
 // NewInvalidParameterError creates an error for invalid parameter values
-func NewInvalidParameterError(param string, reason string) *AppError {
-	return &AppError{
+func NewInvalidParameterError(param string, reason string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidParameter,
 		Message: "Invalid parameter: " + param,
 		Details: map[string]any{
@@ -58,40 +58,40 @@ func NewInvalidParameterError(param string, reason string) *AppError {
 }
 
 // NewUnauthorizedError creates an error for unauthorized access
-func NewUnauthorizedError() *AppError {
-	return &AppError{
+func NewUnauthorizedError() *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeUnauthorized,
 		Message: "Authentication required",
 	}
 }
 
 // NewForbiddenError creates an error for forbidden access
-func NewForbiddenError() *AppError {
-	return &AppError{
+func NewForbiddenError() *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeForbidden,
 		Message: "Access forbidden",
 	}
 }
 
 // NewInvalidAccessTokenError creates an error for invalid authentication tokens
-func NewInvalidAccessTokenError() *AppError {
-	return &AppError{
+func NewInvalidAccessTokenError() *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInvalidAccessToken,
 		Message: "Invalid authentication token",
 	}
 }
 
 // NewAccessTokenExpiredError creates an error for expired authentication tokens
-func NewAccessTokenExpiredError() *AppError {
-	return &AppError{
+func NewAccessTokenExpiredError() *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeAccessTokenExpired,
 		Message: "Authentication token has expired",
 	}
 }
 
 // NewInternalError creates an error for internal server errors
-func NewInternalError(err error) *AppError {
-	return &AppError{
+func NewInternalError(err error) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeInternalError,
 		Message: "Internal server error",
 		Err:     err,
@@ -99,16 +99,16 @@ func NewInternalError(err error) *AppError {
 }
 
 // NewServiceUnavailableError creates an error for service unavailability
-func NewServiceUnavailableError(service string) *AppError {
-	return &AppError{
+func NewServiceUnavailableError(service string) *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeServiceUnavailable,
 		Message: service + " service is currently unavailable",
 	}
 }
 
 // NewTimeoutError creates an error for request timeouts
-func NewTimeoutError() *AppError {
-	return &AppError{
+func NewTimeoutError() *Vault0Error {
+	return &Vault0Error{
 		Code:    ErrCodeTimeout,
 		Message: "Request timed out",
 	}

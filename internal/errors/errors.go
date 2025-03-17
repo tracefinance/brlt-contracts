@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-// AppError represents a structured application error
-type AppError struct {
+// Vault0Error represents a structured application error
+type Vault0Error struct {
 	// Code is a unique identifier for the error type
 	Code string `json:"code"`
 	// Message is a human-readable error message
@@ -18,7 +18,7 @@ type AppError struct {
 }
 
 // Error implements the error interface
-func (e *AppError) Error() string {
+func (e *Vault0Error) Error() string {
 	if e.Err != nil {
 		return fmt.Sprintf("%s: %v", e.Message, e.Err)
 	}
@@ -26,13 +26,13 @@ func (e *AppError) Error() string {
 }
 
 // Unwrap returns the underlying error
-func (e *AppError) Unwrap() error {
+func (e *Vault0Error) Unwrap() error {
 	return e.Err
 }
 
 // MarshalJSON implements json.Marshaler
-func (e *AppError) MarshalJSON() ([]byte, error) {
-	type Alias AppError
+func (e *Vault0Error) MarshalJSON() ([]byte, error) {
+	type Alias Vault0Error
 	return json.Marshal(&struct {
 		*Alias
 		Error string `json:"error"`
@@ -43,8 +43,8 @@ func (e *AppError) MarshalJSON() ([]byte, error) {
 }
 
 // Is implements error matching for errors.Is
-func (e *AppError) Is(target error) bool {
-	t, ok := target.(*AppError)
+func (e *Vault0Error) Is(target error) bool {
+	t, ok := target.(*Vault0Error)
 	if !ok {
 		return false
 	}

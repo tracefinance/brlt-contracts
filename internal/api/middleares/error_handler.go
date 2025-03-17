@@ -34,7 +34,7 @@ func (h *ErrorHandler) Middleware() gin.HandlerFunc {
 
 			// Handle binding errors from c.ShouldBindJSON
 			if bindErr, ok := err.(*gin.Error); ok && bindErr.Type == gin.ErrorTypeBind {
-				err = &errors.AppError{
+				err = &errors.Vault0Error{
 					Code:    errors.ErrCodeInvalidRequest,
 					Message: "Invalid request format",
 					Err:     bindErr,
@@ -45,7 +45,7 @@ func (h *ErrorHandler) Middleware() gin.HandlerFunc {
 				for _, verr := range validationErrors {
 					details[verr.Field()] = verr.Tag()
 				}
-				err = &errors.AppError{
+				err = &errors.Vault0Error{
 					Code:    errors.ErrCodeValidationError,
 					Message: "Invalid request format",
 					Details: details,

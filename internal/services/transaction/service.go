@@ -90,7 +90,7 @@ func (s *transactionService) GetTransaction(ctx context.Context, chainType types
 	}
 
 	// If not found in database, fetch from blockchain explorer
-	if _, ok := err.(*errors.AppError); ok && err.(*errors.AppError).Code == errors.ErrCodeTransactionNotFound {
+	if _, ok := err.(*errors.Vault0Error); ok && err.(*errors.Vault0Error).Code == errors.ErrCodeTransactionNotFound {
 		// Get explorer for the chain
 		explorer, err := s.blockExplorerFactory.GetExplorer(chainType)
 		if err != nil {
