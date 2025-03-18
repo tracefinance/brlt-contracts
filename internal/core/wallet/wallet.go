@@ -19,9 +19,6 @@ package wallet
 import (
 	"context"
 	"math/big"
-	"vault0/internal/config"
-	"vault0/internal/core/keystore"
-	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
@@ -103,38 +100,4 @@ type Wallet interface {
 	//   - []byte: Signed transaction bytes ready for broadcasting
 	//   - error: Any error during signing
 	SignTransaction(ctx context.Context, tx *types.Transaction) ([]byte, error)
-}
-
-// NewWallet creates a new wallet instance for the specified blockchain network.
-//
-// The function selects the appropriate wallet implementation based on the chain type:
-//   - Ethereum: Uses EVMWallet with Ethereum parameters
-//   - Polygon: Uses EVMWallet with Polygon parameters
-//   - Base: Uses EVMWallet with Base parameters
-//
-// Parameters:
-//   - ctx: Context for the operation
-//   - keystore: Key management interface for accessing private keys
-//   - chains: Configuration for supported blockchain networks
-//   - cfg: Application configuration
-//   - chainType: Target blockchain network
-//   - keyID: Identifier for the key to use with this wallet
-//
-// Returns:
-//   - Wallet: Chain-specific wallet implementation
-//   - error: ErrUnsupportedChain if chain type is not supported, or other errors
-func NewWallet(ctx context.Context, keystore keystore.KeyStore, chains *types.Chains, cfg *config.Config, chainType types.ChainType, keyID string) (Wallet, error) {
-	switch chainType {
-	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
-		// Get chain struct from blockchain package
-		chain, err := chains.Get(chainType)
-		if err != nil {
-			return nil, errors.NewChainNotSupportedError(string(chainType))
-		}
-
-		// All EVM-compatible chains use the same implementation
-		return NewEVMWallet(keystore, chain, keyID)
-	default:
-		return nil, errors.NewChainNotSupportedError(string(chainType))
-	}
 }

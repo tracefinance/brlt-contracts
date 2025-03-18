@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"vault0/internal/errors"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
@@ -21,10 +22,11 @@ type EVMBlockchain struct {
 	client    *ethclient.Client
 	rpcClient *rpc.Client
 	chain     types.Chain
+	log       logger.Logger
 }
 
 // NewEVMBlockchain creates a new EVM blockchain client
-func NewEVMBlockchain(chain types.Chain) (*EVMBlockchain, error) {
+func NewEVMBlockchain(chain types.Chain, log logger.Logger) (*EVMBlockchain, error) {
 	if chain.RPCUrl == "" {
 		return nil, errors.NewInvalidBlockchainConfigError(string(chain.Type), "rpc_url")
 	}
@@ -43,6 +45,7 @@ func NewEVMBlockchain(chain types.Chain) (*EVMBlockchain, error) {
 		client:    client,
 		rpcClient: rpcClient,
 		chain:     chain,
+		log:       log,
 	}
 
 	// Try to get the chain ID to verify the connection

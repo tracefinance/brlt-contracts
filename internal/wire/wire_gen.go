@@ -52,18 +52,18 @@ func BuildContainer() (*Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	tokenStore := tokenstore.NewTokenStore(dbDB)
+	tokenStore := tokenstore.NewTokenStore(dbDB, loggerLogger)
 	chains, err := types.NewChains(configConfig)
 	if err != nil {
 		return nil, err
 	}
-	factory := wallet.NewFactory(keyStore, chains, configConfig)
-	registry := blockchain.NewRegistry(chains, configConfig)
+	factory := wallet.NewFactory(keyStore, chains, configConfig, loggerLogger)
+	registry := blockchain.NewRegistry(chains, configConfig, loggerLogger)
 	contractFactory := contract.NewFactory(registry, factory, configConfig)
 	blockexplorerFactory := blockexplorer.NewFactory(chains, configConfig, loggerLogger)
 	core := NewCore(configConfig, dbDB, loggerLogger, keyStore, tokenStore, chains, factory, registry, contractFactory, blockexplorerFactory)
 	repository := user.NewRepository(dbDB)
-	service := user.NewService(repository)
+	service := user.NewService(loggerLogger, repository)
 	handler := user2.NewHandler(service)
 	walletRepository := wallet2.NewRepository(dbDB)
 	walletService := wallet2.NewService(configConfig, loggerLogger, walletRepository, keyStore, factory, registry, chains)

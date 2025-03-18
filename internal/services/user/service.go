@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"vault0/internal/errors"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 
 	"golang.org/x/crypto/bcrypt"
@@ -34,12 +35,14 @@ type Service interface {
 
 // service implements the Service interface
 type service struct {
+	log        logger.Logger
 	repository Repository
 }
 
 // NewService creates a new user service
-func NewService(repository Repository) Service {
+func NewService(log logger.Logger, repository Repository) Service {
 	return &service{
+		log:        log,
 		repository: repository,
 	}
 }

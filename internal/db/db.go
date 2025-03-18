@@ -18,7 +18,7 @@ type DB struct {
 	Conn      *sql.DB
 	Config    *config.Config
 	Snowflake *Snowflake
-	Logger    logger.Logger
+	Log       logger.Logger
 }
 
 // NewDatabase creates a new database connection
@@ -38,7 +38,7 @@ func NewDatabase(cfg *config.Config, snowflake *Snowflake, log logger.Logger) (*
 	}
 
 	log.Info("Connected to database", logger.String("path", cfg.DBPath))
-	return &DB{Conn: conn, Config: cfg, Logger: log}, nil
+	return &DB{Conn: conn, Config: cfg, Log: log}, nil
 }
 
 // Close closes the database connection

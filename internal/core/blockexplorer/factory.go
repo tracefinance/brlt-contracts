@@ -14,11 +14,11 @@ type Factory interface {
 }
 
 // NewFactory creates a new BlockExplorer factory
-func NewFactory(chains *types.Chains, cfg *config.Config, logger logger.Logger) Factory {
+func NewFactory(chains *types.Chains, cfg *config.Config, log logger.Logger) Factory {
 	return &factory{
 		chains:    chains,
 		cfg:       cfg,
-		logger:    logger,
+		log:       log,
 		explorers: make(map[types.ChainType]BlockExplorer),
 	}
 }
@@ -26,7 +26,7 @@ func NewFactory(chains *types.Chains, cfg *config.Config, logger logger.Logger) 
 type factory struct {
 	chains    *types.Chains
 	cfg       *config.Config
-	logger    logger.Logger
+	log       logger.Logger
 	explorers map[types.ChainType]BlockExplorer
 }
 
@@ -49,7 +49,7 @@ func (f *factory) GetExplorer(chainType types.ChainType) (BlockExplorer, error) 
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
 		// Create EVM-compatible explorer
-		explorer = NewEtherscanExplorer(chain, chain.ExplorerAPIUrl, chain.ExplorerUrl, chain.ExplorerAPIKey, f.logger)
+		explorer = NewEtherscanExplorer(chain, chain.ExplorerAPIUrl, chain.ExplorerUrl, chain.ExplorerAPIKey, f.log)
 	default:
 		return nil, errors.NewChainNotSupportedError(string(chainType))
 	}

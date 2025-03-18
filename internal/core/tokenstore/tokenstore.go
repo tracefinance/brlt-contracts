@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"vault0/internal/db"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
@@ -34,6 +35,6 @@ type TokenStore interface {
 }
 
 // NewTokenStore creates a new TokenStore instance
-func NewTokenStore(db *db.DB) TokenStore {
-	return &dbTokenStore{db: db}
+func NewTokenStore(db *db.DB, log logger.Logger) TokenStore {
+	return &dbTokenStore{db: db, log: log}
 }

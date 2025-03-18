@@ -55,7 +55,7 @@ func setupTestDB(t *testing.T) (*db.DB, func()) {
 	return &db.DB{
 		Conn:   sqldb,
 		Config: testConfig(),
-		Logger: logger.NewNopLogger(),
+		Log:    logger.NewNopLogger(),
 	}, cleanup
 }
 

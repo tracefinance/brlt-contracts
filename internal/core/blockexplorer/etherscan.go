@@ -44,7 +44,7 @@ type EtherscanExplorer struct {
 	apiKey      string
 	chain       *types.Chain
 	httpClient  *http.Client
-	logger      logger.Logger
+	log         logger.Logger
 
 	// Rate limiting
 	limiter *rate.Limiter
@@ -52,7 +52,7 @@ type EtherscanExplorer struct {
 }
 
 // NewEtherscanExplorer creates a new instance of EtherscanExplorer
-func NewEtherscanExplorer(chain types.Chain, apiURL, explorerURL, apiKey string, logger logger.Logger) BlockExplorer {
+func NewEtherscanExplorer(chain types.Chain, apiURL, explorerURL, apiKey string, log logger.Logger) BlockExplorer {
 	e := &EtherscanExplorer{
 		apiURL:      apiURL,
 		explorerURL: explorerURL,
@@ -61,7 +61,7 @@ func NewEtherscanExplorer(chain types.Chain, apiURL, explorerURL, apiKey string,
 		httpClient: &http.Client{
 			Timeout: defaultTimeout,
 		},
-		logger:  logger,
+		log:     log,
 		limiter: rate.NewLimiter(rate.Limit(requestsPerSecond), burstSize),
 		done:    make(chan struct{}),
 	}
@@ -90,7 +90,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 	// Construct full URL
 	reqURL := fmt.Sprintf("%s?%s", e.apiURL, params.Encode())
 
-	e.logger.Debug("Making request to Etherscan API",
+	e.log.Debug("Making request to Etherscan API",
 		logger.String("url", reqURL),
 		logger.String("module", params.Get("module")),
 		logger.String("action", params.Get("action")),
@@ -100,7 +100,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 	var lastErr error
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
-			e.logger.Debug("Retrying request",
+			e.log.Debug("Retrying request",
 				logger.Int("attempt", attempt+1),
 				logger.Int("max_retries", maxRetries),
 			)
@@ -119,7 +119,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 		if err != nil {
-			e.logger.Error("Failed to create request",
+			e.log.Error("Failed to create request",
 				logger.Error(err),
 				logger.String("module", params.Get("module")),
 				logger.String("action", params.Get("action")),
@@ -130,7 +130,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 		resp, err := e.httpClient.Do(req)
 		if err != nil {
 			lastErr = err
-			e.logger.Warn("Request failed, will retry with backoff",
+			e.log.Warn("Request failed, will retry with backoff",
 				logger.Error(err),
 				logger.Int("attempt", attempt+1),
 			)
@@ -140,7 +140,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 
 		// Check for rate limiting
 		if resp.StatusCode == http.StatusTooManyRequests {
-			e.logger.Warn("Rate limit exceeded, waiting before retry",
+			e.log.Warn("Rate limit exceeded, waiting before retry",
 				logger.String("module", params.Get("module")),
 				logger.String("action", params.Get("action")),
 				logger.String("chain", string(e.chain.Type)),
@@ -158,7 +158,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			lastErr = err
-			e.logger.Warn("Failed to read response body, will retry",
+			e.log.Warn("Failed to read response body, will retry",
 				logger.Error(err),
 				logger.Int("attempt", attempt+1),
 			)
@@ -168,7 +168,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 		// Parse response
 		var response etherscanResponse
 		if err := json.Unmarshal(body, &response); err != nil {
-			e.logger.Error("Failed to parse response",
+			e.log.Error("Failed to parse response",
 				logger.Error(err),
 				logger.String("body", string(body)),
 			)
@@ -178,7 +178,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 		// Check for API errors
 		if response.Status == "0" && response.Message == "NOTOK" {
 			if strings.Contains(response.Message, "Invalid API Key") {
-				e.logger.Error("Invalid API key",
+				e.log.Error("Invalid API key",
 					logger.String("module", params.Get("module")),
 					logger.String("action", params.Get("action")),
 					logger.String("chain", string(e.chain.Type)),
@@ -187,7 +187,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 				return nil, errors.NewInvalidAPIKeyError()
 			}
 			if strings.Contains(string(response.Result), "Max rate limit reached") {
-				e.logger.Warn("Rate limit exceeded in API response, waiting before retry",
+				e.log.Warn("Rate limit exceeded in API response, waiting before retry",
 					logger.String("module", params.Get("module")),
 					logger.String("action", params.Get("action")),
 					logger.String("result", string(response.Result)),
@@ -200,7 +200,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 				time.Sleep(backoffDelay)
 				continue
 			}
-			e.logger.Error("API error",
+			e.log.Error("API error",
 				logger.String("message", response.Message),
 				logger.String("module", params.Get("module")),
 				logger.String("action", params.Get("action")),
@@ -209,7 +209,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 			return nil, errors.NewExplorerError(fmt.Errorf("API error: %s", response.Message))
 		}
 
-		e.logger.Debug("Request successful",
+		e.log.Debug("Request successful",
 			logger.String("module", params.Get("module")),
 			logger.String("action", params.Get("action")),
 			logger.String("chain", string(e.chain.Type)),
@@ -218,7 +218,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 		return response.Result, nil
 	}
 
-	e.logger.Error("Max retries exceeded",
+	e.log.Error("Max retries exceeded",
 		logger.Error(lastErr),
 		logger.String("module", params.Get("module")),
 		logger.String("action", params.Get("action")),

@@ -4,6 +4,7 @@ import (
 	"sync"
 	"vault0/internal/config"
 	"vault0/internal/errors"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
@@ -16,16 +17,18 @@ type Registry interface {
 
 // Factory creates blockchain implementations
 type registry struct {
-	cfg        *config.Config
 	chains     *types.Chains
+	cfg        *config.Config
+	log        logger.Logger
 	clients    map[types.ChainType]Blockchain
 	clientsMux sync.RWMutex
 }
 
 // NewRegistry creates a new blockchain registry with the given configuration
-func NewRegistry(chains *types.Chains, cfg *config.Config) Registry {
+func NewRegistry(chains *types.Chains, cfg *config.Config, log logger.Logger) Registry {
 	return &registry{
 		cfg:     cfg,
+		log:     log,
 		chains:  chains,
 		clients: make(map[types.ChainType]Blockchain),
 	}
@@ -48,7 +51,7 @@ func (r *registry) GetBlockchain(chainType types.ChainType) (Blockchain, error) 
 		if err != nil {
 			return nil, err
 		}
-		client, err := NewEVMBlockchain(chain)
+		client, err := NewEVMBlockchain(chain, r.log)
 		if err != nil {
 			return nil, err
 		}

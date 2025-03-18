@@ -8,12 +8,14 @@ import (
 
 	"vault0/internal/db"
 	"vault0/internal/errors"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
 // dbTokenStore implements the TokenStore interface using an SQL database
 type dbTokenStore struct {
-	db *db.DB
+	db  *db.DB
+	log logger.Logger
 }
 
 // AddToken adds a new token to the database

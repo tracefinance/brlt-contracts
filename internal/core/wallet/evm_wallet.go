@@ -13,6 +13,7 @@ import (
 	coreCrypto "vault0/internal/core/crypto"
 	"vault0/internal/core/keystore"
 	"vault0/internal/errors"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
@@ -22,12 +23,13 @@ const (
 )
 
 type EVMWallet struct {
-	keyStore keystore.KeyStore
 	chain    types.Chain
 	keyID    string
+	keyStore keystore.KeyStore
+	log      logger.Logger
 }
 
-func NewEVMWallet(keyStore keystore.KeyStore, chain types.Chain, keyID string) (*EVMWallet, error) {
+func NewEVMWallet(keyID string, chain types.Chain, keyStore keystore.KeyStore, log logger.Logger) (*EVMWallet, error) {
 	if keyStore == nil {
 		return nil, errors.NewInvalidWalletConfigError("keystore cannot be nil")
 	}
@@ -47,9 +49,10 @@ func NewEVMWallet(keyStore keystore.KeyStore, chain types.Chain, keyID string) (
 	}
 
 	return &EVMWallet{
-		keyStore: keyStore,
 		chain:    chain,
 		keyID:    keyID,
+		keyStore: keyStore,
+		log:      log,
 	}, nil
 }
 

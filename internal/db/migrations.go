@@ -34,7 +34,7 @@ func (db *DB) MigrateDatabase() error {
 		return errors.NewDatabaseError(err)
 	}
 
-	db.Logger.Info("Database migrations applied successfully",
+	db.Log.Info("Database migrations applied successfully",
 		logger.String("path", db.Config.MigrationsPath))
 	return nil
 }
