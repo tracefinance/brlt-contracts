@@ -47,8 +47,8 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 // @Description Get transaction details by hash
 // @Tags transactions
 // @Produce json
-// @Param chain_type path string false "Chain type (required only for wallet-scoped route)"
-// @Param address path string false "Wallet address (required only for wallet-scoped route)"
+// @Param chain_type path string true "Chain type (required only for wallet-scoped route)"
+// @Param address path string true "Wallet address (required only for wallet-scoped route)"
 // @Param hash path string true "Transaction hash"
 // @Success 200 {object} TransactionResponse
 // @Failure 404 {object} errors.Vault0Error "Transaction not found"

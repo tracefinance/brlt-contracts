@@ -30,7 +30,7 @@ CONTRACTS_DIR = ./contracts
 # Package name
 PACKAGE = vault0
 
-.PHONY: all build clean server server-test server-test-coverage server-deps server-install genkey genkey-install server-dev server-clean git-reset git-status git-pull git-push ui ui-deps ui-dev ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests git-diff-setup verify-tokens verify-tokens-build
+.PHONY: all build clean server server-test server-test-coverage server-deps server-install genkey genkey-install server-dev server-clean git-reset git-status git-pull git-push ui ui-deps ui-dev ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests git-diff-setup verify-tokens verify-tokens-build swag-install openapi
 
 # Count lines of code in the project
 count-lines:
@@ -101,6 +101,16 @@ wire-install:
 wire:
 	@echo "Generating Wire dependency injection code..."
 	cd internal/wire && wire
+
+# Install Swaggo tool
+swag-install:
+	@echo "Installing Swaggo tool..."
+	$(GOGET) github.com/swaggo/swag/cmd/swag
+
+# Generate OpenAPI documentation
+openapi: 
+	@echo "Generating OpenAPI documentation..."
+	$$($(GOCMD) env GOPATH)/bin/swag init -g internal/api/docs.go -o internal/api/docs
 
 # Combined clean target
 clean: server-clean ui-clean
