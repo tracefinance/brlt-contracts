@@ -7,10 +7,10 @@ import (
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/contract"
-	"vault0/internal/core/db"
 	"vault0/internal/core/keystore"
 	"vault0/internal/core/tokenstore"
 	"vault0/internal/core/wallet"
+	"vault0/internal/db"
 	"vault0/internal/logger"
 	"vault0/internal/types"
 )

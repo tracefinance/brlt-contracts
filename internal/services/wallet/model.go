@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"time"
 
-	"vault0/internal/core/db"
+	"vault0/internal/db"
 	"vault0/internal/types"
 )
 

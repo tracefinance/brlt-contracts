@@ -3,7 +3,7 @@ package tokenstore
 import (
 	"context"
 
-	"vault0/internal/core/db"
+	"vault0/internal/db"
 	"vault0/internal/types"
 )
 

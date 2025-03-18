@@ -19,8 +19,8 @@ import (
 	"crypto/x509"
 	"vault0/internal/config"
 	coreCrypto "vault0/internal/core/crypto"
-	"vault0/internal/core/db"
 	"vault0/internal/core/keygen"
+	"vault0/internal/db"
 	"vault0/internal/errors"
 	"vault0/internal/types"
 

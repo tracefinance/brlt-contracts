@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"time"
-	"vault0/internal/core/db"
+	"vault0/internal/db"
 	"vault0/internal/errors"
 
 	"github.com/go-oauth2/oauth2/v4"

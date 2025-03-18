@@ -3,7 +3,7 @@ package oauth2
 import (
 	"strconv"
 	"time"
-	"vault0/internal/core/db"
+	"vault0/internal/db"
 	"vault0/internal/logger"
 
 	"github.com/gin-gonic/gin"

@@ -4,7 +4,7 @@ import (
 	"context"
 	"strconv"
 	"time"
-	"vault0/internal/core/db"
+	"vault0/internal/db"
 	"vault0/internal/errors"
 	"vault0/internal/types"
 )

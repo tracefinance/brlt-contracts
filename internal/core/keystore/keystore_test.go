@@ -6,7 +6,7 @@ import (
 
 	"vault0/internal/config"
 	"vault0/internal/core/crypto"
-	"vault0/internal/core/db"
+	"vault0/internal/db"
 	"vault0/internal/logger"
 
 	"github.com/stretchr/testify/assert"
