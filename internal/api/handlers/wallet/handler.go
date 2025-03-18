@@ -40,6 +40,16 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 }
 
 // CreateWallet handles wallet creation
+// @Summary Create a new wallet
+// @Description Create a new wallet with the given chain type and name
+// @Tags wallets
+// @Accept json
+// @Produce json
+// @Param wallet body CreateWalletRequest true "Wallet data"
+// @Success 201 {object} WalletResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /wallets [post]
 func (h *Handler) CreateWallet(c *gin.Context) {
 	var req CreateWalletRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -62,6 +72,16 @@ func (h *Handler) CreateWallet(c *gin.Context) {
 }
 
 // GetWallet handles retrieving a wallet by chain type and address
+// @Summary Get a wallet
+// @Description Get a wallet by chain type and address
+// @Tags wallets
+// @Produce json
+// @Param chain_type path string true "Chain type"
+// @Param address path string true "Wallet address"
+// @Success 200 {object} WalletResponse
+// @Failure 404 {object} errors.Vault0Error "Wallet not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /wallets/{chain_type}/{address} [get]
 func (h *Handler) GetWallet(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")
@@ -81,6 +101,19 @@ func (h *Handler) GetWallet(c *gin.Context) {
 }
 
 // UpdateWallet handles updating a wallet
+// @Summary Update a wallet
+// @Description Update a wallet's name and tags
+// @Tags wallets
+// @Accept json
+// @Produce json
+// @Param chain_type path string true "Chain type"
+// @Param address path string true "Wallet address"
+// @Param wallet body UpdateWalletRequest true "Wallet data to update"
+// @Success 200 {object} WalletResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "Wallet not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /wallets/{chain_type}/{address} [put]
 func (h *Handler) UpdateWallet(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")
@@ -106,6 +139,15 @@ func (h *Handler) UpdateWallet(c *gin.Context) {
 }
 
 // DeleteWallet handles deleting a wallet
+// @Summary Delete a wallet
+// @Description Delete a wallet by chain type and address
+// @Tags wallets
+// @Param chain_type path string true "Chain type"
+// @Param address path string true "Wallet address"
+// @Success 204 "No Content"
+// @Failure 404 {object} errors.Vault0Error "Wallet not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /wallets/{chain_type}/{address} [delete]
 func (h *Handler) DeleteWallet(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")
@@ -122,6 +164,15 @@ func (h *Handler) DeleteWallet(c *gin.Context) {
 }
 
 // ListWallets handles listing wallets
+// @Summary List wallets
+// @Description Get a paginated list of wallets
+// @Tags wallets
+// @Produce json
+// @Param limit query int false "Number of items to return (default: 10)" default(10)
+// @Param offset query int false "Number of items to skip (default: 0)" default(0)
+// @Success 200 {object} PagedWalletsResponse
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /wallets [get]
 func (h *Handler) ListWallets(c *gin.Context) {
 	// Get pagination parameters
 	limitStr := c.Query("limit")

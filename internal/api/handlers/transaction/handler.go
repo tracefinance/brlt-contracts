@@ -43,6 +43,18 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 
 // GetTransaction handles GET /wallets/:chain_type/:address/transactions/:hash
 // or GET /transactions/:hash
+// @Summary Get a transaction
+// @Description Get transaction details by hash
+// @Tags transactions
+// @Produce json
+// @Param chain_type path string false "Chain type (required only for wallet-scoped route)"
+// @Param address path string false "Wallet address (required only for wallet-scoped route)"
+// @Param hash path string true "Transaction hash"
+// @Success 200 {object} TransactionResponse
+// @Failure 404 {object} errors.Vault0Error "Transaction not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /transactions/{hash} [get]
+// @Router /wallets/{chain_type}/{address}/transactions/{hash} [get]
 func (h *Handler) GetTransaction(c *gin.Context) {
 	hash := c.Param("hash")
 
@@ -56,7 +68,19 @@ func (h *Handler) GetTransaction(c *gin.Context) {
 }
 
 // GetTransactionsByAddress handles GET /wallets/:chain_type/:address/transactions
-// or GET /transactions/:chain_type/:address
+// @Summary List transactions for an address
+// @Description Get a paginated list of transactions for a specific wallet address
+// @Tags transactions
+// @Produce json
+// @Param chain_type path string true "Chain type"
+// @Param address path string true "Wallet address"
+// @Param limit query int false "Number of items to return (default: 10)" default(10)
+// @Param offset query int false "Number of items to skip (default: 0)" default(0)
+// @Success 200 {object} PagedTransactionsResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "Wallet not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /wallets/{chain_type}/{address}/transactions [get]
 func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")
@@ -86,7 +110,17 @@ func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 }
 
 // SyncTransactions handles POST /wallets/:chain_type/:address/transactions/sync
-// or POST /transactions/:chain_type/:address/sync
+// @Summary Sync transactions for an address
+// @Description Sync blockchain transactions for a specific wallet address
+// @Tags transactions
+// @Produce json
+// @Param chain_type path string true "Chain type"
+// @Param address path string true "Wallet address"
+// @Success 200 {object} SyncTransactionsResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "Wallet not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /wallets/{chain_type}/{address}/transactions/sync [post]
 func (h *Handler) SyncTransactions(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")

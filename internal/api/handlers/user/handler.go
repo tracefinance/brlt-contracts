@@ -40,6 +40,17 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 }
 
 // CreateUser handles POST /users
+// @Summary Create a new user
+// @Description Create a new user with the given email and password
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param user body CreateUserRequest true "User data"
+// @Success 201 {object} UserResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 409 {object} errors.Vault0Error "User already exists"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /users [post]
 func (h *Handler) CreateUser(c *gin.Context) {
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -57,6 +68,18 @@ func (h *Handler) CreateUser(c *gin.Context) {
 }
 
 // UpdateUser handles PUT /users/:id
+// @Summary Update a user
+// @Description Update a user's information by ID
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Param user body UpdateUserRequest true "User data to update"
+// @Success 200 {object} UserResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "User not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /users/{id} [put]
 func (h *Handler) UpdateUser(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -80,6 +103,15 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 }
 
 // DeleteUser handles DELETE /users/:id
+// @Summary Delete a user
+// @Description Delete a user by ID
+// @Tags users
+// @Param id path int true "User ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "User not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /users/{id} [delete]
 func (h *Handler) DeleteUser(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -96,6 +128,16 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 }
 
 // GetUser handles GET /users/:id
+// @Summary Get a user
+// @Description Get a user by ID
+// @Tags users
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} UserResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "User not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /users/{id} [get]
 func (h *Handler) GetUser(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -113,6 +155,15 @@ func (h *Handler) GetUser(c *gin.Context) {
 }
 
 // ListUsers handles GET /users
+// @Summary List users
+// @Description Get a paginated list of users
+// @Tags users
+// @Produce json
+// @Param limit query int false "Number of items to return (default: 10, max: 100)" default(10)
+// @Param offset query int false "Number of items to skip (default: 0)" default(0)
+// @Success 200 {object} PagedUsersResponse
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /users [get]
 func (h *Handler) ListUsers(c *gin.Context) {
 	// Parse pagination parameters
 	limitStr := c.DefaultQuery("limit", "10")

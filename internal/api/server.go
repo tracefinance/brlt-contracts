@@ -5,7 +5,11 @@ import (
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 
+	// Import generated docs
+	_ "vault0/internal/api/docs"
 	"vault0/internal/api/handlers/signer"
 	"vault0/internal/api/handlers/token"
 	"vault0/internal/api/handlers/transaction"
@@ -64,6 +68,9 @@ func (s *Server) SetupRoutes() {
 
 	// Health check endpoint
 	api.GET("/health", s.healthHandler)
+
+	// Swagger documentation
+	s.router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Serve static files for the UI
 	if s.config.UIPath != "" {

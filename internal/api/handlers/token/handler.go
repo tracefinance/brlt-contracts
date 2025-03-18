@@ -37,6 +37,18 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 }
 
 // listTokens handles GET /tokens
+// @Summary List tokens
+// @Description Get a paginated list of tokens with optional filtering
+// @Tags tokens
+// @Produce json
+// @Param chain_type query string false "Filter by chain type (ethereum, polygon, etc.)"
+// @Param token_type query string false "Filter by token type (erc20, erc721, etc.)"
+// @Param offset query int false "Number of items to skip (default: 0)" default(0)
+// @Param limit query int false "Number of items to return (default: 10)" default(10)
+// @Success 200 {object} TokenListResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /tokens [get]
 func (h *Handler) listTokens(c *gin.Context) {
 	// Parse query parameters
 	chainTypeStr := c.Query("chain_type")
@@ -97,6 +109,17 @@ func (h *Handler) listTokens(c *gin.Context) {
 }
 
 // addToken handles POST /tokens
+// @Summary Add a new token
+// @Description Add a new token to the system
+// @Tags tokens
+// @Accept json
+// @Produce json
+// @Param token body AddTokenRequest true "Token details"
+// @Success 201 {object} TokenResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 409 {object} errors.Vault0Error "Token already exists"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /tokens [post]
 func (h *Handler) addToken(c *gin.Context) {
 	var req AddTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -134,6 +157,16 @@ func (h *Handler) addToken(c *gin.Context) {
 }
 
 // verifyToken handles GET /tokens/:id
+// @Summary Verify token
+// @Description Verify a token by its ID and return its details
+// @Tags tokens
+// @Produce json
+// @Param id path int true "Token ID"
+// @Success 200 {object} TokenResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "Token not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /tokens/{id} [get]
 func (h *Handler) verifyToken(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -161,6 +194,15 @@ func (h *Handler) verifyToken(c *gin.Context) {
 }
 
 // deleteToken handles DELETE /tokens/:id
+// @Summary Delete token
+// @Description Delete a token by its ID
+// @Tags tokens
+// @Param id path int true "Token ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "Token not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /tokens/{id} [delete]
 func (h *Handler) deleteToken(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {

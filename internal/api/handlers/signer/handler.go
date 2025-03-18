@@ -47,6 +47,16 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 }
 
 // CreateSigner handles POST /signers
+// @Summary Create a new signer
+// @Description Create a new signer with the given name and type
+// @Tags signers
+// @Accept json
+// @Produce json
+// @Param signer body CreateSignerRequest true "Signer data"
+// @Success 201 {object} SignerResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /signers [post]
 func (h *Handler) CreateSigner(c *gin.Context) {
 	var req CreateSignerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -64,6 +74,18 @@ func (h *Handler) CreateSigner(c *gin.Context) {
 }
 
 // UpdateSigner handles PUT /signers/:id
+// @Summary Update a signer
+// @Description Update a signer's information by ID
+// @Tags signers
+// @Accept json
+// @Produce json
+// @Param id path int true "Signer ID"
+// @Param signer body UpdateSignerRequest true "Signer data to update"
+// @Success 200 {object} SignerResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "Signer not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /signers/{id} [put]
 func (h *Handler) UpdateSigner(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -88,6 +110,15 @@ func (h *Handler) UpdateSigner(c *gin.Context) {
 }
 
 // DeleteSigner handles DELETE /signers/:id
+// @Summary Delete a signer
+// @Description Delete a signer by ID
+// @Tags signers
+// @Param id path int true "Signer ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "Signer not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /signers/{id} [delete]
 func (h *Handler) DeleteSigner(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -106,6 +137,16 @@ func (h *Handler) DeleteSigner(c *gin.Context) {
 }
 
 // GetSigner handles GET /signers/:id
+// @Summary Get a signer
+// @Description Get a signer by ID
+// @Tags signers
+// @Produce json
+// @Param id path int true "Signer ID"
+// @Success 200 {object} SignerResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "Signer not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /signers/{id} [get]
 func (h *Handler) GetSigner(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -124,6 +165,15 @@ func (h *Handler) GetSigner(c *gin.Context) {
 }
 
 // ListSigners handles GET /signers
+// @Summary List signers
+// @Description Get a paginated list of signers
+// @Tags signers
+// @Produce json
+// @Param limit query int false "Number of items to return (default: 10)" default(10)
+// @Param offset query int false "Number of items to skip (default: 0)" default(0)
+// @Success 200 {object} PagedSignersResponse
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /signers [get]
 func (h *Handler) ListSigners(c *gin.Context) {
 	limitStr := c.DefaultQuery("limit", "10")
 	offsetStr := c.DefaultQuery("offset", "0")
@@ -148,6 +198,16 @@ func (h *Handler) ListSigners(c *gin.Context) {
 }
 
 // GetSignersByUser handles GET /signers/user/:userId
+// @Summary Get signers by user
+// @Description Get all signers associated with a specific user ID
+// @Tags signers
+// @Produce json
+// @Param userId path int true "User ID"
+// @Success 200 {array} SignerResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "User not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /signers/user/{userId} [get]
 func (h *Handler) GetSignersByUser(c *gin.Context) {
 	userIdStr := c.Param("userId")
 	userId, err := strconv.ParseInt(userIdStr, 10, 64)
@@ -166,6 +226,18 @@ func (h *Handler) GetSignersByUser(c *gin.Context) {
 }
 
 // AddAddress handles POST /signers/:id/addresses
+// @Summary Add an address to a signer
+// @Description Add a new blockchain address to an existing signer
+// @Tags signers,addresses
+// @Accept json
+// @Produce json
+// @Param id path int true "Signer ID"
+// @Param address body AddAddressRequest true "Address data"
+// @Success 201 {object} AddressResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "Signer not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /signers/{id}/addresses [post]
 func (h *Handler) AddAddress(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -190,6 +262,16 @@ func (h *Handler) AddAddress(c *gin.Context) {
 }
 
 // DeleteAddress handles DELETE /signers/:id/addresses/:addressId
+// @Summary Delete an address
+// @Description Delete an address from a signer
+// @Tags signers,addresses
+// @Param id path int true "Signer ID"
+// @Param addressId path int true "Address ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "Address not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /signers/{id}/addresses/{addressId} [delete]
 func (h *Handler) DeleteAddress(c *gin.Context) {
 	addressIdStr := c.Param("addressId")
 	addressId, err := strconv.ParseInt(addressIdStr, 10, 64)
@@ -208,6 +290,16 @@ func (h *Handler) DeleteAddress(c *gin.Context) {
 }
 
 // GetAddresses handles GET /signers/:id/addresses
+// @Summary Get signer addresses
+// @Description Get all addresses associated with a signer
+// @Tags signers,addresses
+// @Produce json
+// @Param id path int true "Signer ID"
+// @Success 200 {array} AddressResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "Signer not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /signers/{id}/addresses [get]
 func (h *Handler) GetAddresses(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
