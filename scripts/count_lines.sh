@@ -201,4 +201,4 @@ if [ "$TEST_TOTAL" -ne 0 ]; then
 fi
 
 echo ""
-printf "Grand Total:       %5d\n" "$TOTAL" 
+printf "%-20s %5d\n" "Grand Total:" "$TOTAL"
