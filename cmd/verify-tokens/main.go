@@ -145,7 +145,6 @@ func verifyTokens(
 		}
 		return
 	}
-	defer explorer.Close()
 
 	// Check each token
 	for _, token := range tokens {
