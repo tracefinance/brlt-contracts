@@ -153,22 +153,73 @@ func (s *dbTokenStore) GetToken(ctx context.Context, id int64) (*types.Token, er
 	return &token, nil
 }
 
-// ListTokensByChain retrieves all tokens for a specific blockchain
-func (s *dbTokenStore) ListTokensByChain(ctx context.Context, chainType types.ChainType) ([]*types.Token, error) {
-	rows, err := s.db.ExecuteQueryContext(
-		ctx,
-		`SELECT id, address, chain_type, symbol, decimals, type 
+// ListTokensByChain retrieves tokens for a specific blockchain with pagination
+func (s *dbTokenStore) ListTokensByChain(ctx context.Context, chainType types.ChainType, offset, limit int) (*types.Page[types.Token], error) {
+	query := `SELECT id, address, chain_type, symbol, decimals, type 
 		FROM tokens 
 		WHERE chain_type = ?
-		ORDER BY symbol`,
-		chainType,
-	)
+		ORDER BY symbol`
+
+	args := []any{chainType}
+
+	// Add pagination if limit > 0
+	if limit > 0 {
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, limit, offset)
+	}
+
+	rows, err := s.db.ExecuteQueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
-	return s.scanTokensFromRows(rows)
+	tokens, err := s.scanTokensFromRows(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert []*types.Token to []types.Token for the Page
+	tokenItems := make([]types.Token, 0, len(tokens))
+	for _, token := range tokens {
+		tokenItems = append(tokenItems, *token)
+	}
+
+	return types.NewPage(tokenItems, offset, limit), nil
+}
+
+// ListTokens retrieves tokens in the store with pagination
+func (s *dbTokenStore) ListTokens(ctx context.Context, offset, limit int) (*types.Page[types.Token], error) {
+	query := `SELECT id, address, chain_type, symbol, decimals, type 
+		FROM tokens 
+		ORDER BY chain_type, symbol`
+
+	args := []any{}
+
+	// Add pagination if limit > 0
+	if limit > 0 {
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, limit, offset)
+	}
+
+	rows, err := s.db.ExecuteQueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, errors.NewDatabaseError(err)
+	}
+	defer rows.Close()
+
+	tokens, err := s.scanTokensFromRows(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert []*types.Token to []types.Token for the Page
+	tokenItems := make([]types.Token, 0, len(tokens))
+	for _, token := range tokens {
+		tokenItems = append(tokenItems, *token)
+	}
+
+	return types.NewPage(tokenItems, offset, limit), nil
 }
 
 // UpdateToken updates an existing token
@@ -234,22 +285,6 @@ func (s *dbTokenStore) DeleteToken(ctx context.Context, id int64) error {
 	}
 
 	return nil
-}
-
-// ListTokens retrieves all tokens in the store
-func (s *dbTokenStore) ListTokens(ctx context.Context) ([]*types.Token, error) {
-	rows, err := s.db.ExecuteQueryContext(
-		ctx,
-		`SELECT id, address, chain_type, symbol, decimals, type 
-		FROM tokens 
-		ORDER BY chain_type, symbol`,
-	)
-	if err != nil {
-		return nil, errors.NewDatabaseError(err)
-	}
-	defer rows.Close()
-
-	return s.scanTokensFromRows(rows)
 }
 
 // scanTokensFromRows is a helper function to scan tokens from sql.Rows

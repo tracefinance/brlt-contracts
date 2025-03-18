@@ -29,6 +29,7 @@ type Repository interface {
 	Delete(ctx context.Context, chainType types.ChainType, address string) error
 
 	// List retrieves wallets with optional filtering
+	// If limit is 0, returns all wallets without pagination
 	List(ctx context.Context, limit, offset int) (*types.Page[*Wallet], error)
 
 	// Exists checks if a wallet exists by its chain type and address
@@ -227,10 +228,17 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 		FROM wallets
 		WHERE deleted_at IS NULL
 		ORDER BY created_at DESC
-		LIMIT ? OFFSET ?
 	`
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, limit, offset)
+	args := []any{}
+
+	// Add pagination if limit > 0
+	if limit > 0 {
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, limit, offset)
+	}
+
+	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.NewDatabaseError(err)
 	}

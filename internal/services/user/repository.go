@@ -11,11 +11,23 @@ import (
 
 // Repository defines the user data access interface
 type Repository interface {
+	// Create adds a new user to the database
 	Create(ctx context.Context, user *User) error
+
+	// Update modifies an existing user's information
 	Update(ctx context.Context, user *User) error
+
+	// Delete removes a user from the database
 	Delete(ctx context.Context, id int64) error
+
+	// FindByID retrieves a user by their unique ID
 	FindByID(ctx context.Context, id int64) (*User, error)
+
+	// FindByEmail retrieves a user by their email address
 	FindByEmail(ctx context.Context, email string) (*User, error)
+
+	// List retrieves a paginated collection of users
+	// When limit=0, returns all users without pagination
 	List(ctx context.Context, limit, offset int) (*types.Page[*User], error)
 }
 
@@ -165,10 +177,17 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 		SELECT id, email, password_hash, created_at, updated_at
 		FROM users
 		ORDER BY id
-		LIMIT ? OFFSET ?
 	`
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, limit, offset)
+	args := []any{}
+
+	// Add pagination if limit > 0
+	if limit > 0 {
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, limit, offset)
+	}
+
+	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

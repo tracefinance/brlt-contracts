@@ -24,11 +24,13 @@ type TokenStore interface {
 	// DeleteToken removes a token from the store by its ID
 	DeleteToken(ctx context.Context, id int64) error
 
-	// ListTokens retrieves all tokens in the store
-	ListTokens(ctx context.Context) ([]*types.Token, error)
+	// ListTokens retrieves tokens in the store with pagination
+	// If limit is 0, returns all tokens without pagination
+	ListTokens(ctx context.Context, offset, limit int) (*types.Page[types.Token], error)
 
-	// ListTokensByChain retrieves all tokens for a specific blockchain
-	ListTokensByChain(ctx context.Context, chainType types.ChainType) ([]*types.Token, error)
+	// ListTokensByChain retrieves tokens for a specific blockchain with pagination
+	// If limit is 0, returns all tokens without pagination
+	ListTokensByChain(ctx context.Context, chainType types.ChainType, offset, limit int) (*types.Page[types.Token], error)
 }
 
 // NewTokenStore creates a new TokenStore instance

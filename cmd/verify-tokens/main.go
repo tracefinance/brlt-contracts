@@ -15,7 +15,7 @@ import (
 
 type TokenVerificationResult struct {
 	Chain        types.Chain
-	Token        *types.Token
+	Token        types.Token
 	URL          string
 	IsVerified   bool
 	Error        error
@@ -41,13 +41,13 @@ func main() {
 	// Get tokens for each chain
 	chainList := container.Core.Chains.List()
 	for _, chain := range chainList {
-		tokens, err := container.Core.TokenStore.ListTokensByChain(ctx, chain.Type)
+		tokens, err := container.Core.TokenStore.ListTokensByChain(ctx, chain.Type, 0, 0)
 		if err != nil {
 			continue
 		}
 
 		wg.Add(1)
-		go verifyTokens(ctx, &wg, results, chain, tokens, container)
+		go verifyTokens(ctx, &wg, results, chain, tokens.Items, container)
 	}
 
 	// Wait for all verifications to complete
@@ -131,7 +131,7 @@ func verifyTokens(
 	wg *sync.WaitGroup,
 	results chan<- TokenVerificationResult,
 	chain types.Chain,
-	tokens []*types.Token,
+	tokens []types.Token,
 	container *wire.Container,
 ) {
 	defer wg.Done()

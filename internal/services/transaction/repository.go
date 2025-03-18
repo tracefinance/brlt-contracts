@@ -18,9 +18,11 @@ type Repository interface {
 	Get(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error)
 
 	// GetByWallet retrieves transactions for a specific wallet
+	// If limit is 0, returns all transactions without pagination
 	GetByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error)
 
 	// GetByAddress retrieves transactions for a specific blockchain address
+	// If limit is 0, returns all transactions without pagination
 	GetByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
 
 	// Count counts transactions for a specific wallet
@@ -143,10 +145,17 @@ func (r *repository) GetByWallet(ctx context.Context, walletID int64, limit, off
 		FROM transactions
 		WHERE wallet_id = ?
 		ORDER BY timestamp DESC
-		LIMIT ? OFFSET ?
 	`
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, walletID, limit, offset)
+	args := []any{walletID}
+
+	// Add pagination if limit > 0
+	if limit > 0 {
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, limit, offset)
+	}
+
+	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -178,10 +187,17 @@ func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType
 		FROM transactions
 		WHERE chain_type = ? AND (from_address = ? OR to_address = ?)
 		ORDER BY timestamp DESC
-		LIMIT ? OFFSET ?
 	`
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, address, address, limit, offset)
+	args := []any{chainType, address, address}
+
+	// Add pagination if limit > 0
+	if limit > 0 {
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, limit, offset)
+	}
+
+	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

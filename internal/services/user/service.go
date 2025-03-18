@@ -133,7 +133,7 @@ func (s *service) Get(ctx context.Context, id int64) (*User, error) {
 
 // List retrieves a paginated list of users
 func (s *service) List(ctx context.Context, limit, offset int) (*types.Page[*User], error) {
-	if limit < 1 {
+	if limit <= 0 {
 		limit = 10
 	}
 	if offset < 0 {
