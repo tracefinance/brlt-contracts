@@ -162,7 +162,7 @@ if [ "$TOTAL" -eq 0 ]; then
 fi
 
 echo "Total Lines Summary:"
-echo "-------------------"
+echo "--------------------"
 
 # Display component summaries with consistent formatting
 if [ "$UI" -ne 0 ]; then
@@ -200,5 +200,5 @@ if [ "$TEST_TOTAL" -ne 0 ]; then
   printf "%-20s %5d  (%5.1f%%)\n" "Test Code:" "$TEST_TOTAL" "$(get_percentage $TEST_TOTAL $TOTAL)"
 fi
 
-echo "-------------------"
+echo "--------------------"
 printf "%-20s %5d\n" "Grand Total:" "$TOTAL"
