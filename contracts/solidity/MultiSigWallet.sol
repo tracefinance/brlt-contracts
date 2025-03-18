@@ -8,17 +8,20 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /**
  * @title MultiSigWallet
- * @dev A wallet that requires two signatures (client and manager) to withdraw funds
+ * @dev A wallet that requires multiple signatures (quorum) to withdraw funds
  * with a recovery mechanism that allows funds to be sent to a recovery address
  * after a 72-hour timelock period
  */
 contract MultiSigWallet is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    address public immutable manager;
-    address public immutable client;
-    address public immutable recoveryAddress;
+    // Signer management
+    address[] public signers;
+    mapping(address => bool) public isSigner;
+    uint256 public immutable quorum;
     
+    // Recovery configuration
+    address public recoveryAddress;
     uint256 public constant RECOVERY_DELAY = 72 hours;
     uint256 public constant WITHDRAWAL_EXPIRATION = 24 hours;
     uint256 public constant MAX_SUPPORTED_TOKENS = 20;
@@ -33,19 +36,29 @@ contract MultiSigWallet is ReentrancyGuard {
     // Mapping to store whitelisted tokens that can be auto-included
     mapping(address => bool) public whitelistedTokens;
     
-    // Mapping to store withdrawal requests
+    // Recovery address change tracking
+    struct RecoveryAddressProposal {
+        address proposedAddress;
+        uint256 timestamp;
+        uint256 signatureCount;
+    }
+    
+    mapping(bytes32 => RecoveryAddressProposal) public recoveryAddressProposals;
+    mapping(bytes32 => mapping(address => bool)) public recoveryAddressProposalSignatures;
+    
+    // Withdrawal request structure
     struct WithdrawalRequest {
-        address token;      // Address of token (address(0) for native coin)
-        uint256 amount;     // Amount to withdraw
-        address to;         // Recipient address
-        bool managerSigned; // Whether manager has signed
-        bool clientSigned;  // Whether client has signed
-        uint256 timestamp;  // When the request was created
-        bool executed;      // Whether the request was executed
-        uint256 nonce;      // Unique nonce for the request
+        address token;          // Address of token (address(0) for native coin)
+        uint256 amount;         // Amount to withdraw
+        address to;             // Recipient address
+        uint256 timestamp;      // When the request was created
+        bool executed;          // Whether the request was executed
+        uint256 nonce;          // Unique nonce for the request
+        uint256 signatureCount; // Number of signatures collected
     }
     
     mapping(bytes32 => WithdrawalRequest) public withdrawalRequests;
+    mapping(bytes32 => mapping(address => bool)) public withdrawalSignatures;
     
     // Events
     event Deposited(address indexed token, address indexed from, uint256 amount);
@@ -60,19 +73,12 @@ contract MultiSigWallet is ReentrancyGuard {
     event TokenRemoved(address indexed token);
     event NonSupportedTokenRecovered(address indexed token, uint256 amount, address to);
     event TokenWhitelisted(address indexed token);
+    event RecoveryAddressChangeProposed(address indexed proposer, address newRecoveryAddress, bytes32 indexed proposalId);
+    event RecoveryAddressChangeSignatureAdded(address indexed signer, bytes32 indexed proposalId);
+    event RecoveryAddressChanged(address indexed oldAddress, address indexed newAddress, bytes32 indexed proposalId);
     
-    modifier onlyManager() {
-        require(msg.sender == manager, "Only manager can call this function");
-        _;
-    }
-    
-    modifier onlyClient() {
-        require(msg.sender == client, "Only client can call this function");
-        _;
-    }
-    
-    modifier onlyAuthorized() {
-        require(msg.sender == manager || msg.sender == client, "Unauthorized");
+    modifier onlySigner() {
+        require(isSigner[msg.sender], "Only signer can call this function");
         _;
     }
     
@@ -87,15 +93,26 @@ contract MultiSigWallet is ReentrancyGuard {
     }
     
     constructor(
-        address _client, 
+        address[] memory _signers, 
+        uint256 _quorum,
         address _recoveryAddress,
         address[] memory _whitelistedTokens
     ) {
-        require(_client != address(0), "Invalid client address");
+        require(_signers.length >= 2 && _signers.length <= 5, "Must have 2-5 signers");
+        require(_quorum >= (_signers.length + 1) / 2 && _quorum >= 2 && _quorum <= _signers.length, "Invalid quorum");
         require(_recoveryAddress != address(0), "Invalid recovery address");
         require(_whitelistedTokens.length < MAX_SUPPORTED_TOKENS, "Too many whitelisted tokens");
-        manager = msg.sender;
-        client = _client;
+        
+        // Set signers
+        for (uint256 i = 0; i < _signers.length; i++) {
+            address signer = _signers[i];
+            require(signer != address(0), "Invalid signer address");
+            require(!isSigner[signer], "Duplicate signer");
+            isSigner[signer] = true;
+            signers.push(signer);
+        }
+        
+        quorum = _quorum;
         recoveryAddress = _recoveryAddress;
         
         // Accept native coin (ETH) by default
@@ -114,10 +131,10 @@ contract MultiSigWallet is ReentrancyGuard {
     }
     
     /**
-     * @dev Allows the manager to add a token to the supported tokens list for automatic recovery
+     * @dev Allows a signer to add a token to the supported tokens list for automatic recovery
      * @param token The token address to support
      */
-    function addSupportedToken(address token) external onlyManager {
+    function addSupportedToken(address token) external onlySigner {
         require(token != address(0), "Cannot add zero address");
         require(!supportedTokens[token], "Token already supported");
         require(supportedTokensList.length < MAX_SUPPORTED_TOKENS, "Maximum supported tokens reached");
@@ -127,10 +144,10 @@ contract MultiSigWallet is ReentrancyGuard {
     }
     
     /**
-     * @dev Allows the manager to remove a token from the supported tokens list
+     * @dev Allows a signer to remove a token from the supported tokens list
      * @param token The token address to remove
      */
-    function removeSupportedToken(address token) external onlyManager {
+    function removeSupportedToken(address token) external onlySigner {
         require(supportedTokens[token], "Token not in supported list");
         supportedTokens[token] = false;
         
@@ -147,11 +164,11 @@ contract MultiSigWallet is ReentrancyGuard {
     }
     
     /**
-     * @dev Allows the manager to recover non-supported tokens after recovery is completed
+     * @dev Allows a signer to recover non-supported tokens after recovery is completed
      * @param token The token address to recover
      * @param to The address to send the recovered tokens to
      */
-    function recoverNonSupportedToken(address token, address to) external onlyManager recoveryCompleted nonReentrant {
+    function recoverNonSupportedToken(address token, address to) external onlySigner recoveryCompleted nonReentrant {
         require(token != address(0), "Cannot recover native coin");
         require(!supportedTokens[token], "Use regular recovery for supported tokens");
         require(to != address(0), "Invalid recipient address");
@@ -189,8 +206,19 @@ contract MultiSigWallet is ReentrancyGuard {
         return supportedTokensList;
     }
     
+    /**
+     * @dev Returns the list of all signers
+     * @return Array of signer addresses
+     */
+    function getSigners() external view returns (address[] memory) {
+        return signers;
+    }
+    
     // Recovery functions
-    function requestRecovery() external onlyManager {
+    /**
+     * @dev Any signer can request a recovery process
+     */
+    function requestRecovery() external onlySigner {
         require(recoveryRequestTimestamp == 0, "Recovery already requested");
         require(!recoveryExecuted, "Recovery already executed");
         
@@ -198,7 +226,10 @@ contract MultiSigWallet is ReentrancyGuard {
         emit RecoveryRequested(block.timestamp);
     }
     
-    function cancelRecovery() external onlyClient {
+    /**
+     * @dev Any signer can cancel a recovery process before the delay period expires
+     */
+    function cancelRecovery() external onlySigner {
         require(recoveryRequestTimestamp > 0, "No recovery requested");
         require(!recoveryExecuted, "Recovery already executed");
         require(block.timestamp < recoveryRequestTimestamp + RECOVERY_DELAY, "Recovery period expired");
@@ -208,16 +239,13 @@ contract MultiSigWallet is ReentrancyGuard {
         emit RecoveryCancelled();
     }
     
-    // Internal function to check recovery status
-    function _checkRecoveryStatus() internal view {
-        require(msg.sender == manager, "Only manager can execute recovery");
+    /**
+     * @dev Any signer can execute recovery after the delay period
+     */
+    function executeRecovery() external nonReentrant onlySigner {
         require(recoveryRequestTimestamp > 0, "No recovery requested");
         require(!recoveryExecuted, "Recovery already executed");
         require(block.timestamp >= recoveryRequestTimestamp + RECOVERY_DELAY, "Recovery delay not elapsed");
-    }
-    
-    function executeRecovery() external nonReentrant onlyManager {
-        _checkRecoveryStatus();
         
         // Transfer native coin if it's a supported token
         if (supportedTokens[address(0)]) {
@@ -247,24 +275,94 @@ contract MultiSigWallet is ReentrancyGuard {
         emit RecoveryCompleted();
     }
     
+    /**
+     * @dev Propose a change to the recovery address
+     * @param newRecoveryAddress The new address to use for recovery
+     * @return proposalId The unique identifier for this proposal
+     */
+    function proposeRecoveryAddressChange(address newRecoveryAddress) external onlySigner notInRecovery returns (bytes32) {
+        require(newRecoveryAddress != address(0), "Invalid recovery address");
+        
+        bytes32 proposalId = keccak256(abi.encode(
+            "RECOVERY_ADDRESS_CHANGE", 
+            newRecoveryAddress, 
+            block.chainid, 
+            address(this)
+        ));
+        
+        // If this is a new proposal, initialize it
+        if (recoveryAddressProposals[proposalId].timestamp == 0) {
+            recoveryAddressProposals[proposalId] = RecoveryAddressProposal({
+                proposedAddress: newRecoveryAddress,
+                timestamp: block.timestamp,
+                signatureCount: 0
+            });
+            
+            emit RecoveryAddressChangeProposed(msg.sender, newRecoveryAddress, proposalId);
+        }
+        
+        // Sign the proposal if not already signed
+        if (!recoveryAddressProposalSignatures[proposalId][msg.sender]) {
+            recoveryAddressProposalSignatures[proposalId][msg.sender] = true;
+            recoveryAddressProposals[proposalId].signatureCount++;
+            
+            emit RecoveryAddressChangeSignatureAdded(msg.sender, proposalId);
+            
+            // If quorum reached, change the recovery address
+            if (recoveryAddressProposals[proposalId].signatureCount >= quorum) {
+                address oldRecoveryAddress = recoveryAddress;
+                recoveryAddress = newRecoveryAddress;
+                emit RecoveryAddressChanged(oldRecoveryAddress, newRecoveryAddress, proposalId);
+            }
+        }
+        
+        return proposalId;
+    }
+    
+    /**
+     * @dev Sign an existing recovery address change proposal
+     * @param proposalId The proposal ID to sign
+     */
+    function signRecoveryAddressChange(bytes32 proposalId) external onlySigner notInRecovery {
+        RecoveryAddressProposal storage proposal = recoveryAddressProposals[proposalId];
+        require(proposal.timestamp > 0, "Proposal does not exist");
+        require(!recoveryAddressProposalSignatures[proposalId][msg.sender], "Already signed");
+        
+        recoveryAddressProposalSignatures[proposalId][msg.sender] = true;
+        proposal.signatureCount++;
+        
+        emit RecoveryAddressChangeSignatureAdded(msg.sender, proposalId);
+        
+        // If quorum reached, change the recovery address
+        if (proposal.signatureCount >= quorum) {
+            address oldRecoveryAddress = recoveryAddress;
+            recoveryAddress = proposal.proposedAddress;
+            emit RecoveryAddressChanged(oldRecoveryAddress, recoveryAddress, proposalId);
+        }
+    }
+    
     // Receive function to accept native coin
     receive() external payable notInRecovery {
         emit Deposited(address(0), msg.sender, msg.value);
     }
     
-    // Create a withdrawal request
+    /**
+     * @dev Create a withdrawal request
+     * @param token The token to withdraw (address(0) for native coin)
+     * @param amount The amount to withdraw
+     * @param to The recipient address
+     * @return requestId The unique identifier for this withdrawal request
+     */
     function requestWithdrawal(
         address token,
         uint256 amount,
         address to
-    ) external onlyAuthorized notInRecovery returns (bytes32) {
+    ) external onlySigner notInRecovery returns (bytes32) {
         require(to != address(0), "Invalid recipient");
         require(amount > 0, "Invalid amount");
         
         uint256 nonce = withdrawalNonce++;
         
-        // Use keccak256 hash with abi.encode instead of abi.encodePacked for better type safety
-        // Include msg.sender to make requests unique per signer
         bytes32 requestId = keccak256(
             abi.encode(
                 token, 
@@ -272,8 +370,7 @@ contract MultiSigWallet is ReentrancyGuard {
                 to, 
                 nonce,
                 block.chainid,
-                msg.sender,
-                address(this)  // Include contract address to prevent cross-contract replay
+                address(this)
             )
         );
         
@@ -283,48 +380,56 @@ contract MultiSigWallet is ReentrancyGuard {
             token: token,
             amount: amount,
             to: to,
-            managerSigned: msg.sender == manager,
-            clientSigned: msg.sender == client,
             timestamp: block.timestamp,
             executed: false,
-            nonce: nonce
+            nonce: nonce,
+            signatureCount: 1
         });
+        
+        withdrawalSignatures[requestId][msg.sender] = true;
         
         emit WithdrawalRequested(requestId, token, amount, to, nonce);
         emit WithdrawalSigned(requestId, msg.sender);
         
+        // If quorum is 1, execute immediately
+        if (quorum == 1) {
+            _executeWithdrawal(requestId);
+        }
+        
         return requestId;
     }
     
-    // Sign a withdrawal request
-    function signWithdrawal(bytes32 requestId) external onlyAuthorized {
+    /**
+     * @dev Sign an existing withdrawal request
+     * @param requestId The withdrawal request ID to sign
+     */
+    function signWithdrawal(bytes32 requestId) external onlySigner notInRecovery {
         WithdrawalRequest storage request = withdrawalRequests[requestId];
         require(request.timestamp > 0, "Request not found");
         require(!request.executed, "Already executed");
         require(request.timestamp + WITHDRAWAL_EXPIRATION >= block.timestamp, "Request expired");
+        require(!withdrawalSignatures[requestId][msg.sender], "Already signed");
         
-        if (msg.sender == manager) {
-            require(!request.managerSigned, "Already signed");
-            request.managerSigned = true;
-        } else {
-            require(!request.clientSigned, "Already signed");
-            request.clientSigned = true;
-        }
+        withdrawalSignatures[requestId][msg.sender] = true;
+        request.signatureCount++;
         
         emit WithdrawalSigned(requestId, msg.sender);
         
-        // If both have signed, execute the withdrawal
-        if (request.managerSigned && request.clientSigned) {
+        // Execute if quorum reached
+        if (request.signatureCount >= quorum) {
             _executeWithdrawal(requestId);
         }
     }
     
-    // Internal function to execute withdrawal
+    /**
+     * @dev Internal function to execute a withdrawal that has reached quorum
+     * @param requestId The withdrawal request ID to execute
+     */
     function _executeWithdrawal(bytes32 requestId) internal nonReentrant {
         WithdrawalRequest storage request = withdrawalRequests[requestId];
         require(request.timestamp > 0, "Request not found");
         require(!request.executed, "Already executed");
-        require(request.managerSigned && request.clientSigned, "Not fully signed");
+        require(request.signatureCount >= quorum, "Not enough signatures");
         require(request.timestamp + WITHDRAWAL_EXPIRATION >= block.timestamp, "Request expired");
         
         uint256 amount = request.amount;
@@ -360,5 +465,45 @@ contract MultiSigWallet is ReentrancyGuard {
     function getTokenBalance(address token) external view returns (uint256) {
         require(token != address(0), "Use getBalance() for native coin");
         return IERC20(token).balanceOf(address(this));
+    }
+    
+    /**
+     * @dev Check if a withdrawal request has reached quorum
+     * @param requestId The withdrawal request ID to check
+     * @return True if the request has reached quorum
+     */
+    function hasReachedQuorum(bytes32 requestId) external view returns (bool) {
+        WithdrawalRequest storage request = withdrawalRequests[requestId];
+        return request.signatureCount >= quorum;
+    }
+    
+    /**
+     * @dev Check if a signer has signed a withdrawal request
+     * @param requestId The withdrawal request ID to check
+     * @param signer The signer address to check
+     * @return True if the signer has signed the request
+     */
+    function hasSignedWithdrawal(bytes32 requestId, address signer) external view returns (bool) {
+        return withdrawalSignatures[requestId][signer];
+    }
+    
+    /**
+     * @dev Check if a recovery address proposal has reached quorum
+     * @param proposalId The proposal ID to check
+     * @return True if the proposal has reached quorum
+     */
+    function hasRecoveryAddressProposalReachedQuorum(bytes32 proposalId) external view returns (bool) {
+        RecoveryAddressProposal storage proposal = recoveryAddressProposals[proposalId];
+        return proposal.signatureCount >= quorum;
+    }
+    
+    /**
+     * @dev Check if a signer has signed a recovery address change proposal
+     * @param proposalId The proposal ID to check
+     * @param signer The signer address to check
+     * @return True if the signer has signed the proposal
+     */
+    function hasSignedRecoveryAddressProposal(bytes32 proposalId, address signer) external view returns (bool) {
+        return recoveryAddressProposalSignatures[proposalId][signer];
     }
 }
