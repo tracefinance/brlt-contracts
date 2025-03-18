@@ -50,7 +50,7 @@ func NewService(log logger.Logger, repository Repository) Service {
 // Create creates a new user
 func (s *service) Create(ctx context.Context, email, password string) (*User, error) {
 	// Check if email already exists
-	existingUser, err := s.repository.FindByEmail(ctx, email)
+	existingUser, err := s.repository.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (s *service) Create(ctx context.Context, email, password string) (*User, er
 // Update updates an existing user
 func (s *service) Update(ctx context.Context, id int64, email, password string) (*User, error) {
 	// Get the existing user
-	user, err := s.repository.FindByID(ctx, id)
+	user, err := s.repository.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (s *service) Update(ctx context.Context, id int64, email, password string) 
 	// Update fields if provided
 	if email != "" && email != user.Email {
 		// Check if new email already exists
-		existingUser, err := s.repository.FindByEmail(ctx, email)
+		existingUser, err := s.repository.GetByEmail(ctx, email)
 		if err != nil {
 			return nil, err
 		}
@@ -127,7 +127,7 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 
 // Get retrieves a user by ID
 func (s *service) Get(ctx context.Context, id int64) (*User, error) {
-	user, err := s.repository.FindByID(ctx, id)
+	user, err := s.repository.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}

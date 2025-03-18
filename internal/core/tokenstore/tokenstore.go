@@ -13,11 +13,11 @@ type TokenStore interface {
 	// AddToken adds a new token to the store
 	AddToken(ctx context.Context, token *types.Token) error
 
-	// GetTokenByAddress retrieves a token by its identifier (address and chain type)
-	GetTokenByAddress(ctx context.Context, address string, chainType types.ChainType) (*types.Token, error)
+	// GetToken retrieves a token by its identifier (address and chain type)
+	GetToken(ctx context.Context, address string, chainType types.ChainType) (*types.Token, error)
 
-	// GetToken retrieves a token by its ID
-	GetToken(ctx context.Context, id int64) (*types.Token, error)
+	// GetTokenByID retrieves a token by its ID
+	GetTokenByID(ctx context.Context, id int64) (*types.Token, error)
 
 	// UpdateToken updates an existing token
 	UpdateToken(ctx context.Context, token *types.Token) error

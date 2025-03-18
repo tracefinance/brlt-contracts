@@ -16,12 +16,11 @@ CREATE TABLE IF NOT EXISTS transactions (
     timestamp INTEGER NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(chain_type, hash),
     FOREIGN KEY(wallet_id) REFERENCES wallets(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_transactions_wallet_id ON transactions(wallet_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_chain_type ON transactions(chain_type);
-CREATE INDEX IF NOT EXISTS idx_transactions_hash ON transactions(hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_hash ON transactions(hash);
 CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions(timestamp);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status); 

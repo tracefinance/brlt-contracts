@@ -20,11 +20,11 @@ type Repository interface {
 	// Delete removes a user from the database
 	Delete(ctx context.Context, id int64) error
 
-	// FindByID retrieves a user by their unique ID
-	FindByID(ctx context.Context, id int64) (*User, error)
+	// GetByID retrieves a user by their unique ID
+	GetByID(ctx context.Context, id int64) (*User, error)
 
-	// FindByEmail retrieves a user by their email address
-	FindByEmail(ctx context.Context, email string) (*User, error)
+	// GetByEmail retrieves a user by their email address
+	GetByEmail(ctx context.Context, email string) (*User, error)
 
 	// List retrieves a paginated collection of users
 	// When limit=0, returns all users without pagination
@@ -117,8 +117,8 @@ func (r *repository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// FindByID finds a user by ID
-func (r *repository) FindByID(ctx context.Context, id int64) (*User, error) {
+// GetByID finds a user by ID
+func (r *repository) GetByID(ctx context.Context, id int64) (*User, error) {
 	query := `
 		SELECT id, email, password_hash, created_at, updated_at
 		FROM users
@@ -144,8 +144,8 @@ func (r *repository) FindByID(ctx context.Context, id int64) (*User, error) {
 	return &user, nil
 }
 
-// FindByEmail finds a user by email
-func (r *repository) FindByEmail(ctx context.Context, email string) (*User, error) {
+// GetByEmail finds a user by email
+func (r *repository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
 		SELECT id, email, password_hash, created_at, updated_at
 		FROM users

@@ -14,25 +14,19 @@ type Repository interface {
 	// Create creates a new transaction in the database
 	Create(ctx context.Context, tx *Transaction) error
 
-	// Get retrieves a transaction by its chain type and hash
-	Get(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error)
+	// GetByTxHash retrieves a transaction by its hash
+	GetByTxHash(ctx context.Context, hash string) (*Transaction, error)
 
-	// GetByWallet retrieves transactions for a specific wallet
+	// ListByWallet retrieves transactions for a specific wallet
 	// If limit is 0, returns all transactions without pagination
-	GetByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error)
+	ListByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error)
 
-	// GetByAddress retrieves transactions for a specific blockchain address
+	// ListByAddress retrieves transactions for a specific blockchain address
 	// If limit is 0, returns all transactions without pagination
-	GetByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
+	ListByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
 
-	// Count counts transactions for a specific wallet
-	Count(ctx context.Context, walletID int64) (int, error)
-
-	// CountByAddress counts transactions for a specific blockchain address
-	CountByAddress(ctx context.Context, chainType types.ChainType, address string) (int, error)
-
-	// Exists checks if a transaction exists by its chain type and hash
-	Exists(ctx context.Context, chainType types.ChainType, hash string) (bool, error)
+	// Exists checks if a transaction exists by its hash
+	Exists(ctx context.Context, hash string) (bool, error)
 }
 
 // repository implements Repository interface for SQLite
@@ -106,18 +100,18 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 	return err
 }
 
-// Get retrieves a transaction by its chain type and hash
-func (r *repository) Get(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error) {
+// GetByTxHash retrieves a transaction by its hash
+func (r *repository) GetByTxHash(ctx context.Context, hash string) (*Transaction, error) {
 	query := `
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
 			value, data, nonce, gas_price, gas_limit, type, token_address, 
 			status, timestamp, created_at, updated_at
 		FROM transactions
-		WHERE chain_type = ? AND hash = ?
+		WHERE hash = ?
 	`
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, hash)
+	rows, err := r.db.ExecuteQueryContext(ctx, query, hash)
 	if err != nil {
 		return nil, err
 	}
@@ -135,8 +129,8 @@ func (r *repository) Get(ctx context.Context, chainType types.ChainType, hash st
 	return tx, nil
 }
 
-// GetByWallet retrieves transactions for a specific wallet
-func (r *repository) GetByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error) {
+// ListByWallet retrieves transactions for a specific wallet
+func (r *repository) ListByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error) {
 	query := `
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
@@ -177,8 +171,8 @@ func (r *repository) GetByWallet(ctx context.Context, walletID int64, limit, off
 	return types.NewPage(transactions, offset, limit), nil
 }
 
-// GetByAddress retrieves transactions for a specific blockchain address
-func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error) {
+// ListByAddress retrieves transactions for a specific blockchain address
+func (r *repository) ListByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error) {
 	query := `
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
@@ -219,68 +213,16 @@ func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType
 	return types.NewPage(transactions, offset, limit), nil
 }
 
-// Count counts transactions for a specific wallet
-func (r *repository) Count(ctx context.Context, walletID int64) (int, error) {
-	query := `
-		SELECT COUNT(*) 
-		FROM transactions
-		WHERE wallet_id = ?
-	`
-
-	rows, err := r.db.ExecuteQueryContext(ctx, query, walletID)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-
-	if !rows.Next() {
-		return 0, nil
-	}
-
-	var count int
-	if err := rows.Scan(&count); err != nil {
-		return 0, err
-	}
-
-	return count, nil
-}
-
-// CountByAddress counts transactions for a specific blockchain address
-func (r *repository) CountByAddress(ctx context.Context, chainType types.ChainType, address string) (int, error) {
-	query := `
-		SELECT COUNT(*) 
-		FROM transactions
-		WHERE chain_type = ? AND (from_address = ? OR to_address = ?)
-	`
-
-	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, address, address)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-
-	if !rows.Next() {
-		return 0, nil
-	}
-
-	var count int
-	if err := rows.Scan(&count); err != nil {
-		return 0, err
-	}
-
-	return count, nil
-}
-
-// Exists checks if a transaction exists by its chain type and hash
-func (r *repository) Exists(ctx context.Context, chainType types.ChainType, hash string) (bool, error) {
+// Exists checks if a transaction exists by its hash
+func (r *repository) Exists(ctx context.Context, hash string) (bool, error) {
 	query := `
 		SELECT 1 
 		FROM transactions
-		WHERE chain_type = ? AND hash = ?
+		WHERE hash = ?
 		LIMIT 1
 	`
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, hash)
+	rows, err := r.db.ExecuteQueryContext(ctx, query, hash)
 	if err != nil {
 		return false, err
 	}

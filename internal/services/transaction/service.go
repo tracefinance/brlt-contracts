@@ -14,8 +14,8 @@ import (
 
 // Service defines the transaction service interface
 type Service interface {
-	// GetTransaction retrieves a transaction by its chain type and hash
-	GetTransaction(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error)
+	// GetTransaction retrieves a transaction by its hash
+	GetTransaction(ctx context.Context, hash string) (*Transaction, error)
 
 	// GetTransactionsByWallet retrieves transactions for a specific wallet
 	GetTransactionsByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error)
@@ -28,9 +28,6 @@ type Service interface {
 
 	// SyncTransactionsByAddress fetches and stores transactions for an address
 	SyncTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string) (int, error)
-
-	// CountTransactions counts transactions for a specific wallet
-	CountTransactions(ctx context.Context, walletID int64) (int, error)
 
 	// SubscribeToWalletEvents starts listening for wallet events and processing transactions.
 	// This should be called after the service is initialized.
@@ -73,66 +70,14 @@ func NewService(
 	}
 }
 
-// GetTransaction retrieves a transaction by its chain type and hash
-func (s *transactionService) GetTransaction(ctx context.Context, chainType types.ChainType, hash string) (*Transaction, error) {
-	// Validate input
-	if chainType == "" {
-		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
-	}
+// GetTransaction retrieves a transaction by its hash
+func (s *transactionService) GetTransaction(ctx context.Context, hash string) (*Transaction, error) {
 	if hash == "" {
 		return nil, errors.NewInvalidInputError("Hash is required", "hash", "")
 	}
 
-	// Try to get from database first
-	tx, err := s.repository.Get(ctx, chainType, hash)
-	if err == nil {
-		return tx, nil
-	}
-
-	// If not found in database, fetch from blockchain explorer
-	if _, ok := err.(*errors.Vault0Error); ok && err.(*errors.Vault0Error).Code == errors.ErrCodeTransactionNotFound {
-		// Get explorer for the chain
-		explorer, err := s.blockExplorerFactory.GetExplorer(chainType)
-		if err != nil {
-			return nil, err
-		}
-		defer explorer.Close()
-
-		// Fetch transaction from explorer
-		txs, err := explorer.GetTransactionsByHash(ctx, []string{hash})
-		if err != nil {
-			return nil, err
-		}
-
-		if len(txs) == 0 {
-			return nil, errors.NewTransactionNotFoundError(hash)
-		}
-
-		// Convert to service transaction
-		coreTx := txs[0]
-		tx = &Transaction{
-			ChainType:    coreTx.Chain,
-			Hash:         coreTx.Hash,
-			FromAddress:  coreTx.From,
-			ToAddress:    coreTx.To,
-			Value:        coreTx.Value,
-			Data:         coreTx.Data,
-			Nonce:        coreTx.Nonce,
-			GasPrice:     coreTx.GasPrice,
-			GasLimit:     coreTx.GasLimit,
-			Type:         string(coreTx.Type),
-			TokenAddress: coreTx.TokenAddress,
-			Status:       coreTx.Status,
-			Timestamp:    coreTx.Timestamp,
-		}
-
-		// Save to database (best effort)
-		_ = s.repository.Create(ctx, tx)
-
-		return tx, nil
-	}
-
-	return nil, err
+	// Get transaction directly from repository
+	return s.repository.GetByTxHash(ctx, hash)
 }
 
 // GetTransactionsByWallet retrieves transactions for a specific wallet
@@ -151,7 +96,7 @@ func (s *transactionService) GetTransactionsByWallet(ctx context.Context, wallet
 	}
 
 	// Get transactions from database
-	return s.repository.GetByWallet(ctx, walletID, limit, offset)
+	return s.repository.ListByWallet(ctx, walletID, limit, offset)
 }
 
 // GetTransactionsByAddress retrieves transactions for a specific blockchain address
@@ -173,7 +118,7 @@ func (s *transactionService) GetTransactionsByAddress(ctx context.Context, chain
 	}
 
 	// Get transactions from database
-	return s.repository.GetByAddress(ctx, chainType, address, limit, offset)
+	return s.repository.ListByAddress(ctx, chainType, address, limit, offset)
 }
 
 // SyncTransactions fetches and stores transactions for a wallet
@@ -257,7 +202,7 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 		}
 
 		// Check if transaction already exists
-		exists, err := s.repository.Exists(ctx, chainType, coreTx.Hash)
+		exists, err := s.repository.Exists(ctx, coreTx.Hash)
 		if err != nil {
 			s.log.Warn("Failed to check transaction existence",
 				logger.String("hash", coreTx.Hash),
@@ -297,16 +242,6 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 	return count, nil
 }
 
-// CountTransactions counts transactions for a specific wallet
-func (s *transactionService) CountTransactions(ctx context.Context, walletID int64) (int, error) {
-	// Validate input
-	if walletID <= 0 {
-		return 0, errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "")
-	}
-
-	return s.repository.Count(ctx, walletID)
-}
-
 // OnWalletEvent processes a blockchain event for a wallet and updates the transactions table
 func (s *transactionService) OnWalletEvent(ctx context.Context, walletID int64, event *types.Log) error {
 	// Validate input
@@ -324,7 +259,7 @@ func (s *transactionService) OnWalletEvent(ctx context.Context, walletID int64, 
 	}
 
 	// Check if transaction already exists
-	exists, err := s.repository.Exists(ctx, wallet.ChainType, event.TransactionHash)
+	exists, err := s.repository.Exists(ctx, event.TransactionHash)
 	if err != nil {
 		return err
 	}

@@ -82,8 +82,8 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 	return nil
 }
 
-// GetTokenByAddress retrieves a token by its address and chain type
-func (s *dbTokenStore) GetTokenByAddress(ctx context.Context, address string, chainType types.ChainType) (*types.Token, error) {
+// GetToken retrieves a token by its address and chain type
+func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType types.ChainType) (*types.Token, error) {
 	normalizedAddress := types.NormalizeAddress(address)
 
 	var token types.Token
@@ -120,8 +120,8 @@ func (s *dbTokenStore) GetTokenByAddress(ctx context.Context, address string, ch
 	return &token, nil
 }
 
-// GetToken retrieves a token by its primary ID
-func (s *dbTokenStore) GetToken(ctx context.Context, id int64) (*types.Token, error) {
+// GetTokenByID retrieves a token by its primary ID
+func (s *dbTokenStore) GetTokenByID(ctx context.Context, id int64) (*types.Token, error) {
 	var token types.Token
 	rows, err := s.db.ExecuteQueryContext(
 		ctx,

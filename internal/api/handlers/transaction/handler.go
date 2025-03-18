@@ -26,15 +26,9 @@ func NewHandler(transactionService transaction.Service) *Handler {
 // GetTransaction handles GET /wallets/:chain_type/:address/transactions/:hash
 // or GET /transactions/:hash
 func (h *Handler) GetTransaction(c *gin.Context) {
-	// Get chain type either from URL or try to infer from hash
-	var chainType types.ChainType
-	if c.Param("chain_type") != "" {
-		chainType = types.ChainType(c.Param("chain_type"))
-	}
-
 	hash := c.Param("hash")
 
-	tx, err := h.transactionService.GetTransaction(c.Request.Context(), chainType, hash)
+	tx, err := h.transactionService.GetTransaction(c.Request.Context(), hash)
 	if err != nil {
 		c.Error(err)
 		return
