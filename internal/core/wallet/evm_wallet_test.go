@@ -17,6 +17,7 @@ import (
 	coreCrypto "vault0/internal/core/crypto"
 	"vault0/internal/core/keystore"
 	"vault0/internal/errors"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
@@ -42,8 +43,9 @@ var testChain = types.Chain{
 // setupTest creates a test wallet with mock dependencies
 func setupTest(t *testing.T) (*EVMWallet, *MockKeyStore) {
 	ks := &MockKeyStore{}
+	log := logger.NewNopLogger()
 
-	wallet, err := NewEVMWallet(ks, testChain, "test")
+	wallet, err := NewEVMWallet("test", testChain, ks, log)
 	require.NoError(t, err)
 	return wallet, ks
 }
@@ -93,7 +95,8 @@ func TestDeriveAddress(t *testing.T) {
 	t.Run("key not found", func(t *testing.T) {
 		// Setup
 		mockKeyStore := keystore.NewMockKeyStore()
-		wallet, err := NewEVMWallet(mockKeyStore, testChain, "non-existent-key")
+		log := logger.NewNopLogger()
+		wallet, err := NewEVMWallet("non-existent-key", testChain, mockKeyStore, log)
 		require.NoError(t, err)
 
 		// Execute
@@ -170,7 +173,8 @@ func TestCreateNativeTransaction(t *testing.T) {
 	t.Run("key not found", func(t *testing.T) {
 		// Setup
 		mockKeyStore := keystore.NewMockKeyStore()
-		wallet, err := NewEVMWallet(mockKeyStore, testChain, "non-existent-key")
+		log := logger.NewNopLogger()
+		wallet, err := NewEVMWallet("non-existent-key", testChain, mockKeyStore, log)
 		require.NoError(t, err)
 
 		// Execute
@@ -303,7 +307,8 @@ func TestSignTransaction(t *testing.T) {
 	t.Run("key not found", func(t *testing.T) {
 		// Setup
 		mockKeyStore := keystore.NewMockKeyStore()
-		wallet, err := NewEVMWallet(mockKeyStore, testChain, "non-existent-key")
+		log := logger.NewNopLogger()
+		wallet, err := NewEVMWallet("non-existent-key", testChain, mockKeyStore, log)
 		require.NoError(t, err)
 
 		tx := &types.Transaction{
@@ -328,30 +333,31 @@ func TestSignTransaction(t *testing.T) {
 // TestNewEVMWalletValidation tests the validation in NewEVMWallet
 func TestNewEVMWalletValidation(t *testing.T) {
 	ks := &MockKeyStore{}
+	log := logger.NewNopLogger()
 
 	// Test with nil keystore
-	_, err := NewEVMWallet(nil, types.Chain{}, "test")
+	_, err := NewEVMWallet("test", types.Chain{}, nil, log)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "Invalid wallet configuration: keystore cannot be nil")
 
 	// Test with empty keyID
-	_, err = NewEVMWallet(ks, types.Chain{}, "")
+	_, err = NewEVMWallet("", types.Chain{}, ks, log)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "Invalid wallet configuration: keyID cannot be empty")
 
 	// Test with invalid key type
-	_, err = NewEVMWallet(ks, types.Chain{
+	_, err = NewEVMWallet("test", types.Chain{
 		KeyType: types.KeyTypeRSA,
 		Curve:   coreCrypto.Secp256k1Curve,
-	}, "test")
+	}, ks, log)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "Invalid key type: expected ecdsa, got rsa")
 
 	// Test with invalid curve
-	_, err = NewEVMWallet(ks, types.Chain{
+	_, err = NewEVMWallet("test", types.Chain{
 		KeyType: types.KeyTypeECDSA,
 		Curve:   elliptic.P256(),
-	}, "test")
+	}, ks, log)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "Invalid curve: expected secp256k1, got P-256")
 }
