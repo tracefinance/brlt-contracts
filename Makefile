@@ -30,7 +30,7 @@ CONTRACTS_DIR = ./contracts
 # Package name
 PACKAGE = vault0
 
-.PHONY: all build clean server server-test server-test-coverage server-deps server-install genkey genkey-install server-dev server-clean git-reset git-status git-pull git-push ui ui-deps ui-dev ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests git-diff-setup verify-tokens verify-tokens-build swag-install openapi
+.PHONY: all build clean server-build server-test server-test-coverage server-deps server-install genkey-build genkey-install server server-clean git-reset git-status git-pull git-push ui-build ui-deps ui ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests git-diff-setup verify-tokens verify-tokens-build swag-install openapi
 
 # Count lines of code in the project
 count-lines:
@@ -40,16 +40,16 @@ count-lines:
 all: clean build
 
 # Build all binaries
-build: server genkey verify-tokens-build ui contracts-build
+build: server-build genkey-build verify-tokens-build ui-build contracts-build
 
 # Build server binary
-server: wire
+server-build: wire
 	@echo "Building server binary..."
 	@mkdir -p $(BUILD_DIR)
 	$(GOBUILD) -o $(BUILD_DIR)/$(SERVER_BIN) $(SERVER_SRC)
 
 # Build genkey binary
-genkey:
+genkey-build:
 	@echo "Building genkey binary..."
 	@mkdir -p $(BUILD_DIR)
 	$(GOBUILD) -o $(BUILD_DIR)/$(GENKEY_BIN) $(GENKEY_SRC)
@@ -82,7 +82,7 @@ server-deps:
 	$(GOMOD) tidy
 
 # Run server
-server-dev: server
+server: server-build
 	@echo "Running server..."
 	@$(BUILD_DIR)/$(SERVER_BIN)
 
@@ -129,7 +129,7 @@ git-diff-setup:
 	@echo "Git diff is now set up to use cat instead of less. This prevents the terminal from getting stuck in pager mode."
 
 # UI commands
-ui:
+ui-build:
 	@echo "Building UI for production..."
 	cd $(UI_DIR) && npm run build
 
@@ -137,7 +137,7 @@ ui-deps:
 	@echo "Installing UI dependencies..."
 	cd $(UI_DIR) && npm install
 
-ui-dev:
+ui:
 	@echo "Starting UI development server..."
 	cd $(UI_DIR) && npm run dev
 

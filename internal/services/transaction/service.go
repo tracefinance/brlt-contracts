@@ -96,7 +96,7 @@ func (s *transactionService) GetTransactionsByWallet(ctx context.Context, wallet
 	}
 
 	// Get transactions from database
-	return s.repository.ListByWallet(ctx, walletID, limit, offset)
+	return s.repository.ListByWalletID(ctx, walletID, limit, offset)
 }
 
 // GetTransactionsByAddress retrieves transactions for a specific blockchain address
@@ -118,7 +118,7 @@ func (s *transactionService) GetTransactionsByAddress(ctx context.Context, chain
 	}
 
 	// Get transactions from database
-	return s.repository.ListByAddress(ctx, chainType, address, limit, offset)
+	return s.repository.ListByWalletAddress(ctx, chainType, address, limit, offset)
 }
 
 // SyncTransactions fetches and stores transactions for a wallet

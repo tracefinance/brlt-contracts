@@ -144,10 +144,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 				logger.String("chain", string(e.chain.Type)),
 			)
 			// Calculate exponential backoff delay
-			backoffDelay := baseRetryDelay * time.Duration(1<<uint(attempt+2)) // More aggressive backoff for rate limits
-			if backoffDelay > 15*time.Second {
-				backoffDelay = 15 * time.Second // Cap at 15 seconds for rate limits
-			}
+			backoffDelay := min(baseRetryDelay*time.Duration(1<<uint(attempt+2)), 15*time.Second)
 			time.Sleep(backoffDelay)
 			continue
 		}
@@ -269,14 +266,7 @@ func (e *EtherscanExplorer) GetContract(ctx context.Context, address string) (*C
 // getNormalTransactionHistory fetches normal transactions for an address
 func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions) ([]*types.Transaction, error) {
 	params := url.Values{}
-	params.Set("module", "account")
-	params.Set("action", "txlist")
-	params.Set("address", address)
-	params.Set("startblock", strconv.FormatInt(options.StartBlock, 10))
-	params.Set("endblock", strconv.FormatInt(options.EndBlock, 10))
-	params.Set("page", strconv.Itoa(options.Page))
-	params.Set("offset", strconv.Itoa(options.PageSize))
-	params.Set("sort", map[bool]string{true: "asc", false: "desc"}[options.SortAscending])
+	e.setTransactionHistoryParams(params, address, options, "txlist")
 
 	data, err := e.makeRequest(ctx, params)
 	if err != nil {
@@ -340,14 +330,7 @@ func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, add
 // getInternalTransactionHistory fetches internal transactions for an address
 func (e *EtherscanExplorer) getInternalTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions) ([]*types.Transaction, error) {
 	params := url.Values{}
-	params.Set("module", "account")
-	params.Set("action", "txlistinternal")
-	params.Set("address", address)
-	params.Set("startblock", strconv.FormatInt(options.StartBlock, 10))
-	params.Set("endblock", strconv.FormatInt(options.EndBlock, 10))
-	params.Set("page", strconv.Itoa(options.Page))
-	params.Set("offset", strconv.Itoa(options.PageSize))
-	params.Set("sort", map[bool]string{true: "asc", false: "desc"}[options.SortAscending])
+	e.setTransactionHistoryParams(params, address, options, "txlistinternal")
 
 	data, err := e.makeRequest(ctx, params)
 	if err != nil {
@@ -400,14 +383,7 @@ func (e *EtherscanExplorer) getInternalTransactionHistory(ctx context.Context, a
 // getERC20TransactionHistory fetches ERC20 token transfers for an address
 func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions) ([]*types.Transaction, error) {
 	params := url.Values{}
-	params.Set("module", "account")
-	params.Set("action", "tokentx")
-	params.Set("address", address)
-	params.Set("startblock", strconv.FormatInt(options.StartBlock, 10))
-	params.Set("endblock", strconv.FormatInt(options.EndBlock, 10))
-	params.Set("page", strconv.Itoa(options.Page))
-	params.Set("offset", strconv.Itoa(options.PageSize))
-	params.Set("sort", map[bool]string{true: "asc", false: "desc"}[options.SortAscending])
+	e.setTransactionHistoryParams(params, address, options, "tokentx")
 
 	data, err := e.makeRequest(ctx, params)
 	if err != nil {
@@ -538,6 +514,20 @@ func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address s
 		Limit:   options.PageSize,
 		HasMore: hasMore,
 	}, nil
+}
+
+// setTransactionHistoryParams sets common parameters for transaction history queries
+func (e *EtherscanExplorer) setTransactionHistoryParams(params url.Values, address string, options TransactionHistoryOptions, action string) {
+	params.Set("module", "account")
+	params.Set("action", action)
+	params.Set("address", address)
+	params.Set("startblock", strconv.FormatInt(options.StartBlock, 10))
+	if options.EndBlock != 0 {
+		params.Set("endblock", strconv.FormatInt(options.EndBlock, 10))
+	}
+	params.Set("page", strconv.Itoa(options.Page))
+	params.Set("offset", strconv.Itoa(options.PageSize))
+	params.Set("sort", map[bool]string{true: "asc", false: "desc"}[options.SortAscending])
 }
 
 // GetTransactionsByHash implements BlockExplorer.GetTransactionsByHash

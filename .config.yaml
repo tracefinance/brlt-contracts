@@ -14,7 +14,7 @@ snowflake:
 
 # Logging configuration
 log:
-  level: info
+  level: debug
   format: console
   output_path: ""  # Empty means stdout
   request_logging: true
