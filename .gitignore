@@ -55,3 +55,6 @@ build/
 
 # Auto-generated Swagger documentation
 internal/api/docs/
+
+# Generated Wire files
+**/wire_gen.go
