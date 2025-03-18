@@ -254,22 +254,26 @@ func (r *repository) GetByUserID(ctx context.Context, userID int64) ([]*Signer, 
 
 // List retrieves a paginated collection of signers
 func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*Signer], error) {
-	// Apply default pagination if not specified
-	if limit < 1 {
-		limit = 10
-	}
+	// Apply default offset if negative
 	if offset < 0 {
 		offset = 0
 	}
 
-	// Get signers with pagination
+	// Get signers with or without pagination
 	query := `
 	SELECT id, name, type, user_id, created_at, updated_at
 	FROM signers
-	ORDER BY created_at DESC
-	LIMIT ? OFFSET ?`
+	ORDER BY created_at DESC`
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, limit, offset)
+	args := []any{}
+
+	// Add pagination if limit > 0
+	if limit > 0 {
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, limit, offset)
+	}
+
+	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +335,7 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 	}
 
 	// Create pagination result
-	hasMore := (offset + limit) < count
+	hasMore := limit > 0 && (offset+limit) < count
 
 	return &types.Page[*Signer]{
 		Items:   signers,

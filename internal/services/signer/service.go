@@ -197,6 +197,21 @@ func (s *service) GetByUserID(ctx context.Context, userID int64) ([]*Signer, err
 
 // List returns a paginated collection of signers
 func (s *service) List(ctx context.Context, limit, offset int) (*types.Page[*Signer], error) {
+	// Apply default pagination values if not specified
+	// if limit <= 0, use default limit of 10
+	if limit <= 0 {
+		limit = 10
+	}
+
+	if offset < 0 {
+		offset = 0
+	}
+
+	s.log.Debug("Listing signers",
+		logger.Int("limit", limit),
+		logger.Int("offset", offset),
+	)
+
 	return s.repository.List(ctx, limit, offset)
 }
 

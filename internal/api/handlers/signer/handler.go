@@ -60,7 +60,7 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 func (h *Handler) CreateSigner(c *gin.Context) {
 	var req CreateSignerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid request body"))
+		c.Error(err)
 		return
 	}
 
@@ -90,13 +90,13 @@ func (h *Handler) UpdateSigner(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid signer ID format"))
+		c.Error(errors.NewInvalidInputError("Invalid signer ID format", "id", idStr))
 		return
 	}
 
 	var req UpdateSignerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid request body"))
+		c.Error(err)
 		return
 	}
 
@@ -123,7 +123,7 @@ func (h *Handler) DeleteSigner(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid signer ID format"))
+		c.Error(errors.NewInvalidInputError("Invalid signer ID format", "id", idStr))
 		return
 	}
 
@@ -151,7 +151,7 @@ func (h *Handler) GetSigner(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid signer ID format"))
+		c.Error(errors.NewInvalidInputError("Invalid signer ID format", "id", idStr))
 		return
 	}
 
@@ -212,7 +212,7 @@ func (h *Handler) GetSignersByUser(c *gin.Context) {
 	userIdStr := c.Param("userId")
 	userId, err := strconv.ParseInt(userIdStr, 10, 64)
 	if err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid user ID format"))
+		c.Error(errors.NewInvalidInputError("Invalid user ID format", "userId", userIdStr))
 		return
 	}
 
@@ -242,13 +242,13 @@ func (h *Handler) AddAddress(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid signer ID format"))
+		c.Error(errors.NewInvalidInputError("Invalid signer ID format", "id", idStr))
 		return
 	}
 
 	var req AddAddressRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid request body"))
+		c.Error(err)
 		return
 	}
 
@@ -276,7 +276,7 @@ func (h *Handler) DeleteAddress(c *gin.Context) {
 	addressIdStr := c.Param("addressId")
 	addressId, err := strconv.ParseInt(addressIdStr, 10, 64)
 	if err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid address ID format"))
+		c.Error(errors.NewInvalidInputError("Invalid address ID format", "addressId", addressIdStr))
 		return
 	}
 
@@ -304,7 +304,7 @@ func (h *Handler) GetAddresses(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid signer ID format"))
+		c.Error(errors.NewInvalidInputError("Invalid signer ID format", "id", idStr))
 		return
 	}
 
