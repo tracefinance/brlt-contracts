@@ -65,7 +65,6 @@ backend/
 │   │   ├── blockchain/                 # Blockchain interaction
 │   │   ├── contract/                   # Smart contract interaction
 │   │   ├── crypto/                     # Cryptography utilities
-│   │   ├── db/                         # Database access
 │   │   ├── keygen/                     # Key generation utilities
 │   │   ├── keystore/                   # Key management
 │   │   └── wallet/                     # Wallet operations
@@ -74,7 +73,8 @@ backend/
 │   │   ├── wallet/                     # Wallet operations domain
 │   │   ├── auth/                       # Authentication domain
 │   │   └── blockchain/                 # Blockchain operations domain
-│   ├── config/                         # Configuration management
+│   ├── config/                          # Configuration management
+│   ├── db/                             # Database access
 │   ├── errors/                         # Error types and handling
 │   ├── logger/                         # Logging utilities
 │   ├── oauth2/                         # OAuth2 implementations
