@@ -98,7 +98,7 @@ contract MultiSigWallet is ReentrancyGuard {
         address _recoveryAddress,
         address[] memory _whitelistedTokens
     ) {
-        require(_signers.length >= 2 && _signers.length <= 5, "Must have 2-5 signers");
+        require(_signers.length >= 2 && _signers.length <= 7, "Must have 2-7 signers");
         require(_quorum >= (_signers.length + 1) / 2 && _quorum >= 2 && _quorum <= _signers.length, "Invalid quorum");
         require(_recoveryAddress != address(0), "Invalid recovery address");
         require(_whitelistedTokens.length < MAX_SUPPORTED_TOKENS, "Too many whitelisted tokens");

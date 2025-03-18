@@ -401,19 +401,19 @@ describe("MultiSigWallet Extended Tests", function () {
         1,
         recovery.address,
         []
-      )).to.be.revertedWith("Must have 2-5 signers");
+      )).to.be.revertedWith("Must have 2-7 signers");
     });
     
-    it("Should not allow creating wallet with more than 5 signers", async function () {
-      const [s1, s2, s3, s4, s5, s6] = await ethers.getSigners();
+    it("Should not allow creating wallet with more than 7 signers", async function () {
+      const [s1, s2, s3, s4, s5, s6, s7, s8] = await ethers.getSigners();
       const Wallet = await ethers.getContractFactory("MultiSigWallet");
       
       await expect(Wallet.deploy(
-        [s1.address, s2.address, s3.address, s4.address, s5.address, s6.address], // 6 signers
-        4,
+        [s1.address, s2.address, s3.address, s4.address, s5.address, s6.address, s7.address, s8.address], // 8 signers
+        5,
         recovery.address,
         []
-      )).to.be.revertedWith("Must have 2-5 signers");
+      )).to.be.revertedWith("Must have 2-7 signers");
     });
     
     it("Should not allow quorum less than required minimum", async function () {
