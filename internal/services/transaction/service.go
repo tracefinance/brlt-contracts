@@ -157,7 +157,6 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 	if err != nil {
 		return 0, err
 	}
-	defer explorer.Close()
 
 	// Get wallet ID and last block number if exists
 	var walletID int64
@@ -289,7 +288,6 @@ func (s *transactionService) OnWalletEvent(ctx context.Context, walletID int64, 
 	if err != nil {
 		return err
 	}
-	defer explorer.Close()
 
 	// Fetch full transaction details
 	txs, err := explorer.GetTransactionsByHash(ctx, []string{event.TransactionHash})

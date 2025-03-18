@@ -153,8 +153,4 @@ type BlockExplorer interface {
 	// Chain returns the configuration for the blockchain this explorer is connected to.
 	// This includes information like the chain type, network ID, and other chain-specific details.
 	Chain() types.Chain
-
-	// Close releases any resources held by the explorer.
-	// This should be called when the explorer is no longer needed.
-	Close() error
 }

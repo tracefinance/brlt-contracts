@@ -48,7 +48,6 @@ type EtherscanExplorer struct {
 
 	// Rate limiting
 	limiter *rate.Limiter
-	done    chan struct{}
 }
 
 // NewEtherscanExplorer creates a new instance of EtherscanExplorer
@@ -63,7 +62,6 @@ func NewEtherscanExplorer(chain types.Chain, apiURL, explorerURL, apiKey string,
 		},
 		log:     log,
 		limiter: rate.NewLimiter(rate.Limit(requestsPerSecond), burstSize),
-		done:    make(chan struct{}),
 	}
 
 	return e
@@ -667,12 +665,6 @@ func (e *EtherscanExplorer) GetTokenBalances(ctx context.Context, address string
 // GetTokenURL implements BlockExplorer.GetTokenURL
 func (e *EtherscanExplorer) GetTokenURL(address string) string {
 	return fmt.Sprintf("%s/token/%s", e.explorerURL, address)
-}
-
-// Close implements BlockExplorer.Close
-func (e *EtherscanExplorer) Close() error {
-	close(e.done)
-	return nil
 }
 
 // Chain implements BlockExplorer.Chain
