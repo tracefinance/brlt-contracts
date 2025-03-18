@@ -38,7 +38,7 @@ func NewDatabase(cfg *config.Config, snowflake *Snowflake, log logger.Logger) (*
 	}
 
 	log.Info("Connected to database", logger.String("path", cfg.DBPath))
-	return &DB{Conn: conn, Config: cfg, Log: log}, nil
+	return &DB{Conn: conn, Config: cfg, Log: log, Snowflake: snowflake}, nil
 }
 
 // Close closes the database connection
