@@ -1,7 +1,7 @@
 -- Create keys table for key management
 CREATE TABLE IF NOT EXISTS keys (
     id TEXT PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
     key_type TEXT NOT NULL,
     curve TEXT, -- Curve type for ECDSA keys (e.g., P256, P384, P521, secp256k1)
     tags TEXT, -- JSON encoded map of tags

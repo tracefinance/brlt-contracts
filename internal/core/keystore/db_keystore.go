@@ -72,34 +72,8 @@ type ECDSASignature struct {
 	R, S *big.Int
 }
 
-// checkKeyExists checks if a key with the given name already exists
-func (ks *DBKeyStore) checkKeyExists(ctx context.Context, name string) error {
-	var count int
-	rows, err := ks.db.ExecuteQueryContext(ctx, "SELECT COUNT(*) FROM keys WHERE name = ?", name)
-	if err != nil {
-		return errors.NewDatabaseError(err)
-	}
-	defer rows.Close()
-
-	if rows.Next() {
-		if err := rows.Scan(&count); err != nil {
-			return errors.NewDatabaseError(err)
-		}
-	}
-
-	if count > 0 {
-		return errors.NewResourceAlreadyExistsError("key", "name", name)
-	}
-	return nil
-}
-
 // Create creates a new key with the given name and type
 func (ks *DBKeyStore) Create(ctx context.Context, name string, keyType types.KeyType, curve elliptic.Curve, tags map[string]string) (*Key, error) {
-	// Check if key already exists
-	if err := ks.checkKeyExists(ctx, name); err != nil {
-		return nil, err
-	}
-
 	// Validate curve for ECDSA keys
 	if keyType == types.KeyTypeECDSA {
 		if curve == nil {
@@ -170,11 +144,6 @@ func (ks *DBKeyStore) Create(ctx context.Context, name string, keyType types.Key
 
 // Import imports an existing key
 func (ks *DBKeyStore) Import(ctx context.Context, name string, keyType types.KeyType, curve elliptic.Curve, privateKey, publicKey []byte, tags map[string]string) (*Key, error) {
-	// Check if key already exists
-	if err := ks.checkKeyExists(ctx, name); err != nil {
-		return nil, err
-	}
-
 	// Convert tags to JSON
 	tagsJSON, err := json.Marshal(tags)
 	if err != nil {
