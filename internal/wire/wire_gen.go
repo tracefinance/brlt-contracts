@@ -9,6 +9,7 @@ package wire
 import (
 	"github.com/google/wire"
 	"vault0/internal/api"
+	signer2 "vault0/internal/api/handlers/signer"
 	token2 "vault0/internal/api/handlers/token"
 	transaction2 "vault0/internal/api/handlers/transaction"
 	user2 "vault0/internal/api/handlers/user"
@@ -22,6 +23,7 @@ import (
 	"vault0/internal/core/wallet"
 	"vault0/internal/db"
 	"vault0/internal/logger"
+	"vault0/internal/services/signer"
 	"vault0/internal/services/token"
 	"vault0/internal/services/transaction"
 	"vault0/internal/services/user"
@@ -75,8 +77,11 @@ func BuildContainer() (*Container, error) {
 	transactionHandler := transaction2.NewHandler(transactionService)
 	tokenService := token.NewService(tokenStore, loggerLogger)
 	tokenHandler := token2.NewHandler(tokenService)
-	server := api.NewServer(loggerLogger, configConfig, handler, walletHandler, transactionHandler, tokenHandler)
-	services := NewServices(walletService, service, transactionService, tokenService)
+	signerRepository := signer.NewRepository(dbDB)
+	signerService := signer.NewService(loggerLogger, signerRepository)
+	signerHandler := signer2.NewHandler(signerService)
+	server := api.NewServer(loggerLogger, configConfig, handler, walletHandler, transactionHandler, tokenHandler, signerHandler)
+	services := NewServices(walletService, service, transactionService, tokenService, signerService)
 	container := NewContainer(core, server, services)
 	return container, nil
 }

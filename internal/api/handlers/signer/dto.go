@@ -1,0 +1,109 @@
+package signer
+
+import (
+	"time"
+	"vault0/internal/services/signer"
+	"vault0/internal/types"
+)
+
+// CreateSignerRequest represents data needed to create a signer
+type CreateSignerRequest struct {
+	Name   string            `json:"name" binding:"required"`
+	Type   signer.SignerType `json:"type" binding:"required,oneof=internal external"`
+	UserID *int64            `json:"user_id,omitempty"`
+}
+
+// UpdateSignerRequest represents data for updating a signer
+type UpdateSignerRequest struct {
+	Name   string            `json:"name" binding:"required"`
+	Type   signer.SignerType `json:"type" binding:"required,oneof=internal external"`
+	UserID *int64            `json:"user_id,omitempty"`
+}
+
+// AddAddressRequest represents data for adding an address to a signer
+type AddAddressRequest struct {
+	ChainType string `json:"chain_type" binding:"required"`
+	Address   string `json:"address" binding:"required"`
+}
+
+// SignerResponse represents a signer response
+type SignerResponse struct {
+	ID        int64              `json:"id"`
+	Name      string             `json:"name"`
+	Type      string             `json:"type"`
+	UserID    *int64             `json:"user_id,omitempty"`
+	Addresses []*AddressResponse `json:"addresses,omitempty"`
+	CreatedAt time.Time          `json:"created_at"`
+	UpdatedAt time.Time          `json:"updated_at"`
+}
+
+// AddressResponse represents an address response
+type AddressResponse struct {
+	ID        int64     `json:"id"`
+	SignerID  int64     `json:"signer_id"`
+	ChainType string    `json:"chain_type"`
+	Address   string    `json:"address"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// PagedSignersResponse represents a paginated list of signers
+type PagedSignersResponse struct {
+	Items   []*SignerResponse `json:"items"`
+	Limit   int               `json:"limit"`
+	Offset  int               `json:"offset"`
+	HasMore bool              `json:"has_more"`
+}
+
+// ToAddressResponse converts an address model to a response
+func ToAddressResponse(address *signer.Address) *AddressResponse {
+	return &AddressResponse{
+		ID:        address.ID,
+		SignerID:  address.SignerID,
+		ChainType: address.ChainType,
+		Address:   address.Address,
+		CreatedAt: address.CreatedAt,
+		UpdatedAt: address.UpdatedAt,
+	}
+}
+
+// ToAddressResponseList converts a slice of address models to a slice of responses
+func ToAddressResponseList(addresses []*signer.Address) []*AddressResponse {
+	responses := make([]*AddressResponse, len(addresses))
+	for i, address := range addresses {
+		responses[i] = ToAddressResponse(address)
+	}
+	return responses
+}
+
+// ToSignerResponse converts a signer model to a response
+func ToSignerResponse(signer *signer.Signer) *SignerResponse {
+	return &SignerResponse{
+		ID:        signer.ID,
+		Name:      signer.Name,
+		Type:      string(signer.Type),
+		UserID:    signer.UserID,
+		Addresses: ToAddressResponseList(signer.Addresses),
+		CreatedAt: signer.CreatedAt,
+		UpdatedAt: signer.UpdatedAt,
+	}
+}
+
+// ToSignerResponseList converts a slice of signer models to a slice of responses
+func ToSignerResponseList(signers []*signer.Signer) []*SignerResponse {
+	responses := make([]*SignerResponse, len(signers))
+	for i, signer := range signers {
+		responses[i] = ToSignerResponse(signer)
+	}
+	return responses
+}
+
+// ToPagedResponse converts a Page of signer models to a PagedSignersResponse
+func ToPagedResponse(page *types.Page[*signer.Signer]) *PagedSignersResponse {
+	return &PagedSignersResponse{
+		Items:   ToSignerResponseList(page.Items),
+		Limit:   page.Limit,
+		Offset:  page.Offset,
+		HasMore: page.HasMore,
+	}
+}

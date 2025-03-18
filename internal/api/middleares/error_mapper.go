@@ -66,6 +66,8 @@ func DefaultErrorMapper(err error) (int, any) {
 		case errors.ErrCodeKeyNotFound:
 		case errors.ErrCodeTransactionNotFound:
 		case errors.ErrCodeContractNotFound:
+		case errors.ErrCodeSignerNotFound:
+		case errors.ErrCodeSignerAddressNotFound:
 			return http.StatusNotFound, appErr
 
 		// Resource already exists errors - 409 Conflict

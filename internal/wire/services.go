@@ -3,6 +3,7 @@ package wire
 import (
 	"github.com/google/wire"
 
+	"vault0/internal/services/signer"
 	"vault0/internal/services/token"
 	"vault0/internal/services/transaction"
 	"vault0/internal/services/user"
@@ -14,6 +15,7 @@ type Services struct {
 	UserService        user.Service
 	TransactionService transaction.Service
 	TokenService       token.Service
+	SignerService      signer.Service
 }
 
 func NewServices(
@@ -21,12 +23,14 @@ func NewServices(
 	userService user.Service,
 	transactionService transaction.Service,
 	tokenService token.Service,
+	signerService signer.Service,
 ) *Services {
 	return &Services{
 		WalletService:      walletService,
 		UserService:        userService,
 		TransactionService: transactionService,
 		TokenService:       tokenService,
+		SignerService:      signerService,
 	}
 }
 
@@ -49,10 +53,16 @@ var TokenServiceSet = wire.NewSet(
 	token.NewService,
 )
 
+var SignerServiceSet = wire.NewSet(
+	signer.NewRepository,
+	signer.NewService,
+)
+
 var ServicesSet = wire.NewSet(
 	WalletServiceSet,
 	UserServiceSet,
 	TransactionServiceSet,
 	TokenServiceSet,
+	SignerServiceSet,
 	NewServices,
 )

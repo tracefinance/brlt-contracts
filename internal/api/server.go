@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"vault0/internal/api/handlers/signer"
 	"vault0/internal/api/handlers/token"
 	"vault0/internal/api/handlers/transaction"
 	"vault0/internal/api/handlers/user"
@@ -23,6 +24,7 @@ type Server struct {
 	walletHandler      *wallet.Handler
 	transactionHandler *transaction.Handler
 	tokenHandler       *token.Handler
+	signerHandler      *signer.Handler
 }
 
 // NewServer creates a new API server
@@ -33,6 +35,7 @@ func NewServer(
 	walletHandler *wallet.Handler,
 	transactionHandler *transaction.Handler,
 	tokenHandler *token.Handler,
+	signerHandler *signer.Handler,
 ) *Server {
 	router := gin.Default()
 	return &Server{
@@ -43,6 +46,7 @@ func NewServer(
 		walletHandler:      walletHandler,
 		transactionHandler: transactionHandler,
 		tokenHandler:       tokenHandler,
+		signerHandler:      signerHandler,
 	}
 }
 
@@ -56,6 +60,7 @@ func (s *Server) SetupRoutes() {
 	s.walletHandler.SetupRoutes(api)
 	s.transactionHandler.SetupRoutes(api)
 	s.tokenHandler.SetupRoutes(api)
+	s.signerHandler.SetupRoutes(api)
 
 	// Health check endpoint
 	api.GET("/health", s.healthHandler)

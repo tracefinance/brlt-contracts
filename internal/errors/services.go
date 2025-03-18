@@ -26,6 +26,10 @@ const (
 
 	// Transaction service errors
 	ErrCodeTransactionSyncFailed = "transaction_sync_failed"
+
+	// Signer service errors
+	ErrCodeSignerNotFound        = "signer_not_found"
+	ErrCodeSignerAddressNotFound = "signer_address_not_found"
 )
 
 // NewInvalidInputError creates an error for invalid input data with a custom message
@@ -163,5 +167,27 @@ func NewTransactionSyncFailedError(operation string, err error) *Vault0Error {
 		Code:    ErrCodeTransactionSyncFailed,
 		Message: fmt.Sprintf("Transaction sync failed: %s", operation),
 		Err:     err,
+	}
+}
+
+// NewSignerNotFoundError creates an error for missing signer
+func NewSignerNotFoundError(id int64) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeSignerNotFound,
+		Message: "Signer not found",
+		Details: map[string]any{
+			"signer_id": id,
+		},
+	}
+}
+
+// NewSignerAddressNotFoundError creates an error for missing signer address
+func NewSignerAddressNotFoundError(id int64) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeSignerAddressNotFound,
+		Message: "Signer address not found",
+		Details: map[string]any{
+			"address_id": id,
+		},
 	}
 }
