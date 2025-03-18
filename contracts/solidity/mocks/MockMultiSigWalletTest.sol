@@ -5,19 +5,21 @@ import "../MultiSigWallet.sol";
 
 /**
  * @title MockMultiSigWalletTest
- * @dev Extension of MultiSigWallet for testing internal functions
+ * @dev A mock contract that extends MultiSigWallet for testing purposes
  */
 contract MockMultiSigWalletTest is MultiSigWallet {
+    
     constructor(
         address[] memory _signers, 
-        uint256 _quorum, 
-        address _recoveryAddress, 
+        uint256 _quorum,
+        address _recoveryAddress,
         address[] memory _whitelistedTokens
-    ) 
-        MultiSigWallet(_signers, _quorum, _recoveryAddress, _whitelistedTokens) {}
+    ) MultiSigWallet(_signers, _quorum, _recoveryAddress, _whitelistedTokens) {}
     
-    // Function to sign without executing, to test direct execution later
-    function signWithdrawalWithoutExecution(bytes32 requestId) external onlySigner {
+    /**
+     * @dev Allows testing of signWithdrawal without execution (even if quorum is reached)
+     */
+    function signWithdrawalWithoutExecution(bytes32 requestId) external onlySigner notInRecovery {
         WithdrawalRequest storage request = withdrawalRequests[requestId];
         require(request.timestamp > 0, "Request not found");
         require(!request.executed, "Already executed");
@@ -28,10 +30,11 @@ contract MockMultiSigWalletTest is MultiSigWallet {
         request.signatureCount++;
         
         emit WithdrawalSigned(requestId, msg.sender);
-        // Note: We don't execute the withdrawal here, unlike the original signWithdrawal function
     }
     
-    // Function to directly execute withdrawal, bypassing normal flow
+    /**
+     * @dev Exposes the internal _executeWithdrawal function for testing
+     */
     function executeWithdrawalDirect(bytes32 requestId) external {
         _executeWithdrawal(requestId);
     }
