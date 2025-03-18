@@ -23,6 +23,22 @@ func NewHandler(walletService wallet.Service) *Handler {
 	}
 }
 
+func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
+	// Create error handler middleware
+	errorHandler := middleares.NewErrorHandler(nil)
+
+	// Apply middleware to wallet routes group
+	walletRoutes := router.Group("/wallets")
+	walletRoutes.Use(errorHandler.Middleware())
+
+	// Setup routes
+	walletRoutes.POST("", h.CreateWallet)
+	walletRoutes.GET("/:chain_type/:address", h.GetWallet)
+	walletRoutes.PUT("/:chain_type/:address", h.UpdateWallet)
+	walletRoutes.DELETE("/:chain_type/:address", h.DeleteWallet)
+	walletRoutes.GET("", h.ListWallets)
+}
+
 // CreateWallet handles wallet creation
 func (h *Handler) CreateWallet(c *gin.Context) {
 	var req CreateWalletRequest
@@ -136,20 +152,4 @@ func (h *Handler) ListWallets(c *gin.Context) {
 
 	// Write response
 	c.JSON(http.StatusOK, ToPagedResponse(walletPage))
-}
-
-func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
-	// Create error handler middleware
-	errorHandler := middleares.NewErrorHandler(nil)
-
-	// Apply middleware to wallet routes group
-	walletRoutes := router.Group("/wallets")
-	walletRoutes.Use(errorHandler.Middleware())
-
-	// Setup routes
-	walletRoutes.POST("", h.CreateWallet)
-	walletRoutes.GET("/:chain_type/:address", h.GetWallet)
-	walletRoutes.PUT("/:chain_type/:address", h.UpdateWallet)
-	walletRoutes.DELETE("/:chain_type/:address", h.DeleteWallet)
-	walletRoutes.GET("", h.ListWallets)
 }

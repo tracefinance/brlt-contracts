@@ -23,6 +23,24 @@ func NewHandler(transactionService transaction.Service) *Handler {
 	}
 }
 
+// SetupRoutes sets up the transaction routes
+func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
+	// Create error handler middleware
+	errorHandler := middleares.NewErrorHandler(nil)
+
+	// Wallet-scoped transaction routes
+	walletRoutes := router.Group("/wallets/:chain_type/:address/transactions")
+	walletRoutes.Use(errorHandler.Middleware())
+	walletRoutes.GET("", h.GetTransactionsByAddress)
+	walletRoutes.GET("/:hash", h.GetTransaction)
+	walletRoutes.POST("/sync", h.SyncTransactions)
+
+	// Direct transaction routes
+	transactionRoutes := router.Group("/transactions")
+	transactionRoutes.Use(errorHandler.Middleware())
+	transactionRoutes.GET("/:hash", h.GetTransaction)
+}
+
 // GetTransaction handles GET /wallets/:chain_type/:address/transactions/:hash
 // or GET /transactions/:hash
 func (h *Handler) GetTransaction(c *gin.Context) {
@@ -83,22 +101,4 @@ func (h *Handler) SyncTransactions(c *gin.Context) {
 	c.JSON(http.StatusOK, SyncTransactionsResponse{
 		Count: count,
 	})
-}
-
-// SetupRoutes sets up the transaction routes
-func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
-	// Create error handler middleware
-	errorHandler := middleares.NewErrorHandler(nil)
-
-	// Wallet-scoped transaction routes
-	walletRoutes := router.Group("/wallets/:chain_type/:address/transactions")
-	walletRoutes.Use(errorHandler.Middleware())
-	walletRoutes.GET("", h.GetTransactionsByAddress)
-	walletRoutes.GET("/:hash", h.GetTransaction)
-	walletRoutes.POST("/sync", h.SyncTransactions)
-
-	// Direct transaction routes
-	transactionRoutes := router.Group("/transactions")
-	transactionRoutes.Use(errorHandler.Middleware())
-	transactionRoutes.GET("/:hash", h.GetTransaction)
 }

@@ -23,6 +23,22 @@ func NewHandler(userService user.Service) *Handler {
 	}
 }
 
+func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
+	// Create error handler middleware
+	errorHandler := middleares.NewErrorHandler(nil)
+
+	// Apply middleware to user routes group
+	userRoutes := router.Group("/users")
+	userRoutes.Use(errorHandler.Middleware())
+
+	// Setup routes
+	userRoutes.POST("", h.CreateUser)
+	userRoutes.PUT("/:id", h.UpdateUser)
+	userRoutes.DELETE("/:id", h.DeleteUser)
+	userRoutes.GET("/:id", h.GetUser)
+	userRoutes.GET("", h.ListUsers)
+}
+
 // CreateUser handles POST /users
 func (h *Handler) CreateUser(c *gin.Context) {
 	var req CreateUserRequest
@@ -119,20 +135,4 @@ func (h *Handler) ListUsers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, ToPagedResponse(page))
-}
-
-func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
-	// Create error handler middleware
-	errorHandler := middleares.NewErrorHandler(nil)
-
-	// Apply middleware to user routes group
-	userRoutes := router.Group("/users")
-	userRoutes.Use(errorHandler.Middleware())
-
-	// Setup routes
-	userRoutes.POST("", h.CreateUser)
-	userRoutes.PUT("/:id", h.UpdateUser)
-	userRoutes.DELETE("/:id", h.DeleteUser)
-	userRoutes.GET("/:id", h.GetUser)
-	userRoutes.GET("", h.ListUsers)
 }
