@@ -17,13 +17,13 @@ type Repository interface {
 	// GetByTxHash retrieves a transaction by its hash
 	GetByTxHash(ctx context.Context, hash string) (*Transaction, error)
 
-	// ListByWallet retrieves transactions for a specific wallet
+	// ListByWalletID retrieves transactions for a specific wallet
 	// If limit is 0, returns all transactions without pagination
-	ListByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error)
+	ListByWalletID(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error)
 
-	// ListByAddress retrieves transactions for a specific blockchain address
+	// ListByWalletAddress retrieves transactions for a specific blockchain address
 	// If limit is 0, returns all transactions without pagination
-	ListByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
+	ListByWalletAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
 
 	// Exists checks if a transaction exists by its hash
 	Exists(ctx context.Context, hash string) (bool, error)
@@ -129,8 +129,8 @@ func (r *repository) GetByTxHash(ctx context.Context, hash string) (*Transaction
 	return tx, nil
 }
 
-// ListByWallet retrieves transactions for a specific wallet
-func (r *repository) ListByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error) {
+// ListByWalletID retrieves transactions for a specific wallet
+func (r *repository) ListByWalletID(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error) {
 	query := `
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
@@ -171,8 +171,11 @@ func (r *repository) ListByWallet(ctx context.Context, walletID int64, limit, of
 	return types.NewPage(transactions, offset, limit), nil
 }
 
-// ListByAddress retrieves transactions for a specific blockchain address
-func (r *repository) ListByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error) {
+// ListByWalletAddress retrieves transactions for a specific blockchain address
+func (r *repository) ListByWalletAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error) {
+	// Normalize the address for consistent database queries
+	normalizedAddress := types.NormalizeAddress(address)
+
 	query := `
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
@@ -183,7 +186,7 @@ func (r *repository) ListByAddress(ctx context.Context, chainType types.ChainTyp
 		ORDER BY timestamp DESC
 	`
 
-	args := []any{chainType, address, address}
+	args := []any{chainType, normalizedAddress, normalizedAddress}
 
 	// Add pagination if limit > 0
 	if limit > 0 {

@@ -57,6 +57,9 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 		}
 	}
 
+	// Normalize the address for consistent database storage
+	wallet.Address = types.NormalizeAddress(wallet.Address)
+
 	// Set timestamps
 	now := time.Now()
 	wallet.CreatedAt = now
@@ -95,15 +98,18 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 
 // Get retrieves a wallet by its chain type and address
 func (r *repository) Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
+	// Normalize the address for consistent database queries
+	normalizedAddress := types.NormalizeAddress(address)
+
 	query := `
 		SELECT id, key_id, chain_type, address, name, tags, last_block_number, created_at, updated_at, deleted_at
 		FROM wallets
 		WHERE chain_type = ? AND address = ? AND deleted_at IS NULL
 	`
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, address)
+	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, normalizedAddress)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -113,7 +119,7 @@ func (r *repository) Get(ctx context.Context, chainType types.ChainType, address
 
 	wallet, err := ScanWallet(rows)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	return wallet, nil
@@ -129,7 +135,7 @@ func (r *repository) GetByID(ctx context.Context, id int64) (*Wallet, error) {
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, id)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -139,7 +145,7 @@ func (r *repository) GetByID(ctx context.Context, id int64) (*Wallet, error) {
 
 	wallet, err := ScanWallet(rows)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	return wallet, nil
@@ -172,12 +178,12 @@ func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 	)
 
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	if rowsAffected == 0 {
@@ -187,31 +193,33 @@ func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 	return nil
 }
 
-// Delete soft deletes a wallet by its chain type and address
+// Delete deletes a wallet by its chain type and address
 func (r *repository) Delete(ctx context.Context, chainType types.ChainType, address string) error {
+	// Normalize the address for consistent database queries
+	normalizedAddress := types.NormalizeAddress(address)
+
 	query := `
 		UPDATE wallets
-		SET deleted_at = ?, updated_at = ?
+		SET deleted_at = ?
 		WHERE chain_type = ? AND address = ? AND deleted_at IS NULL
 	`
 
-	now := time.Now()
+	now := time.Now().UTC()
 	result, err := r.db.ExecuteStatementContext(
 		ctx,
 		query,
 		now,
-		now,
 		chainType,
-		address,
+		normalizedAddress,
 	)
 
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	if rowsAffected == 0 {
@@ -240,7 +248,7 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -248,13 +256,13 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 	for rows.Next() {
 		wallet, err := ScanWallet(rows)
 		if err != nil {
-			return nil, errors.NewDatabaseError(err)
+			return nil, err
 		}
 		wallets = append(wallets, wallet)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	return types.NewPage(wallets, offset, limit), nil
@@ -262,14 +270,16 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 
 // Exists checks if a wallet exists by its chain type and address
 func (r *repository) Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error) {
+	// Normalize the address for consistent database queries
+	normalizedAddress := types.NormalizeAddress(address)
+
 	query := `
-		SELECT 1
+		SELECT COUNT(*) > 0
 		FROM wallets
 		WHERE chain_type = ? AND address = ? AND deleted_at IS NULL
-		LIMIT 1
 	`
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, address)
+	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, normalizedAddress)
 	if err != nil {
 		return false, err
 	}
@@ -278,7 +288,7 @@ func (r *repository) Exists(ctx context.Context, chainType types.ChainType, addr
 	exists := rows.Next()
 
 	if err = rows.Err(); err != nil {
-		return false, errors.NewDatabaseError(err)
+		return false, err
 	}
 
 	return exists, nil
