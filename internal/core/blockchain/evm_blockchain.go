@@ -694,8 +694,9 @@ func (c *EVMBlockchain) handleSubscription(
 			backoff = subscriptionInitialBackoff
 
 			// Log successful subscription
-			c.log.Debug(fmt.Sprintf("Successfully subscribed to %s", name),
-				logger.Int64("from_block", lastSeenBlock))
+			c.log.Info(fmt.Sprintf("Successfully subscribed to %s", name),
+				logger.Int64("from_block", lastSeenBlock),
+				logger.String("chain", string(c.chain.Type)))
 
 			// Create a reflection-based channel reader that works with any channel type
 			// This approach allows us to handle different channel types (ethTypes.Header, ethTypes.Log)
