@@ -114,6 +114,16 @@ type BlockExplorer interface {
 	//   - ErrTransactionNotFound if the transaction cannot be found
 	GetTransactionByHash(ctx context.Context, hash string) (*types.Transaction, error)
 
+	// GetTransactionReceiptByHash retrieves the receipt of a transaction by its hash.
+	// A transaction receipt contains information about the execution of a transaction,
+	// including gas used, logs generated, and execution status.
+	//
+	// Returns:
+	//   - ErrExplorerRequestFailed for API/network issues
+	//   - ErrInvalidExplorerResponse if the response cannot be parsed
+	//   - ErrTransactionNotFound if the transaction receipt cannot be found
+	GetTransactionReceiptByHash(ctx context.Context, hash string) (*types.TransactionReceipt, error)
+
 	// GetAddressBalance retrieves the native token balance for an address
 	// (e.g., ETH for Ethereum, MATIC for Polygon).
 	//

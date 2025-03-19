@@ -2,6 +2,7 @@ package blockexplorer
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -304,7 +305,19 @@ func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, add
 		nonce, _ := strconv.ParseUint(tx.Nonce, 10, 64)
 		value := new(big.Int)
 		value.SetString(tx.Value, 10)
-		timestamp, _ := strconv.ParseInt(tx.Timestamp, 10, 64)
+
+		// Parse timestamp with error checking
+		timestamp := time.Now().Unix()
+		if tx.Timestamp != "" {
+			if timestampInt, err := strconv.ParseInt(tx.Timestamp, 10, 64); err == nil {
+				timestamp = timestampInt
+			} else {
+				e.log.Debug("Failed to parse transaction timestamp",
+					logger.String("hash", tx.Hash),
+					logger.String("timestamp_str", tx.Timestamp),
+					logger.Error(err))
+			}
+		}
 
 		result[i] = &types.Transaction{
 			Chain:        e.chain.Type,
@@ -360,7 +373,19 @@ func (e *EtherscanExplorer) getInternalTransactionHistory(ctx context.Context, a
 		blockNumber.SetString(tx.BlockNumber, 10)
 		value := new(big.Int)
 		value.SetString(tx.Value, 10)
-		timestamp, _ := strconv.ParseInt(tx.Timestamp, 10, 64)
+
+		// Parse timestamp with error checking
+		timestamp := time.Now().Unix()
+		if tx.Timestamp != "" {
+			if timestampInt, err := strconv.ParseInt(tx.Timestamp, 10, 64); err == nil {
+				timestamp = timestampInt
+			} else {
+				e.log.Debug("Failed to parse transaction timestamp",
+					logger.String("hash", tx.Hash),
+					logger.String("timestamp_str", tx.Timestamp),
+					logger.Error(err))
+			}
+		}
 
 		result[i] = &types.Transaction{
 			Chain:        e.chain.Type,
@@ -420,7 +445,19 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 		nonce, _ := strconv.ParseUint(tx.Nonce, 10, 64)
 		value := new(big.Int)
 		value.SetString(tx.Value, 10)
-		timestamp, _ := strconv.ParseInt(tx.Timestamp, 10, 64)
+
+		// Parse timestamp with error checking
+		timestamp := time.Now().Unix()
+		if tx.Timestamp != "" {
+			if timestampInt, err := strconv.ParseInt(tx.Timestamp, 10, 64); err == nil {
+				timestamp = timestampInt
+			} else {
+				e.log.Debug("Failed to parse transaction timestamp",
+					logger.String("hash", tx.Hash),
+					logger.String("timestamp_str", tx.Timestamp),
+					logger.Error(err))
+			}
+		}
 
 		result[i] = &types.Transaction{
 			Chain:        e.chain.Type,
@@ -530,6 +567,88 @@ func (e *EtherscanExplorer) setTransactionHistoryParams(params url.Values, addre
 	params.Set("sort", map[bool]string{true: "asc", false: "desc"}[options.SortAscending])
 }
 
+// GetTransactionReceiptByHash implements BlockExplorer.GetTransactionReceiptByHash
+func (e *EtherscanExplorer) GetTransactionReceiptByHash(ctx context.Context, hash string) (*types.TransactionReceipt, error) {
+	params := url.Values{}
+	params.Set("module", "proxy")
+	params.Set("action", "eth_getTransactionReceipt")
+	params.Set("txhash", hash)
+
+	data, err := e.makeRequest(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the result is empty or null, the transaction receipt was not found
+	if len(data) == 0 || string(data) == "null" {
+		return nil, errors.NewTransactionNotFoundError(hash)
+	}
+
+	// Parse the receipt data
+	var rawReceipt struct {
+		TransactionHash   string `json:"transactionHash"`
+		BlockNumber       string `json:"blockNumber"`
+		Status            string `json:"status"`
+		GasUsed           string `json:"gasUsed"`
+		CumulativeGasUsed string `json:"cumulativeGasUsed"`
+		LogsBloom         string `json:"logsBloom"`
+		Logs              []struct {
+			Address  string   `json:"address"`
+			Topics   []string `json:"topics"`
+			Data     string   `json:"data"`
+			LogIndex string   `json:"logIndex"`
+		} `json:"logs"`
+	}
+
+	if err := json.Unmarshal(data, &rawReceipt); err != nil {
+		return nil, errors.NewInvalidExplorerResponseError(err, string(data))
+	}
+
+	// Convert hex values to decimal
+	blockNumber := new(big.Int)
+	blockNumber.SetString(strings.TrimPrefix(rawReceipt.BlockNumber, "0x"), 16)
+
+	status, _ := strconv.ParseUint(strings.TrimPrefix(rawReceipt.Status, "0x"), 16, 64)
+	gasUsed, _ := strconv.ParseUint(strings.TrimPrefix(rawReceipt.GasUsed, "0x"), 16, 64)
+	cumulativeGasUsed, _ := strconv.ParseUint(strings.TrimPrefix(rawReceipt.CumulativeGasUsed, "0x"), 16, 64)
+
+	// Convert logs bloom from hex to bytes
+	logsBloom, _ := hex.DecodeString(strings.TrimPrefix(rawReceipt.LogsBloom, "0x"))
+
+	// Convert logs
+	logs := make([]types.Log, len(rawReceipt.Logs))
+	for i, log := range rawReceipt.Logs {
+		// Convert log data from hex to bytes
+		logData, _ := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
+		logIndex, _ := strconv.ParseUint(strings.TrimPrefix(log.LogIndex, "0x"), 16, 32)
+
+		logs[i] = types.Log{
+			Address:         log.Address,
+			Topics:          log.Topics,
+			Data:            logData,
+			BlockNumber:     blockNumber,
+			TransactionHash: rawReceipt.TransactionHash,
+			LogIndex:        uint(logIndex),
+		}
+	}
+
+	e.log.Debug("Retrieved transaction receipt",
+		logger.String("hash", hash),
+		logger.String("status", strconv.FormatUint(status, 10)),
+		logger.String("block_number", blockNumber.String()),
+		logger.Int("log_count", len(logs)))
+
+	return &types.TransactionReceipt{
+		Hash:              rawReceipt.TransactionHash,
+		BlockNumber:       blockNumber,
+		Status:            status,
+		GasUsed:           gasUsed,
+		CumulativeGasUsed: cumulativeGasUsed,
+		LogsBloom:         logsBloom,
+		Logs:              logs,
+	}, nil
+}
+
 // GetTransactionByHash implements BlockExplorer.GetTransactionByHash
 func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash string) (*types.Transaction, error) {
 	params := url.Values{}
@@ -557,6 +676,7 @@ func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash strin
 		Nonce       string `json:"nonce"`
 		BlockHash   string `json:"blockHash"`
 		BlockNumber string `json:"blockNumber"`
+		TimeStamp   string `json:"timeStamp"`
 	}
 
 	if err := json.Unmarshal(data, &tx); err != nil {
@@ -576,11 +696,44 @@ func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash strin
 	value := new(big.Int)
 	value.SetString(strings.TrimPrefix(tx.Value, "0x"), 16)
 
-	// Determine transaction status based on block status
+	// Default status to pending
 	status := types.TransactionStatusPending
-	if blockNumber.Int64() > 0 {
-		status = types.TransactionStatusMined
+
+	// Parse timestamp if available, otherwise use current time
+	timestamp := time.Now().Unix()
+	if tx.TimeStamp != "" {
+		// Etherscan returns timestamp as decimal
+		if timestampInt, err := strconv.ParseInt(tx.TimeStamp, 10, 64); err == nil {
+			timestamp = timestampInt
+		} else {
+			e.log.Debug("Failed to parse transaction timestamp",
+				logger.String("hash", hash),
+				logger.String("timestamp_str", tx.TimeStamp),
+				logger.Error(err))
+		}
 	}
+
+	// If transaction is in a block, check the receipt status
+	if blockNumber.Int64() > 0 && tx.BlockHash != "" {
+		status = types.TransactionStatusMined
+
+		// Try to get the receipt for detailed status
+		receipt, err := e.GetTransactionReceiptByHash(ctx, hash)
+		if err == nil {
+			// Status 1 means success, 0 means failure
+			if receipt.Status == 1 {
+				status = types.TransactionStatusSuccess
+			} else if receipt.Status == 0 {
+				status = types.TransactionStatusFailed
+			}
+		}
+	}
+
+	e.log.Debug("Retrieved transaction",
+		logger.String("hash", hash),
+		logger.String("status", string(status)),
+		logger.String("block_number", blockNumber.String()),
+		logger.Int64("timestamp", timestamp))
 
 	return &types.Transaction{
 		Chain:       e.chain.Type,
@@ -594,6 +747,7 @@ func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash strin
 		Type:        types.TransactionTypeNative,
 		Status:      status,
 		BlockNumber: blockNumber,
+		Timestamp:   timestamp,
 	}, nil
 }
 
