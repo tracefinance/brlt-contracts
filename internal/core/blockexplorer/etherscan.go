@@ -676,7 +676,6 @@ func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash strin
 		Nonce       string `json:"nonce"`
 		BlockHash   string `json:"blockHash"`
 		BlockNumber string `json:"blockNumber"`
-		TimeStamp   string `json:"timeStamp"`
 	}
 
 	if err := json.Unmarshal(data, &tx); err != nil {
@@ -699,19 +698,8 @@ func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash strin
 	// Default status to pending
 	status := types.TransactionStatusPending
 
-	// Parse timestamp if available, otherwise use current time
+	// Use current time as timestamp since eth_getTransactionByHash doesn't provide it
 	timestamp := time.Now().Unix()
-	if tx.TimeStamp != "" {
-		// Etherscan returns timestamp as decimal
-		if timestampInt, err := strconv.ParseInt(tx.TimeStamp, 10, 64); err == nil {
-			timestamp = timestampInt
-		} else {
-			e.log.Debug("Failed to parse transaction timestamp",
-				logger.String("hash", hash),
-				logger.String("timestamp_str", tx.TimeStamp),
-				logger.Error(err))
-		}
-	}
 
 	// If transaction is in a block, check the receipt status
 	if blockNumber.Int64() > 0 && tx.BlockHash != "" {
@@ -732,8 +720,7 @@ func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash strin
 	e.log.Debug("Retrieved transaction",
 		logger.String("hash", hash),
 		logger.String("status", string(status)),
-		logger.String("block_number", blockNumber.String()),
-		logger.Int64("timestamp", timestamp))
+		logger.String("block_number", blockNumber.String()))
 
 	return &types.Transaction{
 		Chain:       e.chain.Type,
