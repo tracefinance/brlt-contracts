@@ -25,6 +25,7 @@ go.work
 
 # Environment variables
 .env
+.config.yaml
 
 # Dependency directories (remove the ones you don't need)
 vendor/
