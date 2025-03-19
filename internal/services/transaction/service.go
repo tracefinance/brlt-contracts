@@ -159,17 +159,14 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 	}
 
 	// Get wallet ID and last block number if exists
-	var walletID int64
-	var startBlock int64
-	wallet, err := s.walletService.Get(ctx, chainType, address)
-	if err == nil {
-		walletID = wallet.ID
-		startBlock = wallet.LastBlockNumber
+	wallet, err := s.walletService.GetByAddress(ctx, chainType, address)
+	if err != nil {
+		return 0, err
 	}
 
 	// Prepare options for fetching transactions
 	options := blockexplorer.TransactionHistoryOptions{
-		StartBlock: startBlock,
+		StartBlock: wallet.LastBlockNumber,
 		EndBlock:   0, // Latest block
 		Page:       1,
 		PageSize:   100,
@@ -214,7 +211,7 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 		}
 
 		// Convert to service transaction
-		tx := FromCoreTransaction(coreTx, walletID)
+		tx := FromCoreTransaction(coreTx, wallet.ID)
 
 		// Save to database
 		err = s.repository.Create(ctx, tx)
@@ -223,21 +220,6 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 				logger.String("hash", coreTx.Hash),
 				logger.Error(err))
 			continue
-		}
-
-		// Update wallet's last block number if the transaction has a higher block number
-		if coreTx.BlockNumber != nil && coreTx.BlockNumber.Int64() > wallet.LastBlockNumber {
-			blockNumber := coreTx.BlockNumber.Int64()
-			if err := s.walletService.UpdateLastBlockNumber(ctx, wallet.ChainType, wallet.Address, blockNumber); err != nil {
-				s.log.Error("Failed to update wallet's last block number",
-					logger.Int64("wallet_id", wallet.ID),
-					logger.Int64("block_number", blockNumber),
-					logger.Error(err))
-			} else {
-				s.log.Info("Updated wallet's last block number",
-					logger.Int64("wallet_id", wallet.ID),
-					logger.Int64("block_number", blockNumber))
-			}
 		}
 
 		count++

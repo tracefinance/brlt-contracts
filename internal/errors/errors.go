@@ -32,14 +32,7 @@ func (e *Vault0Error) Unwrap() error {
 
 // MarshalJSON implements json.Marshaler
 func (e *Vault0Error) MarshalJSON() ([]byte, error) {
-	type Alias Vault0Error
-	return json.Marshal(&struct {
-		*Alias
-		Error string `json:"error"`
-	}{
-		Alias: (*Alias)(e),
-		Error: e.Error(),
-	})
+	return json.Marshal(e)
 }
 
 // Is implements error matching for errors.Is

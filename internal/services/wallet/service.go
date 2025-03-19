@@ -100,7 +100,7 @@ type Service interface {
 	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
 	Delete(ctx context.Context, chainType types.ChainType, address string) error
 
-	// Get retrieves a wallet by its chain type and address.
+	// GetByAddress retrieves a wallet by its chain type and address.
 	// Only returns non-deleted wallets.
 	//
 	// Parameters:
@@ -111,7 +111,7 @@ type Service interface {
 	// Returns:
 	//   - *Wallet: The wallet information if found
 	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
-	Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
+	GetByAddress(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
 
 	// GetByID retrieves a wallet by its unique identifier.
 	// Only returns non-deleted wallets.
@@ -323,7 +323,7 @@ func (s *walletService) Update(ctx context.Context, chainType types.ChainType, a
 		return nil, err
 	}
 
-	wallet, err := s.repository.Get(ctx, chainType, address)
+	wallet, err := s.repository.GetByAddress(ctx, chainType, address)
 	if err != nil {
 		return nil, err
 	}
@@ -359,7 +359,7 @@ func (s *walletService) UpdateLastBlockNumber(ctx context.Context, chainType typ
 		return errors.NewInvalidAddressError(address)
 	}
 
-	wallet, err := s.repository.Get(ctx, chainType, address)
+	wallet, err := s.repository.GetByAddress(ctx, chainType, address)
 	if err != nil {
 		return err
 	}
@@ -391,7 +391,7 @@ func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, a
 		return errors.NewInvalidAddressError(address)
 	}
 
-	wallet, err := s.repository.Get(ctx, chainType, address)
+	wallet, err := s.repository.GetByAddress(ctx, chainType, address)
 	if err != nil {
 		return err
 	}
@@ -412,8 +412,8 @@ func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, a
 	return nil
 }
 
-// Get retrieves a wallet by its chain type and address
-func (s *walletService) Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
+// GetByAddress retrieves a wallet by its chain type and address
+func (s *walletService) GetByAddress(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
 	if chainType == "" {
 		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -430,7 +430,7 @@ func (s *walletService) Get(ctx context.Context, chainType types.ChainType, addr
 		return nil, errors.NewInvalidAddressError(address)
 	}
 
-	wallet, err := s.repository.Get(ctx, chainType, address)
+	wallet, err := s.repository.GetByAddress(ctx, chainType, address)
 	if err != nil {
 		return nil, err
 	}
@@ -512,8 +512,8 @@ func (s *walletService) subscribeToWallet(ctx context.Context, wallet *Wallet) e
 			logger.Int64("wallet_id", wallet.ID),
 			logger.String("address", wallet.Address))
 
-		// Subscribe to events
-		logCh, errCh, err := client.SubscribeToEvents(subscriptionCtx, []string{wallet.Address}, nil)
+		// Subscribe to events, using wallet's LastBlockNumber as the starting point
+		logCh, errCh, err := client.SubscribeToEvents(subscriptionCtx, []string{wallet.Address}, nil, wallet.LastBlockNumber)
 		if err != nil {
 			s.log.Error("Failed to subscribe to events",
 				logger.Int64("wallet_id", wallet.ID),

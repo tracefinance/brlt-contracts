@@ -136,12 +136,16 @@ type Blockchain interface {
 	//   - ctx: Context for the operation, can be used to cancel the subscription
 	//   - addresses: List of contract addresses to filter events from (empty for all)
 	//   - topics: Nested array of topics to filter by (position matters)
+	//   - fromBlock: The block number to start the subscription from:
+	//     * Positive value: Start from the specified block number
+	//     * Zero or negative value: Implementation will default to (current block - 50,000)
+	//       to prevent exceeding maximum block range limitations
 	//
 	// Returns:
 	//   - Channel that receives matching log events in real-time
 	//   - Channel that receives subscription errors
 	//   - Error if subscription cannot be created
-	SubscribeToEvents(ctx context.Context, addresses []string, topics [][]string) (<-chan types.Log, <-chan error, error)
+	SubscribeToEvents(ctx context.Context, addresses []string, topics [][]string, fromBlock int64) (<-chan types.Log, <-chan error, error)
 
 	// Chain returns the chain information.
 	// This includes details like chain ID, network name, and other chain-specific data.

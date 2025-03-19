@@ -87,7 +87,7 @@ func (h *Handler) GetWallet(c *gin.Context) {
 	address := c.Param("address")
 
 	// Get the wallet
-	walletModel, err := h.walletService.Get(c.Request.Context(), chainType, address)
+	walletModel, err := h.walletService.GetByAddress(c.Request.Context(), chainType, address)
 	if err != nil {
 		c.Error(err)
 		return

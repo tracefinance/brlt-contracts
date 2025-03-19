@@ -23,7 +23,7 @@ log:
 # Blockchain configurations
 blockchains:
   ethereum:
-    rpc_url: https://ethereum-rpc.publicnode.com
+    rpc_url: wss://ethereum-rpc.publicnode.com
     chain_id: 1
     default_gas_price: 20
     default_gas_limit: 21000
@@ -32,7 +32,7 @@ blockchains:
     explorer_api_key: ${ETHEREUM_EXPLORER_API_KEY}  # Keep as env var for security
 
   polygon:
-    rpc_url: https://polygon-bor-rpc.publicnode.com
+    rpc_url: wss://polygon-bor-rpc.publicnode.com
     chain_id: 137
     default_gas_price: 30
     default_gas_limit: 21000
@@ -41,7 +41,7 @@ blockchains:
     explorer_api_key: ${POLYGON_EXPLORER_API_KEY}  # Keep as env var for security
 
   base:
-    rpc_url: https://base-rpc.publicnode.com
+    rpc_url: wss://base-rpc.publicnode.com
     chain_id: 8453
     default_gas_price: 10
     default_gas_limit: 21000

@@ -16,8 +16,8 @@ type Repository interface {
 	// Create creates a new wallet in the database
 	Create(ctx context.Context, wallet *Wallet) error
 
-	// Get retrieves a wallet by its chain type and address
-	Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
+	// GetByAddress retrieves a wallet by its chain type and address
+	GetByAddress(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
 
 	// GetByID retrieves a wallet by its ID
 	GetByID(ctx context.Context, id int64) (*Wallet, error)
@@ -96,8 +96,8 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 	return nil
 }
 
-// Get retrieves a wallet by its chain type and address
-func (r *repository) Get(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
+// GetByAddress retrieves a wallet by its chain type and address
+func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
 	// Normalize the address for consistent database queries
 	normalizedAddress := types.NormalizeAddress(address)
 

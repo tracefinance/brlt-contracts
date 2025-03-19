@@ -3,8 +3,10 @@ package blockchain
 import (
 	"context"
 	stderrors "errors"
+	"math"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -318,8 +320,7 @@ func (c *EVMBlockchain) FilterLogs(ctx context.Context, addresses []string, topi
 	return result, nil
 }
 
-// SubscribeToEvents implements Blockchain.SubscribeToEvents
-func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []string, topics [][]string) (<-chan types.Log, <-chan error, error) {
+func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []string, topics [][]string, fromBlock int64) (<-chan types.Log, <-chan error, error) {
 	// Convert addresses to Ethereum addresses
 	var ethAddresses []common.Address
 	if len(addresses) > 0 {
@@ -346,50 +347,144 @@ func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []strin
 		}
 	}
 
+	// Set fromBlock if provided
+	if fromBlock <= 0 {
+		// Get the current block number
+		currentBlockNumber, err := c.client.BlockNumber(ctx)
+		if err != nil {
+			return nil, nil, errors.NewRPCError(err)
+		}
+
+		fromBlock = int64(math.Max(float64(currentBlockNumber-50000), 0))
+	}
+
 	// Create the filter query
 	filterQuery := ethereum.FilterQuery{
 		Addresses: ethAddresses,
 		Topics:    ethTopics,
+		FromBlock: big.NewInt(fromBlock),
 	}
 
 	// Create channels for logs and errors
-	logChan := make(chan types.Log)
-	errChan := make(chan error)
+	logChan := make(chan types.Log, 100) // Buffer to prevent lost events during reconnection
+	errChan := make(chan error, 10)      // Buffer for error reporting
 
-	// Subscribe to logs
-	ethLogChan := make(chan ethTypes.Log)
-	sub, err := c.client.SubscribeFilterLogs(ctx, filterQuery, ethLogChan)
-	if err != nil {
-		return nil, nil, errors.NewRPCError(err)
-	}
+	// Create a separate cancellation context for the subscription goroutine
+	subscriptionCtx, cancelSubscription := context.WithCancel(context.Background())
 
-	// Handle the subscription in a goroutine
+	// Start the subscription handler goroutine
 	go func() {
 		defer close(logChan)
 		defer close(errChan)
-		defer sub.Unsubscribe()
+		defer cancelSubscription()
+
+		// Track the last seen block for reconnection
+		var lastSeenBlock int64 = fromBlock
+		// Backoff parameters
+		initialBackoff := 1.0 // seconds
+		maxBackoff := 60.0    // seconds
+		backoff := initialBackoff
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case err := <-sub.Err():
-				errChan <- errors.NewRPCError(err)
-				return
-			case log := <-ethLogChan:
-				// Convert ethereum log to our log format
-				topics := make([]string, len(log.Topics))
-				for j, topic := range log.Topics {
-					topics[j] = topic.Hex()
+			default:
+				// Create a new filter query with the updated fromBlock
+				currentFilterQuery := filterQuery
+				currentFilterQuery.FromBlock = big.NewInt(lastSeenBlock)
+
+				// Create a new subscription
+				ethLogChan := make(chan ethTypes.Log)
+				sub, err := c.client.SubscribeFilterLogs(subscriptionCtx, currentFilterQuery, ethLogChan)
+
+				if err != nil {
+					// Report the error and retry with backoff
+					reconnectErr := errors.NewRPCError(err)
+					select {
+					case errChan <- reconnectErr:
+					default:
+						// Don't block if error channel is full
+					}
+
+					c.log.Warn("Subscription failed, retrying with backoff",
+						logger.Float64("backoff_seconds", backoff),
+						logger.Int64("from_block", lastSeenBlock),
+						logger.Error(err))
+
+					// Apply backoff before retrying
+					time.Sleep(time.Duration(backoff) * time.Second)
+					// Increase backoff with exponential formula, capped at maximum
+					backoff = math.Min(backoff*1.5, maxBackoff)
+					continue
 				}
 
-				logChan <- types.Log{
-					Address:         log.Address.Hex(),
-					Topics:          topics,
-					Data:            log.Data,
-					BlockNumber:     big.NewInt(int64(log.BlockNumber)),
-					TransactionHash: log.TxHash.Hex(),
-					LogIndex:        log.Index,
+				// Reset backoff on successful connection
+				backoff = initialBackoff
+
+				// Log successful subscription
+				c.log.Info("Successfully subscribed to events",
+					logger.Int64("from_block", lastSeenBlock))
+
+				// Process events from this subscription
+				subscriptionActive := true
+				for subscriptionActive {
+					select {
+					case <-ctx.Done():
+						sub.Unsubscribe()
+						return
+					case err := <-sub.Err():
+						// Report the error
+						reconnectErr := errors.NewRPCError(err)
+						select {
+						case errChan <- reconnectErr:
+						default:
+							// Don't block if error channel is full
+						}
+
+						c.log.Warn("Subscription error, reconnecting",
+							logger.Float64("backoff_seconds", backoff),
+							logger.Int64("from_block", lastSeenBlock),
+							logger.Error(err))
+
+						// Apply backoff before reconnecting
+						time.Sleep(time.Duration(backoff) * time.Second)
+						// Increase backoff with exponential formula, capped at maximum
+						backoff = math.Min(backoff*1.5, maxBackoff)
+
+						// Mark subscription as inactive to break inner loop and create new subscription
+						sub.Unsubscribe()
+						subscriptionActive = false
+					case log := <-ethLogChan:
+						// Convert ethereum log to our log format
+						topics := make([]string, len(log.Topics))
+						for j, topic := range log.Topics {
+							topics[j] = topic.Hex()
+						}
+
+						// Create our log format
+						ourLog := types.Log{
+							Address:         log.Address.Hex(),
+							Topics:          topics,
+							Data:            log.Data,
+							BlockNumber:     big.NewInt(int64(log.BlockNumber)),
+							TransactionHash: log.TxHash.Hex(),
+							LogIndex:        log.Index,
+						}
+
+						// Update last seen block for reconnection if newer
+						if ourLog.BlockNumber != nil && ourLog.BlockNumber.Int64() > lastSeenBlock {
+							lastSeenBlock = ourLog.BlockNumber.Int64()
+						}
+
+						// Send to output channel
+						select {
+						case logChan <- ourLog:
+						case <-time.After(100 * time.Millisecond):
+							// If we can't send quickly, log a warning about buffer pressure
+							c.log.Warn("Log channel buffer full, event processing may be delayed")
+						}
+					}
 				}
 			}
 		}
