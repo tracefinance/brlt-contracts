@@ -104,17 +104,15 @@ type BlockExplorer interface {
 	//   - Other explorer-specific errors for API/network issues
 	GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions) (*types.Page[*types.Transaction], error)
 
-	// GetTransactionsByHash retrieves detailed information about specific transactions
-	// given their hashes. This is useful for getting the current state of transactions
-	// or verifying their execution status.
-	//
-	// The returned transactions will be in the same order as the input hashes.
-	// If a transaction is not found, it will be omitted from the results.
+	// GetTransactionByHash retrieves detailed information about a specific transaction
+	// given its hash. This is useful for getting the current state of a transaction
+	// or verifying its execution status.
 	//
 	// Returns:
 	//   - ErrExplorerRequestFailed for API/network issues
 	//   - ErrInvalidExplorerResponse if the response cannot be parsed
-	GetTransactionsByHash(ctx context.Context, hashes []string) ([]*types.Transaction, error)
+	//   - ErrTransactionNotFound if the transaction cannot be found
+	GetTransactionByHash(ctx context.Context, hash string) (*types.Transaction, error)
 
 	// GetAddressBalance retrieves the native token balance for an address
 	// (e.g., ETH for Ethereum, MATIC for Polygon).

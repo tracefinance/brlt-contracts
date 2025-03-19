@@ -530,63 +530,71 @@ func (e *EtherscanExplorer) setTransactionHistoryParams(params url.Values, addre
 	params.Set("sort", map[bool]string{true: "asc", false: "desc"}[options.SortAscending])
 }
 
-// GetTransactionsByHash implements BlockExplorer.GetTransactionsByHash
-func (e *EtherscanExplorer) GetTransactionsByHash(ctx context.Context, hashes []string) ([]*types.Transaction, error) {
-	result := make([]*types.Transaction, 0, len(hashes))
+// GetTransactionByHash implements BlockExplorer.GetTransactionByHash
+func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash string) (*types.Transaction, error) {
+	params := url.Values{}
+	params.Set("module", "proxy")
+	params.Set("action", "eth_getTransactionByHash")
+	params.Set("txhash", hash)
 
-	for _, hash := range hashes {
-		params := url.Values{}
-		params.Set("module", "proxy")
-		params.Set("action", "eth_getTransactionByHash")
-		params.Set("txhash", hash)
-
-		data, err := e.makeRequest(ctx, params)
-		if err != nil {
-			return nil, err
-		}
-
-		var tx struct {
-			Hash        string `json:"hash"`
-			From        string `json:"from"`
-			To          string `json:"to"`
-			Value       string `json:"value"`
-			Gas         string `json:"gas"`
-			GasPrice    string `json:"gasPrice"`
-			Nonce       string `json:"nonce"`
-			BlockHash   string `json:"blockHash"`
-			BlockNumber string `json:"blockNumber"`
-		}
-
-		if err := json.Unmarshal(data, &tx); err != nil {
-			return nil, errors.NewInvalidExplorerResponseError(err, string(data))
-		}
-
-		// Convert hex values to decimal
-		blockNumber := new(big.Int)
-		blockNumber.SetString(strings.TrimPrefix(tx.BlockNumber, "0x"), 16)
-		gasLimit, _ := strconv.ParseUint(strings.TrimPrefix(tx.Gas, "0x"), 16, 64)
-		gasPrice := new(big.Int)
-		gasPrice.SetString(strings.TrimPrefix(tx.GasPrice, "0x"), 16)
-		nonce, _ := strconv.ParseUint(strings.TrimPrefix(tx.Nonce, "0x"), 16, 64)
-		value := new(big.Int)
-		value.SetString(strings.TrimPrefix(tx.Value, "0x"), 16)
-
-		result = append(result, &types.Transaction{
-			Chain:       e.chain.Type,
-			Hash:        tx.Hash,
-			From:        tx.From,
-			To:          tx.To,
-			Value:       value,
-			Nonce:       nonce,
-			GasPrice:    gasPrice,
-			GasLimit:    gasLimit,
-			Type:        types.TransactionTypeNative,
-			Status:      "pending", // Status not available in eth_getTransactionByHash
-			BlockNumber: blockNumber,
-		})
+	data, err := e.makeRequest(ctx, params)
+	if err != nil {
+		return nil, err
 	}
 
-	return result, nil
+	// If the result is empty or null, the transaction was not found
+	if len(data) == 0 || string(data) == "null" {
+		return nil, errors.NewTransactionNotFoundError(hash)
+	}
+
+	var tx struct {
+		Hash        string `json:"hash"`
+		From        string `json:"from"`
+		To          string `json:"to"`
+		Value       string `json:"value"`
+		Gas         string `json:"gas"`
+		GasPrice    string `json:"gasPrice"`
+		Nonce       string `json:"nonce"`
+		BlockHash   string `json:"blockHash"`
+		BlockNumber string `json:"blockNumber"`
+	}
+
+	if err := json.Unmarshal(data, &tx); err != nil {
+		return nil, errors.NewInvalidExplorerResponseError(err, string(data))
+	}
+
+	// Convert hex values to decimal
+	blockNumber := new(big.Int)
+	if tx.BlockNumber != "" && tx.BlockNumber != "0x" {
+		blockNumber.SetString(strings.TrimPrefix(tx.BlockNumber, "0x"), 16)
+	}
+
+	gasLimit, _ := strconv.ParseUint(strings.TrimPrefix(tx.Gas, "0x"), 16, 64)
+	gasPrice := new(big.Int)
+	gasPrice.SetString(strings.TrimPrefix(tx.GasPrice, "0x"), 16)
+	nonce, _ := strconv.ParseUint(strings.TrimPrefix(tx.Nonce, "0x"), 16, 64)
+	value := new(big.Int)
+	value.SetString(strings.TrimPrefix(tx.Value, "0x"), 16)
+
+	// Determine transaction status based on block status
+	status := types.TransactionStatusPending
+	if blockNumber.Int64() > 0 {
+		status = types.TransactionStatusMined
+	}
+
+	return &types.Transaction{
+		Chain:       e.chain.Type,
+		Hash:        tx.Hash,
+		From:        tx.From,
+		To:          tx.To,
+		Value:       value,
+		Nonce:       nonce,
+		GasPrice:    gasPrice,
+		GasLimit:    gasLimit,
+		Type:        types.TransactionTypeNative,
+		Status:      status,
+		BlockNumber: blockNumber,
+	}, nil
 }
 
 // GetAddressBalance implements BlockExplorer.GetAddressBalance

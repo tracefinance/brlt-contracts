@@ -6,6 +6,7 @@ import (
 
 	"vault0/internal/db"
 	"vault0/internal/errors"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
@@ -38,12 +39,13 @@ type Repository interface {
 
 // repository implements Repository interface for SQLite
 type repository struct {
-	db *db.DB
+	db  *db.DB
+	log logger.Logger
 }
 
 // NewRepository creates a new SQLite repository for transactions
-func NewRepository(db *db.DB) Repository {
-	return &repository{db: db}
+func NewRepository(db *db.DB, log logger.Logger) Repository {
+	return &repository{db: db, log: log}
 }
 
 // Create inserts a new transaction into the database

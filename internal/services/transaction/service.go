@@ -330,17 +330,12 @@ func (s *transactionService) OnWalletEvent(ctx context.Context, walletID int64, 
 	}
 
 	// Fetch full transaction details
-	txs, err := explorer.GetTransactionsByHash(ctx, []string{event.TransactionHash})
+	coreTx, err := explorer.GetTransactionByHash(ctx, event.TransactionHash)
 	if err != nil {
 		return errors.NewTransactionSyncFailedError("fetch_transaction", err)
 	}
 
-	if len(txs) == 0 {
-		return errors.NewTransactionNotFoundError(event.TransactionHash)
-	}
-
 	// Convert to service transaction
-	coreTx := txs[0]
 	tx := &Transaction{
 		ChainType:    coreTx.Chain,
 		Hash:         coreTx.Hash,
@@ -813,73 +808,53 @@ func (s *transactionService) pollPendingOrMinedTransactionsForChain(ctx context.
 			return updatedCount, err
 		}
 
-		// Collect transaction hashes to check
-		var hashes []string
+		// Process each transaction individually
 		for _, tx := range page.Items {
-			hashes = append(hashes, tx.Hash)
-		}
-
-		// Fetch updated transaction details from explorer
-		updatedTxs, err := explorer.GetTransactionsByHash(ctx, hashes)
-		if err != nil {
-			s.log.Error("Failed to fetch transaction updates",
-				logger.String("chain_type", string(chainType)),
-				logger.Error(err))
-			continue
-		}
-
-		// Process each updated transaction
-		for _, updatedTx := range updatedTxs {
-			// Find the original transaction in our list
-			var originalTx *Transaction
-			for _, tx := range page.Items {
-				if tx.Hash == updatedTx.Hash {
-					originalTx = tx
-					break
-				}
-			}
-
-			if originalTx == nil {
-				s.log.Warn("Could not find original transaction",
-					logger.String("tx_hash", updatedTx.Hash))
+			// Fetch updated transaction details from explorer
+			updatedTx, err := explorer.GetTransactionByHash(ctx, tx.Hash)
+			if err != nil {
+				s.log.Error("Failed to fetch transaction update",
+					logger.String("tx_hash", tx.Hash),
+					logger.String("chain_type", string(chainType)),
+					logger.Error(err))
 				continue
 			}
 
 			// Check if status has changed
-			originalStatus := types.TransactionStatus(originalTx.Status)
+			originalStatus := types.TransactionStatus(tx.Status)
 			updatedStatus := updatedTx.Status
 
 			if originalStatus == updatedStatus {
 				s.log.Debug("Transaction status unchanged",
-					logger.String("tx_hash", updatedTx.Hash),
+					logger.String("tx_hash", tx.Hash),
 					logger.String("status", string(updatedStatus)))
 				continue
 			}
 
 			s.log.Info("Transaction status changed",
-				logger.String("tx_hash", updatedTx.Hash),
+				logger.String("tx_hash", tx.Hash),
 				logger.String("old_status", string(originalStatus)),
 				logger.String("new_status", string(updatedStatus)))
 
 			// Create transaction object with updated data
-			updatedTransaction := FromCoreTransaction(updatedTx, originalTx.WalletID)
+			updatedTransaction := FromCoreTransaction(updatedTx, tx.WalletID)
 
 			// Preserve original metadata
-			updatedTransaction.ID = originalTx.ID
-			updatedTransaction.CreatedAt = originalTx.CreatedAt
+			updatedTransaction.ID = tx.ID
+			updatedTransaction.CreatedAt = tx.CreatedAt
 
 			// Update in database
-			err := s.repository.Update(ctx, updatedTransaction)
+			err = s.repository.Update(ctx, updatedTransaction)
 			if err != nil {
 				s.log.Error("Failed to update transaction",
-					logger.String("tx_hash", updatedTx.Hash),
+					logger.String("tx_hash", tx.Hash),
 					logger.Error(err))
 				continue
 			}
 
 			// Emit transaction event for the status change
 			s.emitTransactionEvent(&TransactionEvent{
-				WalletID:    originalTx.WalletID,
+				WalletID:    tx.WalletID,
 				Transaction: updatedTransaction,
 				BlockNumber: updatedTx.BlockNumber.Int64(),
 				EventType:   EventTypeTransactionDetected,
