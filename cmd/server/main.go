@@ -35,10 +35,10 @@ func main() {
 	defer cancel()
 
 	// Start transaction event subscriptions
-	container.Services.TransactionService.SubscribeTransactionEvents(ctx)
+	container.Services.TransactionService.SubscribeToTransactionEvents(ctx)
 
 	// Start transaction polling scheduler using config
-	container.Services.TransactionService.StartTransactionPolling(ctx)
+	container.Services.TransactionService.StartWalletTransactionPolling(ctx)
 
 	// Start pending transaction polling
 	container.Services.TransactionService.StartPendingTransactionPolling(ctx)
@@ -76,7 +76,7 @@ func main() {
 	container.Services.TransactionService.UnsubscribeFromTransactionEvents()
 
 	// Stop transaction polling
-	container.Services.TransactionService.StopTransactionPolling()
+	container.Services.TransactionService.StopWalletTransactionPolling()
 
 	// Close the database connection
 	if container.Core.DB != nil {
