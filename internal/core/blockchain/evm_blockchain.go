@@ -174,40 +174,66 @@ func (c *EVMBlockchain) GetTransaction(ctx context.Context, hash string) (*types
 
 // GetBlock implements Blockchain.GetBlock
 func (c *EVMBlockchain) GetBlock(ctx context.Context, identifier string) (*types.Block, error) {
-	var block *ethTypes.Block
-	var err error
+	var fetchBlockFn func() (any, error)
 
 	// Check if the identifier is a special keyword
 	switch strings.ToLower(identifier) {
 	case "latest":
-		block, err = c.client.BlockByNumber(ctx, nil) // nil means latest block
+		fetchBlockFn = func() (any, error) {
+			return c.client.BlockByNumber(ctx, nil) // nil means latest block
+		}
 	case "earliest":
-		block, err = c.client.BlockByNumber(ctx, big.NewInt(0)) // 0 is the genesis block
+		fetchBlockFn = func() (any, error) {
+			return c.client.BlockByNumber(ctx, big.NewInt(0)) // 0 is the genesis block
+		}
 	case "pending":
-		block, err = c.client.BlockByNumber(ctx, big.NewInt(-1)) // -1 is pending block
+		fetchBlockFn = func() (any, error) {
+			return c.client.BlockByNumber(ctx, big.NewInt(-1)) // -1 is pending block
+		}
 	default:
 		// Check if identifier is a hash (0x...) or a block number
 		if strings.HasPrefix(identifier, "0x") {
 			blockHash := common.HexToHash(identifier)
-			block, err = c.client.BlockByHash(ctx, blockHash)
+			fetchBlockFn = func() (any, error) {
+				return c.client.BlockByHash(ctx, blockHash)
+			}
 		} else {
 			// Try to parse it as a block number
 			blockNum, parseErr := strconv.ParseInt(identifier, 10, 64)
 			if parseErr != nil {
 				return nil, errors.NewInvalidBlockIdentifierError(identifier)
 			}
-			block, err = c.client.BlockByNumber(ctx, big.NewInt(blockNum))
+			fetchBlockFn = func() (any, error) {
+				return c.client.BlockByNumber(ctx, big.NewInt(blockNum))
+			}
 		}
 	}
 
+	// Context information for logging
+	contextInfo := map[string]any{
+		"identifier": identifier,
+	}
+
+	// Use retry operation with the fetch function
+	result, err := c.retryOperation(
+		operationFetchBlock,
+		contextInfo,
+		fetchBlockFn,
+		func(err error) bool {
+			return strings.Contains(err.Error(), errMsgNotFound) ||
+				strings.Contains(err.Error(), errMsgUnsupportedTxType)
+		},
+	)
+
 	if err != nil {
-		if stderrors.Is(err, ethereum.NotFound) {
+		if strings.Contains(err.Error(), errMsgNotFound) {
 			return nil, errors.NewBlockNotFoundError(identifier)
 		}
 		return nil, errors.NewRPCError(err)
 	}
 
-	if block == nil {
+	block, ok := result.(*ethTypes.Block)
+	if !ok || block == nil {
 		return nil, errors.NewBlockNotFoundError(identifier)
 	}
 
@@ -431,7 +457,7 @@ func (c *EVMBlockchain) SubscribeContractLogs(ctx context.Context, addresses []s
 			ctx,
 			"contract events",
 			initialFromBlock,
-			func(subscriptionCtx context.Context, lastSeenBlock int64) (ethereum.Subscription, interface{}, error) {
+			func(subscriptionCtx context.Context, lastSeenBlock int64) (ethereum.Subscription, any, error) {
 				// Create the filter query with the current last seen block
 				filterQuery := ethereum.FilterQuery{
 					Addresses: ethAddresses,
@@ -443,10 +469,10 @@ func (c *EVMBlockchain) SubscribeContractLogs(ctx context.Context, addresses []s
 				ethLogChan := make(chan ethTypes.Log)
 				sub, err := c.client.SubscribeFilterLogs(subscriptionCtx, filterQuery, ethLogChan)
 
-				// We need to convert the specific channel to an interface{} type for the generic handler
-				return sub, interface{}(ethLogChan), err
+				// We need to convert the specific channel to an any type for the generic handler
+				return sub, any(ethLogChan), err
 			},
-			func(item interface{}, _ int64) (int64, bool) {
+			func(item any, _ int64) (int64, bool) {
 				// Process the log item
 				log := item.(ethTypes.Log)
 
@@ -502,20 +528,20 @@ func (c *EVMBlockchain) SubscribeNewHead(ctx context.Context) (<-chan types.Bloc
 			ctx,
 			"block headers",
 			0, // fromBlock is not used for header subscriptions
-			func(subscriptionCtx context.Context, _ int64) (ethereum.Subscription, interface{}, error) {
+			func(subscriptionCtx context.Context, _ int64) (ethereum.Subscription, any, error) {
 				// Create a new subscription for headers
 				headers := make(chan *ethTypes.Header)
 				sub, err := c.client.SubscribeNewHead(subscriptionCtx, headers)
 
-				// We need to convert the specific channel to an interface{} type for the generic handler
-				return sub, interface{}(headers), err
+				// We need to convert the specific channel to an any type for the generic handler
+				return sub, any(headers), err
 			},
-			func(item interface{}, _ int64) (int64, bool) {
+			func(item any, _ int64) (int64, bool) {
 				// Process the header item
 				header := item.(*ethTypes.Header)
 
 				// Context information for logging
-				contextInfo := map[string]interface{}{
+				contextInfo := map[string]any{
 					"hash": header.Hash().Hex(),
 				}
 
@@ -523,7 +549,7 @@ func (c *EVMBlockchain) SubscribeNewHead(ctx context.Context) (<-chan types.Bloc
 				result, err := c.retryOperation(
 					operationFetchBlock,
 					contextInfo,
-					func() (interface{}, error) {
+					func() (any, error) {
 						return c.client.BlockByHash(context.Background(), header.Hash())
 					},
 					func(err error) bool {
@@ -622,8 +648,8 @@ func (c *EVMBlockchain) handleSubscription(
 	ctx context.Context,
 	name string,
 	initialFromBlock int64,
-	createSubscription func(context.Context, int64) (ethereum.Subscription, interface{}, error),
-	processItem func(item interface{}, lastSeenBlock int64) (int64, bool),
+	createSubscription func(context.Context, int64) (ethereum.Subscription, any, error),
+	processItem func(item any, lastSeenBlock int64) (int64, bool),
 	errChan chan<- error,
 ) {
 	// Create a separate cancellation context for the subscription goroutine
@@ -989,10 +1015,10 @@ func (c *EVMBlockchain) convertEthereumBlockToBlock(block *ethTypes.Block) *type
 // Returns the operation result and a boolean indicating success
 func (c *EVMBlockchain) retryOperation(
 	operationName string,
-	contextInfo map[string]interface{},
-	operation func() (interface{}, error),
+	contextInfo map[string]any,
+	operation func() (any, error),
 	shouldRetry func(error) bool,
-) (interface{}, error) {
+) (any, error) {
 	var lastErr error
 	retryDelay := blockFetchInitialDelay
 
