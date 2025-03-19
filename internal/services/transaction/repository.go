@@ -14,6 +14,9 @@ type Repository interface {
 	// Create creates a new transaction in the database
 	Create(ctx context.Context, tx *Transaction) error
 
+	// Update updates an existing transaction in the database
+	Update(ctx context.Context, tx *Transaction) error
+
 	// GetByTxHash retrieves a transaction by its hash
 	GetByTxHash(ctx context.Context, hash string) (*Transaction, error)
 
@@ -24,6 +27,10 @@ type Repository interface {
 	// ListByWalletAddress retrieves transactions for a specific blockchain address
 	// If limit is 0, returns all transactions without pagination
 	ListByWalletAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
+
+	// ListByStatus retrieves transactions with a specific status for a chain type
+	// If limit is 0, returns all transactions without pagination
+	ListByStatus(ctx context.Context, status string, chainType types.ChainType, limit, offset int) (*types.Page[*Transaction], error)
 
 	// Exists checks if a transaction exists by its hash
 	Exists(ctx context.Context, hash string) (bool, error)
@@ -71,8 +78,8 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 		INSERT INTO transactions (
 			id, wallet_id, chain_type, hash, from_address, to_address, 
 			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			status, timestamp, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			status, timestamp, block_number, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err := r.db.ExecuteStatementContext(
@@ -93,6 +100,7 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 		tx.TokenAddress,
 		tx.Status,
 		tx.Timestamp,
+		tx.BlockNumber,
 		tx.CreatedAt,
 		tx.UpdatedAt,
 	)
@@ -106,7 +114,7 @@ func (r *repository) GetByTxHash(ctx context.Context, hash string) (*Transaction
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
 			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			status, timestamp, created_at, updated_at
+			status, timestamp, block_number, created_at, updated_at
 		FROM transactions
 		WHERE hash = ?
 	`
@@ -135,7 +143,7 @@ func (r *repository) ListByWalletID(ctx context.Context, walletID int64, limit, 
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
 			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			status, timestamp, created_at, updated_at
+			status, timestamp, block_number, created_at, updated_at
 		FROM transactions
 		WHERE wallet_id = ?
 		ORDER BY timestamp DESC
@@ -180,13 +188,54 @@ func (r *repository) ListByWalletAddress(ctx context.Context, chainType types.Ch
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
 			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			status, timestamp, created_at, updated_at
+			status, timestamp, block_number, created_at, updated_at
 		FROM transactions
-		WHERE chain_type = ? AND (from_address = ? OR to_address = ?)
+		WHERE chain_type = ? AND (lower(from_address) = ? OR lower(to_address) = ?)
 		ORDER BY timestamp DESC
 	`
 
 	args := []any{chainType, normalizedAddress, normalizedAddress}
+
+	// Add pagination if limit > 0
+	if limit > 0 {
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, limit, offset)
+	}
+
+	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var transactions []*Transaction
+	for rows.Next() {
+		tx, err := ScanTransaction(rows)
+		if err != nil {
+			return nil, err
+		}
+		transactions = append(transactions, tx)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return types.NewPage(transactions, offset, limit), nil
+}
+
+// ListByStatus retrieves transactions with a specific status
+func (r *repository) ListByStatus(ctx context.Context, status string, chainType types.ChainType, limit, offset int) (*types.Page[*Transaction], error) {
+	query := `
+		SELECT 
+			id, wallet_id, chain_type, hash, from_address, to_address, 
+			value, data, nonce, gas_price, gas_limit, type, token_address, 
+			status, timestamp, block_number, created_at, updated_at
+		FROM transactions
+		WHERE status = ? AND chain_type = ?
+		ORDER BY timestamp DESC
+	`
+	args := []any{status, chainType}
 
 	// Add pagination if limit > 0
 	if limit > 0 {
@@ -232,4 +281,86 @@ func (r *repository) Exists(ctx context.Context, hash string) (bool, error) {
 	defer rows.Close()
 
 	return rows.Next(), nil
+}
+
+// Update updates an existing transaction in the database
+func (r *repository) Update(ctx context.Context, tx *Transaction) error {
+	// Ensure the transaction ID is provided
+	if tx.ID == 0 {
+		return errors.NewInvalidInputError("Transaction ID is required for update", "id", "")
+	}
+
+	// Update the timestamp
+	tx.UpdatedAt = time.Now()
+
+	// Convert big.Int values to strings for storage
+	valueStr := ""
+	if tx.Value != nil {
+		valueStr = tx.Value.String()
+	}
+
+	gasPriceStr := ""
+	if tx.GasPrice != nil {
+		gasPriceStr = tx.GasPrice.String()
+	}
+
+	// Update the transaction
+	query := `
+		UPDATE transactions
+		SET wallet_id = ?, 
+			chain_type = ?, 
+			hash = ?, 
+			from_address = ?, 
+			to_address = ?, 
+			value = ?, 
+			data = ?, 
+			nonce = ?, 
+			gas_price = ?, 
+			gas_limit = ?, 
+			type = ?, 
+			token_address = ?, 
+			status = ?, 
+			timestamp = ?,
+			block_number = ?,
+			updated_at = ?
+		WHERE id = ?
+	`
+
+	result, err := r.db.ExecuteStatementContext(
+		ctx,
+		query,
+		tx.WalletID,
+		tx.ChainType,
+		tx.Hash,
+		tx.FromAddress,
+		tx.ToAddress,
+		valueStr,
+		tx.Data,
+		tx.Nonce,
+		gasPriceStr,
+		tx.GasLimit,
+		tx.Type,
+		tx.TokenAddress,
+		tx.Status,
+		tx.Timestamp,
+		tx.BlockNumber,
+		tx.UpdatedAt,
+		tx.ID,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	// Check if any rows were affected
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return errors.NewTransactionNotFoundError(tx.Hash)
+	}
+
+	return nil
 }

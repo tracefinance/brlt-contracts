@@ -119,6 +119,8 @@ type Config struct {
 	KeyStoreType string `yaml:"key_store_type"`
 	// TransactionPollingInterval is the time interval in seconds between transaction polling cycles
 	TransactionPollingInterval int `yaml:"transaction_polling_interval"`
+	// PendingTransactionPollingInterval is the time interval in seconds between pending transaction polling cycles
+	PendingTransactionPollingInterval int `yaml:"pending_transaction_polling_interval"`
 	// Snowflake holds configuration for ID generation
 	Snowflake SnowflakeConfig `yaml:"snowflake"`
 	// Log holds the logging configuration

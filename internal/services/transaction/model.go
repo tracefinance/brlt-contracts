@@ -24,6 +24,7 @@ type Transaction struct {
 	TokenAddress string          `db:"token_address"`
 	Status       string          `db:"status"`
 	Timestamp    int64           `db:"timestamp"`
+	BlockNumber  *int64          `db:"block_number"`
 	CreatedAt    time.Time       `db:"created_at"`
 	UpdatedAt    time.Time       `db:"updated_at"`
 }
@@ -51,6 +52,7 @@ func ScanTransaction(row interface {
 		&tx.TokenAddress,
 		&tx.Status,
 		&tx.Timestamp,
+		&tx.BlockNumber,
 		&tx.CreatedAt,
 		&tx.UpdatedAt,
 	)
@@ -75,6 +77,12 @@ func ScanTransaction(row interface {
 
 // FromCoreTransaction converts a core transaction to a service transaction
 func FromCoreTransaction(coreTx *types.Transaction, walletID int64) *Transaction {
+	var blockNumber *int64
+	if coreTx.BlockNumber != nil {
+		bn := coreTx.BlockNumber.Int64()
+		blockNumber = &bn
+	}
+
 	return &Transaction{
 		WalletID:     walletID,
 		ChainType:    coreTx.Chain,
@@ -90,11 +98,17 @@ func FromCoreTransaction(coreTx *types.Transaction, walletID int64) *Transaction
 		TokenAddress: coreTx.TokenAddress,
 		Status:       string(coreTx.Status),
 		Timestamp:    coreTx.Timestamp,
+		BlockNumber:  blockNumber,
 	}
 }
 
 // ToCoreTransaction converts a service transaction to a core transaction
 func (t *Transaction) ToCoreTransaction() *types.Transaction {
+	var blockNumber *big.Int
+	if t.BlockNumber != nil {
+		blockNumber = big.NewInt(*t.BlockNumber)
+	}
+
 	return &types.Transaction{
 		Chain:        t.ChainType,
 		Hash:         t.Hash,
@@ -109,5 +123,6 @@ func (t *Transaction) ToCoreTransaction() *types.Transaction {
 		TokenAddress: t.TokenAddress,
 		Status:       types.TransactionStatus(t.Status),
 		Timestamp:    t.Timestamp,
+		BlockNumber:  blockNumber,
 	}
 }

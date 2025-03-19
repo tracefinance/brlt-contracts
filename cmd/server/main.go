@@ -40,6 +40,9 @@ func main() {
 	// Start transaction polling scheduler using config
 	container.Services.TransactionService.StartTransactionPolling(ctx)
 
+	// Start pending transaction polling
+	container.Services.TransactionService.StartPendingTransactionPolling(ctx)
+
 	// Setup routes
 	container.Server.SetupRoutes()
 

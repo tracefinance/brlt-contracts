@@ -110,9 +110,6 @@ func (s *service) AddToken(ctx context.Context, token *types.Token) error {
 		return err
 	}
 
-	// Normalize the address
-	token.Address = types.NormalizeAddress(token.Address)
-
 	// Add the token to the store
 	err := s.tokenStore.AddToken(ctx, token)
 	if err != nil {

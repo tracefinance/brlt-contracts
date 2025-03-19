@@ -28,35 +28,20 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 		return errors.NewInvalidTokenError("validation failed", err)
 	}
 
-	// Normalize address for consistent storage
-	normalizedAddress := types.NormalizeAddress(token.Address)
-
 	// Check if the token already exists
-	var exists bool
-	rows, err := s.db.ExecuteQueryContext(
-		ctx,
-		"SELECT 1 FROM tokens WHERE address = ? AND chain_type = ? LIMIT 1",
-		normalizedAddress,
-		token.ChainType,
-	)
+	exists, err := s.Exists(ctx, token.Address, token.ChainType)
 	if err != nil {
-		return errors.NewDatabaseError(err)
-	}
-	defer rows.Close()
-
-	exists = rows.Next()
-	if err = rows.Err(); err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	if exists {
-		return errors.NewResourceAlreadyExistsError("token", "address", normalizedAddress)
+		return errors.NewResourceAlreadyExistsError("token", "address", token.Address)
 	}
 
 	// Generate a new Snowflake ID for the token
 	tokenID, err := s.db.GenerateID()
 	if err != nil {
-		return errors.NewOperationFailedError("generate token id", err)
+		return err
 	}
 
 	// Insert the new token
@@ -65,7 +50,7 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 		`INSERT INTO tokens (id, address, chain_type, symbol, decimals, type) 
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		tokenID,
-		normalizedAddress,
+		token.Address,
 		token.ChainType,
 		token.Symbol,
 		token.Decimals,
@@ -73,7 +58,7 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 	)
 
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	// Set the ID in the token struct
@@ -91,12 +76,12 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType t
 		ctx,
 		`SELECT id, address, chain_type, symbol, decimals, type 
 		FROM tokens 
-		WHERE address = ? AND chain_type = ?`,
+		WHERE lower(address) = ? AND chain_type = ?`,
 		normalizedAddress,
 		chainType,
 	)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -114,7 +99,7 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType t
 	)
 
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	return &token, nil
@@ -131,7 +116,7 @@ func (s *dbTokenStore) GetTokenByID(ctx context.Context, id int64) (*types.Token
 		id,
 	)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -149,7 +134,7 @@ func (s *dbTokenStore) GetTokenByID(ctx context.Context, id int64) (*types.Token
 	)
 
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	return &token, nil
@@ -172,7 +157,7 @@ func (s *dbTokenStore) ListTokensByChain(ctx context.Context, chainType types.Ch
 
 	rows, err := s.db.ExecuteQueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -313,4 +298,27 @@ func (s *dbTokenStore) scanTokensFromRows(rows *sql.Rows) ([]*types.Token, error
 	}
 
 	return tokens, nil
+}
+
+// Exists checks if a token exists by its address and chain type
+func (s *dbTokenStore) Exists(ctx context.Context, address string, chainType types.ChainType) (bool, error) {
+	normalizedAddress := types.NormalizeAddress(address)
+
+	rows, err := s.db.ExecuteQueryContext(
+		ctx,
+		"SELECT 1 FROM tokens WHERE lower(address) = ? AND chain_type = ? LIMIT 1",
+		normalizedAddress,
+		chainType,
+	)
+	if err != nil {
+		return false, errors.NewDatabaseError(err)
+	}
+	defer rows.Close()
+
+	exists := rows.Next()
+	if err = rows.Err(); err != nil {
+		return false, errors.NewDatabaseError(err)
+	}
+
+	return exists, nil
 }

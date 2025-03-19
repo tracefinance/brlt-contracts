@@ -45,6 +45,16 @@ type Service interface {
 	// SyncTransactionsByAddress fetches and stores transactions for an address
 	SyncTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string) (int, error)
 
+	// StartPendingTransactionPolling starts a background scheduler that periodically polls
+	// for pending or mined transactions to update their status.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, used to cancel the polling
+	StartPendingTransactionPolling(ctx context.Context)
+
+	// StopPendingTransactionPolling stops the pending transaction polling scheduler
+	StopPendingTransactionPolling()
+
 	// SubscribeTransactionEvents starts listening for new blocks and processing transactions.
 	// This method:
 	// 1. Subscribes to new block headers for all supported chains
@@ -90,6 +100,8 @@ type transactionService struct {
 	eventCancel          context.CancelFunc
 	pollingCtx           context.Context
 	pollingCancel        context.CancelFunc
+	pendingPollingCtx    context.Context
+	pendingPollingCancel context.CancelFunc
 	transactionEvents    chan *TransactionEvent
 }
 
@@ -490,27 +502,24 @@ func (s *transactionService) processBlock(ctx context.Context, chainType types.C
 	for _, tx := range block.Transactions {
 		// Check if any transaction is from or to a wallet we're monitoring
 		var walletID int64
-		var isOutgoing bool
 
 		// Check if the transaction involves any of our monitored wallets
 		if tx.From != "" {
 			if w, exists := addressToWallet[tx.From]; exists {
 				walletID = w.ID
-				isOutgoing = true
 			}
 		}
 
 		if tx.To != "" {
 			if w, exists := addressToWallet[tx.To]; exists {
 				walletID = w.ID
-				isOutgoing = false
 			}
 		}
 
 		// If this transaction involves one of our wallets, save it
 		if walletID > 0 {
 			// Save transaction to database
-			transaction, err := s.saveTransaction(ctx, tx, walletID, isOutgoing)
+			transaction, err := s.saveTransaction(ctx, tx, walletID)
 			if err != nil {
 				s.log.Error("Failed to save transaction",
 					logger.String("tx_hash", tx.Hash),
@@ -613,7 +622,7 @@ func (s *transactionService) TransactionEvents() <-chan *TransactionEvent {
 }
 
 // saveTransaction converts a blockchain transaction to a database transaction and saves it
-func (s *transactionService) saveTransaction(ctx context.Context, tx *types.Transaction, walletID int64, isOutgoing bool) (*Transaction, error) {
+func (s *transactionService) saveTransaction(ctx context.Context, tx *types.Transaction, walletID int64) (*Transaction, error) {
 	// Use the existing helper function to convert core transaction to service transaction
 	transaction := FromCoreTransaction(tx, walletID)
 
@@ -640,7 +649,7 @@ func (s *transactionService) saveTransaction(ctx context.Context, tx *types.Tran
 // StartTransactionPolling starts a background scheduler that periodically polls for transactions from all active wallets
 func (s *transactionService) StartTransactionPolling(ctx context.Context) {
 	// Get interval from config with fallback to default
-	interval := 300 // Default to 5 minutes if not specified
+	interval := 60 // Default to 1 minute if not specified
 	if s.config.TransactionPollingInterval > 0 {
 		interval = s.config.TransactionPollingInterval
 	}
@@ -720,4 +729,209 @@ func (s *transactionService) pollTransactionsForAllWallets(ctx context.Context) 
 	s.log.Info("Completed transaction polling cycle",
 		logger.Int("total_wallets", len(walletPage.Items)),
 		logger.Int("total_transactions_synced", totalSynced))
+}
+
+// pollPendingOrMinedTransactions polls for pending or mined transactions and attempts to update their status
+func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context, statuses []string, chainType types.ChainType) (int, error) {
+	s.log.Info("Polling for pending or mined transactions",
+		logger.String("chain_type", string(chainType)),
+		logger.Any("statuses", statuses))
+
+	// Prevent concurrent syncs
+	s.syncMutex.Lock()
+	defer s.syncMutex.Unlock()
+
+	// Validate input
+	if len(statuses) == 0 {
+		return 0, errors.NewInvalidInputError("At least one status must be provided", "statuses", nil)
+	}
+	if chainType == "" {
+		return 0, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
+	}
+
+	updatedCount := 0
+
+	// Process each requested status
+	for _, status := range statuses {
+		// Get transactions with the specified status
+		page, err := s.repository.ListByStatus(ctx, status, chainType, 0, 0)
+		if err != nil {
+			s.log.Error("Failed to get transactions by status",
+				logger.String("status", status),
+				logger.String("chain_type", string(chainType)),
+				logger.Error(err))
+			continue
+		}
+
+		if len(page.Items) == 0 {
+			s.log.Info("No transactions found with status",
+				logger.String("status", status),
+				logger.String("chain_type", string(chainType)))
+			continue
+		}
+
+		s.log.Info("Found transactions with status to check",
+			logger.String("status", status),
+			logger.String("chain_type", string(chainType)),
+			logger.Int("count", len(page.Items)))
+
+		// Get explorer for the chain
+		explorer, err := s.blockExplorerFactory.GetExplorer(chainType)
+		if err != nil {
+			return updatedCount, err
+		}
+
+		// Collect transaction hashes to check
+		var hashes []string
+		for _, tx := range page.Items {
+			hashes = append(hashes, tx.Hash)
+		}
+
+		// Fetch updated transaction details from explorer
+		updatedTxs, err := explorer.GetTransactionsByHash(ctx, hashes)
+		if err != nil {
+			s.log.Error("Failed to fetch transaction updates",
+				logger.String("chain_type", string(chainType)),
+				logger.Error(err))
+			continue
+		}
+
+		// Process each updated transaction
+		for _, updatedTx := range updatedTxs {
+			// Find the original transaction in our list
+			var originalTx *Transaction
+			for _, tx := range page.Items {
+				if tx.Hash == updatedTx.Hash {
+					originalTx = tx
+					break
+				}
+			}
+
+			if originalTx == nil {
+				s.log.Warn("Could not find original transaction",
+					logger.String("tx_hash", updatedTx.Hash))
+				continue
+			}
+
+			// Check if status has changed
+			originalStatus := types.TransactionStatus(originalTx.Status)
+			updatedStatus := updatedTx.Status
+
+			if originalStatus == updatedStatus {
+				s.log.Debug("Transaction status unchanged",
+					logger.String("tx_hash", updatedTx.Hash),
+					logger.String("status", string(updatedStatus)))
+				continue
+			}
+
+			s.log.Info("Transaction status changed",
+				logger.String("tx_hash", updatedTx.Hash),
+				logger.String("old_status", string(originalStatus)),
+				logger.String("new_status", string(updatedStatus)))
+
+			// Create transaction object with updated data
+			updatedTransaction := FromCoreTransaction(updatedTx, originalTx.WalletID)
+
+			// Preserve original metadata
+			updatedTransaction.ID = originalTx.ID
+			updatedTransaction.CreatedAt = originalTx.CreatedAt
+
+			// Update in database
+			err := s.repository.Update(ctx, updatedTransaction)
+			if err != nil {
+				s.log.Error("Failed to update transaction",
+					logger.String("tx_hash", updatedTx.Hash),
+					logger.Error(err))
+				continue
+			}
+
+			// Emit transaction event for the status change
+			s.emitTransactionEvent(&TransactionEvent{
+				WalletID:    originalTx.WalletID,
+				Transaction: updatedTransaction,
+				BlockNumber: updatedTx.BlockNumber.Int64(),
+				EventType:   EventTypeTransactionDetected,
+			})
+
+			updatedCount++
+		}
+	}
+
+	s.log.Info("Completed polling for pending/mined transactions",
+		logger.String("chain_type", string(chainType)),
+		logger.Int("updated_count", updatedCount))
+
+	return updatedCount, nil
+}
+
+// StartPendingTransactionPolling starts a background scheduler that periodically polls for pending or mined transactions
+func (s *transactionService) StartPendingTransactionPolling(ctx context.Context) {
+	// Get interval from config with fallback to default
+	interval := 60 // Default to 1 minute if not specified
+	if s.config.PendingTransactionPollingInterval > 0 {
+		interval = s.config.PendingTransactionPollingInterval
+	}
+
+	s.pendingPollingCtx, s.pendingPollingCancel = context.WithCancel(ctx)
+
+	s.log.Info("Starting pending transaction polling scheduler",
+		logger.Int("interval_seconds", interval))
+
+	// Start the scheduler goroutine
+	go func() {
+		ticker := time.NewTicker(time.Duration(interval) * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-s.pendingPollingCtx.Done():
+				s.log.Info("Pending transaction polling scheduler stopped")
+				return
+			case <-ticker.C:
+				s.pollPendingAndMinedTransactions(s.pendingPollingCtx)
+			}
+		}
+	}()
+}
+
+// StopPendingTransactionPolling stops the pending transaction polling scheduler
+func (s *transactionService) StopPendingTransactionPolling() {
+	if s.pendingPollingCancel != nil {
+		s.pendingPollingCancel()
+		s.pendingPollingCancel = nil
+		s.log.Info("Pending transaction polling scheduler stopped")
+	}
+}
+
+// pollPendingAndMinedTransactions polls for all pending and mined transactions across all chains
+func (s *transactionService) pollPendingAndMinedTransactions(ctx context.Context) {
+	s.log.Info("Running scheduled poll for pending and mined transactions")
+
+	statuses := []string{
+		string(types.TransactionStatusPending),
+		string(types.TransactionStatusMined),
+	}
+
+	var totalUpdated int
+
+	// Poll for each chain type separately
+	for _, chain := range s.chains.Chains {
+		// Check if context is cancelled
+		if ctx.Err() != nil {
+			return
+		}
+
+		updated, err := s.pollPendingOrMinedTransactions(ctx, statuses, chain.Type)
+		if err != nil {
+			s.log.Error("Failed to poll pending/mined transactions",
+				logger.String("chain_type", string(chain.Type)),
+				logger.Error(err))
+			continue
+		}
+
+		totalUpdated += updated
+	}
+
+	s.log.Info("Completed pending transaction polling cycle",
+		logger.Int("total_transactions_updated", totalUpdated))
 }

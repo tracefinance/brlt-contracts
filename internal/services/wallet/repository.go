@@ -57,9 +57,6 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 		}
 	}
 
-	// Normalize the address for consistent database storage
-	wallet.Address = types.NormalizeAddress(wallet.Address)
-
 	// Set timestamps
 	now := time.Now()
 	wallet.CreatedAt = now
@@ -104,7 +101,7 @@ func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType
 	query := `
 		SELECT id, key_id, chain_type, address, name, tags, last_block_number, created_at, updated_at, deleted_at
 		FROM wallets
-		WHERE chain_type = ? AND address = ? AND deleted_at IS NULL
+		WHERE chain_type = ? AND lower(address) = ? AND deleted_at IS NULL
 	`
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, normalizedAddress)
@@ -201,7 +198,7 @@ func (r *repository) Delete(ctx context.Context, chainType types.ChainType, addr
 	query := `
 		UPDATE wallets
 		SET deleted_at = ?
-		WHERE chain_type = ? AND address = ? AND deleted_at IS NULL
+		WHERE chain_type = ? AND lower(address) = ? AND deleted_at IS NULL
 	`
 
 	now := time.Now().UTC()
@@ -276,7 +273,7 @@ func (r *repository) Exists(ctx context.Context, chainType types.ChainType, addr
 	query := `
 		SELECT COUNT(*) > 0
 		FROM wallets
-		WHERE chain_type = ? AND address = ? AND deleted_at IS NULL
+		WHERE chain_type = ? AND lower(address) = ? AND deleted_at IS NULL
 	`
 
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, normalizedAddress)
