@@ -14,6 +14,30 @@ const (
 	TransactionTypeContract TransactionType = "contract"
 )
 
+// TransactionStatus represents the status of a transaction in the blockchain
+type TransactionStatus string
+
+const (
+	// TransactionStatusPending indicates a transaction is waiting to be mined
+	TransactionStatusPending TransactionStatus = "pending"
+
+	// TransactionStatusMined indicates a transaction is included in a block
+	// but execution status is not yet known
+	TransactionStatusMined TransactionStatus = "mined"
+
+	// TransactionStatusSuccess indicates a transaction was successfully executed
+	TransactionStatusSuccess TransactionStatus = "success"
+
+	// TransactionStatusFailed indicates a transaction execution failed
+	TransactionStatusFailed TransactionStatus = "failed"
+
+	// TransactionStatusDropped indicates a transaction was dropped from mempool
+	TransactionStatusDropped TransactionStatus = "dropped"
+
+	// TransactionStatusUnknown indicates a transaction with unknown status
+	TransactionStatusUnknown TransactionStatus = "unknown"
+)
+
 // Transaction represents a blockchain transaction
 type Transaction struct {
 	// Chain is the blockchain type
@@ -34,12 +58,14 @@ type Transaction struct {
 	GasPrice *big.Int
 	// GasLimit is the gas limit (for EVM chains)
 	GasLimit uint64
+	// GasUsed is the actual amount of gas used (only available after mining)
+	GasUsed uint64
 	// Type is the transaction type
 	Type TransactionType
 	// TokenAddress is the token contract address (for ERC20 transactions)
 	TokenAddress string
 	// Status is the transaction status
-	Status string
+	Status TransactionStatus
 	// Timestamp is the transaction timestamp
 	Timestamp int64
 	// BlockNumber is the block number

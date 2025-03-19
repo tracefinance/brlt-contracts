@@ -29,6 +29,18 @@ type Blockchain interface {
 	//   - Error if transaction cannot be retrieved or doesn't exist
 	GetTransaction(ctx context.Context, hash string) (*types.Transaction, error)
 
+	// GetBlock retrieves block details by number or hash.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, can be used for cancellation
+	//   - identifier: Block number as a string or hash in hexadecimal format
+	//                 Special values: "latest", "earliest", "pending"
+	//
+	// Returns:
+	//   - Block details if found
+	//   - Error if block cannot be retrieved or doesn't exist
+	GetBlock(ctx context.Context, identifier string) (*types.Block, error)
+
 	// GetTransactionReceipt retrieves transaction receipt by hash.
 	// The receipt contains execution results including status, logs, and gas used.
 	//
@@ -114,28 +126,30 @@ type Blockchain interface {
 	//   - Error if the call fails or reverts
 	CallContract(ctx context.Context, from string, to string, data []byte) ([]byte, error)
 
-	// FilterLogs retrieves historical logs matching the filter criteria.
+	// FilterContractLogs retrieves historical logs matching the filter criteria.
 	// Logs are events emitted by smart contracts during transaction execution.
 	//
 	// Parameters:
 	//   - ctx: Context for the operation, can be used for cancellation
 	//   - addresses: List of contract addresses to filter logs from (empty for all)
-	//   - topics: Nested array of topics to filter by (position matters)
+	//   - eventSignature: The signature of the event (e.g., "Transfer(address indexed from, address indexed to, uint256 value)")
+	//   - eventArgs: The arguments to filter by (nil or empty for no filtering)
 	//   - fromBlock: Starting block number for the filter (negative for latest)
 	//   - toBlock: Ending block number for the filter (negative for latest)
 	//
 	// Returns:
 	//   - Array of logs matching the filter criteria
 	//   - Error if logs cannot be retrieved
-	FilterLogs(ctx context.Context, addresses []string, topics [][]string, fromBlock, toBlock int64) ([]types.Log, error)
+	FilterContractLogs(ctx context.Context, addresses []string, eventSignature string, eventArgs []any, fromBlock, toBlock int64) ([]types.Log, error)
 
-	// SubscribeToEvents subscribes to live events matching the filter criteria.
+	// SubscribeContractLogs subscribes to live events matching the filter criteria.
 	// This creates a real-time subscription to contract events as they occur.
 	//
 	// Parameters:
 	//   - ctx: Context for the operation, can be used to cancel the subscription
 	//   - addresses: List of contract addresses to filter events from (empty for all)
-	//   - topics: Nested array of topics to filter by (position matters)
+	//   - eventSignature: The signature of the event (e.g., "Transfer(address indexed from, address indexed to, uint256 value)")
+	//   - eventArgs: The arguments to filter by (nil or empty for no filtering)
 	//   - fromBlock: The block number to start the subscription from:
 	//     * Positive value: Start from the specified block number
 	//     * Zero or negative value: Implementation will default to (current block - 50,000)
@@ -145,7 +159,7 @@ type Blockchain interface {
 	//   - Channel that receives matching log events in real-time
 	//   - Channel that receives subscription errors
 	//   - Error if subscription cannot be created
-	SubscribeToEvents(ctx context.Context, addresses []string, topics [][]string, fromBlock int64) (<-chan types.Log, <-chan error, error)
+	SubscribeContractLogs(ctx context.Context, addresses []string, eventSignature string, eventArgs []any, fromBlock int64) (<-chan types.Log, <-chan error, error)
 
 	// Chain returns the chain information.
 	// This includes details like chain ID, network name, and other chain-specific data.

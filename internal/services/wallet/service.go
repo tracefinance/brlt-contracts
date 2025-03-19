@@ -513,7 +513,7 @@ func (s *walletService) subscribeToWallet(ctx context.Context, wallet *Wallet) e
 			logger.String("address", wallet.Address))
 
 		// Subscribe to events, using wallet's LastBlockNumber as the starting point
-		logCh, errCh, err := client.SubscribeToEvents(subscriptionCtx, []string{wallet.Address}, nil, wallet.LastBlockNumber)
+		logCh, errCh, err := client.SubscribeContractLogs(subscriptionCtx, []string{wallet.Address}, nil, wallet.LastBlockNumber)
 		if err != nil {
 			s.log.Error("Failed to subscribe to events",
 				logger.Int64("wallet_id", wallet.ID),

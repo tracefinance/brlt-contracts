@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -156,6 +158,49 @@ func (c *EVMBlockchain) GetTransaction(ctx context.Context, hash string) (*types
 	return c.convertEthereumTransactionToTransaction(tx, receipt, timestamp), nil
 }
 
+// GetBlock implements Blockchain.GetBlock
+func (c *EVMBlockchain) GetBlock(ctx context.Context, identifier string) (*types.Block, error) {
+	var block *ethTypes.Block
+	var err error
+
+	// Check if the identifier is a special keyword
+	switch strings.ToLower(identifier) {
+	case "latest":
+		block, err = c.client.BlockByNumber(ctx, nil) // nil means latest block
+	case "earliest":
+		block, err = c.client.BlockByNumber(ctx, big.NewInt(0)) // 0 is the genesis block
+	case "pending":
+		block, err = c.client.BlockByNumber(ctx, big.NewInt(-1)) // -1 is pending block
+	default:
+		// Check if identifier is a hash (0x...) or a block number
+		if strings.HasPrefix(identifier, "0x") {
+			blockHash := common.HexToHash(identifier)
+			block, err = c.client.BlockByHash(ctx, blockHash)
+		} else {
+			// Try to parse it as a block number
+			blockNum, parseErr := strconv.ParseInt(identifier, 10, 64)
+			if parseErr != nil {
+				return nil, errors.NewInvalidBlockIdentifierError(identifier)
+			}
+			block, err = c.client.BlockByNumber(ctx, big.NewInt(blockNum))
+		}
+	}
+
+	if err != nil {
+		if stderrors.Is(err, ethereum.NotFound) {
+			return nil, errors.NewBlockNotFoundError(identifier)
+		}
+		return nil, errors.NewRPCError(err)
+	}
+
+	if block == nil {
+		return nil, errors.NewBlockNotFoundError(identifier)
+	}
+
+	// Convert the Ethereum block to our Block model
+	return c.convertEthereumBlockToBlock(block), nil
+}
+
 // GetTransactionReceipt implements Blockchain.GetTransactionReceipt
 func (c *EVMBlockchain) GetTransactionReceipt(ctx context.Context, hash string) (*types.TransactionReceipt, error) {
 	if !strings.HasPrefix(hash, "0x") {
@@ -267,8 +312,8 @@ func (c *EVMBlockchain) BroadcastTransaction(ctx context.Context, signedTx []byt
 	return tx.Hash().Hex(), nil
 }
 
-// FilterLogs implements Blockchain.FilterLogs
-func (c *EVMBlockchain) FilterLogs(ctx context.Context, addresses []string, topics [][]string, fromBlock, toBlock int64) ([]types.Log, error) {
+// FilterContractLogs implements Blockchain.FilterContractLogs
+func (c *EVMBlockchain) FilterContractLogs(ctx context.Context, addresses []string, eventSignature string, eventArgs []any, fromBlock, toBlock int64) ([]types.Log, error) {
 	// Convert addresses to Ethereum addresses
 	var ethAddresses []common.Address
 	if len(addresses) > 0 {
@@ -281,18 +326,10 @@ func (c *EVMBlockchain) FilterLogs(ctx context.Context, addresses []string, topi
 		}
 	}
 
-	// Convert topics to Ethereum topics
-	var ethTopics [][]common.Hash
-	if len(topics) > 0 {
-		ethTopics = make([][]common.Hash, len(topics))
-		for i, topicSet := range topics {
-			if len(topicSet) > 0 {
-				ethTopics[i] = make([]common.Hash, len(topicSet))
-				for j, topic := range topicSet {
-					ethTopics[i][j] = common.HexToHash(topic)
-				}
-			}
-		}
+	// Convert event signature and args to topics
+	ethTopics, err := c.convertEventToTopics(eventSignature, eventArgs)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create the filter query
@@ -336,7 +373,7 @@ func (c *EVMBlockchain) FilterLogs(ctx context.Context, addresses []string, topi
 	return result, nil
 }
 
-func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []string, topics [][]string, fromBlock int64) (<-chan types.Log, <-chan error, error) {
+func (c *EVMBlockchain) SubscribeContractLogs(ctx context.Context, addresses []string, eventSignature string, eventArgs []any, fromBlock int64) (<-chan types.Log, <-chan error, error) {
 	// Convert addresses to Ethereum addresses
 	var ethAddresses []common.Address
 	if len(addresses) > 0 {
@@ -349,18 +386,10 @@ func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []strin
 		}
 	}
 
-	// Convert topics to Ethereum topics
-	var ethTopics [][]common.Hash
-	if len(topics) > 0 {
-		ethTopics = make([][]common.Hash, len(topics))
-		for i, topicSet := range topics {
-			if len(topicSet) > 0 {
-				ethTopics[i] = make([]common.Hash, len(topicSet))
-				for j, topic := range topicSet {
-					ethTopics[i][j] = common.HexToHash(topic)
-				}
-			}
-		}
+	// Convert event signature and args to topics
+	ethTopics, err := c.convertEventToTopics(eventSignature, eventArgs)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Set fromBlock if provided
@@ -439,8 +468,8 @@ func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []strin
 				// Log successful subscription
 				c.log.Debug("Successfully subscribed to events",
 					logger.Int64("from_block", lastSeenBlock),
-					logger.String("addresses", fmt.Sprintf("%v", ethAddresses)),
-					logger.String("topics", fmt.Sprintf("%v", ethTopics)))
+					logger.String("addresses", strings.Join(addresses, ",")),
+					logger.String("event_signature", eventSignature))
 
 				// Process events from this subscription
 				subscriptionActive := true
@@ -537,15 +566,18 @@ func (c *EVMBlockchain) convertEthereumLogsToLogs(logs []*ethTypes.Log) []types.
 
 // convertEthereumTransactionToTransaction converts an Ethereum transaction to common.Transaction
 func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethTypes.Transaction, receipt *ethTypes.Receipt, timestamp uint64) *types.Transaction {
-	var status string
+	var status types.TransactionStatus
+	var gasUsed uint64
+
 	if receipt != nil {
+		gasUsed = receipt.GasUsed
 		if receipt.Status == 1 {
-			status = "success"
+			status = types.TransactionStatusSuccess
 		} else {
-			status = "failed"
+			status = types.TransactionStatusFailed
 		}
 	} else {
-		status = "pending"
+		status = types.TransactionStatusPending
 	}
 
 	from := ""
@@ -559,21 +591,8 @@ func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethTypes.Tra
 		to = tx.To().Hex()
 	}
 
-	// Map chain type to common.ChainType
-	var chainType types.ChainType
-	switch c.chain.Type {
-	case types.ChainTypeEthereum:
-		chainType = types.ChainTypeEthereum
-	case types.ChainTypePolygon:
-		chainType = types.ChainTypePolygon
-	case types.ChainTypeBase:
-		chainType = types.ChainTypeBase
-	default:
-		chainType = types.ChainType(string(c.chain.Type))
-	}
-
 	return &types.Transaction{
-		Chain:     chainType,
+		Chain:     c.chain.Type,
 		Hash:      tx.Hash().Hex(),
 		From:      from,
 		To:        to,
@@ -582,6 +601,7 @@ func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethTypes.Tra
 		Nonce:     tx.Nonce(),
 		GasPrice:  tx.GasPrice(),
 		GasLimit:  tx.Gas(),
+		GasUsed:   gasUsed,
 		Type:      types.TransactionTypeNative,
 		Status:    status,
 		Timestamp: int64(timestamp),
@@ -591,4 +611,176 @@ func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethTypes.Tra
 // Chain implements Blockchain.Chain
 func (c *EVMBlockchain) Chain() types.Chain {
 	return c.chain
+}
+
+// convertEventToTopics converts an event signature and arguments to Ethereum topics
+func (c *EVMBlockchain) convertEventToTopics(eventSignature string, eventArgs []any) ([][]common.Hash, error) {
+	// Generate the event signature hash (topic[0])
+	eventID := crypto.Keccak256Hash([]byte(eventSignature))
+
+	// Initialize topics with the event ID as the first topic
+	topics := make([][]common.Hash, 1)
+	topics[0] = []common.Hash{eventID}
+
+	// If no arguments are provided, return just the event ID topic
+	if len(eventArgs) == 0 {
+		return topics, nil
+	}
+
+	// Parse the event signature to extract parameter types and indexed status
+	// Format: "EventName(type1 indexed param1, type2 param2, ...)"
+	leftParenIndex := strings.Index(eventSignature, "(")
+	rightParenIndex := strings.LastIndex(eventSignature, ")")
+
+	if leftParenIndex == -1 || rightParenIndex == -1 || leftParenIndex >= rightParenIndex {
+		return nil, errors.NewInvalidEventSignatureError(eventSignature)
+	}
+
+	// Extract parameter part: "type1 indexed param1, type2 param2, ..."
+	paramsPart := eventSignature[leftParenIndex+1 : rightParenIndex]
+
+	// Split parameters
+	var indexedParams []bool
+	if paramsPart != "" {
+		params := strings.Split(paramsPart, ",")
+		indexedParams = make([]bool, len(params))
+
+		for i, param := range params {
+			param = strings.TrimSpace(param)
+			indexedParams[i] = strings.Contains(param, "indexed")
+		}
+	}
+
+	// Count indexed parameters to know how many argument topics to create
+	indexedCount := 0
+	for _, indexed := range indexedParams {
+		if indexed {
+			indexedCount++
+		}
+	}
+
+	// Check if provided arguments match the number of indexed parameters
+	if len(eventArgs) > indexedCount {
+		return nil, errors.NewInvalidEventArgsError(fmt.Sprintf("Expected %d indexed args, got %d", indexedCount, len(eventArgs)))
+	}
+
+	// Add topics for each indexed parameter
+	argIndex := 0
+	for i, indexed := range indexedParams {
+		if indexed && argIndex < len(eventArgs) {
+			// For each indexed parameter, create a topic from the corresponding argument
+			arg := eventArgs[argIndex]
+			argIndex++
+
+			var topic common.Hash
+
+			// Handle different argument types
+			switch v := arg.(type) {
+			case string:
+				// Check if it's an address
+				if strings.HasPrefix(v, "0x") && len(v) == 42 {
+					// It's an address
+					topic = common.HexToHash(v)
+				} else {
+					// Convert string to bytes32
+					topic = crypto.Keccak256Hash([]byte(v))
+				}
+			case []byte:
+				// Convert bytes to hash
+				topic = crypto.Keccak256Hash(v)
+			case int:
+				// Convert int to hash
+				bigInt := big.NewInt(int64(v))
+				topic = common.BytesToHash(bigInt.Bytes())
+			case int64:
+				// Convert int64 to hash
+				bigInt := big.NewInt(v)
+				topic = common.BytesToHash(bigInt.Bytes())
+			case *big.Int:
+				// Convert big.Int to hash
+				topic = common.BytesToHash(v.Bytes())
+			case common.Address:
+				// Convert address to hash
+				topic = common.BytesToHash(v.Bytes())
+			case common.Hash:
+				// Use hash directly
+				topic = v
+			case nil:
+				// nil value means match any value for this topic
+				topics = append(topics, nil)
+				continue
+			default:
+				return nil, errors.NewUnsupportedEventArgTypeError(i + 1)
+			}
+
+			// Add topic for this argument
+			if len(topics) <= i+1 {
+				// Expand topics slice if needed to accommodate this argument
+				newTopics := make([][]common.Hash, i+2)
+				copy(newTopics, topics)
+				topics = newTopics
+			}
+
+			if topics[i+1] == nil {
+				topics[i+1] = []common.Hash{topic}
+			} else {
+				topics[i+1] = append(topics[i+1], topic)
+			}
+		}
+	}
+
+	return topics, nil
+}
+
+// convertEthereumBlockToBlock converts an Ethereum block to our Block model
+func (c *EVMBlockchain) convertEthereumBlockToBlock(block *ethTypes.Block) *types.Block {
+	// Extract and convert all transactions
+	ethTransactions := block.Transactions()
+	transactions := make([]*types.Transaction, len(ethTransactions))
+
+	for i, tx := range ethTransactions {
+		// For transactions in a mined block, we know they've been processed
+		// We don't need to fetch the receipt to know the status for basic block viewing
+		// The full status can be fetched later if needed via GetTransaction
+		from := ""
+		signer := ethTypes.LatestSignerForChainID(big.NewInt(c.chain.ID))
+		if sender, err := ethTypes.Sender(signer, tx); err == nil {
+			from = sender.Hex()
+		}
+
+		var to string
+		if tx.To() != nil {
+			to = tx.To().Hex()
+		}
+
+		transactions[i] = &types.Transaction{
+			Chain:     c.chain.Type,
+			Hash:      tx.Hash().Hex(),
+			From:      from,
+			To:        to,
+			Value:     tx.Value(),
+			Data:      tx.Data(),
+			Nonce:     tx.Nonce(),
+			GasPrice:  tx.GasPrice(),
+			GasLimit:  tx.Gas(),
+			Type:      types.TransactionTypeNative,
+			Status:    types.TransactionStatusMined, // Mined but detailed status unknown without receipt
+			Timestamp: int64(block.Time()),
+		}
+	}
+
+	return &types.Block{
+		Hash:             block.Hash().Hex(),
+		Number:           block.Number(),
+		ParentHash:       block.ParentHash().Hex(),
+		Timestamp:        time.Unix(int64(block.Time()), 0),
+		TransactionCount: len(transactions),
+		Transactions:     transactions,
+		Miner:            block.Coinbase().Hex(),
+		GasUsed:          block.GasUsed(),
+		GasLimit:         block.GasLimit(),
+		Size:             uint64(block.Size()),
+		Difficulty:       block.Difficulty(),
+		Extra:            block.Extra(),
+	}
 }

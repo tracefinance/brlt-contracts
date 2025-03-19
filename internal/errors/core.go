@@ -25,11 +25,16 @@ const (
 	ErrCodeInsufficientFunds       = "insufficient_funds"
 	ErrCodeInvalidTransaction      = "invalid_transaction"
 	ErrCodeTransactionNotFound     = "transaction_not_found"
+	ErrCodeBlockNotFound           = "block_not_found"
+	ErrCodeInvalidBlockIdentifier  = "invalid_block_identifier"
 	ErrCodeRPCError                = "rpc_error"
 	ErrCodeInvalidAddress          = "invalid_address"
 	ErrCodeTransactionFailed       = "transaction_failed"
 	ErrCodeInvalidContract         = "invalid_contract"
 	ErrCodeContractNotFound        = "contract_not_found"
+	ErrCodeInvalidEventSignature   = "invalid_event_signature"
+	ErrCodeInvalidEventArgs        = "invalid_event_args"
+	ErrCodeUnsupportedEventArgType = "unsupported_event_arg_type"
 
 	// Keystore errors
 	ErrCodeKeystoreError   = "keystore_error"
@@ -507,6 +512,61 @@ func NewContractNotFoundError(address string, chainType string) *Vault0Error {
 		Details: map[string]any{
 			"address": address,
 			"chain":   chainType,
+		},
+	}
+}
+
+// NewInvalidEventSignatureError creates a new error for invalid event signatures
+func NewInvalidEventSignatureError(signature string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeInvalidEventSignature,
+		Message: fmt.Sprintf("Invalid event signature format: %s", signature),
+		Details: map[string]any{
+			"signature": signature,
+		},
+	}
+}
+
+// NewInvalidEventArgsError creates a new error for invalid event arguments
+func NewInvalidEventArgsError(msg string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeInvalidEventArgs,
+		Message: msg,
+		Details: map[string]any{
+			"error": msg,
+		},
+	}
+}
+
+// NewUnsupportedEventArgTypeError creates a new error for unsupported event argument types
+func NewUnsupportedEventArgTypeError(paramIndex int) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeUnsupportedEventArgType,
+		Message: fmt.Sprintf("Unsupported argument type for parameter %d", paramIndex),
+		Details: map[string]any{
+			"parameter_index": paramIndex,
+		},
+	}
+}
+
+// NewBlockNotFoundError creates a new error for when a block cannot be found
+func NewBlockNotFoundError(identifier string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeBlockNotFound,
+		Message: fmt.Sprintf("Block not found: %s", identifier),
+		Details: map[string]any{
+			"identifier": identifier,
+		},
+	}
+}
+
+// NewInvalidBlockIdentifierError creates a new error for invalid block identifiers
+func NewInvalidBlockIdentifierError(identifier string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeInvalidBlockIdentifier,
+		Message: fmt.Sprintf("Invalid block identifier: %s", identifier),
+		Details: map[string]any{
+			"identifier": identifier,
 		},
 	}
 }
