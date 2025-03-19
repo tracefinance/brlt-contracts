@@ -318,7 +318,7 @@ func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, add
 			GasLimit:     gasLimit,
 			Type:         types.TransactionTypeNative,
 			TokenAddress: tx.ContractAddress,
-			Status:       map[string]string{"0": "success", "1": "failed"}[tx.IsError],
+			Status:       types.TransactionStatus(map[string]string{"0": "success", "1": "failed"}[tx.IsError]),
 			Timestamp:    timestamp,
 			BlockNumber:  blockNumber,
 		}
@@ -371,7 +371,7 @@ func (e *EtherscanExplorer) getInternalTransactionHistory(ctx context.Context, a
 			Data:         nil,
 			Type:         types.TransactionTypeNative,
 			TokenAddress: tx.ContractAddress,
-			Status:       map[string]string{"0": "success", "1": "failed"}[tx.IsError],
+			Status:       types.TransactionStatus(map[string]string{"0": "success", "1": "failed"}[tx.IsError]),
 			Timestamp:    timestamp,
 			BlockNumber:  blockNumber,
 		}
@@ -434,7 +434,7 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 			GasLimit:     gasLimit,
 			Type:         types.TransactionTypeERC20,
 			TokenAddress: tx.ContractAddress,
-			Status:       "success", // Token transfers are always successful
+			Status:       types.TransactionStatusSuccess,
 			Timestamp:    timestamp,
 			BlockNumber:  blockNumber,
 		}

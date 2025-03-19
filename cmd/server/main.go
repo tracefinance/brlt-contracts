@@ -34,13 +34,8 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start wallet event subscriptions
-	if err := container.Services.WalletService.SubscribeToBlockchainEvents(ctx); err != nil {
-		log.Fatal("Failed to subscribe to blockchain events", logger.Error(err))
-	}
-
 	// Start transaction event subscriptions
-	container.Services.TransactionService.SubscribeToWalletEvents(ctx)
+	container.Services.TransactionService.SubscribeTransactionEvents(ctx)
 
 	// Setup routes
 	container.Server.SetupRoutes()
@@ -72,8 +67,7 @@ func main() {
 	container.Server.Shutdown()
 
 	// Unsubscribe from events
-	container.Services.WalletService.UnsubscribeFromBlockchainEvents()
-	container.Services.TransactionService.UnsubscribeFromWalletEvents()
+	container.Services.TransactionService.UnsubscribeFromTransactionEvents()
 
 	// Close the database connection
 	if container.Core.DB != nil {
