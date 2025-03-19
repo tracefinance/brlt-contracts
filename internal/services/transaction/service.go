@@ -55,7 +55,18 @@ type Service interface {
 	// StopPendingTransactionPolling stops the pending transaction polling scheduler
 	StopPendingTransactionPolling()
 
-	// SubscribeTransactionEvents starts listening for new blocks and processing transactions.
+	// StartWalletTransactionPolling starts a background scheduler that periodically polls
+	// for transactions from all active wallets.
+	// This provides a fallback mechanism to ensure transactions are not missed by the event-based system.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, used to cancel the polling
+	StartWalletTransactionPolling(ctx context.Context)
+
+	// StopWalletTransactionPolling stops the transaction polling scheduler
+	StopWalletTransactionPolling()
+
+	// SubscribeToTransactionEvents starts listening for new blocks and processing transactions.
 	// This method:
 	// 1. Subscribes to new block headers for all supported chains
 	// 2. Processes transactions in those blocks against active wallets
@@ -63,18 +74,7 @@ type Service interface {
 	//
 	// Parameters:
 	//   - ctx: Context for the operation, used to cancel the subscription
-	SubscribeTransactionEvents(ctx context.Context)
-
-	// StartTransactionPolling starts a background scheduler that periodically polls
-	// for transactions from all active wallets.
-	// This provides a fallback mechanism to ensure transactions are not missed by the event-based system.
-	//
-	// Parameters:
-	//   - ctx: Context for the operation, used to cancel the polling
-	StartTransactionPolling(ctx context.Context)
-
-	// StopTransactionPolling stops the transaction polling scheduler
-	StopTransactionPolling()
+	SubscribeToTransactionEvents(ctx context.Context)
 
 	// UnsubscribeFromTransactionEvents stops listening for blockchain events.
 	// This should be called when shutting down the service.
@@ -386,8 +386,8 @@ func (s *transactionService) OnWalletEvent(ctx context.Context, walletID int64, 
 	return nil
 }
 
-// SubscribeTransactionEvents starts listening for new blocks and processing transactions
-func (s *transactionService) SubscribeTransactionEvents(ctx context.Context) {
+// SubscribeToTransactionEvents starts listening for new blocks and processing transactions
+func (s *transactionService) SubscribeToTransactionEvents(ctx context.Context) {
 	s.eventCtx, s.eventCancel = context.WithCancel(ctx)
 
 	// Get list of unique chain types from chains
@@ -646,8 +646,8 @@ func (s *transactionService) saveTransaction(ctx context.Context, tx *types.Tran
 	return transaction, nil
 }
 
-// StartTransactionPolling starts a background scheduler that periodically polls for transactions from all active wallets
-func (s *transactionService) StartTransactionPolling(ctx context.Context) {
+// StartWalletTransactionPolling starts a background scheduler that periodically polls for transactions from all active wallets
+func (s *transactionService) StartWalletTransactionPolling(ctx context.Context) {
 	// Get interval from config with fallback to default
 	interval := 60 // Default to 1 minute if not specified
 	if s.config.TransactionPollingInterval > 0 {
@@ -676,8 +676,8 @@ func (s *transactionService) StartTransactionPolling(ctx context.Context) {
 	}()
 }
 
-// StopTransactionPolling stops the transaction polling scheduler
-func (s *transactionService) StopTransactionPolling() {
+// StopWalletTransactionPolling stops the transaction polling scheduler
+func (s *transactionService) StopWalletTransactionPolling() {
 	if s.pollingCancel != nil {
 		s.pollingCancel()
 		s.pollingCancel = nil
@@ -732,19 +732,51 @@ func (s *transactionService) pollTransactionsForAllWallets(ctx context.Context) 
 }
 
 // pollPendingOrMinedTransactions polls for pending or mined transactions and attempts to update their status
-func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context, statuses []string, chainType types.ChainType) (int, error) {
-	s.log.Info("Polling for pending or mined transactions",
-		logger.String("chain_type", string(chainType)),
+func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context) (int, error) {
+	// Default statuses to look for
+	statuses := []string{
+		string(types.TransactionStatusPending),
+		string(types.TransactionStatusMined),
+	}
+
+	s.log.Info("Running scheduled poll for pending and mined transactions",
 		logger.Any("statuses", statuses))
 
 	// Prevent concurrent syncs
 	s.syncMutex.Lock()
 	defer s.syncMutex.Unlock()
 
-	// Validate input
-	if len(statuses) == 0 {
-		return 0, errors.NewInvalidInputError("At least one status must be provided", "statuses", nil)
+	updatedCount := 0
+
+	s.log.Info("Polling for all chains")
+
+	// Poll for each chain type separately
+	for _, chain := range s.chains.Chains {
+		// Check if context is cancelled
+		if ctx.Err() != nil {
+			return updatedCount, ctx.Err()
+		}
+
+		count, err := s.pollPendingOrMinedTransactionsForChain(ctx, statuses, chain.Type)
+		if err != nil {
+			s.log.Error("Failed to poll pending/mined transactions",
+				logger.String("chain_type", string(chain.Type)),
+				logger.Error(err))
+			continue
+		}
+
+		updatedCount += count
 	}
+
+	s.log.Info("Completed pending transaction polling cycle",
+		logger.Int("total_transactions_updated", updatedCount))
+
+	return updatedCount, nil
+}
+
+// pollPendingOrMinedTransactionsForChain polls for transactions with specific statuses for a single chain
+func (s *transactionService) pollPendingOrMinedTransactionsForChain(ctx context.Context, statuses []string, chainType types.ChainType) (int, error) {
+	// Validate chain type
 	if chainType == "" {
 		return 0, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -888,7 +920,10 @@ func (s *transactionService) StartPendingTransactionPolling(ctx context.Context)
 				s.log.Info("Pending transaction polling scheduler stopped")
 				return
 			case <-ticker.C:
-				s.pollPendingAndMinedTransactions(s.pendingPollingCtx)
+				// Call the method with no parameters
+				if _, err := s.pollPendingOrMinedTransactions(s.pendingPollingCtx); err != nil {
+					s.log.Error("Error in pending transaction polling", logger.Error(err))
+				}
 			}
 		}
 	}()
@@ -901,37 +936,4 @@ func (s *transactionService) StopPendingTransactionPolling() {
 		s.pendingPollingCancel = nil
 		s.log.Info("Pending transaction polling scheduler stopped")
 	}
-}
-
-// pollPendingAndMinedTransactions polls for all pending and mined transactions across all chains
-func (s *transactionService) pollPendingAndMinedTransactions(ctx context.Context) {
-	s.log.Info("Running scheduled poll for pending and mined transactions")
-
-	statuses := []string{
-		string(types.TransactionStatusPending),
-		string(types.TransactionStatusMined),
-	}
-
-	var totalUpdated int
-
-	// Poll for each chain type separately
-	for _, chain := range s.chains.Chains {
-		// Check if context is cancelled
-		if ctx.Err() != nil {
-			return
-		}
-
-		updated, err := s.pollPendingOrMinedTransactions(ctx, statuses, chain.Type)
-		if err != nil {
-			s.log.Error("Failed to poll pending/mined transactions",
-				logger.String("chain_type", string(chain.Type)),
-				logger.Error(err))
-			continue
-		}
-
-		totalUpdated += updated
-	}
-
-	s.log.Info("Completed pending transaction polling cycle",
-		logger.Int("total_transactions_updated", totalUpdated))
 }
