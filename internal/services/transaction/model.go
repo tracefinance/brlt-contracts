@@ -88,7 +88,7 @@ func FromCoreTransaction(coreTx *types.Transaction, walletID int64) *Transaction
 		GasLimit:     coreTx.GasLimit,
 		Type:         string(coreTx.Type),
 		TokenAddress: coreTx.TokenAddress,
-		Status:       coreTx.Status,
+		Status:       string(coreTx.Status),
 		Timestamp:    coreTx.Timestamp,
 	}
 }
@@ -107,7 +107,7 @@ func (t *Transaction) ToCoreTransaction() *types.Transaction {
 		GasLimit:     t.GasLimit,
 		Type:         types.TransactionType(t.Type),
 		TokenAddress: t.TokenAddress,
-		Status:       t.Status,
+		Status:       types.TransactionStatus(t.Status),
 		Timestamp:    t.Timestamp,
 	}
 }

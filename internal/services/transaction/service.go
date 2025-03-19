@@ -2,14 +2,30 @@ package transaction
 
 import (
 	"context"
+	"math/big"
 	"sync"
 
 	"vault0/internal/config"
+	"vault0/internal/core/blockchain"
 	"vault0/internal/core/blockexplorer"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
 	"vault0/internal/services/wallet"
 	"vault0/internal/types"
+)
+
+// TransactionEvent represents an event related to a transaction
+type TransactionEvent struct {
+	WalletID    int64
+	Transaction *Transaction
+	BlockNumber int64
+	EventType   string
+}
+
+// Event types for transaction events
+const (
+	EventTypeTransactionDetected = "TRANSACTION_DETECTED"
+	EventTypeNewBlock            = "NEW_BLOCK"
 )
 
 // Service defines the transaction service interface
@@ -29,13 +45,24 @@ type Service interface {
 	// SyncTransactionsByAddress fetches and stores transactions for an address
 	SyncTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string) (int, error)
 
-	// SubscribeToWalletEvents starts listening for wallet events and processing transactions.
-	// This should be called after the service is initialized.
-	SubscribeToWalletEvents(ctx context.Context)
+	// SubscribeTransactionEvents starts listening for new blocks and processing transactions.
+	// This method:
+	// 1. Subscribes to new block headers for all supported chains
+	// 2. Processes transactions in those blocks against active wallets
+	// 3. Saves transactions in the database and emits transaction events
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, used to cancel the subscription
+	SubscribeTransactionEvents(ctx context.Context)
 
-	// UnsubscribeFromWalletEvents stops listening for wallet events.
+	// UnsubscribeFromTransactionEvents stops listening for blockchain events.
 	// This should be called when shutting down the service.
-	UnsubscribeFromWalletEvents()
+	UnsubscribeFromTransactionEvents()
+
+	// TransactionEvents returns a channel that emits transaction events.
+	// These events include new transactions detected for monitored wallets.
+	// The channel is closed when UnsubscribeFromTransactionEvents is called.
+	TransactionEvents() <-chan *TransactionEvent
 }
 
 // transactionService implements the Service interface
@@ -45,10 +72,12 @@ type transactionService struct {
 	repository           Repository
 	walletService        wallet.Service
 	blockExplorerFactory blockexplorer.Factory
+	blockchainRegistry   blockchain.Registry
 	chains               *types.Chains
 	syncMutex            sync.Mutex
 	eventCtx             context.Context
 	eventCancel          context.CancelFunc
+	transactionEvents    chan *TransactionEvent
 }
 
 // NewService creates a new transaction service
@@ -58,15 +87,19 @@ func NewService(
 	repository Repository,
 	walletService wallet.Service,
 	blockExplorerFactory blockexplorer.Factory,
+	blockchainRegistry blockchain.Registry,
 	chains *types.Chains,
 ) Service {
+	const channelBufferSize = 100
 	return &transactionService{
 		config:               config,
 		log:                  log,
 		repository:           repository,
 		walletService:        walletService,
 		blockExplorerFactory: blockExplorerFactory,
+		blockchainRegistry:   blockchainRegistry,
 		chains:               chains,
+		transactionEvents:    make(chan *TransactionEvent, channelBufferSize),
 	}
 }
 
@@ -328,34 +361,17 @@ func (s *transactionService) OnWalletEvent(ctx context.Context, walletID int64, 
 	return nil
 }
 
-// SubscribeToWalletEvents starts listening for wallet events
-func (s *transactionService) SubscribeToWalletEvents(ctx context.Context) {
+// SubscribeTransactionEvents starts listening for new blocks and processing transactions
+func (s *transactionService) SubscribeTransactionEvents(ctx context.Context) {
 	s.eventCtx, s.eventCancel = context.WithCancel(ctx)
 
-	// Start goroutine for blockchain events
-	go func() {
-		eventCh := s.walletService.BlockchainEvents()
-		for {
-			select {
-			case <-s.eventCtx.Done():
-				return
-			case event, ok := <-eventCh:
-				if !ok {
-					// Channel was closed
-					return
-				}
-				// Process blockchain event
-				if err := s.OnWalletEvent(s.eventCtx, event.WalletID, event.Log); err != nil {
-					s.log.Error("Failed to process blockchain event",
-						logger.Int64("wallet_id", event.WalletID),
-						logger.String("tx_hash", event.Log.TransactionHash),
-						logger.Error(err))
-				}
-			}
-		}
-	}()
+	// Get list of unique chain types from chains
+	for _, chain := range s.chains.Chains {
+		// Start a goroutine for each chain to subscribe to new blocks
+		go s.subscribeToChainBlocks(s.eventCtx, chain)
+	}
 
-	// Start goroutine for lifecycle events
+	// Continue listening for wallet lifecycle events
 	go func() {
 		eventCh := s.walletService.LifecycleEvents()
 		for {
@@ -388,6 +404,167 @@ func (s *transactionService) SubscribeToWalletEvents(ctx context.Context) {
 	}()
 }
 
+// subscribeToChainBlocks subscribes to new blocks for a specific chain
+func (s *transactionService) subscribeToChainBlocks(ctx context.Context, chain types.Chain) {
+	// Get blockchain client for the chain type
+	client, err := s.blockchainRegistry.GetBlockchain(chain.Type)
+	if err != nil {
+		s.log.Error("Failed to get blockchain client",
+			logger.String("chain_type", string(chain.Type)),
+			logger.Error(err))
+		return
+	}
+
+	s.log.Info("Starting new block subscription",
+		logger.String("chain_type", string(chain.Type)))
+
+	// Subscribe to new block headers
+	blockCh, errCh, err := client.SubscribeNewHead(ctx)
+	if err != nil {
+		s.log.Error("Failed to subscribe to new blocks",
+			logger.String("chain_type", string(chain.Type)),
+			logger.Error(err))
+		return
+	}
+
+	// Process new blocks
+	for {
+		select {
+		case <-ctx.Done():
+			s.log.Info("Block subscription stopped",
+				logger.String("chain_type", string(chain.Type)))
+			return
+		case err := <-errCh:
+			s.log.Error("Block subscription error",
+				logger.String("chain_type", string(chain.Type)),
+				logger.Error(err))
+		case block := <-blockCh:
+			s.processBlock(ctx, chain.Type, &block)
+		}
+	}
+}
+
+// processBlock processes a new block, looking for transactions for monitored wallets
+func (s *transactionService) processBlock(ctx context.Context, chainType types.ChainType, block *types.Block) {
+	// Emit block event
+	s.emitTransactionEvent(&TransactionEvent{
+		BlockNumber: block.Number.Int64(),
+		EventType:   EventTypeNewBlock,
+	})
+
+	s.log.Debug("Processing new block",
+		logger.String("chain_type", string(chainType)),
+		logger.Int64("block_number", block.Number.Int64()),
+		logger.String("block_hash", block.Hash),
+		logger.Int("transaction_count", block.TransactionCount))
+
+	// Get all wallets for this chain type
+	wallets, err := s.getWalletsByChainType(ctx, chainType)
+	if err != nil {
+		s.log.Error("Failed to get wallets for chain type",
+			logger.String("chain_type", string(chainType)),
+			logger.Error(err))
+		return
+	}
+
+	// Create a map of wallet addresses for quick lookup
+	addressToWallet := make(map[string]*wallet.Wallet)
+	for _, w := range wallets {
+		addressToWallet[w.Address] = w
+	}
+
+	// Process each transaction in the block
+	for _, tx := range block.Transactions {
+		// Check if any transaction is from or to a wallet we're monitoring
+		var walletID int64
+		var isOutgoing bool
+
+		// Check if the transaction involves any of our monitored wallets
+		if tx.From != "" {
+			if w, exists := addressToWallet[tx.From]; exists {
+				walletID = w.ID
+				isOutgoing = true
+			}
+		}
+
+		if tx.To != "" {
+			if w, exists := addressToWallet[tx.To]; exists {
+				walletID = w.ID
+				isOutgoing = false
+			}
+		}
+
+		// If this transaction involves one of our wallets, save it
+		if walletID > 0 {
+			// Save transaction to database
+			transaction, err := s.saveTransaction(ctx, tx, walletID, isOutgoing)
+			if err != nil {
+				s.log.Error("Failed to save transaction",
+					logger.String("tx_hash", tx.Hash),
+					logger.Int64("wallet_id", walletID),
+					logger.Error(err))
+				continue
+			}
+
+			// Emit transaction event
+			s.emitTransactionEvent(&TransactionEvent{
+				WalletID:    walletID,
+				Transaction: transaction,
+				BlockNumber: block.Number.Int64(),
+				EventType:   EventTypeTransactionDetected,
+			})
+
+			// Update last block number for the wallet
+			wallet := addressToWallet[tx.From]
+			if wallet == nil {
+				wallet = addressToWallet[tx.To]
+			}
+
+			if wallet != nil && block.Number.Int64() > wallet.LastBlockNumber {
+				if err := s.walletService.UpdateLastBlockNumber(ctx, wallet.ChainType, wallet.Address, block.Number.Int64()); err != nil {
+					s.log.Error("Failed to update last block number",
+						logger.Int64("wallet_id", wallet.ID),
+						logger.String("address", wallet.Address),
+						logger.Error(err))
+				}
+			}
+		}
+	}
+}
+
+// getWalletsByChainType retrieves all wallets for a specific chain type
+func (s *transactionService) getWalletsByChainType(ctx context.Context, chainType types.ChainType) ([]*wallet.Wallet, error) {
+	// Get all wallets
+	walletPage, err := s.walletService.List(ctx, 0, 0)
+	if err != nil {
+		return nil, errors.NewOperationFailedError("list wallets", err)
+	}
+
+	// Filter wallets by chain type
+	var wallets []*wallet.Wallet
+	for _, wallet := range walletPage.Items {
+		if wallet.ChainType == chainType {
+			wallets = append(wallets, wallet)
+		}
+	}
+
+	return wallets, nil
+}
+
+// emitTransactionEvent sends a transaction event to the transaction events channel
+func (s *transactionService) emitTransactionEvent(event *TransactionEvent) {
+	select {
+	case s.transactionEvents <- event:
+		s.log.Debug("Emitted transaction event",
+			logger.String("event_type", event.EventType),
+			logger.Int64("block_number", event.BlockNumber))
+	default:
+		s.log.Warn("Transaction events channel is full, dropping event",
+			logger.String("event_type", event.EventType),
+			logger.Int64("block_number", event.BlockNumber))
+	}
+}
+
 // handleWalletCreated handles the wallet created event by syncing historical transactions
 func (s *transactionService) handleWalletCreated(ctx context.Context, event *wallet.LifecycleEvent) error {
 	// Sync historical transactions for the new wallet
@@ -404,9 +581,56 @@ func (s *transactionService) handleWalletCreated(ctx context.Context, event *wal
 	return nil
 }
 
-// UnsubscribeFromWalletEvents stops listening for wallet events
-func (s *transactionService) UnsubscribeFromWalletEvents() {
+// UnsubscribeFromTransactionEvents stops listening for blockchain events
+func (s *transactionService) UnsubscribeFromTransactionEvents() {
 	if s.eventCancel != nil {
 		s.eventCancel()
+		s.eventCancel = nil
 	}
+
+	// Close the transaction events channel
+	close(s.transactionEvents)
+}
+
+// TransactionEvents returns a channel that emits transaction events.
+// These events include new transactions detected for monitored wallets.
+// The channel is closed when UnsubscribeFromTransactionEvents is called.
+func (s *transactionService) TransactionEvents() <-chan *TransactionEvent {
+	return s.transactionEvents
+}
+
+// saveTransaction converts a blockchain transaction to a database transaction and saves it
+func (s *transactionService) saveTransaction(ctx context.Context, tx *types.Transaction, walletID int64, isOutgoing bool) (*Transaction, error) {
+	// Use the existing helper function to convert core transaction to service transaction
+	transaction := FromCoreTransaction(tx, walletID)
+
+	// Check if transaction already exists
+	exists, err := s.repository.Exists(ctx, transaction.Hash)
+	if err != nil {
+		return nil, errors.NewOperationFailedError("check transaction exists", err)
+	}
+
+	// If transaction already exists, get it from the database
+	if exists {
+		return s.repository.GetByTxHash(ctx, transaction.Hash)
+	}
+
+	// Otherwise, save the new transaction
+	err = s.repository.Create(ctx, transaction)
+	if err != nil {
+		return nil, errors.NewOperationFailedError("save transaction", err)
+	}
+
+	return transaction, nil
+}
+
+// calculateTransactionFee calculates the transaction fee from gas used and gas price
+func calculateTransactionFee(gasUsed uint64, gasPrice *big.Int) string {
+	if gasPrice == nil {
+		return "0"
+	}
+
+	// Calculate fee = gasUsed * gasPrice
+	fee := new(big.Int).Mul(big.NewInt(int64(gasUsed)), gasPrice)
+	return fee.String()
 }

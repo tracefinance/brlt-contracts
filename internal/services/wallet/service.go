@@ -2,7 +2,6 @@ package wallet
 
 import (
 	"context"
-	"strconv"
 	"sync"
 
 	"vault0/internal/config"
@@ -18,19 +17,7 @@ import (
 const (
 	EventTypeWalletCreated = "WALLET_CREATED"
 	EventTypeWalletDeleted = "WALLET_DELETED"
-
-	// Blockchain event types
-	BlockchainEventTypeLog   = "LOG"
-	BlockchainEventTypeBlock = "BLOCK"
 )
-
-// BlockchainEvent represents a blockchain event associated with a wallet
-type BlockchainEvent struct {
-	WalletID  int64
-	Log       *types.Log
-	Block     *types.Block
-	EventType string // "LOG" for contract logs, "BLOCK" for new blocks
-}
 
 // LifecycleEvent represents a wallet lifecycle event
 type LifecycleEvent struct {
@@ -156,29 +143,6 @@ type Service interface {
 	//   - error: ErrInvalidInput for invalid parameters
 	Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error)
 
-	// SubscribeToBlockchainEvents sets up event subscriptions for all active wallets.
-	// For each wallet, it:
-	// 1. Creates a blockchain client connection
-	// 2. Subscribes to relevant blockchain events
-	// 3. Processes events in a background goroutine
-	//
-	// Parameters:
-	//   - ctx: Context for the operation
-	//
-	// Returns:
-	//   - error: Any error that occurred during subscription setup
-	SubscribeToBlockchainEvents(ctx context.Context) error
-
-	// UnsubscribeFromBlockchainEvents cancels all active wallet event subscriptions.
-	// This should be called when shutting down the service or
-	// when event monitoring is no longer needed.
-	UnsubscribeFromBlockchainEvents()
-
-	// BlockchainEvents returns a channel that emits blockchain-related events.
-	// These are events from the blockchain like transactions, token transfers, etc.
-	// The channel is closed when UnsubscribeFromEvents is called.
-	BlockchainEvents() <-chan *BlockchainEvent
-
 	// LifecycleEvents returns a channel that emits wallet lifecycle events.
 	// These are events like wallet creation, deletion, etc.
 	// The channel is closed when UnsubscribeFromEvents is called.
@@ -194,9 +158,7 @@ type walletService struct {
 	walletFactory      coreWallet.Factory
 	blockchainRegistry blockchain.Registry
 	chains             *types.Chains
-	subscriptions      map[string]context.CancelFunc
 	mu                 sync.RWMutex
-	blockchainEvents   chan *BlockchainEvent
 	lifecycleEvents    chan *LifecycleEvent
 }
 
@@ -219,30 +181,8 @@ func NewService(
 		walletFactory:      walletFactory,
 		blockchainRegistry: blockchainRegistry,
 		chains:             chains,
-		subscriptions:      make(map[string]context.CancelFunc),
 		mu:                 sync.RWMutex{},
-		blockchainEvents:   make(chan *BlockchainEvent, channelBuffer),
 		lifecycleEvents:    make(chan *LifecycleEvent, channelBuffer),
-	}
-}
-
-// emitBlockchainEvent sends a blockchain event to the blockchain events channel
-func (s *walletService) emitBlockchainEvent(event *BlockchainEvent) {
-	if event == nil {
-		s.log.Error("Received nil blockchain event",
-			logger.String("func", "emitBlockchainEvent"))
-		return
-	}
-
-	select {
-	case s.blockchainEvents <- event:
-		s.log.Debug("Emitted blockchain event",
-			logger.Int64("wallet_id", event.WalletID),
-			logger.String("event_type", event.EventType))
-	default:
-		s.log.Warn("Blockchain events channel is full, dropping event",
-			logger.Int64("wallet_id", event.WalletID),
-			logger.String("event_type", event.EventType))
 	}
 }
 
@@ -293,13 +233,6 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 
 	if err := s.repository.Create(ctx, wallet); err != nil {
 		return nil, errors.NewOperationFailedError("create wallet", err)
-	}
-
-	if err := s.subscribeToWallet(ctx, wallet); err != nil {
-		s.log.Error("Failed to subscribe to wallet events",
-			logger.Int64("wallet_id", wallet.ID),
-			logger.String("address", wallet.Address),
-			logger.Error(err))
 	}
 
 	s.emitLifecycleEvent(&LifecycleEvent{
@@ -406,8 +339,6 @@ func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, a
 		return err
 	}
 
-	s.unsubscribeFromWallet(wallet.ID)
-
 	if err := s.repository.Delete(ctx, chainType, address); err != nil {
 		return err
 	}
@@ -465,246 +396,6 @@ func (s *walletService) List(ctx context.Context, limit, offset int) (*types.Pag
 	return wallets, nil
 }
 
-// SubscribeToBlockchainEvents subscribes to events for all active wallets
-func (s *walletService) SubscribeToBlockchainEvents(ctx context.Context) error {
-	// Get all wallets without pagination to subscribe to all
-	walletPage, err := s.repository.List(ctx, 0, 0)
-	if err != nil {
-		return errors.NewOperationFailedError("list wallets for subscription", err)
-	}
-
-	for _, wallet := range walletPage.Items {
-		if err := s.subscribeToWallet(ctx, wallet); err != nil {
-			s.log.Error("Failed to subscribe to wallet events",
-				logger.Int64("wallet_id", wallet.ID),
-				logger.String("address", wallet.Address),
-				logger.Error(err))
-		}
-	}
-
-	// Subscribe to new blocks for each unique chain type
-	chainTypesMap := make(map[types.ChainType]bool)
-	for _, wallet := range walletPage.Items {
-		chainTypesMap[wallet.ChainType] = true
-	}
-
-	for chainType := range chainTypesMap {
-		if err := s.subscribeToNewBlocks(ctx, chainType); err != nil {
-			s.log.Error("Failed to subscribe to new blocks",
-				logger.String("chain_type", string(chainType)),
-				logger.Error(err))
-		}
-	}
-
-	return nil
-}
-
-// UnsubscribeFromBlockchainEvents unsubscribes from all event subscriptions
-func (s *walletService) UnsubscribeFromBlockchainEvents() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for walletID, cancel := range s.subscriptions {
-		cancel()
-		delete(s.subscriptions, walletID)
-	}
-
-	close(s.blockchainEvents)
-	close(s.lifecycleEvents)
-}
-
-func (s *walletService) subscribeToWallet(ctx context.Context, wallet *Wallet) error {
-	// Get blockchain client for the wallet's chain type
-	client, err := s.blockchainRegistry.GetBlockchain(wallet.ChainType)
-	if err != nil {
-		return err
-	}
-
-	// Create a context with cancellation for this subscription
-	subscriptionCtx, cancel := context.WithCancel(context.Background())
-
-	// Store the cancellation function with the wallet ID as the key
-	s.mu.Lock()
-	walletIDStr := strconv.FormatInt(wallet.ID, 10)
-	s.subscriptions[walletIDStr] = cancel
-	s.mu.Unlock()
-
-	// Start a goroutine to monitor events
-	go func() {
-		defer cancel()
-		s.log.Info("Starting event subscription for wallet",
-			logger.Int64("wallet_id", wallet.ID),
-			logger.String("address", wallet.Address))
-
-		// Subscribe to events, using wallet's LastBlockNumber as the starting point
-		// We need to pass an empty event signature and nil event args
-		logCh, errCh, err := client.SubscribeContractLogs(
-			subscriptionCtx,
-			[]string{wallet.Address},
-			"",  // Empty event signature to match all events
-			nil, // No specific args to filter
-			wallet.LastBlockNumber,
-		)
-		if err != nil {
-			s.log.Error("Failed to subscribe to events",
-				logger.Int64("wallet_id", wallet.ID),
-				logger.String("address", wallet.Address),
-				logger.Error(err))
-			return
-		}
-
-		// Process events
-		for {
-			select {
-			case <-subscriptionCtx.Done():
-				s.log.Info("Event subscription stopped",
-					logger.Int64("wallet_id", wallet.ID),
-					logger.String("address", wallet.Address))
-				return
-			case err := <-errCh:
-				s.log.Error("Event subscription error",
-					logger.Int64("wallet_id", wallet.ID),
-					logger.String("address", wallet.Address),
-					logger.Error(err))
-			case log := <-logCh:
-				// Process the log
-				s.emitBlockchainEvent(&BlockchainEvent{
-					WalletID:  wallet.ID,
-					Log:       &log,
-					EventType: BlockchainEventTypeLog,
-				})
-
-				// Update the last processed block if log's block number is greater
-				if log.BlockNumber != nil {
-					blockNum := log.BlockNumber.Int64()
-					if blockNum > wallet.LastBlockNumber {
-						if err := s.UpdateLastBlockNumber(ctx, wallet.ChainType, wallet.Address, blockNum); err != nil {
-							s.log.Error("Failed to update last block number",
-								logger.Int64("wallet_id", wallet.ID),
-								logger.String("address", wallet.Address),
-								logger.Error(err))
-						}
-					}
-				}
-			}
-		}
-	}()
-
-	return nil
-}
-
-// subscribeToNewBlocks subscribes to new block headers for a specific chain type
-func (s *walletService) subscribeToNewBlocks(ctx context.Context, chainType types.ChainType) error {
-	// Get blockchain client for the chain type
-	client, err := s.blockchainRegistry.GetBlockchain(chainType)
-	if err != nil {
-		return err
-	}
-
-	// Create a context with cancellation for this subscription
-	subscriptionCtx, cancel := context.WithCancel(context.Background())
-
-	// Store the cancellation function with a special key for block subscriptions
-	s.mu.Lock()
-	subscriptionKey := "blocks_" + string(chainType)
-	s.subscriptions[subscriptionKey] = cancel
-	s.mu.Unlock()
-
-	// Start a goroutine to monitor new blocks
-	go func() {
-		defer cancel()
-		s.log.Info("Starting new block subscription",
-			logger.String("chain_type", string(chainType)))
-
-		// Subscribe to new block headers
-		blockCh, errCh, err := client.SubscribeNewHead(subscriptionCtx)
-		if err != nil {
-			s.log.Error("Failed to subscribe to new blocks",
-				logger.String("chain_type", string(chainType)),
-				logger.Error(err))
-			return
-		}
-
-		// Process new blocks
-		for {
-			select {
-			case <-subscriptionCtx.Done():
-				s.log.Info("Block subscription stopped",
-					logger.String("chain_type", string(chainType)))
-				return
-			case err := <-errCh:
-				s.log.Error("Block subscription error",
-					logger.String("chain_type", string(chainType)),
-					logger.Error(err))
-			case block := <-blockCh:
-				// Process the block - find all wallets for this chain type
-				// and emit events for them
-				wallets, err := s.getWalletsByChainType(ctx, chainType)
-				if err != nil {
-					s.log.Error("Failed to get wallets for chain type",
-						logger.String("chain_type", string(chainType)),
-						logger.Error(err))
-					continue
-				}
-
-				// Emit block event for each wallet
-				for _, wallet := range wallets {
-					s.emitBlockchainEvent(&BlockchainEvent{
-						WalletID:  wallet.ID,
-						Block:     &block,
-						EventType: BlockchainEventTypeBlock,
-					})
-
-					// Update the last processed block if block number is greater
-					if block.Number != nil {
-						blockNum := block.Number.Int64()
-						if blockNum > wallet.LastBlockNumber {
-							if err := s.UpdateLastBlockNumber(ctx, wallet.ChainType, wallet.Address, blockNum); err != nil {
-								s.log.Error("Failed to update last block number",
-									logger.Int64("wallet_id", wallet.ID),
-									logger.String("address", wallet.Address),
-									logger.Error(err))
-							}
-						}
-					}
-				}
-			}
-		}
-	}()
-
-	return nil
-}
-
-// getWalletsByChainType retrieves all wallets for a specific chain type
-func (s *walletService) getWalletsByChainType(ctx context.Context, chainType types.ChainType) ([]*Wallet, error) {
-	// Get all wallets
-	walletPage, err := s.repository.List(ctx, 0, 0)
-	if err != nil {
-		return nil, errors.NewOperationFailedError("list wallets by chain type", err)
-	}
-
-	// Filter wallets by chain type
-	var wallets []*Wallet
-	for _, wallet := range walletPage.Items {
-		if wallet.ChainType == chainType {
-			wallets = append(wallets, wallet)
-		}
-	}
-
-	return wallets, nil
-}
-
-func (s *walletService) unsubscribeFromWallet(walletID int64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	walletIDStr := strconv.FormatInt(walletID, 10)
-	if cancel, exists := s.subscriptions[walletIDStr]; exists {
-		cancel()
-		delete(s.subscriptions, walletIDStr)
-	}
-}
-
 // Exists checks if a wallet exists by its chain type and address
 func (s *walletService) Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error) {
 	if chainType == "" {
@@ -738,11 +429,6 @@ func (s *walletService) GetByID(ctx context.Context, id int64) (*Wallet, error) 
 	}
 
 	return wallet, nil
-}
-
-// BlockchainEvents returns the blockchain events channel
-func (s *walletService) BlockchainEvents() <-chan *BlockchainEvent {
-	return s.blockchainEvents
 }
 
 // LifecycleEvents returns the lifecycle events channel
