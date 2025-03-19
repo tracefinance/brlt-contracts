@@ -104,10 +104,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 				logger.Int("max_retries", maxRetries),
 			)
 			// Calculate exponential backoff delay
-			backoffDelay := baseRetryDelay * time.Duration(1<<uint(attempt))
-			if backoffDelay > 10*time.Second {
-				backoffDelay = 10 * time.Second // Cap at 10 seconds
-			}
+			backoffDelay := min(baseRetryDelay*time.Duration(1<<uint(attempt)), 10*time.Second)
 			time.Sleep(backoffDelay)
 
 			// For retries, ensure we respect rate limits
@@ -698,9 +695,6 @@ func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash strin
 	// Default status to pending
 	status := types.TransactionStatusPending
 
-	// Use current time as timestamp since eth_getTransactionByHash doesn't provide it
-	timestamp := time.Now().Unix()
-
 	// If transaction is in a block, check the receipt status
 	if blockNumber.Int64() > 0 && tx.BlockHash != "" {
 		status = types.TransactionStatusMined
@@ -734,7 +728,6 @@ func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash strin
 		Type:        types.TransactionTypeNative,
 		Status:      status,
 		BlockNumber: blockNumber,
-		Timestamp:   timestamp,
 	}, nil
 }
 

@@ -29,9 +29,8 @@ type Repository interface {
 	// If limit is 0, returns all transactions without pagination
 	ListByWalletAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
 
-	// ListByStatus retrieves transactions with a specific status for a chain type
-	// If limit is 0, returns all transactions without pagination
-	ListByStatus(ctx context.Context, status string, chainType types.ChainType, limit, offset int) (*types.Page[*Transaction], error)
+	// List retrieves transactions based on the provided filter criteria
+	List(ctx context.Context, filter *Filter) (*types.Page[*Transaction], error)
 
 	// Exists checks if a transaction exists by its hash
 	Exists(ctx context.Context, hash string) (bool, error)
@@ -226,31 +225,59 @@ func (r *repository) ListByWalletAddress(ctx context.Context, chainType types.Ch
 	return types.NewPage(transactions, offset, limit), nil
 }
 
-// ListByStatus retrieves transactions with a specific status
-func (r *repository) ListByStatus(ctx context.Context, status string, chainType types.ChainType, limit, offset int) (*types.Page[*Transaction], error) {
-	query := `
+// List retrieves transactions based on the provided filter criteria
+func (r *repository) List(ctx context.Context, filter *Filter) (*types.Page[*Transaction], error) {
+	// Base query
+	queryBuilder := `
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
 			value, data, nonce, gas_price, gas_limit, type, token_address, 
 			status, timestamp, block_number, created_at, updated_at
 		FROM transactions
-		WHERE status = ? AND chain_type = ?
-		ORDER BY timestamp DESC
+		WHERE 1=1
 	`
-	args := []any{status, chainType}
+	var args []any
 
-	// Add pagination if limit > 0
-	if limit > 0 {
-		query += " LIMIT ? OFFSET ?"
-		args = append(args, limit, offset)
+	// Apply filters
+	if filter.Status != nil {
+		queryBuilder += " AND status = ?"
+		args = append(args, *filter.Status)
 	}
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
+	if filter.ChainType != nil {
+		queryBuilder += " AND chain_type = ?"
+		args = append(args, *filter.ChainType)
+	}
+
+	if filter.WalletID != nil {
+		queryBuilder += " AND wallet_id = ?"
+		args = append(args, *filter.WalletID)
+	}
+
+	if filter.Address != nil {
+		// Normalize the address for consistent database queries
+		normalizedAddress := types.NormalizeAddress(*filter.Address)
+		queryBuilder += " AND (lower(from_address) = ? OR lower(to_address) = ?)"
+		args = append(args, normalizedAddress, normalizedAddress)
+	}
+
+	// Order by most recent first
+	queryBuilder += " ORDER BY timestamp DESC"
+
+	// Add pagination if limit > 0
+	if filter.Limit > 0 {
+		queryBuilder += " LIMIT ? OFFSET ?"
+		args = append(args, filter.Limit, filter.Offset)
+	}
+
+	// Execute query
+	rows, err := r.db.ExecuteQueryContext(ctx, queryBuilder, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
+	// Process results
 	var transactions []*Transaction
 	for rows.Next() {
 		tx, err := ScanTransaction(rows)
@@ -264,7 +291,7 @@ func (r *repository) ListByStatus(ctx context.Context, status string, chainType 
 		return nil, err
 	}
 
-	return types.NewPage(transactions, offset, limit), nil
+	return types.NewPage(transactions, filter.Offset, filter.Limit), nil
 }
 
 // Exists checks if a transaction exists by its hash

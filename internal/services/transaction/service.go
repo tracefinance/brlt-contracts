@@ -39,6 +39,9 @@ type Service interface {
 	// GetTransactionsByAddress retrieves transactions for a specific blockchain address
 	GetTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
 
+	// FilterTransactions retrieves transactions based on the provided filter criteria
+	FilterTransactions(ctx context.Context, filter *Filter) (*types.Page[*Transaction], error)
+
 	// SyncTransactions fetches and stores transactions for a wallet
 	SyncTransactions(ctx context.Context, walletID int64) (int, error)
 
@@ -177,6 +180,25 @@ func (s *transactionService) GetTransactionsByAddress(ctx context.Context, chain
 
 	// Get transactions from database
 	return s.repository.ListByWalletAddress(ctx, chainType, address, limit, offset)
+}
+
+// FilterTransactions retrieves transactions based on the provided filter criteria
+func (s *transactionService) FilterTransactions(ctx context.Context, filter *Filter) (*types.Page[*Transaction], error) {
+	// Validate filter
+	if filter == nil {
+		filter = NewFilter()
+	}
+
+	// Set default values for pagination if not provided
+	if filter.Limit <= 0 {
+		filter.Limit = 10
+	}
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+
+	// Use the repository to filter transactions
+	return s.repository.List(ctx, filter)
 }
 
 // SyncTransactions fetches and stores transactions for a wallet
@@ -455,7 +477,7 @@ func (s *transactionService) subscribeToChainBlocks(ctx context.Context, chain t
 				logger.String("chain_type", string(chain.Type)))
 			return
 		case err := <-errCh:
-			s.log.Error("Block subscription error",
+			s.log.Warn("Block subscription error",
 				logger.String("chain_type", string(chain.Type)),
 				logger.Error(err))
 		case block := <-blockCh:
@@ -510,10 +532,10 @@ func (s *transactionService) processBlock(ctx context.Context, chainType types.C
 				walletID = w.ID
 			}
 		}
-		// Set the timestamp to the block timestamp
-		tx.Timestamp = block.Timestamp.Unix()
 		// If this transaction involves one of our wallets, save it
 		if walletID > 0 {
+			// Set the timestamp to the block timestamp
+			tx.Timestamp = block.Timestamp.Unix()
 			// Save transaction to database
 			transaction, err := s.saveTransaction(ctx, tx, walletID)
 			if err != nil {
@@ -744,130 +766,117 @@ func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context)
 
 	updatedCount := 0
 
-	s.log.Info("Polling for all chains")
-
-	// Poll for each chain type separately
-	for _, chain := range s.chains.Chains {
+	// Process each status
+	for _, status := range statuses {
 		// Check if context is cancelled
 		if ctx.Err() != nil {
 			return updatedCount, ctx.Err()
 		}
 
-		count, err := s.pollPendingOrMinedTransactionsForChain(ctx, statuses, chain.Type)
-		if err != nil {
-			s.log.Error("Failed to poll pending/mined transactions",
-				logger.String("chain_type", string(chain.Type)),
-				logger.Error(err))
-			continue
-		}
+		// Get transactions with the specified status across all chains
+		filter := NewFilter().
+			WithStatus(status).
+			WithPagination(0, 0) // No pagination limit
 
-		updatedCount += count
-	}
-
-	s.log.Info("Completed pending transaction polling cycle",
-		logger.Int("total_transactions_updated", updatedCount))
-
-	return updatedCount, nil
-}
-
-// pollPendingOrMinedTransactionsForChain polls for transactions with specific statuses for a single chain
-func (s *transactionService) pollPendingOrMinedTransactionsForChain(ctx context.Context, statuses []string, chainType types.ChainType) (int, error) {
-	// Validate chain type
-	if chainType == "" {
-		return 0, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
-	}
-
-	updatedCount := 0
-
-	// Process each requested status
-	for _, status := range statuses {
-		// Get transactions with the specified status
-		page, err := s.repository.ListByStatus(ctx, status, chainType, 0, 0)
+		page, err := s.repository.List(ctx, filter)
 		if err != nil {
 			s.log.Error("Failed to get transactions by status",
 				logger.String("status", status),
-				logger.String("chain_type", string(chainType)),
 				logger.Error(err))
 			continue
 		}
 
 		if len(page.Items) == 0 {
 			s.log.Info("No transactions found with status",
-				logger.String("status", status),
-				logger.String("chain_type", string(chainType)))
+				logger.String("status", status))
 			continue
 		}
 
 		s.log.Info("Found transactions with status to check",
 			logger.String("status", status),
-			logger.String("chain_type", string(chainType)),
 			logger.Int("count", len(page.Items)))
 
-		// Get explorer for the chain
-		explorer, err := s.blockExplorerFactory.GetExplorer(chainType)
-		if err != nil {
-			return updatedCount, err
+		// Group transactions by chain type for more efficient explorer usage
+		txsByChain := make(map[types.ChainType][]*Transaction)
+		for _, tx := range page.Items {
+			txsByChain[tx.ChainType] = append(txsByChain[tx.ChainType], tx)
 		}
 
-		// Process each transaction individually
-		for _, tx := range page.Items {
-			// Fetch updated transaction details from explorer
-			updatedTx, err := explorer.GetTransactionByHash(ctx, tx.Hash)
+		// Process transactions by chain type
+		for chainType, transactions := range txsByChain {
+			// Get explorer for the chain
+			explorer, err := s.blockExplorerFactory.GetExplorer(chainType)
 			if err != nil {
-				s.log.Error("Failed to fetch transaction update",
-					logger.String("tx_hash", tx.Hash),
+				s.log.Error("Failed to get explorer",
 					logger.String("chain_type", string(chainType)),
 					logger.Error(err))
 				continue
 			}
 
-			// Check if status has changed
-			originalStatus := types.TransactionStatus(tx.Status)
-			updatedStatus := updatedTx.Status
+			s.log.Info("Processing transactions",
+				logger.String("chain_type", string(chainType)),
+				logger.String("status", status),
+				logger.Int("count", len(transactions)))
 
-			if originalStatus == updatedStatus {
-				s.log.Debug("Transaction status unchanged",
+			// Process each transaction individually
+			for _, tx := range transactions {
+				// Fetch updated transaction details from explorer
+				updatedTx, err := explorer.GetTransactionByHash(ctx, tx.Hash)
+				if err != nil {
+					s.log.Error("Failed to fetch transaction update",
+						logger.String("tx_hash", tx.Hash),
+						logger.String("chain_type", string(chainType)),
+						logger.Error(err))
+					continue
+				}
+
+				// Check if status has changed
+				originalStatus := types.TransactionStatus(tx.Status)
+				updatedStatus := updatedTx.Status
+
+				if originalStatus == updatedStatus {
+					s.log.Debug("Transaction status unchanged",
+						logger.String("tx_hash", tx.Hash),
+						logger.String("status", string(updatedStatus)))
+					continue
+				}
+
+				s.log.Info("Transaction status changed",
 					logger.String("tx_hash", tx.Hash),
-					logger.String("status", string(updatedStatus)))
-				continue
+					logger.String("old_status", string(originalStatus)),
+					logger.String("new_status", string(updatedStatus)))
+
+				// Create transaction object with updated data
+				updatedTransaction := FromCoreTransaction(updatedTx, tx.WalletID)
+
+				// Preserve original metadata
+				updatedTransaction.ID = tx.ID
+				updatedTransaction.CreatedAt = tx.CreatedAt
+
+				// Update in database
+				err = s.repository.Update(ctx, updatedTransaction)
+				if err != nil {
+					s.log.Error("Failed to update transaction",
+						logger.String("tx_hash", tx.Hash),
+						logger.Error(err))
+					continue
+				}
+
+				// Emit transaction event for the status change
+				s.emitTransactionEvent(&TransactionEvent{
+					WalletID:    tx.WalletID,
+					Transaction: updatedTransaction,
+					BlockNumber: updatedTx.BlockNumber.Int64(),
+					EventType:   EventTypeTransactionDetected,
+				})
+
+				updatedCount++
 			}
-
-			s.log.Info("Transaction status changed",
-				logger.String("tx_hash", tx.Hash),
-				logger.String("old_status", string(originalStatus)),
-				logger.String("new_status", string(updatedStatus)))
-
-			// Create transaction object with updated data
-			updatedTransaction := FromCoreTransaction(updatedTx, tx.WalletID)
-
-			// Preserve original metadata
-			updatedTransaction.ID = tx.ID
-			updatedTransaction.CreatedAt = tx.CreatedAt
-
-			// Update in database
-			err = s.repository.Update(ctx, updatedTransaction)
-			if err != nil {
-				s.log.Error("Failed to update transaction",
-					logger.String("tx_hash", tx.Hash),
-					logger.Error(err))
-				continue
-			}
-
-			// Emit transaction event for the status change
-			s.emitTransactionEvent(&TransactionEvent{
-				WalletID:    tx.WalletID,
-				Transaction: updatedTransaction,
-				BlockNumber: updatedTx.BlockNumber.Int64(),
-				EventType:   EventTypeTransactionDetected,
-			})
-
-			updatedCount++
 		}
 	}
 
-	s.log.Info("Completed polling for pending/mined transactions",
-		logger.String("chain_type", string(chainType)),
-		logger.Int("updated_count", updatedCount))
+	s.log.Info("Completed pending transaction polling cycle",
+		logger.Int("total_transactions_updated", updatedCount))
 
 	return updatedCount, nil
 }

@@ -126,3 +126,52 @@ func (t *Transaction) ToCoreTransaction() *types.Transaction {
 		BlockNumber:  blockNumber,
 	}
 }
+
+// Filter represents a set of filter criteria for retrieving transactions
+type Filter struct {
+	Status    *string          `json:"status,omitempty"`
+	ChainType *types.ChainType `json:"chain_type,omitempty"`
+	WalletID  *int64           `json:"wallet_id,omitempty"`
+	Address   *string          `json:"address,omitempty"`
+	Limit     int              `json:"limit"`
+	Offset    int              `json:"offset"`
+}
+
+// NewFilter creates a new transaction filter with default pagination settings
+func NewFilter() *Filter {
+	return &Filter{
+		Limit:  10, // Default limit
+		Offset: 0,
+	}
+}
+
+// WithStatus sets the status filter
+func (f *Filter) WithStatus(status string) *Filter {
+	f.Status = &status
+	return f
+}
+
+// WithChainType sets the chain type filter
+func (f *Filter) WithChainType(chainType types.ChainType) *Filter {
+	f.ChainType = &chainType
+	return f
+}
+
+// WithWalletID sets the wallet ID filter
+func (f *Filter) WithWalletID(walletID int64) *Filter {
+	f.WalletID = &walletID
+	return f
+}
+
+// WithAddress sets the address filter (can be from or to address)
+func (f *Filter) WithAddress(address string) *Filter {
+	f.Address = &address
+	return f
+}
+
+// WithPagination sets the pagination parameters
+func (f *Filter) WithPagination(limit, offset int) *Filter {
+	f.Limit = limit
+	f.Offset = offset
+	return f
+}
