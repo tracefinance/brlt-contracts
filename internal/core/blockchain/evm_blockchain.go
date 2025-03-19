@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -393,6 +394,7 @@ func (c *EVMBlockchain) SubscribeContractLogs(ctx context.Context, addresses []s
 	}
 
 	// Set fromBlock if provided
+	initialFromBlock := fromBlock
 	if fromBlock <= 0 {
 		// Get the current block number
 		currentBlockNumber, err := c.client.BlockNumber(ctx)
@@ -400,139 +402,73 @@ func (c *EVMBlockchain) SubscribeContractLogs(ctx context.Context, addresses []s
 			return nil, nil, errors.NewRPCError(err)
 		}
 
-		fromBlock = int64(math.Max(float64(currentBlockNumber-subscriptionBlockLookback), 0))
-	}
-
-	// Create the filter query
-	filterQuery := ethereum.FilterQuery{
-		Addresses: ethAddresses,
-		Topics:    ethTopics,
-		FromBlock: big.NewInt(fromBlock),
+		initialFromBlock = int64(math.Max(float64(currentBlockNumber-subscriptionBlockLookback), 0))
 	}
 
 	// Create channels for logs and errors
 	logChan := make(chan types.Log, subscriptionLogBufferSize)
 	errChan := make(chan error, subscriptionErrBufferSize)
 
-	// Create a separate cancellation context for the subscription goroutine
-	subscriptionCtx, cancelSubscription := context.WithCancel(context.Background())
-
 	// Start the subscription handler goroutine
 	go func() {
 		defer close(logChan)
 		defer close(errChan)
-		defer cancelSubscription()
 
-		// Track the last seen block for reconnection
-		var lastSeenBlock int64 = fromBlock
-		// Backoff parameters
-		backoff := subscriptionInitialBackoff
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				// Create a new filter query with the updated fromBlock
-				currentFilterQuery := filterQuery
-				currentFilterQuery.FromBlock = big.NewInt(lastSeenBlock)
+		c.handleSubscription(
+			ctx,
+			"contract events",
+			initialFromBlock,
+			func(subscriptionCtx context.Context, lastSeenBlock int64) (ethereum.Subscription, interface{}, error) {
+				// Create the filter query with the current last seen block
+				filterQuery := ethereum.FilterQuery{
+					Addresses: ethAddresses,
+					Topics:    ethTopics,
+					FromBlock: big.NewInt(lastSeenBlock),
+				}
 
 				// Create a new subscription
 				ethLogChan := make(chan ethTypes.Log)
-				sub, err := c.client.SubscribeFilterLogs(subscriptionCtx, currentFilterQuery, ethLogChan)
+				sub, err := c.client.SubscribeFilterLogs(subscriptionCtx, filterQuery, ethLogChan)
 
-				if err != nil {
-					// Report the error and retry with backoff
-					reconnectErr := errors.NewRPCError(err)
-					select {
-					case errChan <- reconnectErr:
-					default:
-						// Don't block if error channel is full
-					}
+				// We need to convert the specific channel to an interface{} type for the generic handler
+				return sub, interface{}(ethLogChan), err
+			},
+			func(item interface{}, _ int64) (int64, bool) {
+				// Process the log item
+				log := item.(ethTypes.Log)
 
-					c.log.Warn("Subscription failed, retrying with backoff",
-						logger.Float64("backoff_seconds", backoff),
-						logger.Int64("from_block", lastSeenBlock),
-						logger.Error(err))
-
-					// Apply backoff before retrying
-					time.Sleep(time.Duration(backoff) * time.Second)
-					// Increase backoff with exponential formula, capped at maximum
-					backoff = math.Min(backoff*subscriptionBackoffFactor, subscriptionMaxBackoff)
-					continue
+				// Convert ethereum log to our log format
+				topics := make([]string, len(log.Topics))
+				for j, topic := range log.Topics {
+					topics[j] = topic.Hex()
 				}
 
-				// Reset backoff on successful connection
-				backoff = subscriptionInitialBackoff
-
-				// Log successful subscription
-				c.log.Debug("Successfully subscribed to events",
-					logger.Int64("from_block", lastSeenBlock),
-					logger.String("addresses", strings.Join(addresses, ",")),
-					logger.String("event_signature", eventSignature))
-
-				// Process events from this subscription
-				subscriptionActive := true
-				for subscriptionActive {
-					select {
-					case <-ctx.Done():
-						sub.Unsubscribe()
-						return
-					case err := <-sub.Err():
-						// Report the error
-						reconnectErr := errors.NewRPCError(err)
-						select {
-						case errChan <- reconnectErr:
-						default:
-							// Don't block if error channel is full
-						}
-
-						c.log.Warn("Subscription error, reconnecting",
-							logger.Float64("backoff_seconds", backoff),
-							logger.Int64("from_block", lastSeenBlock),
-							logger.Error(err))
-
-						// Apply backoff before reconnecting
-						time.Sleep(time.Duration(backoff) * time.Second)
-						// Increase backoff with exponential formula, capped at maximum
-						backoff = math.Min(backoff*subscriptionBackoffFactor, subscriptionMaxBackoff)
-
-						// Mark subscription as inactive to break inner loop and create new subscription
-						sub.Unsubscribe()
-						subscriptionActive = false
-					case log := <-ethLogChan:
-						// Convert ethereum log to our log format
-						topics := make([]string, len(log.Topics))
-						for j, topic := range log.Topics {
-							topics[j] = topic.Hex()
-						}
-
-						// Create our log format
-						ourLog := types.Log{
-							Address:         log.Address.Hex(),
-							Topics:          topics,
-							Data:            log.Data,
-							BlockNumber:     big.NewInt(int64(log.BlockNumber)),
-							TransactionHash: log.TxHash.Hex(),
-							LogIndex:        log.Index,
-						}
-
-						// Update last seen block for reconnection if newer
-						if ourLog.BlockNumber != nil && ourLog.BlockNumber.Int64() > lastSeenBlock {
-							lastSeenBlock = ourLog.BlockNumber.Int64()
-						}
-
-						// Send to output channel
-						select {
-						case logChan <- ourLog:
-						case <-time.After(subscriptionChannelTimeout):
-							// If we can't send quickly, log a warning about buffer pressure
-							c.log.Warn("Log channel buffer full, event processing may be delayed")
-						}
-					}
+				// Create our log format
+				ourLog := types.Log{
+					Address:         log.Address.Hex(),
+					Topics:          topics,
+					Data:            log.Data,
+					BlockNumber:     big.NewInt(int64(log.BlockNumber)),
+					TransactionHash: log.TxHash.Hex(),
+					LogIndex:        log.Index,
 				}
-			}
-		}
+
+				// Send to output channel
+				select {
+				case logChan <- ourLog:
+					// Return block number for tracking
+					if ourLog.BlockNumber != nil {
+						return ourLog.BlockNumber.Int64(), true
+					}
+					return 0, true
+				case <-time.After(subscriptionChannelTimeout):
+					// If we can't send quickly, log a warning about buffer pressure
+					c.log.Warn("Log channel buffer full, event processing may be delayed")
+					return 0, false
+				}
+			},
+			errChan,
+		)
 	}()
 
 	return logChan, errChan, nil
@@ -544,29 +480,156 @@ func (c *EVMBlockchain) SubscribeNewHead(ctx context.Context) (<-chan types.Bloc
 	blockChan := make(chan types.Block, subscriptionLogBufferSize)
 	errChan := make(chan error, subscriptionErrBufferSize)
 
-	// Create a separate cancellation context for the subscription goroutine
-	subscriptionCtx, cancelSubscription := context.WithCancel(context.Background())
-
 	// Start the subscription handler goroutine
 	go func() {
 		defer close(blockChan)
 		defer close(errChan)
-		defer cancelSubscription()
 
-		// Backoff parameters
-		backoff := subscriptionInitialBackoff
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
+		c.handleSubscription(
+			ctx,
+			"block headers",
+			0, // fromBlock is not used for header subscriptions
+			func(subscriptionCtx context.Context, _ int64) (ethereum.Subscription, interface{}, error) {
 				// Create a new subscription for headers
 				headers := make(chan *ethTypes.Header)
 				sub, err := c.client.SubscribeNewHead(subscriptionCtx, headers)
 
+				// We need to convert the specific channel to an interface{} type for the generic handler
+				return sub, interface{}(headers), err
+			},
+			func(item interface{}, _ int64) (int64, bool) {
+				// Process the header item
+				header := item.(*ethTypes.Header)
+
+				// Fetch the full block using the header hash
+				block, err := c.client.BlockByHash(context.Background(), header.Hash())
 				if err != nil {
-					// Report the error and retry with backoff
+					c.log.Warn("Failed to fetch full block details for header",
+						logger.String("hash", header.Hash().Hex()),
+						logger.Error(err))
+					return 0, false
+				}
+
+				// Convert ethereum block to our block model
+				ourBlock := c.convertEthereumBlockToBlock(block)
+
+				// Send to output channel
+				select {
+				case blockChan <- *ourBlock:
+					// Return block number for tracking
+					if ourBlock.Number != nil {
+						return ourBlock.Number.Int64(), true
+					}
+					return 0, true
+				case <-time.After(subscriptionChannelTimeout):
+					// If we can't send quickly, log a warning about buffer pressure
+					c.log.Warn("Block channel buffer full, event processing may be delayed")
+					return 0, false
+				}
+			},
+			errChan,
+		)
+	}()
+
+	return blockChan, errChan, nil
+}
+
+// handleSubscription is a generic function that handles subscription creation, reconnection,
+// and error handling for both SubscribeContractLogs and SubscribeNewHead.
+//
+// Parameters:
+//   - ctx: The context for subscription lifetime
+//   - name: Name of the subscription for logging
+//   - createSubscription: Function that creates the actual subscription
+//   - processItem: Function that processes an item received from the subscription
+//   - errChan: Channel to report errors to the caller
+//
+// The createSubscription function should:
+//   - Create a subscription and return it along with a channel for receiving items
+//   - Return an error if subscription creation fails
+//
+// The processItem function should:
+//   - Process an item from the subscription and return true if processing was successful
+//   - Return the latest block number for reconnection tracking (if applicable)
+func (c *EVMBlockchain) handleSubscription(
+	ctx context.Context,
+	name string,
+	initialFromBlock int64,
+	createSubscription func(context.Context, int64) (ethereum.Subscription, interface{}, error),
+	processItem func(item interface{}, lastSeenBlock int64) (int64, bool),
+	errChan chan<- error,
+) {
+	// Create a separate cancellation context for the subscription goroutine
+	subscriptionCtx, cancelSubscription := context.WithCancel(context.Background())
+	defer cancelSubscription()
+
+	// Track the last seen block for reconnection
+	var lastSeenBlock int64 = initialFromBlock
+	// Backoff parameters
+	backoff := subscriptionInitialBackoff
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			// Create a new subscription
+			sub, itemChan, err := createSubscription(subscriptionCtx, lastSeenBlock)
+
+			if err != nil {
+				// Report the error and retry with backoff
+				reconnectErr := errors.NewRPCError(err)
+				select {
+				case errChan <- reconnectErr:
+				default:
+					// Don't block if error channel is full
+				}
+
+				c.log.Warn(fmt.Sprintf("%s subscription failed, retrying with backoff", name),
+					logger.Float64("backoff_seconds", backoff),
+					logger.Int64("from_block", lastSeenBlock),
+					logger.Error(err))
+
+				// Apply backoff before retrying
+				time.Sleep(time.Duration(backoff) * time.Second)
+				// Increase backoff with exponential formula, capped at maximum
+				backoff = math.Min(backoff*subscriptionBackoffFactor, subscriptionMaxBackoff)
+				continue
+			}
+
+			// Reset backoff on successful connection
+			backoff = subscriptionInitialBackoff
+
+			// Log successful subscription
+			c.log.Debug(fmt.Sprintf("Successfully subscribed to %s", name),
+				logger.Int64("from_block", lastSeenBlock))
+
+			// Create a reflection-based channel reader that works with any channel type
+			// This approach allows us to handle different channel types (ethTypes.Header, ethTypes.Log)
+			chanValue := reflect.ValueOf(itemChan)
+			cases := []reflect.SelectCase{
+				{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(subscriptionCtx.Done())},
+				{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(sub.Err())},
+				{Dir: reflect.SelectRecv, Chan: chanValue},
+			}
+
+			// Process items from this subscription
+			subscriptionActive := true
+			for subscriptionActive {
+				chosen, value, ok := reflect.Select(cases)
+				switch chosen {
+				case 0: // Context done
+					sub.Unsubscribe()
+					return
+				case 1: // Subscription error
+					if !ok {
+						// Subscription closed without error
+						subscriptionActive = false
+						continue
+					}
+
+					err := value.Interface().(error)
+					// Report the error
 					reconnectErr := errors.NewRPCError(err)
 					select {
 					case errChan <- reconnectErr:
@@ -574,78 +637,38 @@ func (c *EVMBlockchain) SubscribeNewHead(ctx context.Context) (<-chan types.Bloc
 						// Don't block if error channel is full
 					}
 
-					c.log.Warn("Header subscription failed, retrying with backoff",
+					c.log.Warn(fmt.Sprintf("%s subscription error, reconnecting", name),
 						logger.Float64("backoff_seconds", backoff),
+						logger.Int64("from_block", lastSeenBlock),
 						logger.Error(err))
 
-					// Apply backoff before retrying
+					// Apply backoff before reconnecting
 					time.Sleep(time.Duration(backoff) * time.Second)
 					// Increase backoff with exponential formula, capped at maximum
 					backoff = math.Min(backoff*subscriptionBackoffFactor, subscriptionMaxBackoff)
-					continue
-				}
 
-				// Reset backoff on successful connection
-				backoff = subscriptionInitialBackoff
-
-				// Log successful subscription
-				c.log.Debug("Successfully subscribed to new block headers")
-
-				// Process headers from this subscription
-				subscriptionActive := true
-				for subscriptionActive {
-					select {
-					case <-ctx.Done():
-						sub.Unsubscribe()
-						return
-					case err := <-sub.Err():
-						// Report the error
-						reconnectErr := errors.NewRPCError(err)
-						select {
-						case errChan <- reconnectErr:
-						default:
-							// Don't block if error channel is full
-						}
-
-						c.log.Warn("Header subscription error, reconnecting",
-							logger.Float64("backoff_seconds", backoff),
-							logger.Error(err))
-
-						// Apply backoff before reconnecting
-						time.Sleep(time.Duration(backoff) * time.Second)
-						// Increase backoff with exponential formula, capped at maximum
-						backoff = math.Min(backoff*subscriptionBackoffFactor, subscriptionMaxBackoff)
-
-						// Mark subscription as inactive to break inner loop and create new subscription
-						sub.Unsubscribe()
+					// Mark subscription as inactive to break inner loop and create new subscription
+					sub.Unsubscribe()
+					subscriptionActive = false
+				case 2: // Item received
+					if !ok {
+						// Channel closed
 						subscriptionActive = false
-					case header := <-headers:
-						// Fetch the full block using the header hash
-						block, err := c.client.BlockByHash(subscriptionCtx, header.Hash())
-						if err != nil {
-							c.log.Warn("Failed to fetch full block details for header",
-								logger.String("hash", header.Hash().Hex()),
-								logger.Error(err))
-							continue
-						}
+						continue
+					}
 
-						// Convert ethereum block to our block model
-						ourBlock := c.convertEthereumBlockToBlock(block)
+					item := value.Interface()
+					// Process the item
+					newLastSeenBlock, success := processItem(item, lastSeenBlock)
 
-						// Send to output channel
-						select {
-						case blockChan <- *ourBlock:
-						case <-time.After(subscriptionChannelTimeout):
-							// If we can't send quickly, log a warning about buffer pressure
-							c.log.Warn("Block channel buffer full, event processing may be delayed")
-						}
+					// Update last seen block if processing was successful and a newer block was seen
+					if success && newLastSeenBlock > lastSeenBlock {
+						lastSeenBlock = newLastSeenBlock
 					}
 				}
 			}
 		}
-	}()
-
-	return blockChan, errChan, nil
+	}
 }
 
 // Close implements Blockchain.Close

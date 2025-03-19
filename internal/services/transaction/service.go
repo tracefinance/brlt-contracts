@@ -328,7 +328,7 @@ func (s *transactionService) OnWalletEvent(ctx context.Context, walletID int64, 
 		GasLimit:     coreTx.GasLimit,
 		Type:         string(coreTx.Type),
 		TokenAddress: coreTx.TokenAddress,
-		Status:       coreTx.Status,
+		Status:       string(coreTx.Status),
 		Timestamp:    coreTx.Timestamp,
 		WalletID:     walletID,
 	}
