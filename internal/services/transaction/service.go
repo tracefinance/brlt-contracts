@@ -536,14 +536,40 @@ func (s *transactionService) processBlock(ctx context.Context, chainType types.C
 		if walletID > 0 {
 			// Set the timestamp to the block timestamp
 			tx.Timestamp = block.Timestamp.Unix()
-			// Save transaction to database
-			transaction, err := s.saveTransaction(ctx, tx, walletID)
+
+			// Convert core transaction to service transaction
+			transaction := FromCoreTransaction(tx, walletID)
+
+			// Check if transaction already exists
+			exists, err := s.repository.Exists(ctx, transaction.Hash)
 			if err != nil {
-				s.log.Error("Failed to save transaction",
+				s.log.Error("Failed to check if transaction exists",
 					logger.String("tx_hash", tx.Hash),
 					logger.Int64("wallet_id", walletID),
 					logger.Error(err))
 				continue
+			}
+
+			// If transaction exists, get it from the database
+			if exists {
+				transaction, err = s.repository.GetByTxHash(ctx, transaction.Hash)
+				if err != nil {
+					s.log.Error("Failed to get existing transaction",
+						logger.String("tx_hash", tx.Hash),
+						logger.Int64("wallet_id", walletID),
+						logger.Error(err))
+					continue
+				}
+			} else {
+				// Otherwise, save the new transaction
+				err = s.repository.Create(ctx, transaction)
+				if err != nil {
+					s.log.Error("Failed to save transaction",
+						logger.String("tx_hash", tx.Hash),
+						logger.Int64("wallet_id", walletID),
+						logger.Error(err))
+					continue
+				}
 			}
 
 			// Emit transaction event
@@ -637,31 +663,6 @@ func (s *transactionService) UnsubscribeFromTransactionEvents() {
 // The channel is closed when UnsubscribeFromTransactionEvents is called.
 func (s *transactionService) TransactionEvents() <-chan *TransactionEvent {
 	return s.transactionEvents
-}
-
-// saveTransaction converts a blockchain transaction to a database transaction and saves it
-func (s *transactionService) saveTransaction(ctx context.Context, tx *types.Transaction, walletID int64) (*Transaction, error) {
-	// Use the existing helper function to convert core transaction to service transaction
-	transaction := FromCoreTransaction(tx, walletID)
-
-	// Check if transaction already exists
-	exists, err := s.repository.Exists(ctx, transaction.Hash)
-	if err != nil {
-		return nil, errors.NewOperationFailedError("check transaction exists", err)
-	}
-
-	// If transaction already exists, get it from the database
-	if exists {
-		return s.repository.GetByTxHash(ctx, transaction.Hash)
-	}
-
-	// Otherwise, save the new transaction
-	err = s.repository.Create(ctx, transaction)
-	if err != nil {
-		return nil, errors.NewOperationFailedError("save transaction", err)
-	}
-
-	return transaction, nil
 }
 
 // StartWalletTransactionPolling starts a background scheduler that periodically polls for transactions from all active wallets
@@ -852,6 +853,7 @@ func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context)
 				// Preserve original metadata
 				updatedTransaction.ID = tx.ID
 				updatedTransaction.CreatedAt = tx.CreatedAt
+				updatedTransaction.Timestamp = tx.Timestamp
 
 				// Update in database
 				err = s.repository.Update(ctx, updatedTransaction)
