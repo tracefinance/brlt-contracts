@@ -2,8 +2,8 @@ package transaction
 
 import (
 	"context"
-	"math/big"
 	"sync"
+	"time"
 
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
@@ -55,6 +55,17 @@ type Service interface {
 	//   - ctx: Context for the operation, used to cancel the subscription
 	SubscribeTransactionEvents(ctx context.Context)
 
+	// StartTransactionPolling starts a background scheduler that periodically polls
+	// for transactions from all active wallets.
+	// This provides a fallback mechanism to ensure transactions are not missed by the event-based system.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, used to cancel the polling
+	StartTransactionPolling(ctx context.Context)
+
+	// StopTransactionPolling stops the transaction polling scheduler
+	StopTransactionPolling()
+
 	// UnsubscribeFromTransactionEvents stops listening for blockchain events.
 	// This should be called when shutting down the service.
 	UnsubscribeFromTransactionEvents()
@@ -77,6 +88,8 @@ type transactionService struct {
 	syncMutex            sync.Mutex
 	eventCtx             context.Context
 	eventCancel          context.CancelFunc
+	pollingCtx           context.Context
+	pollingCancel        context.CancelFunc
 	transactionEvents    chan *TransactionEvent
 }
 
@@ -559,7 +572,7 @@ func (s *transactionService) emitTransactionEvent(event *TransactionEvent) {
 			logger.String("event_type", event.EventType),
 			logger.Int64("block_number", event.BlockNumber))
 	default:
-		s.log.Warn("Transaction events channel is full, dropping event",
+		s.log.Debug("Transaction events channel is full, dropping event",
 			logger.String("event_type", event.EventType),
 			logger.Int64("block_number", event.BlockNumber))
 	}
@@ -624,13 +637,87 @@ func (s *transactionService) saveTransaction(ctx context.Context, tx *types.Tran
 	return transaction, nil
 }
 
-// calculateTransactionFee calculates the transaction fee from gas used and gas price
-func calculateTransactionFee(gasUsed uint64, gasPrice *big.Int) string {
-	if gasPrice == nil {
-		return "0"
+// StartTransactionPolling starts a background scheduler that periodically polls for transactions from all active wallets
+func (s *transactionService) StartTransactionPolling(ctx context.Context) {
+	// Get interval from config with fallback to default
+	interval := 300 // Default to 5 minutes if not specified
+	if s.config.TransactionPollingInterval > 0 {
+		interval = s.config.TransactionPollingInterval
 	}
 
-	// Calculate fee = gasUsed * gasPrice
-	fee := new(big.Int).Mul(big.NewInt(int64(gasUsed)), gasPrice)
-	return fee.String()
+	s.pollingCtx, s.pollingCancel = context.WithCancel(ctx)
+
+	s.log.Info("Starting transaction polling scheduler",
+		logger.Int("interval_seconds", interval))
+
+	// Start the scheduler goroutine
+	go func() {
+		ticker := time.NewTicker(time.Duration(interval) * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-s.pollingCtx.Done():
+				s.log.Info("Transaction polling scheduler stopped")
+				return
+			case <-ticker.C:
+				s.pollTransactionsForAllWallets(s.pollingCtx)
+			}
+		}
+	}()
+}
+
+// StopTransactionPolling stops the transaction polling scheduler
+func (s *transactionService) StopTransactionPolling() {
+	if s.pollingCancel != nil {
+		s.pollingCancel()
+		s.pollingCancel = nil
+		s.log.Info("Transaction polling scheduler stopped")
+	}
+}
+
+// pollTransactionsForAllWallets fetches all active wallets and syncs their transactions
+func (s *transactionService) pollTransactionsForAllWallets(ctx context.Context) {
+	s.log.Info("Running scheduled transaction poll for all wallets")
+
+	// Get all wallets
+	walletPage, err := s.walletService.List(ctx, 0, 0)
+	if err != nil {
+		s.log.Error("Failed to list wallets for transaction polling",
+			logger.Error(err))
+		return
+	}
+
+	var totalSynced int
+	for _, wallet := range walletPage.Items {
+		// Check if context is cancelled
+		if ctx.Err() != nil {
+			return
+		}
+
+		// Sync transactions for this wallet
+		count, err := s.SyncTransactions(ctx, wallet.ID)
+		if err != nil {
+			s.log.Warn("Failed to sync transactions for wallet during polling",
+				logger.Int64("wallet_id", wallet.ID),
+				logger.String("address", wallet.Address),
+				logger.String("chain_type", string(wallet.ChainType)),
+				logger.Error(err))
+			continue
+		}
+
+		if count > 0 {
+			s.log.Info("Synced transactions during polling",
+				logger.Int64("wallet_id", wallet.ID),
+				logger.String("address", wallet.Address),
+				logger.String("chain_type", string(wallet.ChainType)),
+				logger.Int("transaction_count", count))
+		}
+
+		totalSynced += count
+	}
+
+	s.log.Info("Completed transaction polling cycle",
+		logger.Int("total_wallets", len(walletPage.Items)),
+		logger.Int("total_transactions_synced", totalSynced))
 }

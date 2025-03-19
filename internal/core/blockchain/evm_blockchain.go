@@ -36,6 +36,18 @@ const (
 
 	// Channel operation timeouts
 	subscriptionChannelTimeout = 100 * time.Millisecond // Timeout for channel operations
+
+	// Retry configuration for block fetching
+	blockFetchMaxRetries    = 3                      // Maximum number of retry attempts
+	blockFetchInitialDelay  = 500 * time.Millisecond // Initial delay before retrying
+	blockFetchBackoffFactor = 2                      // Multiplication factor for backoff
+
+	// Error messages for retry conditions
+	errMsgNotFound          = "not found"                      // Error message for block not found
+	errMsgUnsupportedTxType = "transaction type not supported" // Error message for unsupported tx type
+
+	// Operation names
+	operationFetchBlock = "fetch block" // Operation name for block fetching
 )
 
 // EVMBlockchain implements Blockchain for EVM compatible chains
@@ -149,7 +161,8 @@ func (c *EVMBlockchain) GetTransaction(ctx context.Context, hash string) (*types
 		blockNumber = receipt.BlockNumber
 
 		// Get block to get timestamp
-		block, err := c.client.BlockByNumber(ctx, blockNumber)
+		var block *ethTypes.Block
+		block, err = c.client.BlockByNumber(ctx, blockNumber)
 		if err != nil {
 			return nil, errors.NewRPCError(err)
 		}
@@ -501,14 +514,68 @@ func (c *EVMBlockchain) SubscribeNewHead(ctx context.Context) (<-chan types.Bloc
 				// Process the header item
 				header := item.(*ethTypes.Header)
 
-				// Fetch the full block using the header hash
-				block, err := c.client.BlockByHash(context.Background(), header.Hash())
-				if err != nil {
-					c.log.Warn("Failed to fetch full block details for header",
-						logger.String("hash", header.Hash().Hex()),
-						logger.Error(err))
-					return 0, false
+				// Context information for logging
+				contextInfo := map[string]interface{}{
+					"hash": header.Hash().Hex(),
 				}
+
+				// Retry the operation
+				result, err := c.retryOperation(
+					operationFetchBlock,
+					contextInfo,
+					func() (interface{}, error) {
+						return c.client.BlockByHash(context.Background(), header.Hash())
+					},
+					func(err error) bool {
+						return strings.Contains(err.Error(), errMsgNotFound) ||
+							strings.Contains(err.Error(), errMsgUnsupportedTxType)
+					},
+				)
+
+				// Handle the result or error
+				if err != nil {
+					// Log the error
+					c.log.Warn("Failed to fetch full block details for header after retries",
+						logger.String("hash", header.Hash().Hex()),
+						logger.Int64("block_number", header.Number.Int64()),
+						logger.String("chain", string(c.chain.Type)),
+						logger.Error(err))
+
+					// Return a partial block with just header information
+					headerOnlyBlock := &types.Block{
+						Hash:       header.Hash().Hex(),
+						Number:     header.Number,
+						ParentHash: header.ParentHash.Hex(),
+						Timestamp:  time.Unix(int64(header.Time), 0),
+						// We don't have transaction info
+						TransactionCount: 0,
+						Transactions:     nil,
+						Miner:            header.Coinbase.Hex(),
+						GasUsed:          header.GasUsed,
+						GasLimit:         header.GasLimit,
+						// Other fields based on header
+						Size:       0, // Unknown
+						Difficulty: header.Difficulty,
+						Extra:      header.Extra,
+					}
+
+					// Send partial block to output channel
+					select {
+					case blockChan <- *headerOnlyBlock:
+						// Return block number for tracking
+						if headerOnlyBlock.Number != nil {
+							return headerOnlyBlock.Number.Int64(), true
+						}
+						return 0, true
+					case <-time.After(subscriptionChannelTimeout):
+						// If we can't send quickly, log a warning about buffer pressure
+						c.log.Warn("Block channel buffer full, event processing may be delayed")
+						return 0, false
+					}
+				}
+
+				// Cast the result to the expected type
+				block := result.(*ethTypes.Block)
 
 				// Convert ethereum block to our block model
 				ourBlock := c.convertEthereumBlockToBlock(block)
@@ -916,4 +983,66 @@ func (c *EVMBlockchain) convertEthereumBlockToBlock(block *ethTypes.Block) *type
 		Difficulty:       block.Difficulty(),
 		Extra:            block.Extra(),
 	}
+}
+
+// retryOperation executes the given operation with exponential backoff retries
+// Returns the operation result and a boolean indicating success
+func (c *EVMBlockchain) retryOperation(
+	operationName string,
+	contextInfo map[string]interface{},
+	operation func() (interface{}, error),
+	shouldRetry func(error) bool,
+) (interface{}, error) {
+	var lastErr error
+	retryDelay := blockFetchInitialDelay
+
+	for attempt := 0; attempt < blockFetchMaxRetries; attempt++ {
+		// Execute the operation
+		result, err := operation()
+		if err == nil {
+			return result, nil
+		}
+
+		lastErr = err
+
+		// Check if we should retry
+		if attempt < blockFetchMaxRetries-1 && shouldRetry(err) {
+			// Create log fields from contextInfo map
+			logFields := make([]logger.Field, 0, len(contextInfo)+3)
+			for key, value := range contextInfo {
+				switch v := value.(type) {
+				case string:
+					logFields = append(logFields, logger.String(key, v))
+				case int:
+					logFields = append(logFields, logger.Int(key, v))
+				case int64:
+					logFields = append(logFields, logger.Int64(key, v))
+				case float64:
+					logFields = append(logFields, logger.Float64(key, v))
+				default:
+					logFields = append(logFields, logger.Any(key, v))
+				}
+			}
+
+			// Add standard retry information
+			logFields = append(logFields,
+				logger.Int("attempt", attempt+1),
+				logger.Duration("delay", retryDelay),
+				logger.Error(err),
+			)
+
+			// Log the retry attempt
+			c.log.Debug("Retrying "+operationName, logFields...)
+
+			// Wait before retry with exponential backoff
+			time.Sleep(retryDelay)
+			retryDelay *= blockFetchBackoffFactor
+			continue
+		}
+
+		// If we get here, we're not retrying
+		break
+	}
+
+	return nil, lastErr
 }

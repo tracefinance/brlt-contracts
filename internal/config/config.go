@@ -117,6 +117,8 @@ type Config struct {
 	SmartContractsPath string `yaml:"smart_contracts_path"`
 	// KeyStoreType specifies the type of key store to use (db or kms)
 	KeyStoreType string `yaml:"key_store_type"`
+	// TransactionPollingInterval is the time interval in seconds between transaction polling cycles
+	TransactionPollingInterval int `yaml:"transaction_polling_interval"`
 	// Snowflake holds configuration for ID generation
 	Snowflake SnowflakeConfig `yaml:"snowflake"`
 	// Log holds the logging configuration

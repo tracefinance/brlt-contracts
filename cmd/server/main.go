@@ -37,6 +37,9 @@ func main() {
 	// Start transaction event subscriptions
 	container.Services.TransactionService.SubscribeTransactionEvents(ctx)
 
+	// Start transaction polling scheduler using config
+	container.Services.TransactionService.StartTransactionPolling(ctx)
+
 	// Setup routes
 	container.Server.SetupRoutes()
 
@@ -68,6 +71,9 @@ func main() {
 
 	// Unsubscribe from events
 	container.Services.TransactionService.UnsubscribeFromTransactionEvents()
+
+	// Stop transaction polling
+	container.Services.TransactionService.StopTransactionPolling()
 
 	// Close the database connection
 	if container.Core.DB != nil {
