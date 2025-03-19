@@ -3,6 +3,7 @@ package blockchain
 import (
 	"context"
 	stderrors "errors"
+	"fmt"
 	"math"
 	"math/big"
 	"strings"
@@ -17,6 +18,21 @@ import (
 	"vault0/internal/errors"
 	"vault0/internal/logger"
 	"vault0/internal/types"
+)
+
+const (
+	// Subscription configuration
+	subscriptionLogBufferSize = 100   // Buffer size for the log channel
+	subscriptionErrBufferSize = 10    // Buffer size for the error channel
+	subscriptionBlockLookback = 50000 // Number of blocks to look back for historical events
+
+	// Backoff configuration
+	subscriptionInitialBackoff = 1.0  // Initial backoff in seconds
+	subscriptionMaxBackoff     = 60.0 // Maximum backoff in seconds
+	subscriptionBackoffFactor  = 1.5  // Factor to increase backoff
+
+	// Channel operation timeouts
+	subscriptionChannelTimeout = 100 * time.Millisecond // Timeout for channel operations
 )
 
 // EVMBlockchain implements Blockchain for EVM compatible chains
@@ -355,7 +371,7 @@ func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []strin
 			return nil, nil, errors.NewRPCError(err)
 		}
 
-		fromBlock = int64(math.Max(float64(currentBlockNumber-50000), 0))
+		fromBlock = int64(math.Max(float64(currentBlockNumber-subscriptionBlockLookback), 0))
 	}
 
 	// Create the filter query
@@ -366,8 +382,8 @@ func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []strin
 	}
 
 	// Create channels for logs and errors
-	logChan := make(chan types.Log, 100) // Buffer to prevent lost events during reconnection
-	errChan := make(chan error, 10)      // Buffer for error reporting
+	logChan := make(chan types.Log, subscriptionLogBufferSize)
+	errChan := make(chan error, subscriptionErrBufferSize)
 
 	// Create a separate cancellation context for the subscription goroutine
 	subscriptionCtx, cancelSubscription := context.WithCancel(context.Background())
@@ -381,9 +397,7 @@ func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []strin
 		// Track the last seen block for reconnection
 		var lastSeenBlock int64 = fromBlock
 		// Backoff parameters
-		initialBackoff := 1.0 // seconds
-		maxBackoff := 60.0    // seconds
-		backoff := initialBackoff
+		backoff := subscriptionInitialBackoff
 
 		for {
 			select {
@@ -415,16 +429,18 @@ func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []strin
 					// Apply backoff before retrying
 					time.Sleep(time.Duration(backoff) * time.Second)
 					// Increase backoff with exponential formula, capped at maximum
-					backoff = math.Min(backoff*1.5, maxBackoff)
+					backoff = math.Min(backoff*subscriptionBackoffFactor, subscriptionMaxBackoff)
 					continue
 				}
 
 				// Reset backoff on successful connection
-				backoff = initialBackoff
+				backoff = subscriptionInitialBackoff
 
 				// Log successful subscription
-				c.log.Info("Successfully subscribed to events",
-					logger.Int64("from_block", lastSeenBlock))
+				c.log.Debug("Successfully subscribed to events",
+					logger.Int64("from_block", lastSeenBlock),
+					logger.String("addresses", fmt.Sprintf("%v", ethAddresses)),
+					logger.String("topics", fmt.Sprintf("%v", ethTopics)))
 
 				// Process events from this subscription
 				subscriptionActive := true
@@ -450,7 +466,7 @@ func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []strin
 						// Apply backoff before reconnecting
 						time.Sleep(time.Duration(backoff) * time.Second)
 						// Increase backoff with exponential formula, capped at maximum
-						backoff = math.Min(backoff*1.5, maxBackoff)
+						backoff = math.Min(backoff*subscriptionBackoffFactor, subscriptionMaxBackoff)
 
 						// Mark subscription as inactive to break inner loop and create new subscription
 						sub.Unsubscribe()
@@ -480,7 +496,7 @@ func (c *EVMBlockchain) SubscribeToEvents(ctx context.Context, addresses []strin
 						// Send to output channel
 						select {
 						case logChan <- ourLog:
-						case <-time.After(100 * time.Millisecond):
+						case <-time.After(subscriptionChannelTimeout):
 							// If we can't send quickly, log a warning about buffer pressure
 							c.log.Warn("Log channel buffer full, event processing may be delayed")
 						}

@@ -8,6 +8,10 @@ GOGET = $(GOCMD) get
 GOMOD = $(GOCMD) mod
 GOCLEAN = $(GOCMD) clean
 
+# Build flags
+LDFLAGS = -ldflags="-s -w"
+DEBUGFLAGS = -gcflags="all=-N -l"
+
 # Binary names
 SERVER_BIN = vault0
 GENKEY_BIN = genkey
@@ -46,7 +50,13 @@ build: server-build genkey-build verify-tokens-build ui-build contracts-build
 server-build: wire
 	@echo "Building server binary..."
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) -o $(BUILD_DIR)/$(SERVER_BIN) $(SERVER_SRC)
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(SERVER_BIN) $(SERVER_SRC)
+
+# Build server binary with debug symbols
+server-build-debug: wire
+	@echo "Building server binary with debug symbols..."
+	@mkdir -p $(BUILD_DIR)
+	$(GOBUILD) $(DEBUGFLAGS) -o $(BUILD_DIR)/$(SERVER_BIN) $(SERVER_SRC)
 
 # Build genkey binary
 genkey-build:

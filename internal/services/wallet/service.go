@@ -535,7 +535,6 @@ func (s *walletService) subscribeToWallet(ctx context.Context, wallet *Wallet) e
 					logger.Int64("wallet_id", wallet.ID),
 					logger.String("address", wallet.Address),
 					logger.Error(err))
-				return
 			case log := <-logCh:
 				// Process the log
 				s.emitBlockchainEvent(&BlockchainEvent{
