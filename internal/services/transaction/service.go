@@ -510,7 +510,8 @@ func (s *transactionService) processBlock(ctx context.Context, chainType types.C
 				walletID = w.ID
 			}
 		}
-
+		// Set the timestamp to the block timestamp
+		tx.Timestamp = block.Timestamp.Unix()
 		// If this transaction involves one of our wallets, save it
 		if walletID > 0 {
 			// Save transaction to database
