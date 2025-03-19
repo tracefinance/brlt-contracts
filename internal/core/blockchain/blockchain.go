@@ -161,6 +161,18 @@ type Blockchain interface {
 	//   - Error if subscription cannot be created
 	SubscribeContractLogs(ctx context.Context, addresses []string, eventSignature string, eventArgs []any, fromBlock int64) (<-chan types.Log, <-chan error, error)
 
+	// SubscribeNewHead subscribes to new block headers as they are mined.
+	// This creates a real-time subscription to receive new blocks as they are added to the chain.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, can be used to cancel the subscription
+	//
+	// Returns:
+	//   - Channel that receives new block headers in real-time
+	//   - Channel that receives subscription errors
+	//   - Error if subscription cannot be created
+	SubscribeNewHead(ctx context.Context) (<-chan types.Block, <-chan error, error)
+
 	// Chain returns the chain information.
 	// This includes details like chain ID, network name, and other chain-specific data.
 	//

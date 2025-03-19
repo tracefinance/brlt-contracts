@@ -538,6 +538,116 @@ func (c *EVMBlockchain) SubscribeContractLogs(ctx context.Context, addresses []s
 	return logChan, errChan, nil
 }
 
+// SubscribeNewHead implements Blockchain.SubscribeNewHead
+func (c *EVMBlockchain) SubscribeNewHead(ctx context.Context) (<-chan types.Block, <-chan error, error) {
+	// Create channels for blocks and errors
+	blockChan := make(chan types.Block, subscriptionLogBufferSize)
+	errChan := make(chan error, subscriptionErrBufferSize)
+
+	// Create a separate cancellation context for the subscription goroutine
+	subscriptionCtx, cancelSubscription := context.WithCancel(context.Background())
+
+	// Start the subscription handler goroutine
+	go func() {
+		defer close(blockChan)
+		defer close(errChan)
+		defer cancelSubscription()
+
+		// Backoff parameters
+		backoff := subscriptionInitialBackoff
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				// Create a new subscription for headers
+				headers := make(chan *ethTypes.Header)
+				sub, err := c.client.SubscribeNewHead(subscriptionCtx, headers)
+
+				if err != nil {
+					// Report the error and retry with backoff
+					reconnectErr := errors.NewRPCError(err)
+					select {
+					case errChan <- reconnectErr:
+					default:
+						// Don't block if error channel is full
+					}
+
+					c.log.Warn("Header subscription failed, retrying with backoff",
+						logger.Float64("backoff_seconds", backoff),
+						logger.Error(err))
+
+					// Apply backoff before retrying
+					time.Sleep(time.Duration(backoff) * time.Second)
+					// Increase backoff with exponential formula, capped at maximum
+					backoff = math.Min(backoff*subscriptionBackoffFactor, subscriptionMaxBackoff)
+					continue
+				}
+
+				// Reset backoff on successful connection
+				backoff = subscriptionInitialBackoff
+
+				// Log successful subscription
+				c.log.Debug("Successfully subscribed to new block headers")
+
+				// Process headers from this subscription
+				subscriptionActive := true
+				for subscriptionActive {
+					select {
+					case <-ctx.Done():
+						sub.Unsubscribe()
+						return
+					case err := <-sub.Err():
+						// Report the error
+						reconnectErr := errors.NewRPCError(err)
+						select {
+						case errChan <- reconnectErr:
+						default:
+							// Don't block if error channel is full
+						}
+
+						c.log.Warn("Header subscription error, reconnecting",
+							logger.Float64("backoff_seconds", backoff),
+							logger.Error(err))
+
+						// Apply backoff before reconnecting
+						time.Sleep(time.Duration(backoff) * time.Second)
+						// Increase backoff with exponential formula, capped at maximum
+						backoff = math.Min(backoff*subscriptionBackoffFactor, subscriptionMaxBackoff)
+
+						// Mark subscription as inactive to break inner loop and create new subscription
+						sub.Unsubscribe()
+						subscriptionActive = false
+					case header := <-headers:
+						// Fetch the full block using the header hash
+						block, err := c.client.BlockByHash(subscriptionCtx, header.Hash())
+						if err != nil {
+							c.log.Warn("Failed to fetch full block details for header",
+								logger.String("hash", header.Hash().Hex()),
+								logger.Error(err))
+							continue
+						}
+
+						// Convert ethereum block to our block model
+						ourBlock := c.convertEthereumBlockToBlock(block)
+
+						// Send to output channel
+						select {
+						case blockChan <- *ourBlock:
+						case <-time.After(subscriptionChannelTimeout):
+							// If we can't send quickly, log a warning about buffer pressure
+							c.log.Warn("Block channel buffer full, event processing may be delayed")
+						}
+					}
+				}
+			}
+		}
+	}()
+
+	return blockChan, errChan, nil
+}
+
 // Close implements Blockchain.Close
 func (c *EVMBlockchain) Close() {
 	c.rpcClient.Close()
