@@ -18,12 +18,18 @@ import (
 const (
 	EventTypeWalletCreated = "WALLET_CREATED"
 	EventTypeWalletDeleted = "WALLET_DELETED"
+
+	// Blockchain event types
+	BlockchainEventTypeLog   = "LOG"
+	BlockchainEventTypeBlock = "BLOCK"
 )
 
 // BlockchainEvent represents a blockchain event associated with a wallet
 type BlockchainEvent struct {
-	WalletID int64
-	Log      *types.Log
+	WalletID  int64
+	Log       *types.Log
+	Block     *types.Block
+	EventType string // "LOG" for contract logs, "BLOCK" for new blocks
 }
 
 // LifecycleEvent represents a wallet lifecycle event
@@ -230,9 +236,13 @@ func (s *walletService) emitBlockchainEvent(event *BlockchainEvent) {
 
 	select {
 	case s.blockchainEvents <- event:
+		s.log.Debug("Emitted blockchain event",
+			logger.Int64("wallet_id", event.WalletID),
+			logger.String("event_type", event.EventType))
 	default:
 		s.log.Warn("Blockchain events channel is full, dropping event",
-			logger.Int64("wallet_id", event.WalletID))
+			logger.Int64("wallet_id", event.WalletID),
+			logger.String("event_type", event.EventType))
 	}
 }
 
@@ -472,6 +482,20 @@ func (s *walletService) SubscribeToBlockchainEvents(ctx context.Context) error {
 		}
 	}
 
+	// Subscribe to new blocks for each unique chain type
+	chainTypesMap := make(map[types.ChainType]bool)
+	for _, wallet := range walletPage.Items {
+		chainTypesMap[wallet.ChainType] = true
+	}
+
+	for chainType := range chainTypesMap {
+		if err := s.subscribeToNewBlocks(ctx, chainType); err != nil {
+			s.log.Error("Failed to subscribe to new blocks",
+				logger.String("chain_type", string(chainType)),
+				logger.Error(err))
+		}
+	}
+
 	return nil
 }
 
@@ -513,7 +537,14 @@ func (s *walletService) subscribeToWallet(ctx context.Context, wallet *Wallet) e
 			logger.String("address", wallet.Address))
 
 		// Subscribe to events, using wallet's LastBlockNumber as the starting point
-		logCh, errCh, err := client.SubscribeContractLogs(subscriptionCtx, []string{wallet.Address}, nil, wallet.LastBlockNumber)
+		// We need to pass an empty event signature and nil event args
+		logCh, errCh, err := client.SubscribeContractLogs(
+			subscriptionCtx,
+			[]string{wallet.Address},
+			"",  // Empty event signature to match all events
+			nil, // No specific args to filter
+			wallet.LastBlockNumber,
+		)
 		if err != nil {
 			s.log.Error("Failed to subscribe to events",
 				logger.Int64("wallet_id", wallet.ID),
@@ -538,8 +569,9 @@ func (s *walletService) subscribeToWallet(ctx context.Context, wallet *Wallet) e
 			case log := <-logCh:
 				// Process the log
 				s.emitBlockchainEvent(&BlockchainEvent{
-					WalletID: wallet.ID,
-					Log:      &log,
+					WalletID:  wallet.ID,
+					Log:       &log,
+					EventType: BlockchainEventTypeLog,
 				})
 
 				// Update the last processed block if log's block number is greater
@@ -559,6 +591,107 @@ func (s *walletService) subscribeToWallet(ctx context.Context, wallet *Wallet) e
 	}()
 
 	return nil
+}
+
+// subscribeToNewBlocks subscribes to new block headers for a specific chain type
+func (s *walletService) subscribeToNewBlocks(ctx context.Context, chainType types.ChainType) error {
+	// Get blockchain client for the chain type
+	client, err := s.blockchainRegistry.GetBlockchain(chainType)
+	if err != nil {
+		return err
+	}
+
+	// Create a context with cancellation for this subscription
+	subscriptionCtx, cancel := context.WithCancel(context.Background())
+
+	// Store the cancellation function with a special key for block subscriptions
+	s.mu.Lock()
+	subscriptionKey := "blocks_" + string(chainType)
+	s.subscriptions[subscriptionKey] = cancel
+	s.mu.Unlock()
+
+	// Start a goroutine to monitor new blocks
+	go func() {
+		defer cancel()
+		s.log.Info("Starting new block subscription",
+			logger.String("chain_type", string(chainType)))
+
+		// Subscribe to new block headers
+		blockCh, errCh, err := client.SubscribeNewHead(subscriptionCtx)
+		if err != nil {
+			s.log.Error("Failed to subscribe to new blocks",
+				logger.String("chain_type", string(chainType)),
+				logger.Error(err))
+			return
+		}
+
+		// Process new blocks
+		for {
+			select {
+			case <-subscriptionCtx.Done():
+				s.log.Info("Block subscription stopped",
+					logger.String("chain_type", string(chainType)))
+				return
+			case err := <-errCh:
+				s.log.Error("Block subscription error",
+					logger.String("chain_type", string(chainType)),
+					logger.Error(err))
+			case block := <-blockCh:
+				// Process the block - find all wallets for this chain type
+				// and emit events for them
+				wallets, err := s.getWalletsByChainType(ctx, chainType)
+				if err != nil {
+					s.log.Error("Failed to get wallets for chain type",
+						logger.String("chain_type", string(chainType)),
+						logger.Error(err))
+					continue
+				}
+
+				// Emit block event for each wallet
+				for _, wallet := range wallets {
+					s.emitBlockchainEvent(&BlockchainEvent{
+						WalletID:  wallet.ID,
+						Block:     &block,
+						EventType: BlockchainEventTypeBlock,
+					})
+
+					// Update the last processed block if block number is greater
+					if block.Number != nil {
+						blockNum := block.Number.Int64()
+						if blockNum > wallet.LastBlockNumber {
+							if err := s.UpdateLastBlockNumber(ctx, wallet.ChainType, wallet.Address, blockNum); err != nil {
+								s.log.Error("Failed to update last block number",
+									logger.Int64("wallet_id", wallet.ID),
+									logger.String("address", wallet.Address),
+									logger.Error(err))
+							}
+						}
+					}
+				}
+			}
+		}
+	}()
+
+	return nil
+}
+
+// getWalletsByChainType retrieves all wallets for a specific chain type
+func (s *walletService) getWalletsByChainType(ctx context.Context, chainType types.ChainType) ([]*Wallet, error) {
+	// Get all wallets
+	walletPage, err := s.repository.List(ctx, 0, 0)
+	if err != nil {
+		return nil, errors.NewOperationFailedError("list wallets by chain type", err)
+	}
+
+	// Filter wallets by chain type
+	var wallets []*Wallet
+	for _, wallet := range walletPage.Items {
+		if wallet.ChainType == chainType {
+			wallets = append(wallets, wallet)
+		}
+	}
+
+	return wallets, nil
 }
 
 func (s *walletService) unsubscribeFromWallet(walletID int64) {
