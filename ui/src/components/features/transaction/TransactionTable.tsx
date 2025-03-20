@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { TransactionFrontend } from "@/types/transaction";
 import { cn, truncateMiddle } from "@/lib/utils";
 import { format } from "date-fns";
+import { TokenIcon } from "@web3icons/react";
+import { CircleDollarSign } from "lucide-react";
 
 interface TransactionTableProps {
   transactions: TransactionFrontend[];
@@ -52,6 +54,7 @@ export default function TransactionTable({ transactions = [], isLoading = false 
               <TableHead>Hash</TableHead>
               <TableHead>Block Number</TableHead>
               <TableHead>Type</TableHead>
+              <TableHead>Token</TableHead>
               <TableHead>From Address</TableHead>
               <TableHead>To Address</TableHead>
               <TableHead>Status</TableHead>
@@ -60,7 +63,7 @@ export default function TransactionTable({ transactions = [], isLoading = false 
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center h-24">
+                <TableCell colSpan={7} className="text-center h-24">
                   <div className="flex justify-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
                   </div>
@@ -68,7 +71,7 @@ export default function TransactionTable({ transactions = [], isLoading = false 
               </TableRow>
             ) : transactionsArray.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
                   No transactions found
                 </TableCell>
               </TableRow>
@@ -79,7 +82,24 @@ export default function TransactionTable({ transactions = [], isLoading = false 
                     {truncateMiddle(tx.hash, 8, 8)}
                   </TableCell>
                   <TableCell>{tx.timestamp}</TableCell>
-                  <TableCell>{tx.type}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {tx.type.toUpperCase()}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {tx.tokenSymbol ? (
+                      <div className="flex items-center gap-1">
+                        <TokenIcon symbol={tx.tokenSymbol.toLowerCase()} size={20} variant="mono" />
+                        <span>{tx.tokenSymbol}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <CircleDollarSign className="h-5 w-5 text-muted-foreground" />
+                        <span className="text-muted-foreground">-</span>
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="font-mono text-sm">
                     {truncateMiddle(tx.fromAddress, 6, 4)}
                   </TableCell>

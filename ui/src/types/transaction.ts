@@ -13,6 +13,7 @@ export interface Transaction {
   gas_limit?: number;
   type: string;
   token_address?: string;
+  token_symbol?: string;
   status: string;
   timestamp: number;
   created_at: string;
@@ -34,6 +35,7 @@ export interface TransactionFrontend {
   gasLimit?: number;
   type: string;
   tokenAddress?: string;
+  tokenSymbol?: string;
   status: string;
   timestamp: number;
   createdAt: string;
@@ -67,6 +69,7 @@ export function toFrontendTransaction(tx: Transaction): TransactionFrontend {
     gasLimit: tx.gas_limit,
     type: tx.type,
     tokenAddress: tx.token_address,
+    tokenSymbol: tx.token_symbol,
     status: tx.status,
     timestamp: tx.timestamp,
     createdAt: tx.created_at,
