@@ -151,11 +151,27 @@ type Service interface {
 	// The channel is closed when UnsubscribeFromEvents is called.
 	LifecycleEvents() <-chan *LifecycleEvent
 
-	// UpdateBalance updates the native balance for a wallet
-	UpdateBalance(ctx context.Context, id int64, balance decimal.Decimal) error
+	// UpdateWalletBalance updates the native balance for a wallet identified by chain type and address
+	// Parameters:
+	//   - ctx: Context for the operation
+	//   - chainType: The blockchain network type
+	//   - address: The wallet's blockchain address
+	//   - balance: The new balance value
+	// Returns:
+	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
+	UpdateWalletBalance(ctx context.Context, chainType types.ChainType, address string, balance decimal.Decimal) error
 
 	// UpdateTokenBalance updates a token balance for a wallet
-	UpdateTokenBalance(ctx context.Context, walletID, tokenID int64, balance decimal.Decimal) error
+	// Parameters:
+	//   - ctx: Context for the operation
+	//   - chainType: The blockchain network type
+	//   - walletAddress: The wallet's blockchain address
+	//   - tokenAddress: The token's contract address
+	//   - balance: The new token balance value
+	// Returns:
+	//   - error: ErrWalletNotFound or ErrTokenNotFound if wallet or token doesn't exist,
+	//            ErrInvalidInput for invalid parameters
+	UpdateTokenBalance(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string, balance decimal.Decimal) error
 
 	// GetWalletBalances retrieves the native and token balances for a wallet
 	GetWalletBalances(ctx context.Context, id int64) ([]*TokenBalanceData, error)
@@ -454,40 +470,81 @@ func (s *walletService) LifecycleEvents() <-chan *LifecycleEvent {
 	return s.lifecycleEvents
 }
 
-// UpdateBalance updates the native balance for a wallet
-func (s *walletService) UpdateBalance(ctx context.Context, id int64, balance decimal.Decimal) error {
-	if id == 0 {
-		return errors.NewInvalidInputError("ID is required", "id", "0")
+// UpdateWalletBalance updates the native balance for a wallet
+func (s *walletService) UpdateWalletBalance(ctx context.Context, chainType types.ChainType, address string, balance decimal.Decimal) error {
+	if chainType == "" {
+		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
-
+	if address == "" {
+		return errors.NewInvalidInputError("Address is required", "address", "")
+	}
 	if balance.Sign() < 0 {
 		return errors.NewInvalidInputError("Balance cannot be negative", "balance", balance.String())
 	}
 
-	return s.repository.UpdateBalance(ctx, id, balance)
-}
-
-// UpdateTokenBalance updates a token balance for a wallet
-func (s *walletService) UpdateTokenBalance(ctx context.Context, walletID, tokenID int64, balance decimal.Decimal) error {
-	if walletID == 0 {
-		return errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "0")
-	}
-
-	if tokenID == 0 {
-		return errors.NewInvalidInputError("Token ID is required", "token_id", "0")
-	}
-
-	if balance.Sign() < 0 {
-		return errors.NewInvalidInputError("Balance cannot be negative", "balance", balance.String())
-	}
-
-	// Check if wallet exists
-	_, err := s.repository.GetByID(ctx, walletID)
+	// Validate chain type and address
+	chain, err := s.chains.Get(chainType)
 	if err != nil {
 		return err
 	}
 
-	return s.repository.UpdateTokenBalance(ctx, walletID, tokenID, balance)
+	if !chain.IsValidAddress(address) {
+		return errors.NewInvalidAddressError(address)
+	}
+
+	// Get wallet by address
+	wallet, err := s.repository.GetByAddress(ctx, chainType, address)
+	if err != nil {
+		return err
+	}
+
+	// Update the wallet balance
+	return s.repository.UpdateBalance(ctx, wallet.ID, balance)
+}
+
+// UpdateTokenBalance updates a token balance for a wallet
+func (s *walletService) UpdateTokenBalance(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string, balance decimal.Decimal) error {
+	if chainType == "" {
+		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
+	}
+	if walletAddress == "" {
+		return errors.NewInvalidInputError("Wallet address is required", "wallet_address", "")
+	}
+	if tokenAddress == "" {
+		return errors.NewInvalidInputError("Token address is required", "token_address", "")
+	}
+	if balance.Sign() < 0 {
+		return errors.NewInvalidInputError("Balance cannot be negative", "balance", balance.String())
+	}
+
+	// Validate chain type and addresses
+	chain, err := s.chains.Get(chainType)
+	if err != nil {
+		return err
+	}
+
+	if !chain.IsValidAddress(walletAddress) {
+		return errors.NewInvalidAddressError(walletAddress)
+	}
+
+	if !chain.IsValidAddress(tokenAddress) {
+		return errors.NewInvalidAddressError(tokenAddress)
+	}
+
+	// Get wallet by address
+	wallet, err := s.repository.GetByAddress(ctx, chainType, walletAddress)
+	if err != nil {
+		return err
+	}
+
+	// Get token by address and chain type
+	token, err := s.tokenStore.GetToken(ctx, tokenAddress, chainType)
+	if err != nil {
+		return err
+	}
+
+	// Update the token balance
+	return s.repository.UpdateTokenBalance(ctx, wallet.ID, token.ID, balance)
 }
 
 // GetWalletBalances retrieves the native and token balances for a wallet
