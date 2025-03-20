@@ -89,6 +89,7 @@ vault0/
 - Document with NatSpec comments
 
 ## Git Workflow
+- NEVER COMMIT THE CODE UNLESS YOU'RE ASKED TO DO IT
 - Follow Angular commit convention
 - Always Check git status and diff to generate meaningful commit messages
 - Keep commits focused and atomic

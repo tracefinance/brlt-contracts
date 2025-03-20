@@ -415,6 +415,49 @@ func (s *transactionService) processERC20TransferLog(ctx context.Context, chain 
 		return
 	}
 
+	// Get blockchain client to fetch transaction details and block information
+	client, err := s.blockchainRegistry.GetBlockchain(chain.Type)
+	if err != nil {
+		s.log.Error("Failed to get blockchain client for transaction details",
+			logger.String("chain_type", string(chain.Type)),
+			logger.Error(err))
+		return
+	}
+
+	// Fetch the full transaction to get gas price and gas limit
+	var gasPrice *big.Int
+	var gasLimit uint64
+	var gasUsed uint64
+	var nonce uint64
+	var timestamp int64
+
+	// Get full transaction details from blockchain
+	fullTx, err := client.GetTransaction(ctx, log.TransactionHash)
+	if err != nil {
+		s.log.Warn("Failed to fetch transaction details, continuing with limited data",
+			logger.String("tx_hash", log.TransactionHash),
+			logger.Error(err))
+	} else {
+		// Extract gas details from the transaction
+		gasPrice = fullTx.GasPrice
+		gasLimit = fullTx.GasLimit
+		gasUsed = fullTx.GasUsed
+		nonce = fullTx.Nonce
+		timestamp = fullTx.Timestamp
+	}
+
+	// If timestamp is not available from the transaction, try to get it from the block
+	if timestamp == 0 && log.BlockNumber != nil {
+		block, err := client.GetBlock(ctx, log.BlockNumber.String())
+		if err != nil {
+			s.log.Warn("Failed to fetch block for timestamp, continuing without it",
+				logger.String("block_number", log.BlockNumber.String()),
+				logger.Error(err))
+		} else {
+			timestamp = block.Timestamp.Unix()
+		}
+	}
+
 	// Create a new transaction directly from the log data
 	tokenAddress := log.Address
 
@@ -426,7 +469,7 @@ func (s *transactionService) processERC20TransferLog(ctx context.Context, chain 
 		value = big.NewInt(0)
 	}
 
-	// Create a transaction record
+	// Create a transaction record with all available details
 	tx := &types.Transaction{
 		Chain:        chain.Type,
 		Hash:         log.TransactionHash,
@@ -437,6 +480,11 @@ func (s *transactionService) processERC20TransferLog(ctx context.Context, chain 
 		TokenAddress: tokenAddress,
 		Status:       types.TransactionStatusSuccess, // ERC20 transfer logs occur only for successful transfers
 		BlockNumber:  log.BlockNumber,
+		Timestamp:    timestamp,
+		GasPrice:     gasPrice,
+		GasLimit:     gasLimit,
+		GasUsed:      gasUsed,
+		Nonce:        nonce,
 	}
 
 	// Get token details from token store
