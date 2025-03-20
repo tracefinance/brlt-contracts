@@ -6,24 +6,6 @@ import (
 	"vault0/internal/types"
 )
 
-// TokenBalance represents a token balance for any blockchain.
-// It includes all necessary information about a token and its balance
-// for a specific address.
-type TokenBalance struct {
-	// TokenAddress is the contract address of the token
-	TokenAddress string
-	// TokenName is the human-readable name of the token
-	TokenName string
-	// TokenSymbol is the trading symbol of the token (e.g., "USDC", "DAI")
-	TokenSymbol string
-	// TokenDecimal specifies the number of decimal places for the token
-	// For example, most ERC20 tokens use 18 decimals
-	TokenDecimal uint8
-	// Balance represents the token balance in its smallest unit
-	// To get the actual balance, divide by 10^TokenDecimal
-	Balance *big.Int
-}
-
 // ContractInfo represents detailed information about a smart contract
 // retrieved from a blockchain explorer.
 type ContractInfo struct {
@@ -135,16 +117,14 @@ type BlockExplorer interface {
 	//   - ErrExplorerRequestFailed for API/network issues
 	GetAddressBalance(ctx context.Context, address string) (*big.Int, error)
 
-	// GetTokenBalances retrieves all token balances for an address.
-	// This includes both ERC20 and ERC721 tokens that the address has interacted with.
+	// GetTokenBalance retrieves the token balance for a specific token for an address.
 	//
-	// The balances are returned in the smallest unit of each token.
-	// To get the actual balance, divide by 10^TokenDecimal.
+	// The balance is returned in the smallest unit of the token.
 	//
 	// Returns:
 	//   - ErrInvalidAddress if the address is invalid
 	//   - ErrExplorerRequestFailed for API/network issues
-	GetTokenBalances(ctx context.Context, address string) ([]*TokenBalance, error)
+	GetTokenBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error)
 
 	// GetContract retrieves detailed information about a smart contract.
 	// This includes the contract's ABI, source code (if verified), and other metadata.

@@ -142,7 +142,10 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 				logger.String("chain", string(e.chain.Type)),
 			)
 			// Calculate exponential backoff delay
-			backoffDelay := min(baseRetryDelay*time.Duration(1<<uint(attempt+2)), 15*time.Second)
+			backoffDelay := baseRetryDelay * time.Duration(1<<uint(attempt+2)) // More aggressive backoff for rate limits
+			if backoffDelay > 15*time.Second {
+				backoffDelay = 15 * time.Second // Cap at 15 seconds for rate limits
+			}
 			time.Sleep(backoffDelay)
 			continue
 		}
@@ -752,46 +755,27 @@ func (e *EtherscanExplorer) GetAddressBalance(ctx context.Context, address strin
 	return balance, nil
 }
 
-// GetTokenBalances implements BlockExplorer.GetTokenBalances
-func (e *EtherscanExplorer) GetTokenBalances(ctx context.Context, address string) ([]*TokenBalance, error) {
+// GetTokenBalance implements BlockExplorer.GetTokenBalance
+func (e *EtherscanExplorer) GetTokenBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error) {
 	params := url.Values{}
 	params.Set("module", "account")
-	params.Set("action", "tokentx")
+	params.Set("action", "tokenbalance")
+	params.Set("contractaddress", tokenAddress)
 	params.Set("address", address)
+	params.Set("tag", "latest")
 
 	data, err := e.makeRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 
-	var tokens []struct {
-		TokenAddress string `json:"contractAddress"`
-		TokenName    string `json:"tokenName"`
-		TokenSymbol  string `json:"tokenSymbol"`
-		TokenDecimal string `json:"tokenDecimal"`
-		Balance      string `json:"value"`
-	}
-
-	if err := json.Unmarshal(data, &tokens); err != nil {
+	// Parse the balance from the response
+	balance := new(big.Int)
+	if err := json.Unmarshal(data, &balance); err != nil {
 		return nil, errors.NewInvalidExplorerResponseError(err, string(data))
 	}
 
-	result := make([]*TokenBalance, len(tokens))
-	for i, token := range tokens {
-		decimals, _ := strconv.ParseUint(token.TokenDecimal, 10, 8)
-		balance := new(big.Int)
-		balance.SetString(token.Balance, 10)
-
-		result[i] = &TokenBalance{
-			TokenAddress: token.TokenAddress,
-			TokenName:    token.TokenName,
-			TokenSymbol:  token.TokenSymbol,
-			TokenDecimal: uint8(decimals),
-			Balance:      balance,
-		}
-	}
-
-	return result, nil
+	return balance, nil
 }
 
 // GetTokenURL implements BlockExplorer.GetTokenURL
