@@ -34,7 +34,7 @@ type WalletResponse struct {
 
 // PagedWalletsResponse represents a response with a list of wallets
 type PagedWalletsResponse struct {
-	Wallets []*WalletResponse `json:"wallets"`
+	Items   []*WalletResponse `json:"items"`
 	Limit   int               `json:"limit"`
 	Offset  int               `json:"offset"`
 	HasMore bool              `json:"has_more"`
@@ -66,7 +66,7 @@ func ToResponseList(wallets []*wallet.Wallet) []*WalletResponse {
 // ToPagedResponse converts a Page of wallet models to a PagedWalletsResponse
 func ToPagedResponse(page *types.Page[*wallet.Wallet]) *PagedWalletsResponse {
 	return &PagedWalletsResponse{
-		Wallets: ToResponseList(page.Items),
+		Items:   ToResponseList(page.Items),
 		Limit:   page.Limit,
 		Offset:  page.Offset,
 		HasMore: page.HasMore,

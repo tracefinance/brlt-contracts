@@ -38,30 +38,30 @@ Located in `app/`, represents complete pages:
 
 ```
 app/
-├── components/                        # Shared components
-│   ├── core/                         # Core UI components
-│   │   ├── button/                   # Button variants
-│   │   │   ├── Button.tsx           # Base button component
-│   │   │   └── types.ts             # Button types and props
-│   │   ├── input/                   # Input components
-│   │   ├── form/                    # Form components
-│   │   └── layout/                  # Layout components
-│   └── features/                    # Feature-specific components
-│       ├── wallet/                  # Wallet-related components
-│       ├── user/                    # User-related components
-│       └── blockchain/              # Blockchain-related components
-├── hooks/                           # Custom React hooks
-│   ├── useWallet.ts                # Wallet-related hooks
-│   ├── useAuth.ts                  # Authentication hooks
-│   └── useBlockchain.ts            # Blockchain interaction hooks
-├── lib/                            # Utility functions and constants
-│   ├── api/                        # API client and endpoints
-│   ├── utils/                      # Helper functions
-│   └── constants/                  # Constants and configurations
-├── providers/                      # React context providers
+├── components/                    # Shared components
+│   ├── ui/                        # Core UI components
+│   │   ├── button/                # Button variants
+│   │   │   ├── Button.tsx         # Base button component
+│   │   │   └── types.ts           # Button types and props
+│   │   ├── input/                 # Input components
+│   │   ├── form/                  # Form components
+│   │   └── layout/                # Layout components
+│   └── features/                  # Feature-specific components
+│       ├── wallet/                # Wallet-related components
+│       ├── user/                  # User-related components
+│       └── blockchain/            # Blockchain-related components
+├── hooks/                         # Custom React hooks
+│   ├── useWallet.ts               # Wallet-related hooks
+│   ├── useAuth.ts                 # Authentication hooks
+│   └── useBlockchain.ts           # Blockchain interaction hooks
+├── lib/                           # Utility functions and constants
+│   ├── api/                       # API client and endpoints
+│   ├── utils/                     # Helper functions
+│   └── constants/                 # Constants and configurations
+├── providers/                     # React context providers
 │   ├── WalletProvider.tsx         # Wallet context
 │   └── AuthProvider.tsx           # Authentication context
-├── styles/                         # Global styles
+├── styles/                        # Global styles
 │   └── tailwind.css               # Tailwind configuration
 └── types/                         # TypeScript type definitions
 ```
