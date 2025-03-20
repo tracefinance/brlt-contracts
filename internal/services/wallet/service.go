@@ -4,9 +4,12 @@ import (
 	"context"
 	"sync"
 
+	"github.com/govalues/decimal"
+
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/keystore"
+	"vault0/internal/core/tokenstore"
 	coreWallet "vault0/internal/core/wallet"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
@@ -147,6 +150,18 @@ type Service interface {
 	// These are events like wallet creation, deletion, etc.
 	// The channel is closed when UnsubscribeFromEvents is called.
 	LifecycleEvents() <-chan *LifecycleEvent
+
+	// UpdateBalance updates the native balance for a wallet
+	UpdateBalance(ctx context.Context, id int64, balance decimal.Decimal) error
+
+	// UpdateTokenBalance updates a token balance for a wallet
+	UpdateTokenBalance(ctx context.Context, walletID, tokenID int64, balance decimal.Decimal) error
+
+	// GetWalletBalances retrieves the native and token balances for a wallet
+	GetWalletBalances(ctx context.Context, id int64) ([]*TokenBalanceData, error)
+
+	// GetWalletBalancesByAddress retrieves the native and token balances for a wallet by its address
+	GetWalletBalancesByAddress(ctx context.Context, chainType types.ChainType, address string) ([]*TokenBalanceData, error)
 }
 
 // walletService implements the Service interface
@@ -155,6 +170,7 @@ type walletService struct {
 	log                logger.Logger
 	repository         Repository
 	keystore           keystore.KeyStore
+	tokenStore         tokenstore.TokenStore
 	walletFactory      coreWallet.Factory
 	blockchainRegistry blockchain.Registry
 	chains             *types.Chains
@@ -168,6 +184,7 @@ func NewService(
 	log logger.Logger,
 	repository Repository,
 	keyStore keystore.KeyStore,
+	tokenStore tokenstore.TokenStore,
 	walletFactory coreWallet.Factory,
 	blockchainRegistry blockchain.Registry,
 	chains *types.Chains,
@@ -178,6 +195,7 @@ func NewService(
 		log:                log,
 		repository:         repository,
 		keystore:           keyStore,
+		tokenStore:         tokenStore,
 		walletFactory:      walletFactory,
 		blockchainRegistry: blockchainRegistry,
 		chains:             chains,
@@ -232,7 +250,7 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 	}
 
 	if err := s.repository.Create(ctx, wallet); err != nil {
-		return nil, errors.NewOperationFailedError("create wallet", err)
+		return nil, err
 	}
 
 	s.emitLifecycleEvent(&LifecycleEvent{
@@ -390,7 +408,7 @@ func (s *walletService) List(ctx context.Context, limit, offset int) (*types.Pag
 
 	wallets, err := s.repository.List(ctx, limit, offset)
 	if err != nil {
-		return nil, errors.NewOperationFailedError("list wallets", err)
+		return nil, err
 	}
 
 	return wallets, nil
@@ -434,4 +452,142 @@ func (s *walletService) GetByID(ctx context.Context, id int64) (*Wallet, error) 
 // LifecycleEvents returns the lifecycle events channel
 func (s *walletService) LifecycleEvents() <-chan *LifecycleEvent {
 	return s.lifecycleEvents
+}
+
+// UpdateBalance updates the native balance for a wallet
+func (s *walletService) UpdateBalance(ctx context.Context, id int64, balance decimal.Decimal) error {
+	if id == 0 {
+		return errors.NewInvalidInputError("ID is required", "id", "0")
+	}
+
+	if balance.Sign() < 0 {
+		return errors.NewInvalidInputError("Balance cannot be negative", "balance", balance.String())
+	}
+
+	return s.repository.UpdateBalance(ctx, id, balance)
+}
+
+// UpdateTokenBalance updates a token balance for a wallet
+func (s *walletService) UpdateTokenBalance(ctx context.Context, walletID, tokenID int64, balance decimal.Decimal) error {
+	if walletID == 0 {
+		return errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "0")
+	}
+
+	if tokenID == 0 {
+		return errors.NewInvalidInputError("Token ID is required", "token_id", "0")
+	}
+
+	if balance.Sign() < 0 {
+		return errors.NewInvalidInputError("Balance cannot be negative", "balance", balance.String())
+	}
+
+	// Check if wallet exists
+	_, err := s.repository.GetByID(ctx, walletID)
+	if err != nil {
+		return err
+	}
+
+	return s.repository.UpdateTokenBalance(ctx, walletID, tokenID, balance)
+}
+
+// GetWalletBalances retrieves the native and token balances for a wallet
+func (s *walletService) GetWalletBalances(ctx context.Context, id int64) ([]*TokenBalanceData, error) {
+	if id == 0 {
+		return nil, errors.NewInvalidInputError("ID is required", "id", "0")
+	}
+
+	// Get the wallet to access its native balance and chain type
+	wallet, err := s.repository.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get token balances
+	tokenBalances, err := s.repository.GetTokenBalances(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create result slice with enough capacity for native token + all token balances
+	result := make([]*TokenBalanceData, 0, len(tokenBalances)+1)
+
+	// Get the native token for this chain
+	nativeToken, err := s.tokenStore.GetNativeToken(ctx, wallet.ChainType)
+	if err != nil {
+		return nil, err
+	} else {
+		// Add native token balance
+		result = append(result, &TokenBalanceData{
+			Token:     nativeToken,
+			Balance:   wallet.Balance,
+			UpdatedAt: wallet.UpdatedAt,
+		})
+	}
+
+	// If there are no token balances, return the native token balance
+	if len(tokenBalances) == 0 {
+		return result, nil
+	}
+
+	// If there are token balances, fetch all tokens at once
+	// Extract token IDs
+	tokenIDs := make([]int64, len(tokenBalances))
+	for i, tb := range tokenBalances {
+		tokenIDs[i] = tb.TokenID
+	}
+
+	// Fetch all tokens in a single call
+	tokensPage, err := s.tokenStore.ListTokensByIDs(ctx, tokenIDs, 0, 0) // No pagination limit
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a map for quick token lookup by ID
+	tokenMap := make(map[int64]*types.Token, len(tokensPage.Items))
+	for i := range tokensPage.Items {
+		tokenMap[tokensPage.Items[i].ID] = &tokensPage.Items[i]
+	}
+
+	// Add token balances
+	for _, tb := range tokenBalances {
+		if token, ok := tokenMap[tb.TokenID]; ok {
+			result = append(result, &TokenBalanceData{
+				Token:     token,
+				Balance:   tb.Balance,
+				UpdatedAt: tb.UpdatedAt,
+			})
+		} else {
+			s.log.Warn("Token not found in results",
+				logger.Int64("token_id", tb.TokenID))
+		}
+	}
+
+	return result, nil
+}
+
+// GetWalletBalancesByAddress retrieves the native and token balances for a wallet by its address
+func (s *walletService) GetWalletBalancesByAddress(ctx context.Context, chainType types.ChainType, address string) ([]*TokenBalanceData, error) {
+	if chainType == "" {
+		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
+	}
+
+	if address == "" {
+		return nil, errors.NewInvalidInputError("Address is required", "address", "")
+	}
+
+	chain, err := s.chains.Get(chainType)
+	if err != nil {
+		return nil, err
+	}
+
+	if !chain.IsValidAddress(address) {
+		return nil, errors.NewInvalidAddressError(address)
+	}
+
+	wallet, err := s.repository.GetByAddress(ctx, chainType, address)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.GetWalletBalances(ctx, wallet.ID)
 }

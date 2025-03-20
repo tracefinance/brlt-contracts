@@ -37,6 +37,7 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	walletRoutes.PUT("/:chain_type/:address", h.UpdateWallet)
 	walletRoutes.DELETE("/:chain_type/:address", h.DeleteWallet)
 	walletRoutes.GET("", h.ListWallets)
+	walletRoutes.GET("/:chain_type/:address/balance", h.GetWalletBalance)
 }
 
 // CreateWallet handles wallet creation
@@ -203,4 +204,40 @@ func (h *Handler) ListWallets(c *gin.Context) {
 
 	// Write response
 	c.JSON(http.StatusOK, ToPagedResponse(walletPage))
+}
+
+// GetWalletBalance handles retrieving a wallet's balances by chain type and address
+// @Summary Get a wallet's balances
+// @Description Get a wallet's native and token balances by chain type and address
+// @Tags wallets
+// @Produce json
+// @Param chain_type path string true "Chain type"
+// @Param address path string true "Wallet address"
+// @Success 200 {object} WalletBalancesResponse
+// @Failure 404 {object} errors.Vault0Error "Wallet not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /wallets/{chain_type}/{address}/balance [get]
+func (h *Handler) GetWalletBalance(c *gin.Context) {
+	chainType := types.ChainType(c.Param("chain_type"))
+	address := c.Param("address")
+
+	// Get the wallet
+	wallet, err := h.walletService.GetByAddress(c.Request.Context(), chainType, address)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	// Get the wallet balances
+	balances, err := h.walletService.GetWalletBalancesByAddress(c.Request.Context(), chainType, address)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	// Convert to response
+	response := ToWalletBalancesResponse(wallet, balances)
+
+	// Write response
+	c.JSON(http.StatusOK, response)
 }

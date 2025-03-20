@@ -16,6 +16,9 @@ type TokenStore interface {
 	// GetToken retrieves a token by its identifier (address and chain type)
 	GetToken(ctx context.Context, address string, chainType types.ChainType) (*types.Token, error)
 
+	// GetNativeToken retrieves the native token for a blockchain
+	GetNativeToken(ctx context.Context, chainType types.ChainType) (*types.Token, error)
+
 	// GetTokenByID retrieves a token by its ID
 	GetTokenByID(ctx context.Context, id int64) (*types.Token, error)
 
@@ -32,6 +35,12 @@ type TokenStore interface {
 	// ListTokensByChain retrieves tokens for a specific blockchain with pagination
 	// If limit is 0, returns all tokens without pagination
 	ListTokensByChain(ctx context.Context, chainType types.ChainType, offset, limit int) (*types.Page[types.Token], error)
+
+	// ListTokensByIDs retrieves tokens by a list of token IDs with pagination
+	// Returns tokens in the same order as the input IDs
+	// If a token ID is not found, it will be skipped in the result
+	// If limit is 0, returns all tokens without pagination
+	ListTokensByIDs(ctx context.Context, ids []int64, offset, limit int) (*types.Page[types.Token], error)
 }
 
 // NewTokenStore creates a new TokenStore instance

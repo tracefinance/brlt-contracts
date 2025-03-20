@@ -3,7 +3,9 @@ package tokenstore
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"vault0/internal/db"
@@ -321,4 +323,126 @@ func (s *dbTokenStore) Exists(ctx context.Context, address string, chainType typ
 	}
 
 	return exists, nil
+}
+
+// ListTokensByIDs retrieves tokens by a list of token IDs with pagination
+func (s *dbTokenStore) ListTokensByIDs(ctx context.Context, ids []int64, offset, limit int) (*types.Page[types.Token], error) {
+	if len(ids) == 0 {
+		return types.NewPage([]types.Token{}, offset, limit), nil
+	}
+
+	// Create placeholders for the SQL IN clause
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	// Join the placeholders with commas using strings.Join
+	placeholdersStr := strings.Join(placeholders, ",")
+
+	// Build the query using the placeholders
+	query := `SELECT id, address, chain_type, symbol, decimals, type 
+		FROM tokens 
+		WHERE id IN (` + placeholdersStr + `)`
+
+	// Add pagination if limit > 0
+	if limit > 0 {
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, limit, offset)
+	}
+
+	rows, err := s.db.ExecuteQueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, errors.NewDatabaseError(err)
+	}
+	defer rows.Close()
+
+	// Scan tokens from rows
+	tokens, err := s.scanTokensFromRows(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a map of token IDs to tokens for quick lookup
+	tokenMap := make(map[int64]*types.Token, len(tokens))
+	for _, token := range tokens {
+		tokenMap[token.ID] = token
+	}
+
+	// Create result slice with tokens in the same order as the input IDs
+	// Skip IDs that don't have corresponding tokens
+	// Apply pagination manually since SQL limit/offset doesn't respect the original order
+	resultTokens := make([]types.Token, 0, len(tokens))
+
+	// If limit is 0, process all IDs
+	if limit <= 0 {
+		for _, id := range ids {
+			if token, exists := tokenMap[id]; exists {
+				resultTokens = append(resultTokens, *token)
+			}
+		}
+	} else {
+		// Apply manual pagination to maintain order of input IDs
+		// Skip tokens before offset
+		startIndex := offset
+		endIndex := offset + limit
+
+		// Ensure we don't go out of bounds
+		if startIndex >= len(ids) {
+			startIndex = len(ids)
+		}
+		if endIndex > len(ids) {
+			endIndex = len(ids)
+		}
+
+		// Process only the IDs within the paginated range
+		for i := startIndex; i < endIndex; i++ {
+			if token, exists := tokenMap[ids[i]]; exists {
+				resultTokens = append(resultTokens, *token)
+			}
+		}
+	}
+
+	return types.NewPage(resultTokens, offset, limit), nil
+}
+
+// GetNativeToken retrieves the native token for a blockchain
+func (s *dbTokenStore) GetNativeToken(ctx context.Context, chainType types.ChainType) (*types.Token, error) {
+	// First check if the native token exists in the database
+	var token types.Token
+	rows, err := s.db.ExecuteQueryContext(
+		ctx,
+		`SELECT id, address, chain_type, symbol, decimals, type
+		FROM tokens
+		WHERE chain_type = ? AND type = ?`,
+		chainType,
+		types.TokenTypeNative,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		err = rows.Scan(
+			&token.ID,
+			&token.Address,
+			&token.ChainType,
+			&token.Symbol,
+			&token.Decimals,
+			&token.Type,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return &token, nil
+	}
+
+	// If native token not found, return error
+	return nil, errors.NewInvalidTokenError(
+		fmt.Sprintf("native token for chain %s not found", chainType),
+		nil,
+	)
 }

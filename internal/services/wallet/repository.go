@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/govalues/decimal"
+
 	"vault0/internal/db"
 	"vault0/internal/errors"
 	"vault0/internal/types"
@@ -34,6 +36,18 @@ type Repository interface {
 
 	// Exists checks if a wallet exists by its chain type and address
 	Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error)
+
+	// UpdateBalance updates a wallet's native balance
+	UpdateBalance(ctx context.Context, id int64, balance decimal.Decimal) error
+
+	// GetWalletBalances retrieves a wallet's native and token balances
+	GetWalletBalances(ctx context.Context, id int64) ([]*TokenBalance, error)
+
+	// UpdateTokenBalance updates or creates a token balance for a wallet
+	UpdateTokenBalance(ctx context.Context, walletID, tokenID int64, balance decimal.Decimal) error
+
+	// GetTokenBalances retrieves all token balances for a wallet
+	GetTokenBalances(ctx context.Context, walletID int64) ([]*TokenBalance, error)
 }
 
 // repository implements Repository interface for SQLite
@@ -53,7 +67,7 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 		var err error
 		wallet.ID, err = r.db.GenerateID()
 		if err != nil {
-			return errors.NewOperationFailedError("generate wallet id", err)
+			return err
 		}
 	}
 
@@ -65,12 +79,12 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 	// Convert tags to JSON
 	tagsJSON, err := json.Marshal(wallet.Tags)
 	if err != nil {
-		return errors.NewOperationFailedError("marshal wallet tags", err)
+		return err
 	}
 
 	query := `
-		INSERT INTO wallets (id, key_id, chain_type, address, name, tags, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO wallets (id, key_id, chain_type, address, name, tags, balance, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err = r.db.ExecuteStatementContext(
@@ -82,6 +96,7 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 		wallet.Address,
 		wallet.Name,
 		string(tagsJSON),
+		wallet.Balance,
 		wallet.CreatedAt,
 		wallet.UpdatedAt,
 	)
@@ -99,7 +114,7 @@ func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType
 	normalizedAddress := types.NormalizeAddress(address)
 
 	query := `
-		SELECT id, key_id, chain_type, address, name, tags, last_block_number, created_at, updated_at, deleted_at
+		SELECT id, key_id, chain_type, address, name, tags, balance, last_block_number, created_at, updated_at, deleted_at
 		FROM wallets
 		WHERE chain_type = ? AND lower(address) = ? AND deleted_at IS NULL
 	`
@@ -125,7 +140,7 @@ func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType
 // GetByID retrieves a wallet by its ID
 func (r *repository) GetByID(ctx context.Context, id int64) (*Wallet, error) {
 	query := `
-		SELECT id, key_id, chain_type, address, name, tags, last_block_number, created_at, updated_at, deleted_at
+		SELECT id, key_id, chain_type, address, name, tags, balance, last_block_number, created_at, updated_at, deleted_at
 		FROM wallets
 		WHERE id = ? AND deleted_at IS NULL
 	`
@@ -153,14 +168,14 @@ func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 	// Convert tags to JSON
 	tagsJSON, err := json.Marshal(wallet.Tags)
 	if err != nil {
-		return errors.NewOperationFailedError("marshal wallet tags", err)
+		return err
 	}
 
 	wallet.UpdatedAt = time.Now()
 
 	query := `
 		UPDATE wallets
-		SET name = ?, tags = ?, last_block_number = ?, updated_at = ?
+		SET name = ?, tags = ?, balance = ?, last_block_number = ?, updated_at = ?
 		WHERE id = ? AND deleted_at IS NULL
 	`
 
@@ -169,6 +184,7 @@ func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 		query,
 		wallet.Name,
 		string(tagsJSON),
+		wallet.Balance,
 		wallet.LastBlockNumber,
 		wallet.UpdatedAt,
 		wallet.ID,
@@ -229,26 +245,30 @@ func (r *repository) Delete(ctx context.Context, chainType types.ChainType, addr
 // List retrieves wallets with optional filtering
 func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*Wallet], error) {
 	query := `
-		SELECT id, key_id, chain_type, address, name, tags, last_block_number, created_at, updated_at, deleted_at
+		SELECT id, key_id, chain_type, address, name, tags, balance, last_block_number, created_at, updated_at, deleted_at
 		FROM wallets
 		WHERE deleted_at IS NULL
-		ORDER BY created_at DESC
 	`
 
-	args := []any{}
-
-	// Add pagination if limit > 0
-	if limit > 0 {
-		query += " LIMIT ? OFFSET ?"
-		args = append(args, limit, offset)
+	// Default pagination values
+	if limit <= 0 {
+		limit = 10
+	}
+	if offset < 0 {
+		offset = 0
 	}
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
+	// Add pagination
+	query += " LIMIT ? OFFSET ?"
+
+	// Execute the query
+	rows, err := r.db.ExecuteQueryContext(ctx, query, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
+	// Scan the results
 	var wallets []*Wallet
 	for rows.Next() {
 		wallet, err := ScanWallet(rows)
@@ -258,11 +278,39 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 		wallets = append(wallets, wallet)
 	}
 
+	// Check for errors during iteration
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return types.NewPage(wallets, offset, limit), nil
+	// Count total wallets for pagination
+	var total int
+	countQuery := `
+		SELECT COUNT(*) FROM wallets WHERE deleted_at IS NULL
+	`
+
+	countRows, err := r.db.ExecuteQueryContext(ctx, countQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer countRows.Close()
+
+	if countRows.Next() {
+		if err := countRows.Scan(&total); err != nil {
+			return nil, err
+		}
+	}
+
+	// Calculate hasMore
+	hasMore := offset+len(wallets) < total
+
+	// Create and return the page
+	return &types.Page[*Wallet]{
+		Items:   wallets,
+		Limit:   limit,
+		Offset:  offset,
+		HasMore: hasMore,
+	}, nil
 }
 
 // Exists checks if a wallet exists by its chain type and address
@@ -271,22 +319,119 @@ func (r *repository) Exists(ctx context.Context, chainType types.ChainType, addr
 	normalizedAddress := types.NormalizeAddress(address)
 
 	query := `
-		SELECT COUNT(*) > 0
-		FROM wallets
-		WHERE chain_type = ? AND lower(address) = ? AND deleted_at IS NULL
+		SELECT EXISTS(
+			SELECT 1 FROM wallets 
+			WHERE chain_type = ? AND lower(address) = ? AND deleted_at IS NULL
+		)
 	`
 
+	var exists bool
 	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, normalizedAddress)
 	if err != nil {
 		return false, err
 	}
 	defer rows.Close()
 
-	exists := rows.Next()
-
-	if err = rows.Err(); err != nil {
-		return false, err
+	if rows.Next() {
+		if err := rows.Scan(&exists); err != nil {
+			return false, err
+		}
 	}
 
 	return exists, nil
+}
+
+// UpdateBalance updates a wallet's native balance
+func (r *repository) UpdateBalance(ctx context.Context, id int64, balance decimal.Decimal) error {
+	query := `
+		UPDATE wallets
+		SET balance = ?, updated_at = ?
+		WHERE id = ? AND deleted_at IS NULL
+	`
+
+	result, err := r.db.ExecuteStatementContext(
+		ctx,
+		query,
+		balance.String(),
+		time.Now(),
+		id,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return errors.NewWalletNotFoundError(strconv.FormatInt(id, 10))
+	}
+
+	return nil
+}
+
+// GetWalletBalances retrieves a wallet's native and token balances
+func (r *repository) GetWalletBalances(ctx context.Context, id int64) ([]*TokenBalance, error) {
+	return r.GetTokenBalances(ctx, id)
+}
+
+// UpdateTokenBalance updates or creates a token balance for a wallet
+func (r *repository) UpdateTokenBalance(ctx context.Context, walletID, tokenID int64, balance decimal.Decimal) error {
+	query := `
+		INSERT INTO token_balances (wallet_id, token_id, balance, updated_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (wallet_id, token_id) DO UPDATE
+		SET balance = ?, updated_at = ?
+	`
+
+	now := time.Now()
+	_, err := r.db.ExecuteStatementContext(
+		ctx,
+		query,
+		walletID,
+		tokenID,
+		balance.String(),
+		now,
+		balance.String(),
+		now,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetTokenBalances retrieves all token balances for a wallet
+func (r *repository) GetTokenBalances(ctx context.Context, walletID int64) ([]*TokenBalance, error) {
+	query := `
+		SELECT wallet_id, token_id, balance, updated_at
+		FROM token_balances
+		WHERE wallet_id = ?
+	`
+
+	rows, err := r.db.ExecuteQueryContext(ctx, query, walletID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tokenBalances []*TokenBalance
+	for rows.Next() {
+		tokenBalance, err := ScanTokenBalance(rows)
+		if err != nil {
+			return nil, err
+		}
+		tokenBalances = append(tokenBalances, tokenBalance)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return tokenBalances, nil
 }
