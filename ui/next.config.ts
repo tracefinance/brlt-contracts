@@ -1,3 +1,5 @@
+// Import reflect-metadata at the entry point
+import 'reflect-metadata';
 import type { NextConfig } from "next";
 
 /** @type {import('next').NextConfig} */

@@ -2,12 +2,12 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { WalletFrontend } from "@/types/wallet";
 import { format } from "date-fns";
 import { truncateMiddle } from "@/lib/utils";
+import { Wallet } from "@/types/models/wallet.model";
 
 interface WalletDetailProps {
-  wallet: WalletFrontend;
+  wallet: Wallet;
 }
 
 export default function WalletDetail({ wallet }: WalletDetailProps) {

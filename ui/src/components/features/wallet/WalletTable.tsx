@@ -16,15 +16,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import { WalletFrontend } from "@/types/wallet";
 import { Card } from "@/components/ui/card";
 import { cn, truncateMiddle } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { Wallet } from "@/types/models/wallet.model";
 
 interface WalletTableProps {
-  wallets: WalletFrontend[];
-  onEdit: (wallet: WalletFrontend) => void;
-  onDelete: (wallet: WalletFrontend) => void;
+  wallets: Wallet[];
+  onEdit: (wallet: Wallet) => void;
+  onDelete: (wallet: Wallet) => void;
 }
 
 export default function WalletTable({ wallets = [], onEdit, onDelete }: WalletTableProps) {
@@ -34,7 +34,7 @@ export default function WalletTable({ wallets = [], onEdit, onDelete }: WalletTa
   const walletsArray = Array.isArray(wallets) ? wallets : [];
   
   // Function to navigate to wallet details page
-  const navigateToWalletDetails = (wallet: WalletFrontend) => {
+  const navigateToWalletDetails = (wallet: Wallet) => {
     router.push(`/wallets/${encodeURIComponent(wallet.chainType)}/${encodeURIComponent(wallet.address)}`);
   };
   

@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -21,25 +20,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { WalletFrontend, CreateWalletRequest, UpdateWalletRequest } from "@/types/wallet";
+import { Wallet } from "@/types/models/wallet.model";
 
-// Schema for creating a new wallet
+// Create Zod schemas
 const createFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  chain_type: z.string().min(1, "Chain type is required"),
+  chainType: z.string().min(1, "Chain type is required"),
 });
 
-// Schema for updating an existing wallet
 const updateFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
 });
 
+// Infer the form types from the schemas
 type CreateFormValues = z.infer<typeof createFormSchema>;
 type UpdateFormValues = z.infer<typeof updateFormSchema>;
 
 interface WalletFormProps {
-  wallet?: WalletFrontend;
-  onSubmit: (data: any) => Promise<void>; // Using any to work around TypeScript issues
+  wallet?: Wallet;
+  onSubmit: (data: any) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -47,15 +46,15 @@ export default function WalletForm({ wallet, onSubmit, onCancel }: WalletFormPro
   const isEditing = !!wallet;
   
   // Use the appropriate form schema based on whether we're editing or creating
-  const form = useForm({
+  const form = useForm<CreateFormValues | UpdateFormValues>({
     resolver: zodResolver(isEditing ? updateFormSchema : createFormSchema),
     defaultValues: {
       name: wallet?.name || "",
-      ...(isEditing ? {} : { chain_type: "" }),
-    },
+      ...(isEditing ? {} : { chainType: "" }),
+    } as any,
   });
 
-  async function handleSubmit(values: any) {
+  async function handleSubmit(values: CreateFormValues | UpdateFormValues) {
     try {
       await onSubmit(values);
       form.reset();
@@ -84,7 +83,7 @@ export default function WalletForm({ wallet, onSubmit, onCancel }: WalletFormPro
         {!isEditing && (
           <FormField
             control={form.control}
-            name="chain_type"
+            name="chainType"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Chain Type</FormLabel>

@@ -3,12 +3,14 @@
  * Centralizes exports from all API-related modules
  */
 
-// Re-export the core API client
-export * from './client';
+// Export the base API class for extending
+export { BaseApi } from './base.api';
 
-// Re-export domain-specific API services 
-export * as walletApi from './wallet';
-export * as transactionApi from './transaction';
+// Export API services
+export { WalletApi } from './wallet.api';
+export { TransactionApi } from './transaction.api';
+
+// Additional API services can be exported here as the application grows
 
 // Add additional API services as they are created
 // export * as userApi from './user';
@@ -22,11 +24,11 @@ export * as transactionApi from './transaction';
  * 
  * Example usage:
  * 
- * import { walletApi, transactionApi } from '@/lib/api';
+ * import { WalletApi, TransactionApi } from '@/lib/api';
  * 
  * // Then use the wallet API functions
- * const wallets = await walletApi.getWallets();
+ * const wallets = await WalletApi.getWallets();
  * 
  * // Or transaction API functions
- * const transactions = await transactionApi.getTransactionsByWallet('ethereum', '0x123...');
+ * const transactions = await TransactionApi.getTransactions('ethereum', '0x123...');
  */ 

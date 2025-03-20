@@ -10,14 +10,14 @@ import {
 } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TransactionFrontend } from "@/types/transaction";
+import { Transaction } from "@/types/models/transaction.model";
 import { cn, truncateMiddle } from "@/lib/utils";
 import { format } from "date-fns";
 import { TokenIcon } from "@web3icons/react";
 import { CircleDollarSign } from "lucide-react";
 
 interface TransactionTableProps {
-  transactions: TransactionFrontend[];
+  transactions: Transaction[];
   isLoading?: boolean;
 }
 

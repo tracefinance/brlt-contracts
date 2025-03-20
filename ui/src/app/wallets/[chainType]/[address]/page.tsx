@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { walletApi, transactionApi } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { WalletFrontend } from "@/types/wallet";
-import { TransactionFrontend } from "@/types/transaction";
 import { ChevronLeft, RefreshCw } from "lucide-react";
 import WalletDetail from "@/components/features/wallet/WalletDetail";
 import TransactionTable from "@/components/features/transaction/TransactionTable";
+import { WalletApi } from "@/lib/api/wallet.api";
+import { TransactionApi } from "@/lib/api/transaction.api";
+import { Wallet } from "@/types/models/wallet.model";
+import { Transaction, PagedTransactions } from "@/types/models/transaction.model";
 
 export default function WalletDetailsPage() {
   const params = useParams();
@@ -19,8 +20,8 @@ export default function WalletDetailsPage() {
   const chainType = decodeURIComponent(params.chainType as string);
   const address = decodeURIComponent(params.address as string);
   
-  const [wallet, setWallet] = useState<WalletFrontend | null>(null);
-  const [transactions, setTransactions] = useState<TransactionFrontend[]>([]);
+  const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isWalletLoading, setIsWalletLoading] = useState(true);
   const [isTransactionsLoading, setIsTransactionsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -43,7 +44,7 @@ export default function WalletDetailsPage() {
   async function fetchWallet() {
     try {
       setIsWalletLoading(true);
-      const result = await walletApi.getWallet(chainType, address);
+      const result = await WalletApi.getWallet(chainType, address);
       setWallet(result);
     } catch (error) {
       console.error("Failed to fetch wallet:", error);
@@ -62,8 +63,8 @@ export default function WalletDetailsPage() {
   async function fetchTransactions() {
     try {
       setIsTransactionsLoading(true);
-      const result = await transactionApi.getTransactionsByWallet(chainType, address, limit, offset);
-      setTransactions(result.transactions);
+      const result = await TransactionApi.getTransactions(chainType, address, limit, offset);
+      setTransactions(result.items);
       setHasMore(result.hasMore);
     } catch (error) {
       console.error("Failed to fetch transactions:", error);
@@ -82,14 +83,14 @@ export default function WalletDetailsPage() {
   async function handleSyncTransactions() {
     try {
       setIsSyncing(true);
-      const count = await transactionApi.syncTransactions(chainType, address);
+      const result = await TransactionApi.syncTransactions(chainType, address);
       
       // Refresh transactions after sync
       await fetchTransactions();
       
       toast({
         title: "Success",
-        description: `Synced ${count} new transactions`,
+        description: `Synced ${result.count} new transactions`,
       });
     } catch (error) {
       console.error("Failed to sync transactions:", error);

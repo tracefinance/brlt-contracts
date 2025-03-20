@@ -10,17 +10,17 @@ import {
 } from "@/components/ui/dialog";
 import WalletTable from "@/components/features/wallet/WalletTable";
 import WalletForm from "@/components/features/wallet/WalletForm";
-import { WalletFrontend, CreateWalletRequest, UpdateWalletRequest } from "@/types/wallet";
-import { walletApi } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { PlusCircle } from "lucide-react";
+import { Wallet, CreateWalletRequest, UpdateWalletRequest } from "@/types/models/wallet.model";
+import { WalletApi } from "@/lib/api/wallet.api";
 
 export default function WalletsPage() {
   const { toast } = useToast();
-  const [wallets, setWallets] = useState<WalletFrontend[]>([]);
+  const [wallets, setWallets] = useState<Wallet[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingWallet, setEditingWallet] = useState<WalletFrontend | null>(null);
+  const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   
   // Pagination state
   const [limit] = useState(10);
@@ -35,9 +35,9 @@ export default function WalletsPage() {
   async function fetchWallets() {
     try {
       setLoading(true);
-      const result = await walletApi.getWallets(limit, offset);
+      const result = await WalletApi.getWallets(limit, offset);
       // Update wallets and pagination state
-      setWallets(result.wallets || []);
+      setWallets(result.items || []);
       setHasMore(result.hasMore);
     } catch (error) {
       console.error("Failed to fetch wallets:", error);
@@ -54,9 +54,11 @@ export default function WalletsPage() {
     }
   }
 
-  async function handleCreateWallet(data: CreateWalletRequest) {
+  async function handleCreateWallet(data: any) {
     try {
-      const newWallet = await walletApi.createWallet(data);
+      // Create a CreateWalletRequest from the form data
+      const createRequest = new CreateWalletRequest(data.chain_type, data.name);
+      const newWallet = await WalletApi.createWallet(createRequest);
       setWallets([...wallets, newWallet]);
       setIsCreateOpen(false);
       toast({
@@ -74,11 +76,13 @@ export default function WalletsPage() {
     }
   }
 
-  async function handleUpdateWallet(data: UpdateWalletRequest) {
+  async function handleUpdateWallet(data: any) {
     if (!editingWallet) return;
     
     try {
-      const updated = await walletApi.updateWallet(editingWallet.chainType, editingWallet.address, data);
+      // Create an UpdateWalletRequest from the form data
+      const updateRequest = new UpdateWalletRequest(data.name);
+      const updated = await WalletApi.updateWallet(editingWallet.chainType, editingWallet.address, updateRequest);
       setWallets(wallets.map(w => w.id === updated.id ? updated : w));
       setEditingWallet(null);
       toast({
@@ -96,9 +100,9 @@ export default function WalletsPage() {
     }
   }
 
-  async function handleDeleteWallet(wallet: WalletFrontend) {
+  async function handleDeleteWallet(wallet: Wallet) {
     try {
-      await walletApi.deleteWallet(wallet.chainType, wallet.address);
+      await WalletApi.deleteWallet(wallet.chainType, wallet.address);
       setWallets(wallets.filter(w => w.id !== wallet.id));
       toast({
         title: "Success",
