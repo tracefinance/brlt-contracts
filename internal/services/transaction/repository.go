@@ -79,8 +79,8 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 		INSERT INTO transactions (
 			id, wallet_id, chain_type, hash, from_address, to_address, 
 			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			status, timestamp, block_number, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			token_symbol, status, timestamp, block_number, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err := r.db.ExecuteStatementContext(
@@ -99,6 +99,7 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 		tx.GasLimit,
 		tx.Type,
 		tx.TokenAddress,
+		tx.TokenSymbol,
 		tx.Status,
 		tx.Timestamp,
 		tx.BlockNumber,
@@ -115,7 +116,7 @@ func (r *repository) GetByTxHash(ctx context.Context, hash string) (*Transaction
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
 			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			status, timestamp, block_number, created_at, updated_at
+			token_symbol, status, timestamp, block_number, created_at, updated_at
 		FROM transactions
 		WHERE hash = ?
 	`
@@ -144,7 +145,7 @@ func (r *repository) ListByWalletID(ctx context.Context, walletID int64, limit, 
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
 			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			status, timestamp, block_number, created_at, updated_at
+			token_symbol, status, timestamp, block_number, created_at, updated_at
 		FROM transactions
 		WHERE wallet_id = ?
 		ORDER BY timestamp DESC
@@ -189,7 +190,7 @@ func (r *repository) ListByWalletAddress(ctx context.Context, chainType types.Ch
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
 			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			status, timestamp, block_number, created_at, updated_at
+			token_symbol, status, timestamp, block_number, created_at, updated_at
 		FROM transactions
 		WHERE chain_type = ? AND (lower(from_address) = ? OR lower(to_address) = ?)
 		ORDER BY timestamp DESC
@@ -232,7 +233,7 @@ func (r *repository) List(ctx context.Context, filter *Filter) (*types.Page[*Tra
 		SELECT 
 			id, wallet_id, chain_type, hash, from_address, to_address, 
 			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			status, timestamp, block_number, created_at, updated_at
+			token_symbol, status, timestamp, block_number, created_at, updated_at
 		FROM transactions
 		WHERE 1=1
 	`
@@ -348,6 +349,7 @@ func (r *repository) Update(ctx context.Context, tx *Transaction) error {
 			gas_limit = ?, 
 			type = ?, 
 			token_address = ?, 
+			token_symbol = ?,
 			status = ?, 
 			timestamp = ?,
 			block_number = ?,
@@ -370,6 +372,7 @@ func (r *repository) Update(ctx context.Context, tx *Transaction) error {
 		tx.GasLimit,
 		tx.Type,
 		tx.TokenAddress,
+		tx.TokenSymbol,
 		tx.Status,
 		tx.Timestamp,
 		tx.BlockNumber,

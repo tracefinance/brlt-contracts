@@ -22,6 +22,7 @@ type Transaction struct {
 	GasLimit     uint64          `db:"gas_limit"`
 	Type         string          `db:"type"`
 	TokenAddress string          `db:"token_address"`
+	TokenSymbol  string          `db:"token_symbol"`
 	Status       string          `db:"status"`
 	Timestamp    int64           `db:"timestamp"`
 	BlockNumber  *int64          `db:"block_number"`
@@ -50,6 +51,7 @@ func ScanTransaction(row interface {
 		&tx.GasLimit,
 		&tx.Type,
 		&tx.TokenAddress,
+		&tx.TokenSymbol,
 		&tx.Status,
 		&tx.Timestamp,
 		&tx.BlockNumber,
@@ -96,6 +98,7 @@ func FromCoreTransaction(coreTx *types.Transaction, walletID int64) *Transaction
 		GasLimit:     coreTx.GasLimit,
 		Type:         string(coreTx.Type),
 		TokenAddress: coreTx.TokenAddress,
+		TokenSymbol:  coreTx.TokenSymbol,
 		Status:       string(coreTx.Status),
 		Timestamp:    coreTx.Timestamp,
 		BlockNumber:  blockNumber,
@@ -121,6 +124,7 @@ func (t *Transaction) ToCoreTransaction() *types.Transaction {
 		GasLimit:     t.GasLimit,
 		Type:         types.TransactionType(t.Type),
 		TokenAddress: t.TokenAddress,
+		TokenSymbol:  t.TokenSymbol,
 		Status:       types.TransactionStatus(t.Status),
 		Timestamp:    t.Timestamp,
 		BlockNumber:  blockNumber,

@@ -22,6 +22,7 @@ type TransactionResponse struct {
 	GasLimit     uint64    `json:"gas_limit,omitempty"`
 	Type         string    `json:"type"`
 	TokenAddress string    `json:"token_address,omitempty"`
+	TokenSymbol  string    `json:"token_symbol,omitempty"`
 	Status       string    `json:"status"`
 	Timestamp    int64     `json:"timestamp"`
 	CreatedAt    time.Time `json:"created_at"`
@@ -72,6 +73,7 @@ func FromServiceTransaction(tx *transaction.Transaction) TransactionResponse {
 		GasLimit:     tx.GasLimit,
 		Type:         tx.Type,
 		TokenAddress: tx.TokenAddress,
+		TokenSymbol:  tx.TokenSymbol,
 		Status:       tx.Status,
 		Timestamp:    tx.Timestamp,
 		CreatedAt:    tx.CreatedAt,

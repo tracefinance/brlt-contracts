@@ -64,6 +64,8 @@ type Transaction struct {
 	Type TransactionType
 	// TokenAddress is the token contract address (for ERC20 transactions)
 	TokenAddress string
+	// TokenSymbol is the symbol of the token (e.g., "ETH", "USDC")
+	TokenSymbol string
 	// Status is the transaction status
 	Status TransactionStatus
 	// Timestamp is the transaction timestamp

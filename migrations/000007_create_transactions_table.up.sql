@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     gas_limit INTEGER,
     type TEXT NOT NULL,
     token_address TEXT,
+    token_symbol TEXT,
     status TEXT NOT NULL,
     timestamp INTEGER NOT NULL,
     block_number INTEGER DEFAULT NULL,

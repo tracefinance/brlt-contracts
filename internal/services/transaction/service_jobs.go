@@ -232,8 +232,8 @@ func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context)
 					logger.String("old_status", string(originalStatus)),
 					logger.String("new_status", string(updatedStatus)))
 
-				// Create transaction object with updated data
-				updatedTransaction := FromCoreTransaction(updatedTx, tx.WalletID)
+				// Process the transaction to set token symbol and create Transaction model
+				updatedTransaction := s.processTransaction(ctx, updatedTx, tx.WalletID)
 
 				// Preserve original metadata
 				updatedTransaction.ID = tx.ID

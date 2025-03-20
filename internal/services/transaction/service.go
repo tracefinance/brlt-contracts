@@ -7,6 +7,7 @@ import (
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/blockexplorer"
+	"vault0/internal/core/tokenstore"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
 	"vault0/internal/services/wallet"
@@ -80,6 +81,7 @@ type transactionService struct {
 	log                  logger.Logger
 	repository           Repository
 	walletService        wallet.Service
+	tokenStore           tokenstore.TokenStore
 	blockExplorerFactory blockexplorer.Factory
 	blockchainRegistry   blockchain.Registry
 	chains               *types.Chains
@@ -99,6 +101,7 @@ func NewService(
 	log logger.Logger,
 	repository Repository,
 	walletService wallet.Service,
+	tokenStore tokenstore.TokenStore,
 	blockExplorerFactory blockexplorer.Factory,
 	blockchainRegistry blockchain.Registry,
 	chains *types.Chains,
@@ -109,6 +112,7 @@ func NewService(
 		log:                  log,
 		repository:           repository,
 		walletService:        walletService,
+		tokenStore:           tokenStore,
 		blockExplorerFactory: blockExplorerFactory,
 		blockchainRegistry:   blockchainRegistry,
 		chains:               chains,
@@ -275,8 +279,8 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 			continue
 		}
 
-		// Convert to service transaction
-		tx := FromCoreTransaction(coreTx, wallet.ID)
+		// Process the transaction to set token symbol
+		tx := s.processTransaction(ctx, coreTx, wallet.ID)
 
 		// Save to database
 		err = s.repository.Create(ctx, tx)
@@ -303,87 +307,34 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 	return count, nil
 }
 
-// OnWalletEvent processes a blockchain event for a wallet and updates the transactions table
-func (s *transactionService) OnWalletEvent(ctx context.Context, walletID int64, event *types.Log) error {
-	// Validate input
-	if walletID <= 0 {
-		return errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "")
-	}
-	if event == nil {
-		return errors.NewInvalidInputError("Event is required", "event", nil)
-	}
-
-	// Get wallet information
-	wallet, err := s.walletService.GetByID(ctx, walletID)
-	if err != nil {
-		return err
-	}
-
-	// Check if transaction already exists
-	exists, err := s.repository.Exists(ctx, event.TransactionHash)
-	if err != nil {
-		return err
-	}
-
-	if exists {
-		// Transaction already processed
-		return nil
-	}
-
-	// Get explorer for the chain
-	explorer, err := s.blockExplorerFactory.GetExplorer(wallet.ChainType)
-	if err != nil {
-		return err
-	}
-
-	// Fetch full transaction details
-	coreTx, err := explorer.GetTransactionByHash(ctx, event.TransactionHash)
-	if err != nil {
-		return errors.NewTransactionSyncFailedError("fetch_transaction", err)
-	}
-
-	// Convert to service transaction
-	tx := &Transaction{
-		ChainType:    coreTx.Chain,
-		Hash:         coreTx.Hash,
-		FromAddress:  coreTx.From,
-		ToAddress:    coreTx.To,
-		Value:        coreTx.Value,
-		Data:         coreTx.Data,
-		Nonce:        coreTx.Nonce,
-		GasPrice:     coreTx.GasPrice,
-		GasLimit:     coreTx.GasLimit,
-		Type:         string(coreTx.Type),
-		TokenAddress: coreTx.TokenAddress,
-		Status:       string(coreTx.Status),
-		Timestamp:    coreTx.Timestamp,
-		WalletID:     walletID,
-	}
-
-	// Save to database
-	if err := s.repository.Create(ctx, tx); err != nil {
-		return err
-	}
-
-	// Update wallet's last block number if the transaction has a higher block number
-	if event.BlockNumber != nil && event.BlockNumber.Int64() > wallet.LastBlockNumber {
-		blockNumber := event.BlockNumber.Int64()
-		if err := s.walletService.UpdateLastBlockNumber(ctx, wallet.ChainType, wallet.Address, blockNumber); err != nil {
-			s.log.Error("Failed to update wallet's last block number",
-				logger.Int64("wallet_id", wallet.ID),
-				logger.Int64("block_number", blockNumber),
-				logger.Error(err))
-		} else {
-			s.log.Info("Updated wallet's last block number",
-				logger.Int64("wallet_id", wallet.ID),
-				logger.Int64("block_number", blockNumber))
+// processTransaction resolves the token symbol and creates a Transaction model
+func (s *transactionService) processTransaction(ctx context.Context, coreTx *types.Transaction, walletID int64) *Transaction {
+	// Resolve token symbol if not already set
+	if coreTx.TokenSymbol == "" {
+		// For native transactions, use the chain's native token symbol
+		if coreTx.Type == types.TransactionTypeNative {
+			// Get the chain configuration
+			chain, exists := s.chains.Chains[coreTx.Chain]
+			if exists {
+				coreTx.TokenSymbol = chain.Symbol
+			} else {
+				coreTx.TokenSymbol = "UNKNOWN"
+			}
+		}
+		// For ERC20 transactions, look up the token symbol from the token store
+		if coreTx.Type == types.TransactionTypeERC20 && coreTx.TokenAddress != "" {
+			token, err := s.tokenStore.GetToken(ctx, coreTx.TokenAddress, coreTx.Chain)
+			if err == nil && token != nil {
+				coreTx.TokenSymbol = token.Symbol
+			} else {
+				// If token not found in store, log a warning
+				s.log.Warn("Token not found in token store",
+					logger.String("chain", string(coreTx.Chain)),
+					logger.String("address", coreTx.TokenAddress))
+			}
 		}
 	}
 
-	s.log.Info("New transaction processed",
-		logger.Int64("wallet_id", walletID),
-		logger.String("tx_hash", event.TransactionHash),
-		logger.String("chain_type", string(wallet.ChainType)))
-
-	return nil
+	// Convert to service transaction model
+	return FromCoreTransaction(coreTx, walletID)
 }

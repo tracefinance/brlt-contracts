@@ -175,8 +175,8 @@ func (s *transactionService) processBlock(ctx context.Context, chainType types.C
 			// Set the timestamp to the block timestamp
 			tx.Timestamp = block.Timestamp.Unix()
 
-			// Convert core transaction to service transaction
-			transaction := FromCoreTransaction(tx, walletID)
+			// Process the transaction to set token symbol and create Transaction model
+			transaction := s.processTransaction(ctx, tx, walletID)
 
 			// Check if transaction already exists
 			exists, err := s.repository.Exists(ctx, transaction.Hash)
