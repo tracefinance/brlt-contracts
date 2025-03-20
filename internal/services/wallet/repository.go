@@ -3,10 +3,9 @@ package wallet
 import (
 	"context"
 	"encoding/json"
+	"math/big"
 	"strconv"
 	"time"
-
-	"github.com/govalues/decimal"
 
 	"vault0/internal/db"
 	"vault0/internal/errors"
@@ -38,13 +37,13 @@ type Repository interface {
 	Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error)
 
 	// UpdateBalance updates a wallet's native balance
-	UpdateBalance(ctx context.Context, id int64, balance decimal.Decimal) error
+	UpdateBalance(ctx context.Context, id int64, balance *big.Float) error
 
 	// GetWalletBalances retrieves a wallet's native and token balances
 	GetWalletBalances(ctx context.Context, id int64) ([]*TokenBalance, error)
 
 	// UpdateTokenBalance updates or creates a token balance for a wallet
-	UpdateTokenBalance(ctx context.Context, walletID, tokenID int64, balance decimal.Decimal) error
+	UpdateTokenBalance(ctx context.Context, walletID, tokenID int64, balance *big.Float) error
 
 	// GetTokenBalances retrieves all token balances for a wallet
 	GetTokenBalances(ctx context.Context, walletID int64) ([]*TokenBalance, error)
@@ -342,7 +341,7 @@ func (r *repository) Exists(ctx context.Context, chainType types.ChainType, addr
 }
 
 // UpdateBalance updates a wallet's native balance
-func (r *repository) UpdateBalance(ctx context.Context, id int64, balance decimal.Decimal) error {
+func (r *repository) UpdateBalance(ctx context.Context, id int64, balance *big.Float) error {
 	query := `
 		UPDATE wallets
 		SET balance = ?, updated_at = ?
@@ -379,7 +378,7 @@ func (r *repository) GetWalletBalances(ctx context.Context, id int64) ([]*TokenB
 }
 
 // UpdateTokenBalance updates or creates a token balance for a wallet
-func (r *repository) UpdateTokenBalance(ctx context.Context, walletID, tokenID int64, balance decimal.Decimal) error {
+func (r *repository) UpdateTokenBalance(ctx context.Context, walletID, tokenID int64, balance *big.Float) error {
 	query := `
 		INSERT INTO token_balances (wallet_id, token_id, balance, updated_at)
 		VALUES (?, ?, ?, ?)

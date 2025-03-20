@@ -1,9 +1,8 @@
 package wallet
 
 import (
+	"math/big"
 	"time"
-
-	"github.com/govalues/decimal"
 
 	"vault0/internal/services/wallet"
 	"vault0/internal/types"
@@ -30,16 +29,16 @@ type WalletResponse struct {
 	Address   string            `json:"address"`
 	Name      string            `json:"name"`
 	Tags      map[string]string `json:"tags,omitempty"`
-	Balance   decimal.Decimal   `json:"balance"`
+	Balance   *big.Float        `json:"balance"`
 	CreatedAt time.Time         `json:"created_at"`
 	UpdatedAt time.Time         `json:"updated_at"`
 }
 
 // TokenBalanceResponse represents a token balance response
 type TokenBalanceResponse struct {
-	Token     TokenResponse   `json:"token"`
-	Balance   decimal.Decimal `json:"balance"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	Token     TokenResponse `json:"token"`
+	Balance   *big.Float    `json:"balance"`
+	UpdatedAt time.Time     `json:"updated_at"`
 }
 
 // TokenResponse represents a token response

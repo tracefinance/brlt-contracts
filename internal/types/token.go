@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 )
 
@@ -125,4 +126,25 @@ func ParseTokenID(id string) (address string, chainType ChainType, err error) {
 	chainType = ChainType(parts[1])
 
 	return address, chainType, nil
+}
+
+// ToDecimal converts a big.Int value to its decimal representation using the token's decimals
+func (t *Token) ToDecimal(value *big.Int) *big.Float {
+	result := new(big.Float).SetPrec(128)
+
+	if value == nil {
+		return result
+	}
+
+	// Create a divisor based on the token decimals (10^decimals)
+	divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(t.Decimals)), nil)
+
+	// Convert to big.Float for decimal division
+	floatValue := new(big.Float).SetPrec(128).SetInt(value)
+	floatDivisor := new(big.Float).SetPrec(128).SetInt(divisor)
+
+	// Perform the division to get the decimal value
+	result.Quo(floatValue, floatDivisor)
+
+	return result
 }

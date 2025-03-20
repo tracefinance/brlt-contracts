@@ -2,9 +2,8 @@ package wallet
 
 import (
 	"context"
+	"math/big"
 	"sync"
-
-	"github.com/govalues/decimal"
 
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
@@ -159,7 +158,7 @@ type Service interface {
 	//   - balance: The new balance value
 	// Returns:
 	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
-	UpdateWalletBalance(ctx context.Context, chainType types.ChainType, address string, balance decimal.Decimal) error
+	UpdateWalletBalance(ctx context.Context, chainType types.ChainType, address string, balance *big.Float) error
 
 	// UpdateTokenBalance updates a token balance for a wallet
 	// Parameters:
@@ -171,7 +170,7 @@ type Service interface {
 	// Returns:
 	//   - error: ErrWalletNotFound or ErrTokenNotFound if wallet or token doesn't exist,
 	//            ErrInvalidInput for invalid parameters
-	UpdateTokenBalance(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string, balance decimal.Decimal) error
+	UpdateTokenBalance(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string, balance *big.Float) error
 
 	// GetWalletBalances retrieves the native and token balances for a wallet
 	GetWalletBalances(ctx context.Context, id int64) ([]*TokenBalanceData, error)
@@ -471,7 +470,7 @@ func (s *walletService) LifecycleEvents() <-chan *LifecycleEvent {
 }
 
 // UpdateWalletBalance updates the native balance for a wallet
-func (s *walletService) UpdateWalletBalance(ctx context.Context, chainType types.ChainType, address string, balance decimal.Decimal) error {
+func (s *walletService) UpdateWalletBalance(ctx context.Context, chainType types.ChainType, address string, balance *big.Float) error {
 	if chainType == "" {
 		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -503,7 +502,7 @@ func (s *walletService) UpdateWalletBalance(ctx context.Context, chainType types
 }
 
 // UpdateTokenBalance updates a token balance for a wallet
-func (s *walletService) UpdateTokenBalance(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string, balance decimal.Decimal) error {
+func (s *walletService) UpdateTokenBalance(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string, balance *big.Float) error {
 	if chainType == "" {
 		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}

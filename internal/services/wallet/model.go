@@ -2,9 +2,8 @@ package wallet
 
 import (
 	"database/sql"
+	"math/big"
 	"time"
-
-	"github.com/govalues/decimal"
 
 	"vault0/internal/db"
 	"vault0/internal/types"
@@ -18,7 +17,7 @@ type Wallet struct {
 	Address         string            `db:"address"`
 	Name            string            `db:"name"`
 	Tags            map[string]string `db:"tags"`
-	Balance         decimal.Decimal   `db:"balance"`
+	Balance         *big.Float        `db:"balance"`
 	LastBlockNumber int64             `db:"last_block_number"`
 	CreatedAt       time.Time         `db:"created_at"`
 	UpdatedAt       time.Time         `db:"updated_at"`
@@ -27,16 +26,16 @@ type Wallet struct {
 
 // TokenBalance represents a token balance for a wallet
 type TokenBalance struct {
-	WalletID  int64           `db:"wallet_id"`
-	TokenID   int64           `db:"token_id"`
-	Balance   decimal.Decimal `db:"balance"`
-	UpdatedAt time.Time       `db:"updated_at"`
+	WalletID  int64      `db:"wallet_id"`
+	TokenID   int64      `db:"token_id"`
+	Balance   *big.Float `db:"balance"`
+	UpdatedAt time.Time  `db:"updated_at"`
 }
 
 // TokenBalanceData contains a token with its balance
 type TokenBalanceData struct {
 	Token     *types.Token
-	Balance   decimal.Decimal
+	Balance   *big.Float
 	UpdatedAt time.Time
 }
 
@@ -68,17 +67,17 @@ func ScanWallet(row interface {
 	// Use the utility function to unmarshal tags
 	wallet.Tags = db.UnmarshalJSONToMap(tagsJSON)
 
-	// Parse the balance as decimal
+	// Parse the balance as big.Float
 	if balanceStr.Valid {
-		dec, err := decimal.Parse(balanceStr.String)
+		float, _, err := new(big.Float).Parse(balanceStr.String, 10)
 		if err != nil {
 			// If there's an error parsing, use zero
-			wallet.Balance = decimal.Zero
+			wallet.Balance = new(big.Float).SetInt64(0)
 		} else {
-			wallet.Balance = dec
+			wallet.Balance = float
 		}
 	} else {
-		wallet.Balance = decimal.Zero
+		wallet.Balance = new(big.Float).SetInt64(0)
 	}
 
 	return wallet, nil
@@ -101,17 +100,17 @@ func ScanTokenBalance(row interface {
 		return nil, err
 	}
 
-	// Parse the balance as decimal
+	// Parse the balance as big.Float
 	if balanceStr.Valid {
-		dec, err := decimal.Parse(balanceStr.String)
+		float, _, err := new(big.Float).Parse(balanceStr.String, 10)
 		if err != nil {
 			// If there's an error parsing, use zero
-			tokenBalance.Balance = decimal.Zero
+			tokenBalance.Balance = new(big.Float).SetInt64(0)
 		} else {
-			tokenBalance.Balance = dec
+			tokenBalance.Balance = float
 		}
 	} else {
-		tokenBalance.Balance = decimal.Zero
+		tokenBalance.Balance = new(big.Float).SetInt64(0)
 	}
 
 	return tokenBalance, nil

@@ -56,7 +56,6 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/golang-jwt/jwt v3.2.1+incompatible // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
-	github.com/govalues/decimal v0.1.36 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
