@@ -2,7 +2,13 @@ package transaction
 
 import (
 	"context"
+	"math/big"
+	"strings"
+	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+
+	"vault0/internal/core/tokenstore"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
 	"vault0/internal/services/wallet"
@@ -31,7 +37,13 @@ func (s *transactionService) SubscribeToTransactionEvents(ctx context.Context) {
 	for _, chain := range s.chains.Chains {
 		// Start a goroutine for each chain to subscribe to new blocks
 		go s.subscribeToChainBlocks(s.eventCtx, chain)
+
+		// Start a goroutine for each chain to subscribe to ERC20 transfers
+		go s.subscribeToERC20Transfers(s.eventCtx, chain)
 	}
+
+	// Subscribe to token events to dynamically update ERC20 token subscriptions
+	go s.subscribeToTokenEvents(s.eventCtx)
 
 	// Continue listening for wallet lifecycle events
 	go func() {
@@ -283,4 +295,262 @@ func (s *transactionService) handleWalletCreated(ctx context.Context, event *wal
 		logger.Int("transaction_count", count))
 
 	return nil
+}
+
+// subscribeToERC20Transfers subscribes to ERC20 token transfer events on a specific chain
+func (s *transactionService) subscribeToERC20Transfers(ctx context.Context, chain types.Chain) {
+	// Get blockchain client for the chain type
+	client, err := s.blockchainRegistry.GetBlockchain(chain.Type)
+	if err != nil {
+		s.log.Error("Failed to get blockchain client for ERC20 subscription",
+			logger.String("chain_type", string(chain.Type)),
+			logger.Error(err))
+		return
+	}
+
+	// Get tokens from the token store for this chain
+	tokenPage, err := s.tokenStore.ListTokensByChain(ctx, chain.Type, 0, 0)
+	if err != nil {
+		s.log.Error("Failed to get tokens for ERC20 subscription",
+			logger.String("chain_type", string(chain.Type)),
+			logger.Error(err))
+		return
+	}
+
+	// Filter out native tokens and collect token addresses
+	var tokenAddresses []string
+	for _, token := range tokenPage.Items {
+		// Skip native tokens (they have empty contract addresses)
+		if token.Address == "" || token.IsNative() {
+			continue
+		}
+		tokenAddresses = append(tokenAddresses, token.Address)
+	}
+
+	// If no token addresses found, log and exit
+	if len(tokenAddresses) == 0 {
+		s.log.Info("No ERC20 tokens found in token store, skipping subscription",
+			logger.String("chain_type", string(chain.Type)))
+		return
+	}
+
+	s.log.Info("Starting ERC20 transfer event subscription",
+		logger.String("chain_type", string(chain.Type)),
+		logger.Int("token_count", len(tokenAddresses)))
+
+	// Subscribe to Transfer events for specific token contracts
+	logCh, errCh, err := client.SubscribeContractLogs(
+		ctx,
+		tokenAddresses,
+		types.ERC20TransferEventSignature,
+		nil, // No specific args filter, we'll check if from/to match our wallets
+		0,   // Start from recent blocks
+	)
+
+	if err != nil {
+		s.log.Error("Failed to subscribe to ERC20 transfers",
+			logger.String("chain_type", string(chain.Type)),
+			logger.Error(err))
+		return
+	}
+
+	// Process the logs
+	for {
+		select {
+		case <-ctx.Done():
+			s.log.Info("ERC20 subscription stopped",
+				logger.String("chain_type", string(chain.Type)))
+			return
+		case err := <-errCh:
+			s.log.Warn("ERC20 subscription error",
+				logger.String("chain_type", string(chain.Type)),
+				logger.Error(err))
+		case log := <-logCh:
+			s.processERC20TransferLog(ctx, chain, log)
+		}
+	}
+}
+
+// processERC20TransferLog processes an ERC20 Transfer event log
+func (s *transactionService) processERC20TransferLog(ctx context.Context, chain types.Chain, log types.Log) {
+	// Check if we have enough topics (event signature + from + to)
+	if len(log.Topics) < 3 {
+		s.log.Warn("Invalid ERC20 transfer log format",
+			logger.String("tx_hash", log.TransactionHash))
+		return
+	}
+
+	// Extract from and to addresses from the topics
+	// Topics[0] is the event signature hash
+	// Topics[1] is the indexed 'from' address
+	// Topics[2] is the indexed 'to' address
+	fromAddr := common.HexToAddress(log.Topics[1]).Hex()
+	toAddr := common.HexToAddress(log.Topics[2]).Hex()
+
+	// Normalize addresses to ensure proper comparison
+	fromAddr = strings.ToLower(fromAddr)
+	toAddr = strings.ToLower(toAddr)
+
+	// Get wallets for this chain to check if transfer involves any of our wallets
+	wallets, err := s.getWalletsByChainType(ctx, chain.Type)
+	if err != nil {
+		s.log.Error("Failed to get wallets for ERC20 transfer processing",
+			logger.String("chain_type", string(chain.Type)),
+			logger.Error(err))
+		return
+	}
+
+	// Check if either from or to address matches any of our wallets
+	var matchedWallet *wallet.Wallet
+	for _, w := range wallets {
+		normalizedWalletAddr := strings.ToLower(w.Address)
+		if normalizedWalletAddr == fromAddr || normalizedWalletAddr == toAddr {
+			matchedWallet = w
+			break
+		}
+	}
+
+	// If this transfer doesn't involve any of our wallets, ignore it
+	if matchedWallet == nil {
+		return
+	}
+
+	// Create a new transaction directly from the log data
+	tokenAddress := log.Address
+
+	// Parse the transfer amount from log data
+	var value *big.Int
+	if len(log.Data) > 0 {
+		value = new(big.Int).SetBytes(log.Data)
+	} else {
+		value = big.NewInt(0)
+	}
+
+	// Create a transaction record
+	tx := &types.Transaction{
+		Chain:        chain.Type,
+		Hash:         log.TransactionHash,
+		From:         fromAddr,
+		To:           toAddr,
+		Value:        value,
+		Type:         types.TransactionTypeERC20,
+		TokenAddress: tokenAddress,
+		Status:       types.TransactionStatusSuccess, // ERC20 transfer logs occur only for successful transfers
+		BlockNumber:  log.BlockNumber,
+	}
+
+	// Get token details from token store
+	token, err := s.tokenStore.GetToken(ctx, tokenAddress, chain.Type)
+	if err == nil && token != nil {
+		tx.TokenSymbol = token.Symbol
+	} else {
+		s.log.Warn("Token not found in token store for ERC20 transfer",
+			logger.String("token_address", tokenAddress),
+			logger.String("chain", string(chain.Type)))
+	}
+
+	// Process the transaction to set additional details and create Transaction model
+	transaction := s.processTransaction(ctx, tx, matchedWallet.ID)
+
+	// Check if transaction already exists
+	exists, err := s.repository.Exists(ctx, transaction.Hash)
+	if err != nil {
+		s.log.Error("Failed to check if transaction exists",
+			logger.String("tx_hash", tx.Hash),
+			logger.Int64("wallet_id", matchedWallet.ID),
+			logger.Error(err))
+		return
+	}
+
+	// If transaction exists, get it from the database
+	if exists {
+		transaction, err = s.repository.GetByTxHash(ctx, transaction.Hash)
+		if err != nil {
+			s.log.Error("Failed to get existing transaction",
+				logger.String("tx_hash", tx.Hash),
+				logger.Int64("wallet_id", matchedWallet.ID),
+				logger.Error(err))
+			return
+		}
+	} else {
+		// Otherwise, save the new transaction
+		err = s.repository.Create(ctx, transaction)
+		if err != nil {
+			s.log.Error("Failed to save transaction",
+				logger.String("tx_hash", tx.Hash),
+				logger.Int64("wallet_id", matchedWallet.ID),
+				logger.Error(err))
+			return
+		}
+	}
+
+	// Emit transaction event
+	s.emitTransactionEvent(&TransactionEvent{
+		WalletID:    matchedWallet.ID,
+		Transaction: transaction,
+		BlockNumber: log.BlockNumber.Int64(),
+		EventType:   EventTypeTransactionDetected,
+	})
+
+	// Update last block number for the wallet if this block is newer
+	if log.BlockNumber != nil && log.BlockNumber.Int64() > matchedWallet.LastBlockNumber {
+		if err := s.walletService.UpdateLastBlockNumber(ctx, matchedWallet.ChainType, matchedWallet.Address, log.BlockNumber.Int64()); err != nil {
+			s.log.Error("Failed to update last block number after ERC20 transfer",
+				logger.Int64("wallet_id", matchedWallet.ID),
+				logger.String("address", matchedWallet.Address),
+				logger.Error(err))
+		}
+	}
+}
+
+// subscribeToTokenEvents listens for token event notifications and updates ERC20 subscriptions
+func (s *transactionService) subscribeToTokenEvents(ctx context.Context) {
+	tokenEvents := s.tokenStore.TokenEvents()
+	s.log.Info("Started token events subscription")
+
+	for {
+		select {
+		case <-ctx.Done():
+			s.log.Info("Token events subscription stopped")
+			return
+		case event, ok := <-tokenEvents:
+			if !ok {
+				// Channel was closed
+				s.log.Info("Token events channel closed")
+				return
+			}
+
+			// Only react to token added events
+			if event.EventType == tokenstore.TokenEventAdded && event.Token != nil {
+				// Skip native tokens
+				if event.Token.IsNative() {
+					continue
+				}
+
+				s.log.Info("New token added, updating ERC20 subscription",
+					logger.String("symbol", event.Token.Symbol),
+					logger.String("address", event.Token.Address),
+					logger.String("chain", string(event.Token.ChainType)))
+
+				// For simplicity, restart the entire ERC20 subscription for this chain
+				// A more optimized approach would be to add this token to existing subscriptions
+				if chain, exists := s.chains.Chains[event.Token.ChainType]; exists {
+					// Create a new context for the restarted subscription
+					tokenCtx, cancel := context.WithCancel(ctx)
+
+					// Start new subscription
+					go func(chain types.Chain) {
+						s.subscribeToERC20Transfers(tokenCtx, chain)
+					}(chain)
+
+					// Cancel any previous subscription for this chain after a short delay
+					// This ensures we have the new subscription running before canceling the old one
+					go func() {
+						time.Sleep(5 * time.Second)
+						cancel()
+					}()
+				}
+			}
+		}
+	}
 }

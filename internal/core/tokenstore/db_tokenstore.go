@@ -16,8 +16,14 @@ import (
 
 // dbTokenStore implements the TokenStore interface using an SQL database
 type dbTokenStore struct {
-	db  *db.DB
-	log logger.Logger
+	db          *db.DB
+	log         logger.Logger
+	tokenEvents chan TokenEvent
+}
+
+// TokenEvents returns a channel that emits token events
+func (s *dbTokenStore) TokenEvents() <-chan TokenEvent {
+	return s.tokenEvents
 }
 
 // AddToken adds a new token to the database
@@ -65,6 +71,20 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 
 	// Set the ID in the token struct
 	token.ID = tokenID
+
+	// Emit a token added event
+	select {
+	case s.tokenEvents <- TokenEvent{EventType: TokenEventAdded, Token: token}:
+		s.log.Debug("Emitted token added event",
+			logger.String("symbol", token.Symbol),
+			logger.String("address", token.Address),
+			logger.String("chain", string(token.ChainType)))
+	default:
+		// Don't block if channel buffer is full
+		s.log.Warn("Token events channel full, event not emitted",
+			logger.String("symbol", token.Symbol),
+			logger.String("address", token.Address))
+	}
 
 	return nil
 }
@@ -250,11 +270,30 @@ func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 		return errors.NewResourceNotFoundError("token", strconv.FormatInt(token.ID, 10))
 	}
 
+	// Emit a token updated event
+	select {
+	case s.tokenEvents <- TokenEvent{EventType: TokenEventUpdated, Token: token}:
+		s.log.Debug("Emitted token updated event",
+			logger.String("symbol", token.Symbol),
+			logger.Int64("id", token.ID))
+	default:
+		// Don't block if channel buffer is full
+		s.log.Warn("Token events channel full, update event not emitted",
+			logger.String("symbol", token.Symbol),
+			logger.Int64("id", token.ID))
+	}
+
 	return nil
 }
 
 // DeleteToken removes a token from the store by its ID
 func (s *dbTokenStore) DeleteToken(ctx context.Context, id int64) error {
+	// First get the token to emit in the event
+	token, err := s.GetTokenByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	result, err := s.db.ExecuteStatementContext(
 		ctx,
 		"DELETE FROM tokens WHERE id = ?",
@@ -271,6 +310,19 @@ func (s *dbTokenStore) DeleteToken(ctx context.Context, id int64) error {
 
 	if rowsAffected == 0 {
 		return errors.NewResourceNotFoundError("token", strconv.FormatInt(id, 10))
+	}
+
+	// Emit a token deleted event
+	select {
+	case s.tokenEvents <- TokenEvent{EventType: TokenEventDeleted, Token: token}:
+		s.log.Debug("Emitted token deleted event",
+			logger.String("symbol", token.Symbol),
+			logger.Int64("id", id))
+	default:
+		// Don't block if channel buffer is full
+		s.log.Warn("Token events channel full, delete event not emitted",
+			logger.String("symbol", token.Symbol),
+			logger.Int64("id", id))
 	}
 
 	return nil

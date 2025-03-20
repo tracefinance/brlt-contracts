@@ -8,6 +8,24 @@ import (
 	"vault0/internal/types"
 )
 
+// TokenEventType defines the type of token event
+type TokenEventType string
+
+const (
+	// TokenEventAdded is emitted when a token is added to the store
+	TokenEventAdded TokenEventType = "TOKEN_ADDED"
+	// TokenEventUpdated is emitted when a token is updated
+	TokenEventUpdated TokenEventType = "TOKEN_UPDATED"
+	// TokenEventDeleted is emitted when a token is deleted
+	TokenEventDeleted TokenEventType = "TOKEN_DELETED"
+)
+
+// TokenEvent represents an event related to a token
+type TokenEvent struct {
+	EventType TokenEventType
+	Token     *types.Token
+}
+
 // TokenStore defines the interface for managing tokens
 type TokenStore interface {
 	// AddToken adds a new token to the store
@@ -41,9 +59,19 @@ type TokenStore interface {
 	// If a token ID is not found, it will be skipped in the result
 	// If limit is 0, returns all tokens without pagination
 	ListTokensByIDs(ctx context.Context, ids []int64, offset, limit int) (*types.Page[types.Token], error)
+
+	// TokenEvents returns a channel that emits token events.
+	// This channel notifies subscribers when tokens are added, updated, or deleted.
+	// The channel is closed when the token store is closed or the subscription is canceled.
+	TokenEvents() <-chan TokenEvent
 }
 
 // NewTokenStore creates a new TokenStore instance
 func NewTokenStore(db *db.DB, log logger.Logger) TokenStore {
-	return &dbTokenStore{db: db, log: log}
+	const tokenEventBufferSize = 100
+	return &dbTokenStore{
+		db:          db,
+		log:         log,
+		tokenEvents: make(chan TokenEvent, tokenEventBufferSize),
+	}
 }
