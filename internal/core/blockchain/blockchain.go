@@ -89,6 +89,19 @@ type Blockchain interface {
 	//   - Error if balance cannot be retrieved
 	GetBalance(ctx context.Context, address string) (*big.Int, error)
 
+	// GetTokenBalance retrieves the token balance of an address.
+	// This is specifically for querying ERC20 or similar token balances.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, can be used for cancellation
+	//   - address: Account address in the blockchain's format
+	//   - tokenAddress: Contract address of the ERC20 token
+	//
+	// Returns:
+	//   - Token balance as a big integer
+	//   - Error if balance cannot be retrieved
+	GetTokenBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error)
+
 	// GetNonce retrieves the next nonce for an address.
 	// The nonce is used to prevent transaction replay and must be included in transactions.
 	//

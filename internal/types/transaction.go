@@ -38,12 +38,6 @@ const (
 	TransactionStatusUnknown TransactionStatus = "unknown"
 )
 
-// ERC20 event signatures
-const (
-	// ERC20TransferEventSignature is the standard ERC20 Transfer event signature
-	ERC20TransferEventSignature = "Transfer(address,address,uint256)"
-)
-
 // Transaction represents a blockchain transaction
 type Transaction struct {
 	// Chain is the blockchain type

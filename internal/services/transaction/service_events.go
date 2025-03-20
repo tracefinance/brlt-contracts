@@ -342,7 +342,7 @@ func (s *transactionService) subscribeToERC20Transfers(ctx context.Context, chai
 	logCh, errCh, err := client.SubscribeContractLogs(
 		ctx,
 		tokenAddresses,
-		types.ERC20TransferEventSignature,
+		string(types.ERC20TransferEventSignature),
 		nil, // No specific args filter, we'll check if from/to match our wallets
 		0,   // Start from recent blocks
 	)

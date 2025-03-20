@@ -73,6 +73,9 @@ const (
 	ErrCodeInvalidGasLimit     = "invalid_gas_limit"
 	ErrCodeInvalidContractCall = "invalid_contract_call"
 	ErrCodeInvalidAmount       = "invalid_amount"
+
+	// New token errors
+	ErrCodeInvalidTokenBalance = "invalid_token_balance"
 )
 
 // NewInvalidBlockchainConfigError creates an error for invalid blockchain configuration
@@ -323,12 +326,11 @@ func NewInvalidGasLimitError(gasLimit uint64) *Vault0Error {
 func NewInvalidContractCallError(contract string, err error) *Vault0Error {
 	return &Vault0Error{
 		Code:    ErrCodeInvalidContractCall,
-		Message: fmt.Sprintf("Invalid contract call to %s: %v", contract, err),
-		Err:     err,
+		Message: "Contract call failed",
 		Details: map[string]any{
 			"contract": contract,
-			"error":    err.Error(),
 		},
+		Err: err,
 	}
 }
 
@@ -568,5 +570,17 @@ func NewInvalidBlockIdentifierError(identifier string) *Vault0Error {
 		Details: map[string]any{
 			"identifier": identifier,
 		},
+	}
+}
+
+// NewInvalidTokenBalanceError creates a new error for failed token balance requests
+func NewInvalidTokenBalanceError(token string, err error) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeInvalidTokenBalance,
+		Message: "Failed to get token balance",
+		Details: map[string]any{
+			"token": token,
+		},
+		Err: err,
 	}
 }

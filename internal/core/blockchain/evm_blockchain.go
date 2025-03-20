@@ -116,6 +116,45 @@ func (c *EVMBlockchain) GetBalance(ctx context.Context, address string) (*big.In
 	return balance, nil
 }
 
+// GetTokenBalance implements Blockchain.GetTokenBalance
+func (c *EVMBlockchain) GetTokenBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error) {
+	// Validate both addresses
+	if err := c.chain.ValidateAddress(address); err != nil {
+		return nil, err
+	}
+	if err := c.chain.ValidateAddress(tokenAddress); err != nil {
+		return nil, err
+	}
+
+	// ERC20 balanceOf function signature: balanceOf(address)
+	// Function selector is the first 4 bytes of keccak256("balanceOf(address)")
+	// 0x70a08231 is the function selector for balanceOf(address)
+	methodID := crypto.Keccak256([]byte(string(types.ERC20BalanceOfMethodSignature)))[:4]
+
+	// Encode the address parameter - EVM addresses are padded to 32 bytes
+	paddedAddress := common.LeftPadBytes(common.HexToAddress(address).Bytes(), 32)
+
+	// Combine the function selector and the padded address parameter
+	data := append(methodID, paddedAddress...)
+
+	// Call the token contract
+	result, err := c.CallContract(ctx, types.ZeroAddress, tokenAddress, data)
+	if err != nil {
+		return nil, errors.NewInvalidTokenBalanceError(tokenAddress, err)
+	}
+
+	// The result is a 32-byte big-endian integer
+	if len(result) < 32 {
+		return nil, errors.NewInvalidTokenBalanceError(tokenAddress,
+			fmt.Errorf("invalid response length: got %d, want 32", len(result)))
+	}
+
+	// Parse the result as a big.Int
+	balance := new(big.Int).SetBytes(result)
+
+	return balance, nil
+}
+
 // GetNonce implements Blockchain.GetNonce
 func (c *EVMBlockchain) GetNonce(ctx context.Context, address string) (uint64, error) {
 	if err := c.chain.ValidateAddress(address); err != nil {
