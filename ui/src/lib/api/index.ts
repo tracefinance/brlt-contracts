@@ -8,6 +8,7 @@ export * from './client';
 
 // Re-export domain-specific API services 
 export * as walletApi from './wallet';
+export * as transactionApi from './transaction';
 
 // Add additional API services as they are created
 // export * as userApi from './user';
@@ -21,8 +22,11 @@ export * as walletApi from './wallet';
  * 
  * Example usage:
  * 
- * import { walletApi } from '@/lib/api';
+ * import { walletApi, transactionApi } from '@/lib/api';
  * 
  * // Then use the wallet API functions
  * const wallets = await walletApi.getWallets();
+ * 
+ * // Or transaction API functions
+ * const transactions = await transactionApi.getTransactionsByWallet('ethereum', '0x123...');
  */ 
