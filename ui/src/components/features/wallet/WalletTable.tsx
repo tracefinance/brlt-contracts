@@ -20,6 +20,7 @@ import { Card } from "@/components/ui/card";
 import { cn, truncateMiddle } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { Wallet } from "@/types/models/wallet.model";
+import { NetworkIcon } from "@web3icons/react";
 
 interface WalletTableProps {
   wallets: Wallet[];
@@ -39,59 +40,62 @@ export default function WalletTable({ wallets = [], onEdit, onDelete }: WalletTa
   };
   
   return (
-    <Card>
-      <div className="rounded-md">
-        <Table>
-          <TableHeader>
+    <Card className="p-0">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Address</TableHead>
+            <TableHead>Chain Type</TableHead>
+            <TableHead className="w-[80px]">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {walletsArray.length === 0 ? (
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Address</TableHead>
-              <TableHead>Chain Type</TableHead>
-              <TableHead className="w-[80px]">Actions</TableHead>
+              <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
+                No wallets found
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {walletsArray.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
-                  No wallets found
+          ) : (
+            walletsArray.map((wallet) => (
+              <TableRow 
+                key={wallet.id} 
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => navigateToWalletDetails(wallet)}
+              >
+                <TableCell className="font-medium">{wallet.name}</TableCell>
+                <TableCell className={cn("font-mono text-sm max-w-[250px]", wallet.address && "text-muted-foreground")}>
+                  {wallet.address ? truncateMiddle(wallet.address, 6, 4) : "Generating..."}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <NetworkIcon id={wallet.chainType.toLowerCase()} size={20} variant="branded" />
+                    <span className="capitalize">{wallet.chainType}</span>
+                  </div>
+                </TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onEdit(wallet)}>
+                        <Pencil className="h-4 w-4 mr-2" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onDelete(wallet)}>
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ) : (
-              walletsArray.map((wallet) => (
-                <TableRow 
-                  key={wallet.id} 
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => navigateToWalletDetails(wallet)}
-                >
-                  <TableCell className="font-medium">{wallet.name}</TableCell>
-                  <TableCell className={cn("font-mono text-sm max-w-[250px]", wallet.address && "text-muted-foreground")}>
-                    {wallet.address ? truncateMiddle(wallet.address, 10, 8) : "Generating..."}
-                  </TableCell>
-                  <TableCell>{wallet.chainType}</TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEdit(wallet)}>
-                          <Pencil className="h-4 w-4 mr-2" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onDelete(wallet)}>
-                          <Trash2 className="h-4 w-4 mr-2" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+            ))
+          )}
+        </TableBody>
+      </Table>
     </Card>
   );
 } 

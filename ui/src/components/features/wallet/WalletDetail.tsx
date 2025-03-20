@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { truncateMiddle } from "@/lib/utils";
 import { Wallet } from "@/types/models/wallet.model";
+import { NetworkIcon } from "@web3icons/react";
 
 interface WalletDetailProps {
   wallet: Wallet;
@@ -25,7 +26,10 @@ export default function WalletDetail({ wallet }: WalletDetailProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <h3 className="text-sm font-medium text-muted-foreground">Chain Type</h3>
-            <p>{wallet.chainType}</p>
+            <p className="flex items-center gap-1 capitalize">
+              <NetworkIcon id={wallet.chainType.toLowerCase()} size={20} variant="branded" />
+              <span>{wallet.chainType}</span>
+            </p>
           </div>
           
           <div>

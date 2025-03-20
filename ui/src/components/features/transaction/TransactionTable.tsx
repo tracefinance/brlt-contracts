@@ -13,8 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Transaction } from "@/types/models/transaction.model";
 import { cn, truncateMiddle } from "@/lib/utils";
 import { format } from "date-fns";
-import { TokenIcon } from "@web3icons/react";
-import { CircleDollarSign } from "lucide-react";
+import { TokenIcon, NetworkIcon } from "@web3icons/react";
+import { Hexagon } from "lucide-react";
 
 interface TransactionTableProps {
   transactions: Transaction[];
@@ -46,7 +46,7 @@ export default function TransactionTable({ transactions = [], isLoading = false 
   };
   
   return (
-    <Card>
+    <Card className="p-0 overflow-hidden">
       <div className="rounded-md">
         <Table>
           <TableHeader>
@@ -78,32 +78,32 @@ export default function TransactionTable({ transactions = [], isLoading = false 
             ) : (
               transactionsArray.map((tx, index) => (
                 <TableRow key={`${tx.hash}-${index}`}>
-                  <TableCell className="font-mono text-sm">
+                  <TableCell>
                     {truncateMiddle(tx.hash, 8, 8)}
                   </TableCell>
                   <TableCell>{tx.timestamp}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">
+                    <Badge variant="outline">                      
                       {tx.type.toUpperCase()}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     {tx.tokenSymbol ? (
                       <div className="flex items-center gap-1">
-                        <TokenIcon symbol={tx.tokenSymbol.toLowerCase()} size={20} variant="mono" />
+                        <TokenIcon symbol={tx.tokenSymbol.toLowerCase()} size={20} variant="branded" />
                         <span>{tx.tokenSymbol}</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1">
-                        <CircleDollarSign className="h-5 w-5 text-muted-foreground" />
-                        <span className="text-muted-foreground">-</span>
+                      <div className="flex items-center gap-1 text-gray-400">
+                        <Hexagon strokeWidth={1.5} size={20} />
+                        <span>{tx.type.toUpperCase()}</span>
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="font-mono text-sm">
+                  <TableCell>
                     {truncateMiddle(tx.fromAddress, 6, 4)}
                   </TableCell>
-                  <TableCell className="font-mono text-sm">
+                  <TableCell>
                     {truncateMiddle(tx.toAddress, 6, 4)}
                   </TableCell>
                   <TableCell>
