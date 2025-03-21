@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"vault0/internal/logger"
+	"vault0/internal/services/wallet"
 	"vault0/internal/types"
 )
 
@@ -126,6 +127,47 @@ func (s *transactionService) StartPendingTransactionPolling(ctx context.Context)
 	}()
 }
 
+// updateTransactionStatus updates a transaction with new data from the explorer
+func (s *transactionService) updateTransactionStatus(
+	ctx context.Context,
+	originalTx *Transaction,
+	updatedTxData *types.Transaction,
+) (*Transaction, error) {
+	// Process the transaction to set token symbol and create Transaction model
+	updatedTransaction := s.processTransaction(ctx, updatedTxData, originalTx.WalletID)
+
+	// Preserve original metadata
+	updatedTransaction.ID = originalTx.ID
+	updatedTransaction.CreatedAt = originalTx.CreatedAt
+	updatedTransaction.Timestamp = originalTx.Timestamp
+
+	// Update in database
+	err := s.repository.Update(ctx, updatedTransaction)
+	if err != nil {
+		s.log.Error("Failed to update transaction",
+			logger.String("tx_hash", originalTx.Hash),
+			logger.Error(err))
+		return nil, err
+	}
+
+	return updatedTransaction, nil
+}
+
+// handleStatusChange handles transaction status changes, particularly transitions to success state
+func (s *transactionService) handleStatusChange(
+	ctx context.Context,
+	wallet *wallet.Wallet,
+	transaction *Transaction,
+	originalStatus types.TransactionStatus,
+	newStatus types.TransactionStatus,
+) {
+	// Only handle special transition to success status
+	if originalStatus != types.TransactionStatusSuccess && newStatus == types.TransactionStatusSuccess {
+		// Update balances using the helper method from service_events.go
+		s.updateBalanceForTransaction(ctx, transaction, wallet)
+	}
+}
+
 // StopPendingTransactionPolling stops the pending transaction polling scheduler
 func (s *transactionService) StopPendingTransactionPolling() {
 	if s.pendingPollingCancel != nil {
@@ -232,30 +274,33 @@ func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context)
 					logger.String("old_status", string(originalStatus)),
 					logger.String("new_status", string(updatedStatus)))
 
-				// Process the transaction to set token symbol and create Transaction model
-				updatedTransaction := s.processTransaction(ctx, updatedTx, tx.WalletID)
-
-				// Preserve original metadata
-				updatedTransaction.ID = tx.ID
-				updatedTransaction.CreatedAt = tx.CreatedAt
-				updatedTransaction.Timestamp = tx.Timestamp
-
-				// Update in database
-				err = s.repository.Update(ctx, updatedTransaction)
+				// Update transaction with new status
+				updatedTransaction, err := s.updateTransactionStatus(ctx, tx, updatedTx)
 				if err != nil {
-					s.log.Error("Failed to update transaction",
-						logger.String("tx_hash", tx.Hash),
+					// Error already logged in updateTransactionStatus
+					continue
+				}
+
+				// Get wallet information
+				wallet, err := s.walletService.GetByID(ctx, tx.WalletID)
+				if err != nil {
+					s.log.Error("Failed to get wallet for transaction",
+						logger.Int64("wallet_id", tx.WalletID),
 						logger.Error(err))
 					continue
 				}
 
+				// Handle any special status change logic (like success transitions)
+				s.handleStatusChange(ctx, wallet, updatedTransaction, originalStatus, updatedStatus)
+
 				// Emit transaction event for the status change
-				s.emitTransactionEvent(&TransactionEvent{
-					WalletID:    tx.WalletID,
-					Transaction: updatedTransaction,
-					BlockNumber: updatedTx.BlockNumber.Int64(),
-					EventType:   EventTypeTransactionDetected,
-				})
+				blockNumber := int64(0)
+				if updatedTx.BlockNumber != nil {
+					blockNumber = updatedTx.BlockNumber.Int64()
+				}
+
+				// Using the helper from service_events.go
+				s.handleTransactionCompletion(ctx, wallet, updatedTransaction, blockNumber)
 
 				updatedCount++
 			}
