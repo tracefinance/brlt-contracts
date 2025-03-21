@@ -128,8 +128,9 @@ func ParseTokenID(id string) (address string, chainType ChainType, err error) {
 	return address, chainType, nil
 }
 
-// ToDecimal converts a big.Int value to its decimal representation using the token's decimals
-func (t *Token) ToDecimal(value *big.Int) *big.Float {
+// ToBigFloat converts a big.Int value to its big.Float representation
+// using the token's decimals (divides by 10^decimals)
+func (t *Token) ToBigFloat(value *big.Int) *big.Float {
 	result := new(big.Float).SetPrec(128)
 
 	if value == nil {
@@ -147,4 +148,25 @@ func (t *Token) ToDecimal(value *big.Int) *big.Float {
 	result.Quo(floatValue, floatDivisor)
 
 	return result
+}
+
+// ToBigInt converts a big.Float decimal value to its big.Int representation
+// using the token's decimals (multiplies by 10^decimals)
+func (t *Token) ToBigInt(value *big.Float) *big.Int {
+	if value == nil {
+		return new(big.Int)
+	}
+
+	// Create a multiplier based on the token decimals (10^decimals)
+	multiplier := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(t.Decimals)), nil)
+
+	// Convert multiplier to big.Float for multiplication
+	floatMultiplier := new(big.Float).SetPrec(128).SetInt(multiplier)
+
+	// Multiply the value by 10^decimals
+	result := new(big.Float).SetPrec(128).Mul(value, floatMultiplier)
+
+	// Convert back to big.Int, truncating any remaining decimals
+	intResult, _ := result.Int(nil)
+	return intResult
 }

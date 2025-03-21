@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"vault0/internal/api/middleares"
+	"vault0/internal/services/token"
 	"vault0/internal/services/transaction"
 	"vault0/internal/types"
 )
@@ -14,12 +15,14 @@ import (
 // Handler handles transaction-related HTTP requests
 type Handler struct {
 	transactionService transaction.Service
+	tokenService       token.Service
 }
 
 // NewHandler creates a new transaction handler
-func NewHandler(transactionService transaction.Service) *Handler {
+func NewHandler(transactionService transaction.Service, tokenService token.Service) *Handler {
 	return &Handler{
 		transactionService: transactionService,
+		tokenService:       tokenService,
 	}
 }
 
@@ -57,6 +60,7 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 // @Router /wallets/{chain_type}/{address}/transactions/{hash} [get]
 func (h *Handler) GetTransaction(c *gin.Context) {
 	hash := c.Param("hash")
+	chainType := types.ChainType(c.Param("chain_type"))
 
 	tx, err := h.transactionService.GetTransaction(c.Request.Context(), hash)
 	if err != nil {
@@ -64,7 +68,14 @@ func (h *Handler) GetTransaction(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, FromServiceTransaction(tx))
+	// Get token from tx.TokenAddress
+	token, err := h.tokenService.GetToken(c.Request.Context(), chainType, tx.TokenAddress)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, FromServiceTransaction(tx, token))
 }
 
 // GetTransactionsByAddress handles GET /wallets/:chain_type/:address/transactions
@@ -106,7 +117,26 @@ func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, ToPagedResponse(page))
+	// Get all addresses from transactions
+	addresses := make([]string, 0, len(page.Items))
+	for _, tx := range page.Items {
+		addresses = append(addresses, tx.FromAddress, tx.ToAddress)
+	}
+
+	// Get all tokens for the addresses
+	tokens, err := h.tokenService.ListTokensByAddresses(c.Request.Context(), chainType, addresses)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	// Create a map of tokens by address for efficient lookup
+	tokensMap := make(map[string]*types.Token)
+	for i := range tokens {
+		tokensMap[tokens[i].Address] = &tokens[i]
+	}
+
+	c.JSON(http.StatusOK, ToPagedResponse(page, tokensMap))
 }
 
 // SyncTransactions handles POST /wallets/:chain_type/:address/transactions/sync

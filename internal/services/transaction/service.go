@@ -459,15 +459,6 @@ func (s *transactionService) updateNativeBalance(
 		return
 	}
 
-	// Get the native token for this chain type to use for decimal conversion
-	nativeToken, err := s.tokenStore.GetNativeToken(ctx, chainType)
-	if err != nil {
-		s.log.Error("Failed to get native token",
-			logger.String("chain_type", string(chainType)),
-			logger.Error(err))
-		return
-	}
-
 	// Get the latest balance from blockchain
 	balance, err := client.GetBalance(ctx, wallet.Address)
 	if err != nil {
@@ -478,11 +469,8 @@ func (s *transactionService) updateNativeBalance(
 		return
 	}
 
-	// Convert balance to decimal representation
-	decimalBalance := nativeToken.ToDecimal(balance)
-
 	// Update wallet balance
-	if err := s.walletService.UpdateWalletBalance(ctx, chainType, wallet.Address, decimalBalance); err != nil {
+	if err := s.walletService.UpdateWalletBalance(ctx, chainType, wallet.Address, balance); err != nil {
 		s.log.Error("Failed to update wallet balance",
 			logger.String("address", wallet.Address),
 			logger.String("chain_type", string(chainType)),
@@ -491,7 +479,7 @@ func (s *transactionService) updateNativeBalance(
 		s.log.Info("Updated wallet balance",
 			logger.String("address", wallet.Address),
 			logger.String("chain_type", string(chainType)),
-			logger.String("balance", decimalBalance.String()))
+			logger.String("balance", balance.String()))
 	}
 }
 
@@ -537,11 +525,8 @@ func (s *transactionService) updateTokenBalance(
 		return
 	}
 
-	// Convert token balance to decimal representation
-	decimalBalance := token.ToDecimal(tokenBalance)
-
 	// Update token balance
-	if err := s.walletService.UpdateTokenBalance(ctx, chainType, wallet.Address, tokenAddress, decimalBalance); err != nil {
+	if err := s.walletService.UpdateTokenBalance(ctx, chainType, wallet.Address, tokenAddress, tokenBalance); err != nil {
 		s.log.Error("Failed to update token balance",
 			logger.String("address", wallet.Address),
 			logger.String("token_address", tokenAddress),
@@ -553,7 +538,7 @@ func (s *transactionService) updateTokenBalance(
 			logger.String("token_address", tokenAddress),
 			logger.String("token_symbol", token.Symbol),
 			logger.String("chain_type", string(chainType)),
-			logger.String("balance", decimalBalance.String()))
+			logger.String("balance", tokenBalance.String()))
 	}
 }
 

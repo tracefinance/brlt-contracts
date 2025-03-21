@@ -54,11 +54,15 @@ type TokenStore interface {
 	// If limit is 0, returns all tokens without pagination
 	ListTokensByChain(ctx context.Context, chainType types.ChainType, offset, limit int) (*types.Page[types.Token], error)
 
-	// ListTokensByIDs retrieves tokens by a list of token IDs with pagination
+	// ListTokensByIDs retrieves tokens by a list of token IDs
 	// Returns tokens in the same order as the input IDs
 	// If a token ID is not found, it will be skipped in the result
-	// If limit is 0, returns all tokens without pagination
-	ListTokensByIDs(ctx context.Context, ids []int64, offset, limit int) (*types.Page[types.Token], error)
+	ListTokensByIDs(ctx context.Context, ids []int64) ([]types.Token, error)
+
+	// ListTokensByAddresses retrieves tokens by a list of token addresses for a specific chain
+	// Returns tokens in the same order as the input addresses
+	// If an address is not found, it will be skipped in the result
+	ListTokensByAddresses(ctx context.Context, chainType types.ChainType, addresses []string) ([]types.Token, error)
 
 	// TokenEvents returns a channel that emits token events.
 	// This channel notifies subscribers when tokens are added, updated, or deleted.

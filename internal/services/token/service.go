@@ -16,14 +16,27 @@ type Service interface {
 	// AddToken adds a new token
 	AddToken(ctx context.Context, token *types.Token) error
 
-	// GetToken retrieves a token by ID
-	GetToken(ctx context.Context, id int64) (*types.Token, error)
+	// GetTokenByID retrieves a token by ID
+	GetTokenByID(ctx context.Context, id int64) (*types.Token, error)
 
 	// DeleteToken removes a token by ID
 	DeleteToken(ctx context.Context, id int64) error
 
 	// VerifyToken checks if a token exists by ID
 	VerifyToken(ctx context.Context, id int64) (*types.Token, error)
+
+	// GetNativeToken retrieves the native token for a blockchain
+	GetNativeToken(ctx context.Context, chainType types.ChainType) (*types.Token, error)
+
+	// GetToken retrieves a token by address
+	GetToken(ctx context.Context, chainType types.ChainType, address string) (*types.Token, error)
+
+	// ListTokensByID retrieves tokens by a list of token IDs
+	ListTokensByID(ctx context.Context, ids []int64) ([]types.Token, error)
+
+	// ListTokensByAddresses retrieves tokens by a list of token addresses for a specific chain
+	// If an address is not found, it will be skipped in the result
+	ListTokensByAddresses(ctx context.Context, chainType types.ChainType, addresses []string) ([]types.Token, error)
 }
 
 // service implements the Service interface
@@ -129,11 +142,22 @@ func (s *service) AddToken(ctx context.Context, token *types.Token) error {
 	return nil
 }
 
-// GetToken implements the Service interface
-func (s *service) GetToken(ctx context.Context, id int64) (*types.Token, error) {
+// GetTokenByID implements the Service interface
+func (s *service) GetTokenByID(ctx context.Context, id int64) (*types.Token, error) {
 	token, err := s.tokenStore.GetTokenByID(ctx, id)
 	if err != nil {
 		s.log.Error("Failed to get token", logger.Error(err), logger.Int("token_id", int(id)))
+		return nil, err
+	}
+
+	return token, nil
+}
+
+// GetToken implements the Service interface
+func (s *service) GetToken(ctx context.Context, chainType types.ChainType, address string) (*types.Token, error) {
+	token, err := s.tokenStore.GetToken(ctx, address, chainType)
+	if err != nil {
+		s.log.Error("Failed to get token by address", logger.Error(err), logger.String("address", address))
 		return nil, err
 	}
 
@@ -173,4 +197,44 @@ func (s *service) VerifyToken(ctx context.Context, id int64) (*types.Token, erro
 	}
 
 	return token, nil
+}
+
+// GetNativeToken implements the Service interface
+func (s *service) GetNativeToken(ctx context.Context, chainType types.ChainType) (*types.Token, error) {
+	token, err := s.tokenStore.GetNativeToken(ctx, chainType)
+	if err != nil {
+		s.log.Error("Failed to get native token",
+			logger.Error(err),
+			logger.String("chain_type", string(chainType)))
+		return nil, err
+	}
+
+	return token, nil
+}
+
+// ListTokensByID implements the Service interface
+func (s *service) ListTokensByID(ctx context.Context, ids []int64) ([]types.Token, error) {
+	tokens, err := s.tokenStore.ListTokensByIDs(ctx, ids)
+	if err != nil {
+		s.log.Error("Failed to list tokens by IDs",
+			logger.Error(err),
+			logger.Any("token_ids", ids))
+		return nil, err
+	}
+
+	return tokens, nil
+}
+
+// ListTokensByAddresses implements the Service interface
+func (s *service) ListTokensByAddresses(ctx context.Context, chainType types.ChainType, addresses []string) ([]types.Token, error) {
+	tokens, err := s.tokenStore.ListTokensByAddresses(ctx, chainType, addresses)
+	if err != nil {
+		s.log.Error("Failed to list tokens by addresses",
+			logger.Error(err),
+			logger.String("chain_type", string(chainType)),
+			logger.Any("addresses", addresses))
+		return nil, err
+	}
+
+	return tokens, nil
 }

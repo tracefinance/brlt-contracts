@@ -43,15 +43,15 @@ type SyncTransactionsResponse struct {
 }
 
 // FromServiceTransaction converts a service transaction to a response transaction
-func FromServiceTransaction(tx *transaction.Transaction) TransactionResponse {
+func FromServiceTransaction(tx *transaction.Transaction, token *types.Token) TransactionResponse {
 	valueStr := ""
 	if tx.Value != nil {
-		valueStr = tx.Value.String()
+		valueStr = token.ToBigFloat(tx.Value).Text('f', int(token.Decimals))
 	}
 
 	gasPriceStr := ""
 	if tx.GasPrice != nil {
-		gasPriceStr = tx.GasPrice.String()
+		gasPriceStr = token.ToBigFloat(tx.GasPrice).Text('f', int(token.Decimals))
 	}
 
 	dataStr := ""
@@ -82,18 +82,24 @@ func FromServiceTransaction(tx *transaction.Transaction) TransactionResponse {
 }
 
 // ToResponseList converts a slice of service transactions to a slice of response transactions
-func ToResponseList(txs []*transaction.Transaction) []TransactionResponse {
+func ToResponseList(txs []*transaction.Transaction, tokensMap map[string]*types.Token) []TransactionResponse {
 	responses := make([]TransactionResponse, len(txs))
 	for i, tx := range txs {
-		responses[i] = FromServiceTransaction(tx)
+		// Get native token for this chain
+		nativeToken, ok := tokensMap[tx.TokenAddress]
+		if !ok {
+			// Fallback to direct conversion if token not found
+			nativeToken = &types.Token{Decimals: 18} // Default to 18 decimals
+		}
+		responses[i] = FromServiceTransaction(tx, nativeToken)
 	}
 	return responses
 }
 
 // ToPagedResponse converts a Page of service transactions to a TransactionListResponse
-func ToPagedResponse(page *types.Page[*transaction.Transaction]) *PagedTransactionsResponse {
+func ToPagedResponse(page *types.Page[*transaction.Transaction], tokensMap map[string]*types.Token) *PagedTransactionsResponse {
 	return &PagedTransactionsResponse{
-		Items:   ToResponseList(page.Items),
+		Items:   ToResponseList(page.Items, tokensMap),
 		Limit:   page.Limit,
 		Offset:  page.Offset,
 		HasMore: page.HasMore,

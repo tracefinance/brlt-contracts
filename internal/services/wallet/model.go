@@ -17,7 +17,7 @@ type Wallet struct {
 	Address         string            `db:"address"`
 	Name            string            `db:"name"`
 	Tags            map[string]string `db:"tags"`
-	Balance         *big.Float        `db:"balance"`
+	Balance         *big.Int          `db:"balance"`
 	LastBlockNumber int64             `db:"last_block_number"`
 	CreatedAt       time.Time         `db:"created_at"`
 	UpdatedAt       time.Time         `db:"updated_at"`
@@ -26,16 +26,16 @@ type Wallet struct {
 
 // TokenBalance represents a token balance for a wallet
 type TokenBalance struct {
-	WalletID  int64      `db:"wallet_id"`
-	TokenID   int64      `db:"token_id"`
-	Balance   *big.Float `db:"balance"`
-	UpdatedAt time.Time  `db:"updated_at"`
+	WalletID  int64     `db:"wallet_id"`
+	TokenID   int64     `db:"token_id"`
+	Balance   *big.Int  `db:"balance"`
+	UpdatedAt time.Time `db:"updated_at"`
 }
 
 // TokenBalanceData contains a token with its balance
 type TokenBalanceData struct {
 	Token     *types.Token
-	Balance   *big.Float
+	Balance   *big.Int
 	UpdatedAt time.Time
 }
 
@@ -67,17 +67,17 @@ func ScanWallet(row interface {
 	// Use the utility function to unmarshal tags
 	wallet.Tags = db.UnmarshalJSONToMap(tagsJSON)
 
-	// Parse the balance as big.Float
+	// Parse the balance as big.Int
 	if balanceStr.Valid {
-		float, _, err := new(big.Float).Parse(balanceStr.String, 10)
-		if err != nil {
+		balance, success := new(big.Int).SetString(balanceStr.String, 10)
+		if !success {
 			// If there's an error parsing, use zero
-			wallet.Balance = new(big.Float).SetInt64(0)
+			wallet.Balance = new(big.Int).SetInt64(0)
 		} else {
-			wallet.Balance = float
+			wallet.Balance = balance
 		}
 	} else {
-		wallet.Balance = new(big.Float).SetInt64(0)
+		wallet.Balance = new(big.Int).SetInt64(0)
 	}
 
 	return wallet, nil
@@ -100,17 +100,17 @@ func ScanTokenBalance(row interface {
 		return nil, err
 	}
 
-	// Parse the balance as big.Float
+	// Parse the balance as big.Int
 	if balanceStr.Valid {
-		float, _, err := new(big.Float).Parse(balanceStr.String, 10)
-		if err != nil {
+		balance, success := new(big.Int).SetString(balanceStr.String, 10)
+		if !success {
 			// If there's an error parsing, use zero
-			tokenBalance.Balance = new(big.Float).SetInt64(0)
+			tokenBalance.Balance = new(big.Int).SetInt64(0)
 		} else {
-			tokenBalance.Balance = float
+			tokenBalance.Balance = balance
 		}
 	} else {
-		tokenBalance.Balance = new(big.Float).SetInt64(0)
+		tokenBalance.Balance = new(big.Int).SetInt64(0)
 	}
 
 	return tokenBalance, nil

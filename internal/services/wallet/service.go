@@ -158,7 +158,7 @@ type Service interface {
 	//   - balance: The new balance value
 	// Returns:
 	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
-	UpdateWalletBalance(ctx context.Context, chainType types.ChainType, address string, balance *big.Float) error
+	UpdateWalletBalance(ctx context.Context, chainType types.ChainType, address string, balance *big.Int) error
 
 	// UpdateTokenBalance updates a token balance for a wallet
 	// Parameters:
@@ -170,7 +170,7 @@ type Service interface {
 	// Returns:
 	//   - error: ErrWalletNotFound or ErrTokenNotFound if wallet or token doesn't exist,
 	//            ErrInvalidInput for invalid parameters
-	UpdateTokenBalance(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string, balance *big.Float) error
+	UpdateTokenBalance(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string, balance *big.Int) error
 
 	// GetWalletBalances retrieves the native and token balances for a wallet
 	GetWalletBalances(ctx context.Context, id int64) ([]*TokenBalanceData, error)
@@ -470,7 +470,7 @@ func (s *walletService) LifecycleEvents() <-chan *LifecycleEvent {
 }
 
 // UpdateWalletBalance updates the native balance for a wallet
-func (s *walletService) UpdateWalletBalance(ctx context.Context, chainType types.ChainType, address string, balance *big.Float) error {
+func (s *walletService) UpdateWalletBalance(ctx context.Context, chainType types.ChainType, address string, balance *big.Int) error {
 	if chainType == "" {
 		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -502,7 +502,7 @@ func (s *walletService) UpdateWalletBalance(ctx context.Context, chainType types
 }
 
 // UpdateTokenBalance updates a token balance for a wallet
-func (s *walletService) UpdateTokenBalance(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string, balance *big.Float) error {
+func (s *walletService) UpdateTokenBalance(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string, balance *big.Int) error {
 	if chainType == "" {
 		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -593,15 +593,15 @@ func (s *walletService) GetWalletBalances(ctx context.Context, id int64) ([]*Tok
 	}
 
 	// Fetch all tokens in a single call
-	tokensPage, err := s.tokenStore.ListTokensByIDs(ctx, tokenIDs, 0, 0) // No pagination limit
+	tokens, err := s.tokenStore.ListTokensByIDs(ctx, tokenIDs)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create a map for quick token lookup by ID
-	tokenMap := make(map[int64]*types.Token, len(tokensPage.Items))
-	for i := range tokensPage.Items {
-		tokenMap[tokensPage.Items[i].ID] = &tokensPage.Items[i]
+	tokenMap := make(map[int64]*types.Token, len(tokens))
+	for i := range tokens {
+		tokenMap[tokens[i].ID] = &tokens[i]
 	}
 
 	// Add token balances

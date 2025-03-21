@@ -66,7 +66,10 @@ type PagedWalletsResponse struct {
 }
 
 // ToResponse converts a wallet model to a wallet response
-func ToResponse(wallet *wallet.Wallet) *WalletResponse {
+func ToResponse(wallet *wallet.Wallet, nativeToken *types.Token) *WalletResponse {
+	// Convert big.Int to big.Float using the token's decimal places
+	balanceFloat := nativeToken.ToBigFloat(wallet.Balance)
+
 	return &WalletResponse{
 		ID:        wallet.ID,
 		KeyID:     wallet.KeyID,
@@ -74,25 +77,31 @@ func ToResponse(wallet *wallet.Wallet) *WalletResponse {
 		Address:   wallet.Address,
 		Name:      wallet.Name,
 		Tags:      wallet.Tags,
-		Balance:   wallet.Balance,
+		Balance:   balanceFloat,
 		CreatedAt: wallet.CreatedAt,
 		UpdatedAt: wallet.UpdatedAt,
 	}
 }
 
 // ToResponseList converts a slice of wallet models to a slice of wallet responses
-func ToResponseList(wallets []*wallet.Wallet) []*WalletResponse {
+func ToResponseList(wallets []*wallet.Wallet, tokensMap map[types.ChainType]*types.Token) []*WalletResponse {
 	responses := make([]*WalletResponse, len(wallets))
 	for i, w := range wallets {
-		responses[i] = ToResponse(w)
+		// Get native token for this wallet's chain
+		nativeToken, ok := tokensMap[w.ChainType]
+		if !ok {
+			// Fallback to direct conversion if token not found
+			nativeToken = &types.Token{Decimals: 18} // Default to 18 decimals
+		}
+		responses[i] = ToResponse(w, nativeToken)
 	}
 	return responses
 }
 
 // ToPagedResponse converts a Page of wallet models to a PagedWalletsResponse
-func ToPagedResponse(page *types.Page[*wallet.Wallet]) *PagedWalletsResponse {
+func ToPagedResponse(page *types.Page[*wallet.Wallet], tokensMap map[types.ChainType]*types.Token) *PagedWalletsResponse {
 	return &PagedWalletsResponse{
-		Items:   ToResponseList(page.Items),
+		Items:   ToResponseList(page.Items, tokensMap),
 		Limit:   page.Limit,
 		Offset:  page.Offset,
 		HasMore: page.HasMore,
@@ -111,11 +120,14 @@ func ToTokenResponse(token *types.Token) TokenResponse {
 	}
 }
 
-// ToTokenBalanceResponse converts a token balance data to a token balance response
+// ToTokenBalanceResponse converts a TokenBalanceData model to a TokenBalanceResponse
 func ToTokenBalanceResponse(tokenBalance *wallet.TokenBalanceData) *TokenBalanceResponse {
+	// Convert big.Int to big.Float using the token's decimal places
+	balanceFloat := tokenBalance.Token.ToBigFloat(tokenBalance.Balance)
+
 	return &TokenBalanceResponse{
 		Token:     ToTokenResponse(tokenBalance.Token),
-		Balance:   tokenBalance.Balance,
+		Balance:   balanceFloat,
 		UpdatedAt: tokenBalance.UpdatedAt,
 	}
 }
@@ -131,8 +143,22 @@ func ToTokenBalanceResponseList(tokenBalances []*wallet.TokenBalanceData) []*Tok
 
 // ToWalletBalancesResponse converts a wallet and token balances to a wallet balances response
 func ToWalletBalancesResponse(wallet *wallet.Wallet, balances []*wallet.TokenBalanceData) *WalletBalancesResponse {
+	// Find the native token in the balances
+	var nativeToken *types.Token
+	for _, balance := range balances {
+		if balance.Token.IsNative() {
+			nativeToken = balance.Token
+			break
+		}
+	}
+
+	// If no native token found, use a default
+	if nativeToken == nil {
+		nativeToken = &types.Token{Decimals: 18} // Default to 18 decimals as fallback
+	}
+
 	return &WalletBalancesResponse{
-		Wallet:   ToResponse(wallet),
+		Wallet:   ToResponse(wallet, nativeToken),
 		Balances: ToTokenBalanceResponseList(balances),
 	}
 }

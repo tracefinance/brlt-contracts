@@ -377,10 +377,10 @@ func (s *dbTokenStore) Exists(ctx context.Context, address string, chainType typ
 	return exists, nil
 }
 
-// ListTokensByIDs retrieves tokens by a list of token IDs with pagination
-func (s *dbTokenStore) ListTokensByIDs(ctx context.Context, ids []int64, offset, limit int) (*types.Page[types.Token], error) {
+// ListTokensByIDs retrieves tokens by a list of token IDs
+func (s *dbTokenStore) ListTokensByIDs(ctx context.Context, ids []int64) ([]types.Token, error) {
 	if len(ids) == 0 {
-		return types.NewPage([]types.Token{}, offset, limit), nil
+		return []types.Token{}, nil
 	}
 
 	// Create placeholders for the SQL IN clause
@@ -399,12 +399,6 @@ func (s *dbTokenStore) ListTokensByIDs(ctx context.Context, ids []int64, offset,
 		FROM tokens 
 		WHERE id IN (` + placeholdersStr + `)`
 
-	// Add pagination if limit > 0
-	if limit > 0 {
-		query += " LIMIT ? OFFSET ?"
-		args = append(args, limit, offset)
-	}
-
 	rows, err := s.db.ExecuteQueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.NewDatabaseError(err)
@@ -417,47 +411,13 @@ func (s *dbTokenStore) ListTokensByIDs(ctx context.Context, ids []int64, offset,
 		return nil, err
 	}
 
-	// Create a map of token IDs to tokens for quick lookup
-	tokenMap := make(map[int64]*types.Token, len(tokens))
+	// Convert []*types.Token to []types.Token
+	tokenItems := make([]types.Token, 0, len(tokens))
 	for _, token := range tokens {
-		tokenMap[token.ID] = token
+		tokenItems = append(tokenItems, *token)
 	}
 
-	// Create result slice with tokens in the same order as the input IDs
-	// Skip IDs that don't have corresponding tokens
-	// Apply pagination manually since SQL limit/offset doesn't respect the original order
-	resultTokens := make([]types.Token, 0, len(tokens))
-
-	// If limit is 0, process all IDs
-	if limit <= 0 {
-		for _, id := range ids {
-			if token, exists := tokenMap[id]; exists {
-				resultTokens = append(resultTokens, *token)
-			}
-		}
-	} else {
-		// Apply manual pagination to maintain order of input IDs
-		// Skip tokens before offset
-		startIndex := offset
-		endIndex := offset + limit
-
-		// Ensure we don't go out of bounds
-		if startIndex >= len(ids) {
-			startIndex = len(ids)
-		}
-		if endIndex > len(ids) {
-			endIndex = len(ids)
-		}
-
-		// Process only the IDs within the paginated range
-		for i := startIndex; i < endIndex; i++ {
-			if token, exists := tokenMap[ids[i]]; exists {
-				resultTokens = append(resultTokens, *token)
-			}
-		}
-	}
-
-	return types.NewPage(resultTokens, offset, limit), nil
+	return tokenItems, nil
 }
 
 // GetNativeToken retrieves the native token for a blockchain
@@ -497,4 +457,55 @@ func (s *dbTokenStore) GetNativeToken(ctx context.Context, chainType types.Chain
 		fmt.Sprintf("native token for chain %s not found", chainType),
 		nil,
 	)
+}
+
+// ListTokensByAddresses retrieves tokens by a list of token addresses for a specific chain
+func (s *dbTokenStore) ListTokensByAddresses(ctx context.Context, chainType types.ChainType, addresses []string) ([]types.Token, error) {
+	if len(addresses) == 0 {
+		return []types.Token{}, nil
+	}
+
+	// Normalize all addresses
+	normalizedAddresses := make([]string, len(addresses))
+	for i, address := range addresses {
+		normalizedAddresses[i] = types.NormalizeAddress(address)
+	}
+
+	// Create placeholders for the SQL IN clause
+	placeholders := make([]string, len(normalizedAddresses))
+	args := make([]any, len(normalizedAddresses)+1) // +1 for chainType
+	args[0] = chainType
+
+	for i, address := range normalizedAddresses {
+		placeholders[i] = "?"
+		args[i+1] = address
+	}
+
+	// Join the placeholders with commas
+	placeholdersStr := strings.Join(placeholders, ",")
+
+	// Build the query using the placeholders
+	query := `SELECT id, address, chain_type, symbol, decimals, type 
+		FROM tokens 
+		WHERE chain_type = ? AND lower(address) IN (` + placeholdersStr + `)`
+
+	rows, err := s.db.ExecuteQueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, errors.NewDatabaseError(err)
+	}
+	defer rows.Close()
+
+	// Scan tokens from rows
+	tokens, err := s.scanTokensFromRows(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert []*types.Token to []types.Token
+	tokenItems := make([]types.Token, 0, len(tokens))
+	for _, token := range tokens {
+		tokenItems = append(tokenItems, *token)
+	}
+
+	return tokenItems, nil
 }
