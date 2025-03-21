@@ -60,7 +60,6 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 // @Router /wallets/{chain_type}/{address}/transactions/{hash} [get]
 func (h *Handler) GetTransaction(c *gin.Context) {
 	hash := c.Param("hash")
-	chainType := types.ChainType(c.Param("chain_type"))
 
 	tx, err := h.transactionService.GetTransaction(c.Request.Context(), hash)
 	if err != nil {
@@ -69,7 +68,7 @@ func (h *Handler) GetTransaction(c *gin.Context) {
 	}
 
 	// Get token from tx.TokenAddress
-	token, err := h.tokenService.GetToken(c.Request.Context(), chainType, tx.TokenAddress)
+	token, err := h.tokenService.GetToken(c.Request.Context(), tx.TokenAddress)
 	if err != nil {
 		c.Error(err)
 		return

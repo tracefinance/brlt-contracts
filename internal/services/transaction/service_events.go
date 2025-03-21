@@ -302,7 +302,7 @@ func (s *transactionService) processERC20TransferLog(ctx context.Context, chain 
 	}
 
 	// Get token details from token store
-	token, err := s.tokenStore.GetToken(ctx, tokenAddress, chain.Type)
+	token, err := s.tokenStore.GetToken(ctx, tokenAddress)
 	if err == nil && token != nil {
 		tx.TokenSymbol = token.Symbol
 	} else {

@@ -536,14 +536,14 @@ func (s *walletService) UpdateTokenBalance(ctx context.Context, chainType types.
 		return err
 	}
 
-	// Get token by address and chain type
-	token, err := s.tokenStore.GetToken(ctx, tokenAddress, chainType)
+	// Get token by address
+	token, err := s.tokenStore.GetToken(ctx, tokenAddress)
 	if err != nil {
 		return err
 	}
 
 	// Update the token balance
-	return s.repository.UpdateTokenBalance(ctx, wallet.ID, token.ID, balance)
+	return s.repository.UpdateTokenBalance(ctx, wallet.ID, token.Address, balance)
 }
 
 // GetWalletBalances retrieves the native and token balances for a wallet
@@ -585,37 +585,22 @@ func (s *walletService) GetWalletBalances(ctx context.Context, id int64) ([]*Tok
 		return result, nil
 	}
 
-	// If there are token balances, fetch all tokens at once
-	// Extract token IDs
-	tokenIDs := make([]int64, len(tokenBalances))
-	for i, tb := range tokenBalances {
-		tokenIDs[i] = tb.TokenID
-	}
-
-	// Fetch all tokens in a single call
-	tokens, err := s.tokenStore.ListTokensByIDs(ctx, tokenIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create a map for quick token lookup by ID
-	tokenMap := make(map[int64]*types.Token, len(tokens))
-	for i := range tokens {
-		tokenMap[tokens[i].ID] = &tokens[i]
-	}
-
-	// Add token balances
+	// Process each token balance
 	for _, tb := range tokenBalances {
-		if token, ok := tokenMap[tb.TokenID]; ok {
-			result = append(result, &TokenBalanceData{
-				Token:     token,
-				Balance:   tb.Balance,
-				UpdatedAt: tb.UpdatedAt,
-			})
-		} else {
-			s.log.Warn("Token not found in results",
-				logger.Int64("token_id", tb.TokenID))
+		// Get token by address
+		token, err := s.tokenStore.GetToken(ctx, tb.TokenAddress)
+		if err != nil {
+			s.log.Warn("Could not find token",
+				logger.String("token_address", tb.TokenAddress),
+				logger.Error(err))
+			continue
 		}
+
+		result = append(result, &TokenBalanceData{
+			Token:     token,
+			Balance:   tb.Balance,
+			UpdatedAt: tb.UpdatedAt,
+		})
 	}
 
 	return result, nil

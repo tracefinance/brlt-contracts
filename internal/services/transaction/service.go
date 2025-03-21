@@ -323,7 +323,7 @@ func (s *transactionService) processTransaction(ctx context.Context, coreTx *typ
 		}
 		// For ERC20 transactions, look up the token symbol from the token store
 		if coreTx.Type == types.TransactionTypeERC20 && coreTx.TokenAddress != "" {
-			token, err := s.tokenStore.GetToken(ctx, coreTx.TokenAddress, coreTx.Chain)
+			token, err := s.tokenStore.GetToken(ctx, coreTx.TokenAddress)
 			if err == nil && token != nil {
 				coreTx.TokenSymbol = token.Symbol
 			} else {
@@ -505,7 +505,7 @@ func (s *transactionService) updateTokenBalance(
 	}
 
 	// Get token info
-	token, err := s.tokenStore.GetToken(ctx, tokenAddress, chainType)
+	token, err := s.tokenStore.GetToken(ctx, tokenAddress)
 	if err != nil {
 		s.log.Error("Failed to get token",
 			logger.String("token_address", tokenAddress),

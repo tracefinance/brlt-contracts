@@ -26,10 +26,10 @@ type Wallet struct {
 
 // TokenBalance represents a token balance for a wallet
 type TokenBalance struct {
-	WalletID  int64     `db:"wallet_id"`
-	TokenID   int64     `db:"token_id"`
-	Balance   *big.Int  `db:"balance"`
-	UpdatedAt time.Time `db:"updated_at"`
+	WalletID     int64     `db:"wallet_id"`
+	TokenAddress string    `db:"token_address"`
+	Balance      *big.Int  `db:"balance"`
+	UpdatedAt    time.Time `db:"updated_at"`
 }
 
 // TokenBalanceData contains a token with its balance
@@ -92,7 +92,7 @@ func ScanTokenBalance(row interface {
 
 	err := row.Scan(
 		&tokenBalance.WalletID,
-		&tokenBalance.TokenID,
+		&tokenBalance.TokenAddress,
 		&balanceStr,
 		&tokenBalance.UpdatedAt,
 	)

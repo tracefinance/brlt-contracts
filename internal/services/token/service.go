@@ -16,20 +16,14 @@ type Service interface {
 	// AddToken adds a new token
 	AddToken(ctx context.Context, token *types.Token) error
 
-	// GetTokenByID retrieves a token by ID
-	GetTokenByID(ctx context.Context, id int64) (*types.Token, error)
+	// DeleteToken removes a token by address
+	DeleteToken(ctx context.Context, address string) error
 
-	// DeleteToken removes a token by ID
-	DeleteToken(ctx context.Context, id int64) error
-
-	// VerifyToken checks if a token exists by ID
-	VerifyToken(ctx context.Context, id int64) (*types.Token, error)
+	// VerifyToken checks if a token exists by address
+	VerifyToken(ctx context.Context, address string) (*types.Token, error)
 
 	// GetToken retrieves a token by address
-	GetToken(ctx context.Context, chainType types.ChainType, address string) (*types.Token, error)
-
-	// ListTokensByID retrieves tokens by a list of token IDs
-	ListTokensByID(ctx context.Context, ids []int64) ([]types.Token, error)
+	GetToken(ctx context.Context, address string) (*types.Token, error)
 
 	// ListTokensByAddresses retrieves tokens by a list of token addresses for a specific chain
 	// If an address is not found, it will be skipped in the result
@@ -139,20 +133,9 @@ func (s *service) AddToken(ctx context.Context, token *types.Token) error {
 	return nil
 }
 
-// GetTokenByID implements the Service interface
-func (s *service) GetTokenByID(ctx context.Context, id int64) (*types.Token, error) {
-	token, err := s.tokenStore.GetTokenByID(ctx, id)
-	if err != nil {
-		s.log.Error("Failed to get token", logger.Error(err), logger.Int("token_id", int(id)))
-		return nil, err
-	}
-
-	return token, nil
-}
-
 // GetToken implements the Service interface
-func (s *service) GetToken(ctx context.Context, chainType types.ChainType, address string) (*types.Token, error) {
-	token, err := s.tokenStore.GetToken(ctx, address, chainType)
+func (s *service) GetToken(ctx context.Context, address string) (*types.Token, error) {
+	token, err := s.tokenStore.GetToken(ctx, address)
 	if err != nil {
 		s.log.Error("Failed to get token by address", logger.Error(err), logger.String("address", address))
 		return nil, err
@@ -162,23 +145,23 @@ func (s *service) GetToken(ctx context.Context, chainType types.ChainType, addre
 }
 
 // DeleteToken implements the Service interface
-func (s *service) DeleteToken(ctx context.Context, id int64) error {
+func (s *service) DeleteToken(ctx context.Context, address string) error {
 	// Check if the token exists first
-	token, err := s.tokenStore.GetTokenByID(ctx, id)
+	token, err := s.tokenStore.GetToken(ctx, address)
 	if err != nil {
-		s.log.Error("Failed to get token for deletion", logger.Error(err), logger.Int("token_id", int(id)))
+		s.log.Error("Failed to get token for deletion", logger.Error(err), logger.String("address", address))
 		return err
 	}
 
 	// Delete the token
-	err = s.tokenStore.DeleteToken(ctx, id)
+	err = s.tokenStore.DeleteToken(ctx, address)
 	if err != nil {
-		s.log.Error("Failed to delete token", logger.Error(err), logger.Int("token_id", int(id)))
+		s.log.Error("Failed to delete token", logger.Error(err), logger.String("address", address))
 		return err
 	}
 
 	s.log.Info("Token deleted successfully",
-		logger.Int("token_id", int(id)),
+		logger.String("address", address),
 		logger.String("symbol", token.Symbol),
 		logger.String("chain_type", string(token.ChainType)))
 
@@ -186,27 +169,14 @@ func (s *service) DeleteToken(ctx context.Context, id int64) error {
 }
 
 // VerifyToken implements the Service interface
-func (s *service) VerifyToken(ctx context.Context, id int64) (*types.Token, error) {
-	token, err := s.tokenStore.GetTokenByID(ctx, id)
+func (s *service) VerifyToken(ctx context.Context, address string) (*types.Token, error) {
+	token, err := s.tokenStore.GetToken(ctx, address)
 	if err != nil {
-		s.log.Error("Token verification failed", logger.Error(err), logger.Int("token_id", int(id)))
+		s.log.Error("Token verification failed", logger.Error(err), logger.String("address", address))
 		return nil, err
 	}
 
 	return token, nil
-}
-
-// ListTokensByID implements the Service interface
-func (s *service) ListTokensByID(ctx context.Context, ids []int64) ([]types.Token, error) {
-	tokens, err := s.tokenStore.ListTokensByIDs(ctx, ids)
-	if err != nil {
-		s.log.Error("Failed to list tokens by IDs",
-			logger.Error(err),
-			logger.Any("token_ids", ids))
-		return nil, err
-	}
-
-	return tokens, nil
 }
 
 // ListTokensByAddresses implements the Service interface

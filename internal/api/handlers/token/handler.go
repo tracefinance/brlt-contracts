@@ -31,8 +31,8 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	{
 		tokenRoutes.GET("", h.listTokens)
 		tokenRoutes.POST("", h.addToken)
-		tokenRoutes.GET("/:id", h.verifyToken)
-		tokenRoutes.DELETE("/:id", h.deleteToken)
+		tokenRoutes.GET("/:address", h.verifyToken)
+		tokenRoutes.DELETE("/:address", h.deleteToken)
 	}
 }
 
@@ -156,25 +156,25 @@ func (h *Handler) addToken(c *gin.Context) {
 	c.JSON(http.StatusCreated, response)
 }
 
-// verifyToken handles GET /tokens/:id
+// verifyToken handles GET /tokens/:address
 // @Summary Verify token
-// @Description Verify a token by its ID and return its details
+// @Description Verify a token by its address and return its details
 // @Tags tokens
 // @Produce json
-// @Param id path int true "Token ID"
+// @Param address path string true "Token address"
 // @Success 200 {object} TokenResponse
 // @Failure 400 {object} errors.Vault0Error "Invalid request"
 // @Failure 404 {object} errors.Vault0Error "Token not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
-// @Router /tokens/{id} [get]
+// @Router /tokens/{address} [get]
 func (h *Handler) verifyToken(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		c.Error(errors.NewInvalidParameterError("id", "must be a valid integer"))
+	address := c.Param("address")
+	if address == "" {
+		c.Error(errors.NewInvalidParameterError("address", "cannot be empty"))
 		return
 	}
 
-	token, err := h.service.VerifyToken(c.Request.Context(), id)
+	token, err := h.service.VerifyToken(c.Request.Context(), address)
 	if err != nil {
 		c.Error(err)
 		return
@@ -193,24 +193,24 @@ func (h *Handler) verifyToken(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// deleteToken handles DELETE /tokens/:id
+// deleteToken handles DELETE /tokens/:address
 // @Summary Delete token
-// @Description Delete a token by its ID
+// @Description Delete a token by its address
 // @Tags tokens
-// @Param id path int true "Token ID"
+// @Param address path string true "Token address"
 // @Success 204 "No Content"
 // @Failure 400 {object} errors.Vault0Error "Invalid request"
 // @Failure 404 {object} errors.Vault0Error "Token not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
-// @Router /tokens/{id} [delete]
+// @Router /tokens/{address} [delete]
 func (h *Handler) deleteToken(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		c.Error(errors.NewInvalidParameterError("id", "must be a valid integer"))
+	address := c.Param("address")
+	if address == "" {
+		c.Error(errors.NewInvalidParameterError("address", "cannot be empty"))
 		return
 	}
 
-	if err := h.service.DeleteToken(c.Request.Context(), id); err != nil {
+	if err := h.service.DeleteToken(c.Request.Context(), address); err != nil {
 		c.Error(err)
 		return
 	}

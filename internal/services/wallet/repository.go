@@ -43,7 +43,7 @@ type Repository interface {
 	GetWalletBalances(ctx context.Context, id int64) ([]*TokenBalance, error)
 
 	// UpdateTokenBalance updates or creates a token balance for a wallet
-	UpdateTokenBalance(ctx context.Context, walletID, tokenID int64, balance *big.Int) error
+	UpdateTokenBalance(ctx context.Context, walletID int64, tokenAddress string, balance *big.Int) error
 
 	// GetTokenBalances retrieves all token balances for a wallet
 	GetTokenBalances(ctx context.Context, walletID int64) ([]*TokenBalance, error)
@@ -377,11 +377,11 @@ func (r *repository) GetWalletBalances(ctx context.Context, id int64) ([]*TokenB
 }
 
 // UpdateTokenBalance updates or creates a token balance for a wallet
-func (r *repository) UpdateTokenBalance(ctx context.Context, walletID, tokenID int64, balance *big.Int) error {
+func (r *repository) UpdateTokenBalance(ctx context.Context, walletID int64, tokenAddress string, balance *big.Int) error {
 	query := `
-		INSERT INTO token_balances (wallet_id, token_id, balance, updated_at)
+		INSERT INTO token_balances (wallet_id, token_address, balance, updated_at)
 		VALUES (?, ?, ?, ?)
-		ON CONFLICT (wallet_id, token_id) DO UPDATE
+		ON CONFLICT (wallet_id, token_address) DO UPDATE
 		SET balance = ?, updated_at = ?
 	`
 
@@ -390,7 +390,7 @@ func (r *repository) UpdateTokenBalance(ctx context.Context, walletID, tokenID i
 		ctx,
 		query,
 		walletID,
-		tokenID,
+		tokenAddress,
 		balance.String(),
 		now,
 		balance.String(),
@@ -407,7 +407,7 @@ func (r *repository) UpdateTokenBalance(ctx context.Context, walletID, tokenID i
 // GetTokenBalances retrieves all token balances for a wallet
 func (r *repository) GetTokenBalances(ctx context.Context, walletID int64) ([]*TokenBalance, error) {
 	query := `
-		SELECT wallet_id, token_id, balance, updated_at
+		SELECT wallet_id, token_address, balance, updated_at
 		FROM token_balances
 		WHERE wallet_id = ?
 	`

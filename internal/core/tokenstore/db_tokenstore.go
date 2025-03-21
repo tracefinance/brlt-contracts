@@ -3,7 +3,6 @@ package tokenstore
 import (
 	"context"
 	"database/sql"
-	"strconv"
 	"strings"
 	"time"
 
@@ -88,8 +87,8 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 	return nil
 }
 
-// GetToken retrieves a token by its address and chain type
-func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType types.ChainType) (*types.Token, error) {
+// GetToken retrieves a token by its address
+func (s *dbTokenStore) GetToken(ctx context.Context, address string) (*types.Token, error) {
 	normalizedAddress := types.NormalizeAddress(address)
 
 	var token types.Token
@@ -97,9 +96,8 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType t
 		ctx,
 		`SELECT id, address, chain_type, symbol, decimals, type 
 		FROM tokens 
-		WHERE lower(address) = ? AND chain_type = ?`,
+		WHERE lower(address) = ?`,
 		normalizedAddress,
-		chainType,
 	)
 	if err != nil {
 		return nil, err
@@ -108,41 +106,6 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string, chainType t
 
 	if !rows.Next() {
 		return nil, errors.NewResourceNotFoundError("token", normalizedAddress)
-	}
-
-	err = rows.Scan(
-		&token.ID,
-		&token.Address,
-		&token.ChainType,
-		&token.Symbol,
-		&token.Decimals,
-		&token.Type,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &token, nil
-}
-
-// GetTokenByID retrieves a token by its primary ID
-func (s *dbTokenStore) GetTokenByID(ctx context.Context, id int64) (*types.Token, error) {
-	var token types.Token
-	rows, err := s.db.ExecuteQueryContext(
-		ctx,
-		`SELECT id, address, chain_type, symbol, decimals, type 
-		FROM tokens 
-		WHERE id = ?`,
-		id,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	if !rows.Next() {
-		return nil, errors.NewResourceNotFoundError("token", strconv.FormatInt(id, 10))
 	}
 
 	err = rows.Scan(
@@ -266,7 +229,7 @@ func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 	}
 
 	if rowsAffected == 0 {
-		return errors.NewResourceNotFoundError("token", strconv.FormatInt(token.ID, 10))
+		return errors.NewResourceNotFoundError("token", token.Address)
 	}
 
 	// Emit a token updated event
@@ -274,29 +237,31 @@ func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 	case s.tokenEvents <- TokenEvent{EventType: TokenEventUpdated, Token: token}:
 		s.log.Debug("Emitted token updated event",
 			logger.String("symbol", token.Symbol),
-			logger.Int64("id", token.ID))
+			logger.String("address", token.Address))
 	default:
 		// Don't block if channel buffer is full
 		s.log.Warn("Token events channel full, update event not emitted",
 			logger.String("symbol", token.Symbol),
-			logger.Int64("id", token.ID))
+			logger.String("address", token.Address))
 	}
 
 	return nil
 }
 
-// DeleteToken removes a token from the store by its ID
-func (s *dbTokenStore) DeleteToken(ctx context.Context, id int64) error {
+// DeleteToken removes a token from the store by its address
+func (s *dbTokenStore) DeleteToken(ctx context.Context, address string) error {
+	normalizedAddress := types.NormalizeAddress(address)
+
 	// First get the token to emit in the event
-	token, err := s.GetTokenByID(ctx, id)
+	token, err := s.GetToken(ctx, normalizedAddress)
 	if err != nil {
 		return err
 	}
 
 	result, err := s.db.ExecuteStatementContext(
 		ctx,
-		"DELETE FROM tokens WHERE id = ?",
-		id,
+		"DELETE FROM tokens WHERE lower(address) = ?",
+		normalizedAddress,
 	)
 	if err != nil {
 		return errors.NewDatabaseError(err)
@@ -308,7 +273,7 @@ func (s *dbTokenStore) DeleteToken(ctx context.Context, id int64) error {
 	}
 
 	if rowsAffected == 0 {
-		return errors.NewResourceNotFoundError("token", strconv.FormatInt(id, 10))
+		return errors.NewResourceNotFoundError("token", normalizedAddress)
 	}
 
 	// Emit a token deleted event
@@ -316,12 +281,12 @@ func (s *dbTokenStore) DeleteToken(ctx context.Context, id int64) error {
 	case s.tokenEvents <- TokenEvent{EventType: TokenEventDeleted, Token: token}:
 		s.log.Debug("Emitted token deleted event",
 			logger.String("symbol", token.Symbol),
-			logger.Int64("id", id))
+			logger.String("address", normalizedAddress))
 	default:
 		// Don't block if channel buffer is full
 		s.log.Warn("Token events channel full, delete event not emitted",
 			logger.String("symbol", token.Symbol),
-			logger.Int64("id", id))
+			logger.String("address", normalizedAddress))
 	}
 
 	return nil
@@ -374,49 +339,6 @@ func (s *dbTokenStore) Exists(ctx context.Context, address string, chainType typ
 	}
 
 	return exists, nil
-}
-
-// ListTokensByIDs retrieves tokens by a list of token IDs
-func (s *dbTokenStore) ListTokensByIDs(ctx context.Context, ids []int64) ([]types.Token, error) {
-	if len(ids) == 0 {
-		return []types.Token{}, nil
-	}
-
-	// Create placeholders for the SQL IN clause
-	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-
-	// Join the placeholders with commas using strings.Join
-	placeholdersStr := strings.Join(placeholders, ",")
-
-	// Build the query using the placeholders
-	query := `SELECT id, address, chain_type, symbol, decimals, type 
-		FROM tokens 
-		WHERE id IN (` + placeholdersStr + `)`
-
-	rows, err := s.db.ExecuteQueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, errors.NewDatabaseError(err)
-	}
-	defer rows.Close()
-
-	// Scan tokens from rows
-	tokens, err := s.scanTokensFromRows(rows)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert []*types.Token to []types.Token
-	tokenItems := make([]types.Token, 0, len(tokens))
-	for _, token := range tokens {
-		tokenItems = append(tokenItems, *token)
-	}
-
-	return tokenItems, nil
 }
 
 // ListTokensByAddresses retrieves tokens by a list of token addresses for a specific chain
