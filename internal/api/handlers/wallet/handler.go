@@ -49,9 +49,9 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 // @Tags wallets
 // @Accept json
 // @Produce json
-// @Param wallet body CreateWalletRequest true "Wallet data"
-// @Success 201 {object} WalletResponse
-// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Param wallet body CreateWalletRequest true "Wallet data to create"
+// @Success 201 {object} WalletResponse "Created wallet details"
+// @Failure 400 {object} errors.Vault0Error "Invalid request data"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /wallets [post]
 func (h *Handler) CreateWallet(c *gin.Context) {
@@ -77,12 +77,12 @@ func (h *Handler) CreateWallet(c *gin.Context) {
 
 // GetWallet handles retrieving a wallet by chain type and address
 // @Summary Get a wallet
-// @Description Get a wallet by chain type and address
+// @Description Get a wallet's details by chain type and address
 // @Tags wallets
 // @Produce json
-// @Param chain_type path string true "Chain type"
-// @Param address path string true "Wallet address"
-// @Success 200 {object} WalletResponse
+// @Param chain_type path string true "Blockchain network type (e.g., ethereum, bitcoin)"
+// @Param address path string true "Wallet address on the blockchain"
+// @Success 200 {object} WalletResponse "Wallet details including balance"
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /wallets/{chain_type}/{address} [get]
@@ -106,15 +106,15 @@ func (h *Handler) GetWallet(c *gin.Context) {
 
 // UpdateWallet handles updating a wallet
 // @Summary Update a wallet
-// @Description Update a wallet's name and tags
+// @Description Update a wallet's name and tags by chain type and address
 // @Tags wallets
 // @Accept json
 // @Produce json
-// @Param chain_type path string true "Chain type"
-// @Param address path string true "Wallet address"
-// @Param wallet body UpdateWalletRequest true "Wallet data to update"
-// @Success 200 {object} WalletResponse
-// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Param chain_type path string true "Blockchain network type (e.g., ethereum, bitcoin)"
+// @Param address path string true "Wallet address on the blockchain"
+// @Param wallet body UpdateWalletRequest true "Wallet properties to update"
+// @Success 200 {object} WalletResponse "Updated wallet details"
+// @Failure 400 {object} errors.Vault0Error "Invalid request data"
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /wallets/{chain_type}/{address} [put]
@@ -146,9 +146,9 @@ func (h *Handler) UpdateWallet(c *gin.Context) {
 // @Summary Delete a wallet
 // @Description Delete a wallet by chain type and address
 // @Tags wallets
-// @Param chain_type path string true "Chain type"
-// @Param address path string true "Wallet address"
-// @Success 204 "No Content"
+// @Param chain_type path string true "Blockchain network type (e.g., ethereum, bitcoin)"
+// @Param address path string true "Wallet address on the blockchain"
+// @Success 204 "Wallet successfully deleted"
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /wallets/{chain_type}/{address} [delete]
@@ -169,12 +169,12 @@ func (h *Handler) DeleteWallet(c *gin.Context) {
 
 // ListWallets handles listing wallets
 // @Summary List wallets
-// @Description Get a paginated list of wallets
+// @Description Get a paginated list of all wallets
 // @Tags wallets
 // @Produce json
-// @Param limit query int false "Number of items to return (default: 10)" default(10)
-// @Param offset query int false "Number of items to skip (default: 0)" default(0)
-// @Success 200 {object} PagedWalletsResponse
+// @Param limit query int false "Maximum number of wallets to return (default: 10)" default(10)
+// @Param offset query int false "Number of wallets to skip for pagination (default: 0)" default(0)
+// @Success 200 {object} PagedWalletsResponse "Paginated list of wallets with navigation metadata"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /wallets [get]
 func (h *Handler) ListWallets(c *gin.Context) {
@@ -211,12 +211,12 @@ func (h *Handler) ListWallets(c *gin.Context) {
 
 // GetWalletBalance handles retrieving a wallet's balances by chain type and address
 // @Summary Get a wallet's balances
-// @Description Get a wallet's native and token balances by chain type and address
+// @Description Get a wallet's native token and other token balances by chain type and address
 // @Tags wallets
 // @Produce json
-// @Param chain_type path string true "Chain type"
-// @Param address path string true "Wallet address"
-// @Success 200 {object} WalletBalancesResponse
+// @Param chain_type path string true "Blockchain network type (e.g., ethereum, bitcoin)"
+// @Param address path string true "Wallet address on the blockchain"
+// @Success 200 {object} []TokenBalanceResponse "Array of token balances including native currency"
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /wallets/{chain_type}/{address}/balance [get]
@@ -224,34 +224,12 @@ func (h *Handler) GetWalletBalance(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")
 
-	// Get the wallet
-	wallet, err := h.walletService.GetByAddress(c.Request.Context(), chainType, address)
-	if err != nil {
-		c.Error(err)
-		return
-	}
-
-	nativeToken, err := wallet.GetToken()
-	if err != nil {
-		c.Error(err)
-		return
-	}
-
-	walletBalance := &walletService.TokenBalanceData{
-		Token:     nativeToken,
-		Balance:   wallet.Balance,
-		UpdatedAt: wallet.UpdatedAt,
-	}
-
 	// Get the wallet balances
 	balances, err := h.walletService.GetWalletBalancesByAddress(c.Request.Context(), chainType, address)
 	if err != nil {
 		c.Error(err)
 		return
 	}
-
-	// Prepend native token balance
-	balances = append([]*walletService.TokenBalanceData{walletBalance}, balances...)
 
 	// Convert to response
 	response := ToTokenBalanceResponseList(balances)
