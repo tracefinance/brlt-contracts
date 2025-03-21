@@ -568,17 +568,17 @@ func (s *walletService) GetWalletBalances(ctx context.Context, id int64) ([]*Tok
 	result := make([]*TokenBalanceData, 0, len(tokenBalances)+1)
 
 	// Get the native token for this chain
-	nativeToken, err := s.tokenStore.GetNativeToken(ctx, wallet.ChainType)
+	nativeToken, err := wallet.GetToken()
 	if err != nil {
 		return nil, err
-	} else {
-		// Add native token balance
-		result = append(result, &TokenBalanceData{
-			Token:     nativeToken,
-			Balance:   wallet.Balance,
-			UpdatedAt: wallet.UpdatedAt,
-		})
 	}
+
+	// Add native token balance
+	result = append(result, &TokenBalanceData{
+		Token:     nativeToken,
+		Balance:   wallet.Balance,
+		UpdatedAt: wallet.UpdatedAt,
+	})
 
 	// If there are no token balances, return the native token balance
 	if len(tokenBalances) == 0 {

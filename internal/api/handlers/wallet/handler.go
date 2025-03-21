@@ -8,18 +8,18 @@ import (
 
 	"vault0/internal/api/middleares"
 	"vault0/internal/services/token"
-	"vault0/internal/services/wallet"
+	walletService "vault0/internal/services/wallet"
 	"vault0/internal/types"
 )
 
 // Handler handles wallet API requests
 type Handler struct {
-	walletService wallet.Service
+	walletService walletService.Service
 	tokenService  token.Service
 }
 
 // NewHandler creates a new wallet handler
-func NewHandler(walletService wallet.Service, tokenService token.Service) *Handler {
+func NewHandler(walletService walletService.Service, tokenService token.Service) *Handler {
 	return &Handler{
 		walletService: walletService,
 		tokenService:  tokenService,
@@ -68,15 +68,8 @@ func (h *Handler) CreateWallet(c *gin.Context) {
 		return
 	}
 
-	// Get native token for this chain
-	nativeToken, err := h.tokenService.GetNativeToken(c.Request.Context(), req.ChainType)
-	if err != nil {
-		c.Error(err)
-		return
-	}
-
 	// Convert to response
-	response := ToResponse(walletModel, nativeToken)
+	response := ToResponse(walletModel)
 
 	// Write response
 	c.JSON(http.StatusCreated, response)
@@ -104,15 +97,8 @@ func (h *Handler) GetWallet(c *gin.Context) {
 		return
 	}
 
-	// Get native token for this chain
-	nativeToken, err := h.tokenService.GetNativeToken(c.Request.Context(), chainType)
-	if err != nil {
-		c.Error(err)
-		return
-	}
-
 	// Convert to response
-	response := ToResponse(walletModel, nativeToken)
+	response := ToResponse(walletModel)
 
 	// Write response
 	c.JSON(http.StatusOK, response)
@@ -149,15 +135,8 @@ func (h *Handler) UpdateWallet(c *gin.Context) {
 		return
 	}
 
-	// Get native token for this chain
-	nativeToken, err := h.tokenService.GetNativeToken(c.Request.Context(), chainType)
-	if err != nil {
-		c.Error(err)
-		return
-	}
-
 	// Convert to response
-	response := ToResponse(walletModel, nativeToken)
+	response := ToResponse(walletModel)
 
 	// Write response
 	c.JSON(http.StatusOK, response)
@@ -226,28 +205,8 @@ func (h *Handler) ListWallets(c *gin.Context) {
 		return
 	}
 
-	// Create a map of chain types to native tokens
-	tokensMap := make(map[types.ChainType]*types.Token)
-
-	// Get unique chain types from the wallet list
-	chainTypes := make(map[types.ChainType]bool)
-	for _, w := range walletPage.Items {
-		chainTypes[w.ChainType] = true
-	}
-
-	// Fetch native tokens for each chain type
-	for chainType := range chainTypes {
-		nativeToken, err := h.tokenService.GetNativeToken(c.Request.Context(), chainType)
-		if err != nil {
-			c.Error(err)
-			continue
-		}
-
-		tokensMap[chainType] = nativeToken
-	}
-
 	// Write response
-	c.JSON(http.StatusOK, ToPagedResponse(walletPage, tokensMap))
+	c.JSON(http.StatusOK, ToPagedResponse(walletPage))
 }
 
 // GetWalletBalance handles retrieving a wallet's balances by chain type and address
@@ -272,6 +231,18 @@ func (h *Handler) GetWalletBalance(c *gin.Context) {
 		return
 	}
 
+	nativeToken, err := wallet.GetToken()
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	walletBalance := &walletService.TokenBalanceData{
+		Token:     nativeToken,
+		Balance:   wallet.Balance,
+		UpdatedAt: wallet.UpdatedAt,
+	}
+
 	// Get the wallet balances
 	balances, err := h.walletService.GetWalletBalancesByAddress(c.Request.Context(), chainType, address)
 	if err != nil {
@@ -279,8 +250,11 @@ func (h *Handler) GetWalletBalance(c *gin.Context) {
 		return
 	}
 
+	// Prepend native token balance
+	balances = append([]*walletService.TokenBalanceData{walletBalance}, balances...)
+
 	// Convert to response
-	response := ToWalletBalancesResponse(wallet, balances)
+	response := ToTokenBalanceResponseList(balances)
 
 	// Write response
 	c.JSON(http.StatusOK, response)

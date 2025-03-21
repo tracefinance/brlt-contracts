@@ -25,9 +25,6 @@ type Service interface {
 	// VerifyToken checks if a token exists by ID
 	VerifyToken(ctx context.Context, id int64) (*types.Token, error)
 
-	// GetNativeToken retrieves the native token for a blockchain
-	GetNativeToken(ctx context.Context, chainType types.ChainType) (*types.Token, error)
-
 	// GetToken retrieves a token by address
 	GetToken(ctx context.Context, chainType types.ChainType, address string) (*types.Token, error)
 
@@ -193,19 +190,6 @@ func (s *service) VerifyToken(ctx context.Context, id int64) (*types.Token, erro
 	token, err := s.tokenStore.GetTokenByID(ctx, id)
 	if err != nil {
 		s.log.Error("Token verification failed", logger.Error(err), logger.Int("token_id", int(id)))
-		return nil, err
-	}
-
-	return token, nil
-}
-
-// GetNativeToken implements the Service interface
-func (s *service) GetNativeToken(ctx context.Context, chainType types.ChainType) (*types.Token, error) {
-	token, err := s.tokenStore.GetNativeToken(ctx, chainType)
-	if err != nil {
-		s.log.Error("Failed to get native token",
-			logger.Error(err),
-			logger.String("chain_type", string(chainType)))
 		return nil, err
 	}
 

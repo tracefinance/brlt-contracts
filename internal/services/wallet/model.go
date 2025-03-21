@@ -115,3 +115,8 @@ func ScanTokenBalance(row interface {
 
 	return tokenBalance, nil
 }
+
+// GetToken returns the native token for the wallet's blockchain
+func (w *Wallet) GetToken() (*types.Token, error) {
+	return types.NewNativeToken(w.ChainType)
+}

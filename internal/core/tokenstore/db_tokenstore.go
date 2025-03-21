@@ -3,7 +3,6 @@ package tokenstore
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -418,45 +417,6 @@ func (s *dbTokenStore) ListTokensByIDs(ctx context.Context, ids []int64) ([]type
 	}
 
 	return tokenItems, nil
-}
-
-// GetNativeToken retrieves the native token for a blockchain
-func (s *dbTokenStore) GetNativeToken(ctx context.Context, chainType types.ChainType) (*types.Token, error) {
-	// First check if the native token exists in the database
-	var token types.Token
-	rows, err := s.db.ExecuteQueryContext(
-		ctx,
-		`SELECT id, address, chain_type, symbol, decimals, type
-		FROM tokens
-		WHERE chain_type = ? AND type = ?`,
-		chainType,
-		types.TokenTypeNative,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	if rows.Next() {
-		err = rows.Scan(
-			&token.ID,
-			&token.Address,
-			&token.ChainType,
-			&token.Symbol,
-			&token.Decimals,
-			&token.Type,
-		)
-		if err != nil {
-			return nil, err
-		}
-		return &token, nil
-	}
-
-	// If native token not found, return error
-	return nil, errors.NewInvalidTokenError(
-		fmt.Sprintf("native token for chain %s not found", chainType),
-		nil,
-	)
 }
 
 // ListTokensByAddresses retrieves tokens by a list of token addresses for a specific chain

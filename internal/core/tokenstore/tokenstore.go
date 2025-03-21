@@ -34,9 +34,6 @@ type TokenStore interface {
 	// GetToken retrieves a token by its identifier (address and chain type)
 	GetToken(ctx context.Context, address string, chainType types.ChainType) (*types.Token, error)
 
-	// GetNativeToken retrieves the native token for a blockchain
-	GetNativeToken(ctx context.Context, chainType types.ChainType) (*types.Token, error)
-
 	// GetTokenByID retrieves a token by its ID
 	GetTokenByID(ctx context.Context, id int64) (*types.Token, error)
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"vault0/internal/errors"
 )
 
 const (
@@ -169,4 +170,35 @@ func (t *Token) ToBigInt(value *big.Float) *big.Int {
 	// Convert back to big.Int, truncating any remaining decimals
 	intResult, _ := result.Int(nil)
 	return intResult
+}
+
+// NewNativeToken creates a native token for the specified blockchain
+// It automatically resolves the symbol and decimals based on the chain type
+func NewNativeToken(chainType ChainType) (*Token, error) {
+	// Get the symbol for this chain
+	symbol := getChainSymbol(chainType)
+
+	// Determine the decimals for the native token
+	var decimals uint8
+	switch chainType {
+	case ChainTypeEthereum, ChainTypeBase, ChainTypePolygon:
+		decimals = 18 // ETH and MATIC both have 18 decimals
+	default:
+		return nil, errors.NewChainNotSupportedError(string(chainType))
+	}
+
+	token := &Token{
+		Address:   ZeroAddress,
+		ChainType: chainType,
+		Symbol:    symbol,
+		Decimals:  decimals,
+		Type:      TokenTypeNative,
+	}
+
+	// Validate the token configuration
+	if err := token.Validate(); err != nil {
+		return nil, err
+	}
+
+	return token, nil
 }
