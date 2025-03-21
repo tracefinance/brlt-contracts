@@ -2,7 +2,6 @@ package blockexplorer
 
 import (
 	"context"
-	"math/big"
 	"vault0/internal/types"
 )
 
@@ -105,26 +104,6 @@ type BlockExplorer interface {
 	//   - ErrInvalidExplorerResponse if the response cannot be parsed
 	//   - ErrTransactionNotFound if the transaction receipt cannot be found
 	GetTransactionReceiptByHash(ctx context.Context, hash string) (*types.TransactionReceipt, error)
-
-	// GetAddressBalance retrieves the native token balance for an address
-	// (e.g., ETH for Ethereum, MATIC for Polygon).
-	//
-	// The balance is returned in the smallest unit of the native currency
-	// (e.g., Wei for Ethereum). To get the actual balance, divide by 10^18.
-	//
-	// Returns:
-	//   - ErrInvalidAddress if the address is invalid
-	//   - ErrExplorerRequestFailed for API/network issues
-	GetAddressBalance(ctx context.Context, address string) (*big.Int, error)
-
-	// GetTokenBalance retrieves the token balance for a specific token for an address.
-	//
-	// The balance is returned in the smallest unit of the token.
-	//
-	// Returns:
-	//   - ErrInvalidAddress if the address is invalid
-	//   - ErrExplorerRequestFailed for API/network issues
-	GetTokenBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error)
 
 	// GetContract retrieves detailed information about a smart contract.
 	// This includes the contract's ABI, source code (if verified), and other metadata.

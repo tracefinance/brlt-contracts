@@ -44,18 +44,11 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 		return errors.NewResourceAlreadyExistsError("token", "address", token.Address)
 	}
 
-	// Generate a new Snowflake ID for the token
-	tokenID, err := s.db.GenerateID()
-	if err != nil {
-		return err
-	}
-
 	// Insert the new token
 	_, err = s.db.ExecuteStatementContext(
 		ctx,
-		`INSERT INTO tokens (id, address, chain_type, symbol, decimals, type) 
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		tokenID,
+		`INSERT INTO tokens (address, chain_type, symbol, decimals, type) 
+		VALUES (?, ?, ?, ?, ?)`,
 		token.Address,
 		token.ChainType,
 		token.Symbol,
@@ -66,9 +59,6 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 	if err != nil {
 		return err
 	}
-
-	// Set the ID in the token struct
-	token.ID = tokenID
 
 	// Emit a token added event
 	select {
@@ -94,7 +84,7 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string) (*types.Tok
 	var token types.Token
 	rows, err := s.db.ExecuteQueryContext(
 		ctx,
-		`SELECT id, address, chain_type, symbol, decimals, type 
+		`SELECT address, chain_type, symbol, decimals, type 
 		FROM tokens 
 		WHERE lower(address) = ?`,
 		normalizedAddress,
@@ -109,7 +99,6 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string) (*types.Tok
 	}
 
 	err = rows.Scan(
-		&token.ID,
 		&token.Address,
 		&token.ChainType,
 		&token.Symbol,
@@ -126,7 +115,7 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string) (*types.Tok
 
 // ListTokensByChain retrieves tokens for a specific blockchain with pagination
 func (s *dbTokenStore) ListTokensByChain(ctx context.Context, chainType types.ChainType, offset, limit int) (*types.Page[types.Token], error) {
-	query := `SELECT id, address, chain_type, symbol, decimals, type 
+	query := `SELECT address, chain_type, symbol, decimals, type 
 		FROM tokens 
 		WHERE chain_type = ?
 		ORDER BY symbol`
@@ -161,7 +150,7 @@ func (s *dbTokenStore) ListTokensByChain(ctx context.Context, chainType types.Ch
 
 // ListTokens retrieves tokens in the store with pagination
 func (s *dbTokenStore) ListTokens(ctx context.Context, offset, limit int) (*types.Page[types.Token], error) {
-	query := `SELECT id, address, chain_type, symbol, decimals, type 
+	query := `SELECT address, chain_type, symbol, decimals, type 
 		FROM tokens 
 		ORDER BY chain_type, symbol`
 
@@ -203,19 +192,16 @@ func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 		return errors.NewInvalidTokenError("validation failed", err)
 	}
 
-	if token.ID == 0 {
-		return errors.NewInvalidTokenError("token ID is required for update", nil)
-	}
-
 	query := `UPDATE tokens 
 		SET symbol = ?, decimals = ?, type = ?, updated_at = ?
-		WHERE id = ?`
+		WHERE address = ? AND chain_type = ?`
 	args := []any{
 		token.Symbol,
 		token.Decimals,
 		token.Type,
 		time.Now(),
-		token.ID,
+		token.Address,
+		token.ChainType,
 	}
 
 	result, err := s.db.ExecuteStatementContext(ctx, query, args...)
@@ -299,7 +285,6 @@ func (s *dbTokenStore) scanTokensFromRows(rows *sql.Rows) ([]*types.Token, error
 	for rows.Next() {
 		var token types.Token
 		if err := rows.Scan(
-			&token.ID,
 			&token.Address,
 			&token.ChainType,
 			&token.Symbol,
@@ -367,7 +352,7 @@ func (s *dbTokenStore) ListTokensByAddresses(ctx context.Context, chainType type
 	placeholdersStr := strings.Join(placeholders, ",")
 
 	// Build the query using the placeholders
-	query := `SELECT id, address, chain_type, symbol, decimals, type 
+	query := `SELECT address, chain_type, symbol, decimals, type 
 		FROM tokens 
 		WHERE chain_type = ? AND lower(address) IN (` + placeholdersStr + `)`
 

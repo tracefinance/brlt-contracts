@@ -23,9 +23,6 @@ const (
 
 // Token represents a cryptocurrency token
 type Token struct {
-	// ID is the unique identifier for the token
-	ID int64
-
 	// Address is the contract address of the token
 	// For native tokens, this is typically the zero address
 	Address string

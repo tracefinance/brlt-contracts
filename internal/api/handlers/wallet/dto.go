@@ -43,7 +43,6 @@ type TokenBalanceResponse struct {
 
 // TokenResponse represents a token response
 type TokenResponse struct {
-	ID        int64           `json:"id"`
 	Address   string          `json:"address"`
 	ChainType types.ChainType `json:"chain_type"`
 	Symbol    string          `json:"symbol"`
@@ -106,7 +105,6 @@ func ToPagedResponse(page *types.Page[*wallet.Wallet]) *PagedWalletsResponse {
 // ToTokenResponse converts a Token to a TokenResponse
 func ToTokenResponse(token *types.Token) TokenResponse {
 	return TokenResponse{
-		ID:        token.ID,
 		Address:   token.Address,
 		ChainType: token.ChainType,
 		Symbol:    token.Symbol,

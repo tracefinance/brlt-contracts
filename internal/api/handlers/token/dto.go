@@ -4,7 +4,6 @@ import "vault0/internal/types"
 
 // TokenResponse is the token data returned in responses
 type TokenResponse struct {
-	ID        int64           `json:"id"`
 	Address   string          `json:"address"`
 	ChainType types.ChainType `json:"chain_type"`
 	Symbol    string          `json:"symbol"`

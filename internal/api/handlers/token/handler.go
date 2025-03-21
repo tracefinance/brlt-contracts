@@ -96,7 +96,6 @@ func (h *Handler) listTokens(c *gin.Context) {
 
 	for i, t := range tokens.Items {
 		response.Items[i] = TokenResponse{
-			ID:        t.ID,
 			Address:   t.Address,
 			ChainType: t.ChainType,
 			Symbol:    t.Symbol,
@@ -145,7 +144,6 @@ func (h *Handler) addToken(c *gin.Context) {
 
 	// Build response
 	response := TokenResponse{
-		ID:        token.ID,
 		Address:   token.Address,
 		ChainType: token.ChainType,
 		Symbol:    token.Symbol,
@@ -182,7 +180,6 @@ func (h *Handler) verifyToken(c *gin.Context) {
 
 	// Build response
 	response := TokenResponse{
-		ID:        token.ID,
 		Address:   token.Address,
 		ChainType: token.ChainType,
 		Symbol:    token.Symbol,

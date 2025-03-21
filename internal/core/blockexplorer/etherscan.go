@@ -734,50 +734,6 @@ func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash strin
 	}, nil
 }
 
-// GetAddressBalance implements BlockExplorer.GetAddressBalance
-func (e *EtherscanExplorer) GetAddressBalance(ctx context.Context, address string) (*big.Int, error) {
-	params := url.Values{}
-	params.Set("module", "account")
-	params.Set("action", "balance")
-	params.Set("address", address)
-	params.Set("tag", "latest")
-
-	data, err := e.makeRequest(ctx, params)
-	if err != nil {
-		return nil, err
-	}
-
-	balance := new(big.Int)
-	if err := json.Unmarshal(data, &balance); err != nil {
-		return nil, errors.NewInvalidExplorerResponseError(err, string(data))
-	}
-
-	return balance, nil
-}
-
-// GetTokenBalance implements BlockExplorer.GetTokenBalance
-func (e *EtherscanExplorer) GetTokenBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error) {
-	params := url.Values{}
-	params.Set("module", "account")
-	params.Set("action", "tokenbalance")
-	params.Set("contractaddress", tokenAddress)
-	params.Set("address", address)
-	params.Set("tag", "latest")
-
-	data, err := e.makeRequest(ctx, params)
-	if err != nil {
-		return nil, err
-	}
-
-	// Parse the balance from the response
-	balance := new(big.Int)
-	if err := json.Unmarshal(data, &balance); err != nil {
-		return nil, errors.NewInvalidExplorerResponseError(err, string(data))
-	}
-
-	return balance, nil
-}
-
 // GetTokenURL implements BlockExplorer.GetTokenURL
 func (e *EtherscanExplorer) GetTokenURL(address string) string {
 	return fmt.Sprintf("%s/token/%s", e.explorerURL, address)
