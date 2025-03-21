@@ -86,6 +86,13 @@ func (s *transactionService) pollTransactionsForAllWallets(ctx context.Context) 
 				logger.Int("transaction_count", count))
 		}
 
+		// Update wallet balances regardless of whether new transactions were found
+		s.updateWalletBalances(ctx, wallet)
+		s.log.Info("Updated balances during polling",
+			logger.Int64("wallet_id", wallet.ID),
+			logger.String("address", wallet.Address),
+			logger.String("chain_type", string(wallet.ChainType)))
+
 		totalSynced += count
 	}
 

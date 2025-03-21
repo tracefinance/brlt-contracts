@@ -304,6 +304,13 @@ func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chai
 		}
 	}
 
+	// Always update wallet balances, even if no new transactions were found
+	s.updateWalletBalances(ctx, wallet)
+	s.log.Info("Updated wallet balances",
+		logger.Int64("wallet_id", wallet.ID),
+		logger.String("address", wallet.Address),
+		logger.String("chain_type", string(wallet.ChainType)))
+
 	return count, nil
 }
 
@@ -412,10 +419,9 @@ func (s *transactionService) processTransactionRecord(ctx context.Context, tx *t
 	return transaction, nil
 }
 
-// updateBalanceForTransaction handles wallet balance updates based on transaction type.
-// This method follows a "best effort" approach, handling all errors internally.
-// Errors are logged for diagnostic purposes but not returned to callers,
-// allowing transaction processing to continue even if balance updates fail.
+// updateBalanceForTransaction is a helper method called during transaction processing
+// to update related balances. This is a non-blocking operation as transaction processing
+// should continue even if balance updates fail.
 // Balance updates are considered non-critical side effects of transaction processing.
 func (s *transactionService) updateBalanceForTransaction(
 	ctx context.Context,
@@ -515,7 +521,7 @@ func (s *transactionService) updateTokenBalance(
 	}
 
 	// Get the latest token balance from blockchain
-	tokenBalance, err := client.GetTokenBalance(ctx, tokenAddress, wallet.Address)
+	tokenBalance, err := client.GetTokenBalance(ctx, wallet.Address, tokenAddress)
 	if err != nil {
 		s.log.Error("Failed to get token balance",
 			logger.String("address", wallet.Address),
@@ -598,5 +604,28 @@ func (s *transactionService) emitTransactionEvent(event *TransactionEvent) {
 		s.log.Debug("Transaction events channel is full, dropping event",
 			logger.String("event_type", event.EventType),
 			logger.Int64("block_number", event.BlockNumber))
+	}
+}
+
+// UpdateWalletBalances updates the native and token balances for a wallet
+// This method can be called independently of transaction processing
+// to refresh wallet balances even when no new transactions are found.
+func (s *transactionService) updateWalletBalances(ctx context.Context, wallet *wallet.Wallet) {
+	// Update native balance
+	s.updateNativeBalance(ctx, wallet, wallet.ChainType)
+
+	// Get all tokens for the chain type from token store
+	// Using pagination with limit 0 to get all tokens
+	tokens, err := s.tokenStore.ListTokensByChain(ctx, wallet.ChainType, 0, 0)
+	if err != nil {
+		s.log.Error("Failed to get tokens for balance update",
+			logger.String("chain_type", string(wallet.ChainType)),
+			logger.Error(err))
+		return
+	}
+
+	// Update balance for each token
+	for _, token := range tokens.Items {
+		s.updateTokenBalance(ctx, wallet, wallet.ChainType, token.Address)
 	}
 }
