@@ -174,7 +174,7 @@ func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 
 	query := `
 		UPDATE wallets
-		SET name = ?, tags = ?, balance = ?, last_block_number = ?, updated_at = ?
+		SET name = ?, tags = ?, last_block_number = ?, updated_at = ?
 		WHERE id = ? AND deleted_at IS NULL
 	`
 
@@ -183,7 +183,6 @@ func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 		query,
 		wallet.Name,
 		string(tagsJSON),
-		wallet.Balance,
 		wallet.LastBlockNumber,
 		wallet.UpdatedAt,
 		wallet.ID,
