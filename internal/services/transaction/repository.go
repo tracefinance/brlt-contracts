@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"vault0/internal/db"
@@ -62,6 +63,31 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 	now := time.Now()
 	tx.CreatedAt = now
 	tx.UpdatedAt = now
+
+	// Normalize addresses using the new Address struct
+	if tx.FromAddress != "" {
+		fromAddr, err := types.NewAddress(tx.FromAddress, tx.ChainType)
+		if err != nil {
+			return err
+		}
+		tx.FromAddress = fromAddr.Address
+	}
+
+	if tx.ToAddress != "" {
+		toAddr, err := types.NewAddress(tx.ToAddress, tx.ChainType)
+		if err != nil {
+			return err
+		}
+		tx.ToAddress = toAddr.Address
+	}
+
+	if tx.TokenAddress != "" {
+		tokenAddr, err := types.NewAddress(tx.TokenAddress, tx.ChainType)
+		if err != nil {
+			return err
+		}
+		tx.TokenAddress = tokenAddr.Address
+	}
 
 	// Convert big.Int values to strings for storage
 	valueStr := ""
@@ -183,8 +209,8 @@ func (r *repository) ListByWalletID(ctx context.Context, walletID int64, limit, 
 
 // ListByWalletAddress retrieves transactions for a specific blockchain address
 func (r *repository) ListByWalletAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error) {
-	// Normalize the address for consistent database queries
-	normalizedAddress := types.NormalizeAddress(address)
+	// Just lowercase the address for querying
+	lowercaseAddress := strings.ToLower(address)
 
 	query := `
 		SELECT 
@@ -196,7 +222,7 @@ func (r *repository) ListByWalletAddress(ctx context.Context, chainType types.Ch
 		ORDER BY timestamp DESC
 	`
 
-	args := []any{chainType, normalizedAddress, normalizedAddress}
+	args := []any{chainType, lowercaseAddress, lowercaseAddress}
 
 	// Add pagination if limit > 0
 	if limit > 0 {
@@ -256,10 +282,10 @@ func (r *repository) List(ctx context.Context, filter *Filter) (*types.Page[*Tra
 	}
 
 	if filter.Address != nil {
-		// Normalize the address for consistent database queries
-		normalizedAddress := types.NormalizeAddress(*filter.Address)
+		// Just lowercase the address for querying
+		lowercaseAddress := strings.ToLower(*filter.Address)
 		queryBuilder += " AND (lower(from_address) = ? OR lower(to_address) = ?)"
-		args = append(args, normalizedAddress, normalizedAddress)
+		args = append(args, lowercaseAddress, lowercaseAddress)
 	}
 
 	// Order by most recent first
@@ -322,6 +348,31 @@ func (r *repository) Update(ctx context.Context, tx *Transaction) error {
 
 	// Update the timestamp
 	tx.UpdatedAt = time.Now()
+
+	// Normalize addresses using the new Address struct
+	if tx.FromAddress != "" {
+		fromAddr, err := types.NewAddress(tx.FromAddress, tx.ChainType)
+		if err != nil {
+			return err
+		}
+		tx.FromAddress = fromAddr.Address
+	}
+
+	if tx.ToAddress != "" {
+		toAddr, err := types.NewAddress(tx.ToAddress, tx.ChainType)
+		if err != nil {
+			return err
+		}
+		tx.ToAddress = toAddr.Address
+	}
+
+	if tx.TokenAddress != "" {
+		tokenAddr, err := types.NewAddress(tx.TokenAddress, tx.ChainType)
+		if err != nil {
+			return err
+		}
+		tx.TokenAddress = tokenAddr.Address
+	}
 
 	// Convert big.Int values to strings for storage
 	valueStr := ""

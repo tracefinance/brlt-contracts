@@ -34,8 +34,17 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 		return errors.NewInvalidTokenError("validation failed", err)
 	}
 
+	// Parse and normalize address using the new Address struct
+	addr, err := types.NewAddress(token.Address, token.ChainType)
+	if err != nil {
+		return errors.NewInvalidTokenError("invalid address", err)
+	}
+
+	// Update token with normalized address
+	token.Address = addr.Address
+
 	// Check if the token already exists
-	exists, err := s.Exists(ctx, token.Address, token.ChainType)
+	exists, err := s.Exists(ctx, token.Address)
 	if err != nil {
 		return err
 	}
@@ -79,7 +88,8 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 
 // GetToken retrieves a token by its address
 func (s *dbTokenStore) GetToken(ctx context.Context, address string) (*types.Token, error) {
-	normalizedAddress := types.NormalizeAddress(address)
+	// Just lowercase the address for querying
+	lowercaseAddress := strings.ToLower(address)
 
 	var token types.Token
 	rows, err := s.db.ExecuteQueryContext(
@@ -87,7 +97,7 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string) (*types.Tok
 		`SELECT address, chain_type, symbol, decimals, type 
 		FROM tokens 
 		WHERE lower(address) = ?`,
-		normalizedAddress,
+		lowercaseAddress,
 	)
 	if err != nil {
 		return nil, err
@@ -95,7 +105,7 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string) (*types.Tok
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, errors.NewResourceNotFoundError("token", normalizedAddress)
+		return nil, errors.NewResourceNotFoundError("token", address)
 	}
 
 	err = rows.Scan(
@@ -192,6 +202,15 @@ func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 		return errors.NewInvalidTokenError("validation failed", err)
 	}
 
+	// Parse and normalize address using the new Address struct
+	addr, err := types.NewAddress(token.Address, token.ChainType)
+	if err != nil {
+		return errors.NewInvalidTokenError("invalid address", err)
+	}
+
+	// Update token with normalized address
+	token.Address = addr.Address
+
 	query := `UPDATE tokens 
 		SET symbol = ?, decimals = ?, type = ?, updated_at = ?
 		WHERE address = ? AND chain_type = ?`
@@ -236,10 +255,11 @@ func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 
 // DeleteToken removes a token from the store by its address
 func (s *dbTokenStore) DeleteToken(ctx context.Context, address string) error {
-	normalizedAddress := types.NormalizeAddress(address)
+	// Just lowercase the address for querying
+	lowercaseAddress := strings.ToLower(address)
 
 	// First get the token to emit in the event
-	token, err := s.GetToken(ctx, normalizedAddress)
+	token, err := s.GetToken(ctx, address)
 	if err != nil {
 		return err
 	}
@@ -247,7 +267,7 @@ func (s *dbTokenStore) DeleteToken(ctx context.Context, address string) error {
 	result, err := s.db.ExecuteStatementContext(
 		ctx,
 		"DELETE FROM tokens WHERE lower(address) = ?",
-		normalizedAddress,
+		lowercaseAddress,
 	)
 	if err != nil {
 		return errors.NewDatabaseError(err)
@@ -259,7 +279,7 @@ func (s *dbTokenStore) DeleteToken(ctx context.Context, address string) error {
 	}
 
 	if rowsAffected == 0 {
-		return errors.NewResourceNotFoundError("token", normalizedAddress)
+		return errors.NewResourceNotFoundError("token", address)
 	}
 
 	// Emit a token deleted event
@@ -267,12 +287,12 @@ func (s *dbTokenStore) DeleteToken(ctx context.Context, address string) error {
 	case s.tokenEvents <- TokenEvent{EventType: TokenEventDeleted, Token: token}:
 		s.log.Debug("Emitted token deleted event",
 			logger.String("symbol", token.Symbol),
-			logger.String("address", normalizedAddress))
+			logger.String("address", address))
 	default:
 		// Don't block if channel buffer is full
 		s.log.Warn("Token events channel full, delete event not emitted",
 			logger.String("symbol", token.Symbol),
-			logger.String("address", normalizedAddress))
+			logger.String("address", address))
 	}
 
 	return nil
@@ -303,15 +323,15 @@ func (s *dbTokenStore) scanTokensFromRows(rows *sql.Rows) ([]*types.Token, error
 	return tokens, nil
 }
 
-// Exists checks if a token exists by its address and chain type
-func (s *dbTokenStore) Exists(ctx context.Context, address string, chainType types.ChainType) (bool, error) {
-	normalizedAddress := types.NormalizeAddress(address)
+// Exists checks if a token exists by its address
+func (s *dbTokenStore) Exists(ctx context.Context, address string) (bool, error) {
+	// Just lowercase the address for querying
+	lowercaseAddress := strings.ToLower(address)
 
 	rows, err := s.db.ExecuteQueryContext(
 		ctx,
-		"SELECT 1 FROM tokens WHERE lower(address) = ? AND chain_type = ? LIMIT 1",
-		normalizedAddress,
-		chainType,
+		"SELECT 1 FROM tokens WHERE lower(address) = ? LIMIT 1",
+		lowercaseAddress,
 	)
 	if err != nil {
 		return false, errors.NewDatabaseError(err)
@@ -332,18 +352,18 @@ func (s *dbTokenStore) ListTokensByAddresses(ctx context.Context, chainType type
 		return []types.Token{}, nil
 	}
 
-	// Normalize all addresses
-	normalizedAddresses := make([]string, len(addresses))
+	// Just lowercase all addresses for querying
+	lowercaseAddresses := make([]string, len(addresses))
 	for i, address := range addresses {
-		normalizedAddresses[i] = types.NormalizeAddress(address)
+		lowercaseAddresses[i] = strings.ToLower(address)
 	}
 
 	// Create placeholders for the SQL IN clause
-	placeholders := make([]string, len(normalizedAddresses))
-	args := make([]any, len(normalizedAddresses)+1) // +1 for chainType
+	placeholders := make([]string, len(lowercaseAddresses))
+	args := make([]any, len(lowercaseAddresses)+1) // +1 for chainType
 	args[0] = chainType
 
-	for i, address := range normalizedAddresses {
+	for i, address := range lowercaseAddresses {
 		placeholders[i] = "?"
 		args[i+1] = address
 	}

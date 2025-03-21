@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math/big"
 	"strconv"
+	"strings"
 	"time"
 
 	"vault0/internal/db"
@@ -75,6 +76,15 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 	wallet.CreatedAt = now
 	wallet.UpdatedAt = now
 
+	// Normalize wallet address using the new Address struct
+	if wallet.Address != "" {
+		addr, err := types.NewAddress(wallet.Address, wallet.ChainType)
+		if err != nil {
+			return err
+		}
+		wallet.Address = addr.Address
+	}
+
 	// Convert tags to JSON
 	tagsJSON, err := json.Marshal(wallet.Tags)
 	if err != nil {
@@ -109,8 +119,8 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 
 // GetByAddress retrieves a wallet by its chain type and address
 func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
-	// Normalize the address for consistent database queries
-	normalizedAddress := types.NormalizeAddress(address)
+	// Just lowercase the address for querying
+	lowercaseAddress := strings.ToLower(address)
 
 	query := `
 		SELECT id, key_id, chain_type, address, name, tags, balance, last_block_number, created_at, updated_at, deleted_at
@@ -118,7 +128,7 @@ func (r *repository) GetByAddress(ctx context.Context, chainType types.ChainType
 		WHERE chain_type = ? AND lower(address) = ? AND deleted_at IS NULL
 	`
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, normalizedAddress)
+	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, lowercaseAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -206,8 +216,8 @@ func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
 
 // Delete deletes a wallet by its chain type and address
 func (r *repository) Delete(ctx context.Context, chainType types.ChainType, address string) error {
-	// Normalize the address for consistent database queries
-	normalizedAddress := types.NormalizeAddress(address)
+	// Just lowercase the address for querying
+	lowercaseAddress := strings.ToLower(address)
 
 	query := `
 		UPDATE wallets
@@ -221,7 +231,7 @@ func (r *repository) Delete(ctx context.Context, chainType types.ChainType, addr
 		query,
 		now,
 		chainType,
-		normalizedAddress,
+		lowercaseAddress,
 	)
 
 	if err != nil {
@@ -313,8 +323,8 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 
 // Exists checks if a wallet exists by its chain type and address
 func (r *repository) Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error) {
-	// Normalize the address for consistent database queries
-	normalizedAddress := types.NormalizeAddress(address)
+	// Just lowercase the address for querying
+	lowercaseAddress := strings.ToLower(address)
 
 	query := `
 		SELECT EXISTS(
@@ -324,7 +334,7 @@ func (r *repository) Exists(ctx context.Context, chainType types.ChainType, addr
 	`
 
 	var exists bool
-	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, normalizedAddress)
+	rows, err := r.db.ExecuteQueryContext(ctx, query, chainType, lowercaseAddress)
 	if err != nil {
 		return false, err
 	}

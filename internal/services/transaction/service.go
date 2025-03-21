@@ -351,9 +351,7 @@ func (s *transactionService) processTransaction(ctx context.Context, coreTx *typ
 func (s *transactionService) createAddressToWalletMap(wallets []*wallet.Wallet) map[string]*wallet.Wallet {
 	addressToWallet := make(map[string]*wallet.Wallet)
 	for _, w := range wallets {
-		// Normalize address by converting to lowercase
-		key := types.NormalizeAddress(w.Address)
-		addressToWallet[key] = w
+		addressToWallet[w.Address] = w
 	}
 	return addressToWallet
 }
@@ -363,15 +361,13 @@ func (s *transactionService) createAddressToWalletMap(wallets []*wallet.Wallet) 
 func (s *transactionService) findRelevantWallet(fromAddr string, toAddr string, addressToWallet map[string]*wallet.Wallet) *wallet.Wallet {
 	// Check if the transaction involves any of our monitored wallets
 	if fromAddr != "" {
-		key := types.NormalizeAddress(fromAddr)
-		if w, exists := addressToWallet[key]; exists {
+		if w, exists := addressToWallet[fromAddr]; exists {
 			return w
 		}
 	}
 
 	if toAddr != "" {
-		key := types.NormalizeAddress(toAddr)
-		if w, exists := addressToWallet[key]; exists {
+		if w, exists := addressToWallet[toAddr]; exists {
 			return w
 		}
 	}
