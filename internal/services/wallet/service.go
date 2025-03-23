@@ -576,7 +576,7 @@ func (s *walletService) GetWalletBalances(ctx context.Context, id int64) ([]*Tok
 	// Add native token balance
 	result = append(result, &TokenBalanceData{
 		Token:     nativeToken,
-		Balance:   wallet.Balance,
+		Balance:   wallet.Balance.ToBigInt(),
 		UpdatedAt: wallet.UpdatedAt,
 	})
 
@@ -598,7 +598,7 @@ func (s *walletService) GetWalletBalances(ctx context.Context, id int64) ([]*Tok
 
 		result = append(result, &TokenBalanceData{
 			Token:     token,
-			Balance:   tb.Balance,
+			Balance:   tb.Balance.ToBigInt(),
 			UpdatedAt: tb.UpdatedAt,
 		})
 	}

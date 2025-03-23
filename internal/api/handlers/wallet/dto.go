@@ -63,7 +63,7 @@ func ToResponse(wallet *wallet.Wallet) *WalletResponse {
 		nativeToken = &types.Token{Decimals: 18}
 	}
 
-	balanceFloat := nativeToken.ToBigFloat(wallet.Balance)
+	balanceFloat := nativeToken.ToBigFloat(wallet.Balance.ToBigInt())
 
 	return &WalletResponse{
 		ID:        wallet.ID,

@@ -5,31 +5,30 @@ import (
 	"math/big"
 	"time"
 
-	"vault0/internal/db"
 	"vault0/internal/types"
 )
 
 // Wallet represents a wallet entity stored in the database
 type Wallet struct {
-	ID              int64             `db:"id"`
-	KeyID           string            `db:"key_id"`
-	ChainType       types.ChainType   `db:"chain_type"`
-	Address         string            `db:"address"`
-	Name            string            `db:"name"`
-	Tags            map[string]string `db:"tags"`
-	Balance         *big.Int          `db:"balance"`
-	LastBlockNumber int64             `db:"last_block_number"`
-	CreatedAt       time.Time         `db:"created_at"`
-	UpdatedAt       time.Time         `db:"updated_at"`
-	DeletedAt       sql.NullTime      `db:"deleted_at"`
+	ID              int64           `db:"id"`
+	KeyID           string          `db:"key_id"`
+	ChainType       types.ChainType `db:"chain_type"`
+	Address         string          `db:"address"`
+	Name            string          `db:"name"`
+	Tags            types.JSONMap   `db:"tags"`
+	Balance         types.BigInt    `db:"balance"`
+	LastBlockNumber int64           `db:"last_block_number"`
+	CreatedAt       time.Time       `db:"created_at"`
+	UpdatedAt       time.Time       `db:"updated_at"`
+	DeletedAt       sql.NullTime    `db:"deleted_at"`
 }
 
 // TokenBalance represents a token balance for a wallet
 type TokenBalance struct {
-	WalletID     int64     `db:"wallet_id"`
-	TokenAddress string    `db:"token_address"`
-	Balance      *big.Int  `db:"balance"`
-	UpdatedAt    time.Time `db:"updated_at"`
+	WalletID     int64        `db:"wallet_id"`
+	TokenAddress string       `db:"token_address"`
+	Balance      types.BigInt `db:"balance"`
+	UpdatedAt    time.Time    `db:"updated_at"`
 }
 
 // TokenBalanceData contains a token with its balance
@@ -64,20 +63,25 @@ func ScanWallet(row interface {
 		return nil, err
 	}
 
-	// Use the utility function to unmarshal tags
-	wallet.Tags = db.UnmarshalJSONToMap(tagsJSON)
+	// Use the JSONMap to handle tags
+	if tagsJSON.Valid {
+		err = wallet.Tags.Scan(tagsJSON.String)
+		if err != nil {
+			return nil, err
+		}
+	}
 
-	// Parse the balance as big.Int
+	// Parse the balance as BigInt
 	if balanceStr.Valid {
-		balance, success := new(big.Int).SetString(balanceStr.String, 10)
-		if !success {
+		balance, err := types.NewBigIntFromString(balanceStr.String)
+		if err != nil {
 			// If there's an error parsing, use zero
-			wallet.Balance = new(big.Int).SetInt64(0)
+			wallet.Balance = types.NewBigInt(big.NewInt(0))
 		} else {
 			wallet.Balance = balance
 		}
 	} else {
-		wallet.Balance = new(big.Int).SetInt64(0)
+		wallet.Balance = types.NewBigInt(big.NewInt(0))
 	}
 
 	return wallet, nil
@@ -100,17 +104,17 @@ func ScanTokenBalance(row interface {
 		return nil, err
 	}
 
-	// Parse the balance as big.Int
+	// Parse the balance as BigInt
 	if balanceStr.Valid {
-		balance, success := new(big.Int).SetString(balanceStr.String, 10)
-		if !success {
+		balance, err := types.NewBigIntFromString(balanceStr.String)
+		if err != nil {
 			// If there's an error parsing, use zero
-			tokenBalance.Balance = new(big.Int).SetInt64(0)
+			tokenBalance.Balance = types.NewBigInt(big.NewInt(0))
 		} else {
 			tokenBalance.Balance = balance
 		}
 	} else {
-		tokenBalance.Balance = new(big.Int).SetInt64(0)
+		tokenBalance.Balance = types.NewBigInt(big.NewInt(0))
 	}
 
 	return tokenBalance, nil
@@ -119,4 +123,16 @@ func ScanTokenBalance(row interface {
 // GetToken returns the native token for the wallet's blockchain
 func (w *Wallet) GetToken() (*types.Token, error) {
 	return types.NewNativeToken(w.ChainType)
+}
+
+// ToBigInt converts the wallet's Balance to a standard *big.Int
+// This is for backward compatibility with existing code
+func (w *Wallet) ToBigInt() *big.Int {
+	return w.Balance.ToBigInt()
+}
+
+// GetTagsMap returns the wallet's Tags as a map[string]string
+// This is for backward compatibility with existing code
+func (w *Wallet) GetTagsMap() map[string]string {
+	return w.Tags.Map()
 }

@@ -2,6 +2,7 @@ package types
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"math/big"
 )
@@ -104,4 +105,71 @@ func (b BigInt) ToBigInt() *big.Int {
 		return nil
 	}
 	return new(big.Int).Set(b.Int)
+}
+
+// JSONMap is a map[string]string that implements sql.Scanner and driver.Valuer interfaces
+// for seamless integration with SQL storage and retrieval as JSON.
+type JSONMap map[string]string
+
+// NewJSONMap creates a new JSONMap from a map[string]string.
+func NewJSONMap(m map[string]string) JSONMap {
+	if m == nil {
+		return JSONMap{}
+	}
+	return JSONMap(m)
+}
+
+// Scan implements the sql.Scanner interface for database deserialization.
+func (m *JSONMap) Scan(value interface{}) error {
+	if value == nil {
+		*m = JSONMap{}
+		return nil
+	}
+
+	var jsonStr string
+	switch v := value.(type) {
+	case string:
+		jsonStr = v
+	case []byte:
+		jsonStr = string(v)
+	default:
+		return fmt.Errorf("unsupported Scan type for JSONMap: %T", value)
+	}
+
+	if jsonStr == "" {
+		*m = JSONMap{}
+		return nil
+	}
+
+	// Unmarshal JSON into the map
+	var result map[string]string
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return err
+	}
+
+	*m = JSONMap(result)
+	return nil
+}
+
+// Value implements the driver.Valuer interface for database serialization.
+func (m JSONMap) Value() (driver.Value, error) {
+	if len(m) == 0 {
+		return "", nil
+	}
+
+	// Marshal the map to JSON
+	jsonData, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+
+	return string(jsonData), nil
+}
+
+// Map returns the underlying map[string]string.
+func (m JSONMap) Map() map[string]string {
+	if m == nil {
+		return map[string]string{}
+	}
+	return map[string]string(m)
 }
