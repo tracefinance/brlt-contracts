@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/huandu/go-sqlbuilder"
+
 	"vault0/internal/db"
 	"vault0/internal/errors"
 	"vault0/internal/types"
@@ -43,236 +45,25 @@ type Repository interface {
 
 // repository implements Repository using SQLite database
 type repository struct {
-	db *db.DB
+	db               *db.DB
+	signerStructMap  *sqlbuilder.Struct
+	addressStructMap *sqlbuilder.Struct
 }
 
 // NewRepository creates a new SQLite signer repository
 func NewRepository(db *db.DB) Repository {
-	return &repository{db: db}
+	signerStructMap := sqlbuilder.NewStruct(new(Signer))
+	addressStructMap := sqlbuilder.NewStruct(new(Address))
+
+	return &repository{
+		db:               db,
+		signerStructMap:  signerStructMap,
+		addressStructMap: addressStructMap,
+	}
 }
 
-// Create adds a new signer to the database
-func (r *repository) Create(ctx context.Context, signer *Signer) error {
-	// Generate a new Snowflake ID if not provided
-	if signer.ID == 0 {
-		var err error
-		signer.ID, err = r.db.GenerateID()
-		if err != nil {
-			return err
-		}
-	}
-
-	// Only set timestamps if not already set
-	if signer.CreatedAt.IsZero() {
-		now := time.Now()
-		signer.CreatedAt = now
-		signer.UpdatedAt = now
-	}
-
-	query := `
-	INSERT INTO signers (id, name, type, user_id, created_at, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?)`
-
-	_, err := r.db.ExecuteStatementContext(
-		ctx, query, signer.ID, signer.Name, signer.Type, signer.UserID, signer.CreatedAt, signer.UpdatedAt,
-	)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Update modifies an existing signer's information
-func (r *repository) Update(ctx context.Context, signer *Signer) error {
-	// Only update the timestamp if not already set
-	if signer.UpdatedAt.IsZero() {
-		signer.UpdatedAt = time.Now()
-	}
-
-	query := `
-	UPDATE signers
-	SET name = ?, type = ?, user_id = ?, updated_at = ?
-	WHERE id = ?`
-
-	result, err := r.db.ExecuteStatementContext(
-		ctx, query, signer.Name, signer.Type, signer.UserID, signer.UpdatedAt, signer.ID,
-	)
-	if err != nil {
-		return err
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rowsAffected == 0 {
-		return errors.NewSignerNotFoundError(signer.ID)
-	}
-
-	return nil
-}
-
-// Delete removes a signer from the database
-func (r *repository) Delete(ctx context.Context, id int64) error {
-	tx, err := r.db.Conn.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	// First delete all addresses for this signer
-	_, err = tx.ExecContext(ctx, "DELETE FROM signer_addresses WHERE signer_id = ?", id)
-	if err != nil {
-		return err
-	}
-
-	// Then delete the signer
-	result, err := tx.ExecContext(ctx, "DELETE FROM signers WHERE id = ?", id)
-	if err != nil {
-		return err
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rowsAffected == 0 {
-		return errors.NewSignerNotFoundError(id)
-	}
-
-	if err = tx.Commit(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// GetByID retrieves a signer by their unique ID
-func (r *repository) GetByID(ctx context.Context, id int64) (*Signer, error) {
-	query := `
-	SELECT id, name, type, user_id, created_at, updated_at
-	FROM signers
-	WHERE id = ?`
-
-	rows, err := r.db.ExecuteQueryContext(ctx, query, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	if !rows.Next() {
-		return nil, errors.NewSignerNotFoundError(id)
-	}
-
-	var signer Signer
-	var userID sql.NullInt64
-
-	err = rows.Scan(
-		&signer.ID,
-		&signer.Name,
-		&signer.Type,
-		&userID,
-		&signer.CreatedAt,
-		&signer.UpdatedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if userID.Valid {
-		uid := userID.Int64
-		signer.UserID = &uid
-	}
-
-	// Load addresses
-	addresses, err := r.GetAddresses(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	signer.Addresses = addresses
-
-	return &signer, nil
-}
-
-// GetByUserID retrieves all signers for a user
-func (r *repository) GetByUserID(ctx context.Context, userID int64) ([]*Signer, error) {
-	query := `
-	SELECT id, name, type, user_id, created_at, updated_at
-	FROM signers
-	WHERE user_id = ?`
-
-	rows, err := r.db.ExecuteQueryContext(ctx, query, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var signers []*Signer
-	for rows.Next() {
-		var signer Signer
-		var userIDValue sql.NullInt64
-
-		err = rows.Scan(
-			&signer.ID,
-			&signer.Name,
-			&signer.Type,
-			&userIDValue,
-			&signer.CreatedAt,
-			&signer.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		if userIDValue.Valid {
-			uid := userIDValue.Int64
-			signer.UserID = &uid
-		}
-
-		signers = append(signers, &signer)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	// Load addresses for each signer
-	for _, signer := range signers {
-		addresses, err := r.GetAddresses(ctx, signer.ID)
-		if err != nil {
-			return nil, err
-		}
-		signer.Addresses = addresses
-	}
-
-	return signers, nil
-}
-
-// List retrieves a paginated collection of signers
-func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*Signer], error) {
-	// Apply default offset if negative
-	if offset < 0 {
-		offset = 0
-	}
-
-	// Get signers with or without pagination
-	query := `
-	SELECT id, name, type, user_id, created_at, updated_at
-	FROM signers
-	ORDER BY created_at DESC`
-
-	args := []any{}
-
-	// Add pagination if limit > 0
-	if limit > 0 {
-		query += " LIMIT ? OFFSET ?"
-		args = append(args, limit, offset)
-	}
-
+// executeSignerQuery executes a query and scans the results into Signer objects
+func (r *repository) executeSignerQuery(ctx context.Context, query string, args ...interface{}) ([]*Signer, error) {
 	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -308,6 +99,233 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 		return nil, err
 	}
 
+	return signers, nil
+}
+
+// executeAddressQuery executes a query and scans the results into Address objects
+func (r *repository) executeAddressQuery(ctx context.Context, query string, args ...interface{}) ([]*Address, error) {
+	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var addresses []*Address
+	for rows.Next() {
+		var address Address
+		err = rows.Scan(
+			&address.ID,
+			&address.SignerID,
+			&address.ChainType,
+			&address.Address,
+			&address.CreatedAt,
+			&address.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		addresses = append(addresses, &address)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return addresses, nil
+}
+
+// Create adds a new signer to the database
+func (r *repository) Create(ctx context.Context, signer *Signer) error {
+	// Generate a new Snowflake ID if not provided
+	if signer.ID == 0 {
+		var err error
+		signer.ID, err = r.db.GenerateID()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Only set timestamps if not already set
+	if signer.CreatedAt.IsZero() {
+		now := time.Now()
+		signer.CreatedAt = now
+		signer.UpdatedAt = now
+	}
+
+	// Create a struct-based insert builder
+	ib := r.signerStructMap.InsertInto("signers", signer)
+
+	// Build the SQL and args
+	sql, args := ib.Build()
+
+	// Execute the insert
+	_, err := r.db.ExecuteStatementContext(ctx, sql, args...)
+	return err
+}
+
+// Update modifies an existing signer's information
+func (r *repository) Update(ctx context.Context, signer *Signer) error {
+	// Only update the timestamp if not already set
+	if signer.UpdatedAt.IsZero() {
+		signer.UpdatedAt = time.Now()
+	}
+
+	// Create a struct-based update builder
+	ub := r.signerStructMap.Update("signers", signer)
+	ub.Where(ub.Equal("id", signer.ID))
+
+	// Build the SQL and args
+	sql, args := ub.Build()
+
+	// Execute the update
+	result, err := r.db.ExecuteStatementContext(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return errors.NewSignerNotFoundError(signer.ID)
+	}
+
+	return nil
+}
+
+// Delete removes a signer from the database
+func (r *repository) Delete(ctx context.Context, id int64) error {
+	tx, err := r.db.Conn.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// First delete all addresses for this signer
+	// Create a delete builder for addresses
+	addrDb := sqlbuilder.NewDeleteBuilder()
+	addrDb.DeleteFrom("signer_addresses")
+	addrDb.Where(addrDb.Equal("signer_id", id))
+	addrSql, addrArgs := addrDb.Build()
+
+	_, err = tx.ExecContext(ctx, addrSql, addrArgs...)
+	if err != nil {
+		return err
+	}
+
+	// Then delete the signer
+	// Create a delete builder for signer
+	signerDb := sqlbuilder.NewDeleteBuilder()
+	signerDb.DeleteFrom("signers")
+	signerDb.Where(signerDb.Equal("id", id))
+	signerSql, signerArgs := signerDb.Build()
+
+	result, err := tx.ExecContext(ctx, signerSql, signerArgs...)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return errors.NewSignerNotFoundError(id)
+	}
+
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetByID retrieves a signer by their unique ID
+func (r *repository) GetByID(ctx context.Context, id int64) (*Signer, error) {
+	// Create a struct-based select builder
+	sb := r.signerStructMap.SelectFrom("signers")
+	sb.Where(sb.Equal("id", id))
+
+	// Build the SQL and args
+	sql, args := sb.Build()
+
+	// Execute the query
+	signers, err := r.executeSignerQuery(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(signers) == 0 {
+		return nil, errors.NewSignerNotFoundError(id)
+	}
+
+	// Load addresses
+	addresses, err := r.GetAddresses(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	signers[0].Addresses = addresses
+
+	return signers[0], nil
+}
+
+// GetByUserID retrieves all signers for a user
+func (r *repository) GetByUserID(ctx context.Context, userID int64) ([]*Signer, error) {
+	// Create a struct-based select builder
+	sb := r.signerStructMap.SelectFrom("signers")
+	sb.Where(sb.Equal("user_id", userID))
+
+	// Build the SQL and args
+	sql, args := sb.Build()
+
+	// Execute the query
+	signers, err := r.executeSignerQuery(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load addresses for each signer
+	for _, signer := range signers {
+		addresses, err := r.GetAddresses(ctx, signer.ID)
+		if err != nil {
+			return nil, err
+		}
+		signer.Addresses = addresses
+	}
+
+	return signers, nil
+}
+
+// List retrieves a paginated collection of signers
+func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*Signer], error) {
+	// Apply default offset if negative
+	if offset < 0 {
+		offset = 0
+	}
+
+	// Create a struct-based select builder
+	sb := r.signerStructMap.SelectFrom("signers")
+	sb.OrderBy("created_at DESC")
+
+	// Add pagination if limit > 0
+	if limit > 0 {
+		sb.Limit(limit)
+		sb.Offset(offset)
+	}
+
+	// Build the SQL and args
+	sql, args := sb.Build()
+
+	// Execute the query
+	signers, err := r.executeSignerQuery(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+
 	// Load addresses for each signer
 	for _, signer := range signers {
 		addresses, err := r.GetAddresses(ctx, signer.ID)
@@ -318,14 +336,16 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 	}
 
 	// Get total count to determine if there are more results
-	var count int
-	countQuery := "SELECT COUNT(*) FROM signers"
-	countRows, err := r.db.ExecuteQueryContext(ctx, countQuery)
+	countBuilder := sqlbuilder.Select("COUNT(*)").From("signers")
+	countSql, countArgs := countBuilder.Build()
+
+	countRows, err := r.db.ExecuteQueryContext(ctx, countSql, countArgs...)
 	if err != nil {
 		return nil, err
 	}
 	defer countRows.Close()
 
+	var count int
 	if !countRows.Next() {
 		return nil, err
 	}
@@ -363,26 +383,29 @@ func (r *repository) AddAddress(ctx context.Context, address *Address) error {
 		address.UpdatedAt = now
 	}
 
-	query := `
-	INSERT INTO signer_addresses (id, signer_id, chain_type, address, created_at, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?)`
+	// Create a struct-based insert builder
+	ib := r.addressStructMap.InsertInto("signer_addresses", address)
 
-	_, err := r.db.ExecuteStatementContext(
-		ctx, query, address.ID, address.SignerID, address.ChainType, address.Address, address.CreatedAt, address.UpdatedAt,
-	)
+	// Build the SQL and args
+	sql, args := ib.Build()
 
-	if err != nil {
-		return err
-	}
-
-	return nil
+	// Execute the insert
+	_, err := r.db.ExecuteStatementContext(ctx, sql, args...)
+	return err
 }
 
 // DeleteAddress removes an address from a signer
 func (r *repository) DeleteAddress(ctx context.Context, id int64) error {
-	query := "DELETE FROM signer_addresses WHERE id = ?"
+	// Create a delete builder
+	db := sqlbuilder.NewDeleteBuilder()
+	db.DeleteFrom("signer_addresses")
+	db.Where(db.Equal("id", id))
 
-	result, err := r.db.ExecuteStatementContext(ctx, query, id)
+	// Build the SQL and args
+	sql, args := db.Build()
+
+	// Execute the delete
+	result, err := r.db.ExecuteStatementContext(ctx, sql, args...)
 	if err != nil {
 		return err
 	}
@@ -401,39 +424,14 @@ func (r *repository) DeleteAddress(ctx context.Context, id int64) error {
 
 // GetAddresses retrieves all addresses for a signer
 func (r *repository) GetAddresses(ctx context.Context, signerID int64) ([]*Address, error) {
-	query := `
-	SELECT id, signer_id, chain_type, address, created_at, updated_at
-	FROM signer_addresses
-	WHERE signer_id = ?
-	ORDER BY chain_type ASC`
+	// Create a struct-based select builder
+	sb := r.addressStructMap.SelectFrom("signer_addresses")
+	sb.Where(sb.Equal("signer_id", signerID))
+	sb.OrderBy("chain_type ASC")
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, signerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+	// Build the SQL and args
+	sql, args := sb.Build()
 
-	var addresses []*Address
-	for rows.Next() {
-		var address Address
-		err = rows.Scan(
-			&address.ID,
-			&address.SignerID,
-			&address.ChainType,
-			&address.Address,
-			&address.CreatedAt,
-			&address.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		addresses = append(addresses, &address)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return addresses, nil
+	// Execute the query
+	return r.executeAddressQuery(ctx, sql, args...)
 }

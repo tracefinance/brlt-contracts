@@ -4,6 +4,9 @@ import (
 	"context"
 	"strconv"
 	"time"
+
+	"github.com/huandu/go-sqlbuilder"
+
 	"vault0/internal/db"
 	"vault0/internal/errors"
 	"vault0/internal/types"
@@ -33,12 +36,43 @@ type Repository interface {
 
 // repository implements Repository using SQLite database
 type repository struct {
-	db *db.DB
+	db            *db.DB
+	userStructMap *sqlbuilder.Struct
 }
 
 // NewRepository creates a new SQLite user repository
 func NewRepository(db *db.DB) Repository {
-	return &repository{db: db}
+	userStructMap := sqlbuilder.NewStruct(new(User))
+
+	return &repository{
+		db:            db,
+		userStructMap: userStructMap,
+	}
+}
+
+// executeUserQuery executes a query and scans the results into User objects
+func (r *repository) executeUserQuery(ctx context.Context, sql string, args ...interface{}) ([]*User, error) {
+	rows, err := r.db.ExecuteQueryContext(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*User
+	for rows.Next() {
+		var user User
+		err = rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, &user)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
 }
 
 // Create adds a new user to the database
@@ -54,32 +88,30 @@ func (r *repository) Create(ctx context.Context, user *User) error {
 	}
 	user.ID = id
 
-	query := `
-		INSERT INTO users (id, email, password_hash, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?)
-	`
+	// Create a struct-based insert builder
+	ib := r.userStructMap.InsertInto("users", user)
 
-	_, err = r.db.ExecuteStatementContext(ctx, query,
-		user.ID, user.Email, user.PasswordHash, user.CreatedAt, user.UpdatedAt)
-	if err != nil {
-		return err
-	}
+	// Build the SQL and args
+	sql, args := ib.Build()
 
-	return nil
+	// Execute the insert
+	_, err = r.db.ExecuteStatementContext(ctx, sql, args...)
+	return err
 }
 
 // Update updates an existing user in the database
 func (r *repository) Update(ctx context.Context, user *User) error {
 	user.UpdatedAt = time.Now()
 
-	query := `
-		UPDATE users
-		SET email = ?, password_hash = ?, updated_at = ?
-		WHERE id = ?
-	`
+	// Create a struct-based update builder
+	ub := r.userStructMap.Update("users", user)
+	ub.Where(ub.Equal("id", user.ID))
 
-	result, err := r.db.ExecuteStatementContext(ctx, query,
-		user.Email, user.PasswordHash, user.UpdatedAt, user.ID)
+	// Build the SQL and args
+	sql, args := ub.Build()
+
+	// Execute the update
+	result, err := r.db.ExecuteStatementContext(ctx, sql, args...)
 	if err != nil {
 		return err
 	}
@@ -98,9 +130,16 @@ func (r *repository) Update(ctx context.Context, user *User) error {
 
 // Delete removes a user from the database
 func (r *repository) Delete(ctx context.Context, id int64) error {
-	query := "DELETE FROM users WHERE id = ?"
+	// Create a struct-based delete builder
+	db := sqlbuilder.NewDeleteBuilder()
+	db.DeleteFrom("users")
+	db.Where(db.Equal("id", id))
 
-	result, err := r.db.ExecuteStatementContext(ctx, query, id)
+	// Build the SQL and args
+	sql, args := db.Build()
+
+	// Execute the delete
+	result, err := r.db.ExecuteStatementContext(ctx, sql, args...)
 	if err != nil {
 		return err
 	}
@@ -119,91 +158,71 @@ func (r *repository) Delete(ctx context.Context, id int64) error {
 
 // GetByID finds a user by ID
 func (r *repository) GetByID(ctx context.Context, id int64) (*User, error) {
-	query := `
-		SELECT id, email, password_hash, created_at, updated_at
-		FROM users
-		WHERE id = ?
-	`
+	// Create a struct-based select builder
+	sb := r.userStructMap.SelectFrom("users")
+	sb.Where(sb.Equal("id", id))
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, id)
+	// Build the SQL and args
+	sql, args := sb.Build()
+
+	// Execute the query
+	users, err := r.executeUserQuery(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	if !rows.Next() {
+	if len(users) == 0 {
 		return nil, errors.NewUserNotFoundError()
 	}
 
-	var user User
-	err = rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-
-	return &user, nil
+	return users[0], nil
 }
 
 // GetByEmail finds a user by email
 func (r *repository) GetByEmail(ctx context.Context, email string) (*User, error) {
-	query := `
-		SELECT id, email, password_hash, created_at, updated_at
-		FROM users
-		WHERE email = ?
-	`
+	// Create a struct-based select builder
+	sb := r.userStructMap.SelectFrom("users")
+	sb.Where(sb.Equal("email", email))
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, email)
+	// Build the SQL and args
+	sql, args := sb.Build()
+
+	// Execute the query
+	users, err := r.executeUserQuery(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	if !rows.Next() {
+	if len(users) == 0 {
 		return nil, nil
 	}
 
-	var user User
-	err = rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-
-	return &user, nil
+	return users[0], nil
 }
 
 // List retrieves a paginated list of users
 func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*User], error) {
-	query := `
-		SELECT id, email, password_hash, created_at, updated_at
-		FROM users
-		ORDER BY id
-	`
+	// Create a struct-based select builder
+	sb := r.userStructMap.SelectFrom("users")
+	sb.OrderBy("id")
 
-	args := []any{}
+	// Default offset to 0 if negative
+	if offset < 0 {
+		offset = 0
+	}
 
 	// Add pagination if limit > 0
 	if limit > 0 {
-		query += " LIMIT ? OFFSET ?"
-		args = append(args, limit, offset)
+		sb.Limit(limit)
+		sb.Offset(offset)
 	}
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
+	// Build the SQL and args
+	sql, args := sb.Build()
+
+	// Execute the query
+	users, err := r.executeUserQuery(ctx, sql, args...)
 	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var users []*User
-	for rows.Next() {
-		var user User
-		err = rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
-		if err != nil {
-			return nil, err
-		}
-		users = append(users, &user)
-	}
-
-	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
