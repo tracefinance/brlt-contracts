@@ -36,11 +36,11 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 
 	// Setup routes
 	walletRoutes.POST("", h.CreateWallet)
-	walletRoutes.GET("/:chain_type/:address", h.GetWallet)
-	walletRoutes.PUT("/:chain_type/:address", h.UpdateWallet)
-	walletRoutes.DELETE("/:chain_type/:address", h.DeleteWallet)
+	walletRoutes.GET("/:address/:chain_type", h.GetWallet)
+	walletRoutes.PUT("/:address/:chain_type", h.UpdateWallet)
+	walletRoutes.DELETE("/:address/:chain_type", h.DeleteWallet)
 	walletRoutes.GET("", h.ListWallets)
-	walletRoutes.GET("/:chain_type/:address/balance", h.GetWalletBalance)
+	walletRoutes.GET("/:address/:chain_type/balance", h.GetWalletBalance)
 }
 
 // CreateWallet handles wallet creation
@@ -80,12 +80,12 @@ func (h *Handler) CreateWallet(c *gin.Context) {
 // @Description Get a wallet's details by chain type and address
 // @Tags wallets
 // @Produce json
-// @Param chain_type path string true "Blockchain network type (e.g., ethereum, bitcoin)"
 // @Param address path string true "Wallet address on the blockchain"
+// @Param chain_type path string true "Blockchain network type (e.g., ethereum, bitcoin)"
 // @Success 200 {object} WalletResponse "Wallet details including balance"
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
-// @Router /wallets/{chain_type}/{address} [get]
+// @Router /wallets/{address}/{chain_type} [get]
 func (h *Handler) GetWallet(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")
@@ -110,14 +110,14 @@ func (h *Handler) GetWallet(c *gin.Context) {
 // @Tags wallets
 // @Accept json
 // @Produce json
-// @Param chain_type path string true "Blockchain network type (e.g., ethereum, bitcoin)"
 // @Param address path string true "Wallet address on the blockchain"
+// @Param chain_type path string true "Blockchain network type (e.g., ethereum, bitcoin)"
 // @Param wallet body UpdateWalletRequest true "Wallet properties to update"
 // @Success 200 {object} WalletResponse "Updated wallet details"
 // @Failure 400 {object} errors.Vault0Error "Invalid request data"
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
-// @Router /wallets/{chain_type}/{address} [put]
+// @Router /wallets/{address}/{chain_type} [put]
 func (h *Handler) UpdateWallet(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")
@@ -146,12 +146,12 @@ func (h *Handler) UpdateWallet(c *gin.Context) {
 // @Summary Delete a wallet
 // @Description Delete a wallet by chain type and address
 // @Tags wallets
-// @Param chain_type path string true "Blockchain network type (e.g., ethereum, bitcoin)"
 // @Param address path string true "Wallet address on the blockchain"
+// @Param chain_type path string true "Blockchain network type (e.g., ethereum, bitcoin)"
 // @Success 204 "Wallet successfully deleted"
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
-// @Router /wallets/{chain_type}/{address} [delete]
+// @Router /wallets/{address}/{chain_type} [delete]
 func (h *Handler) DeleteWallet(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")
@@ -214,12 +214,12 @@ func (h *Handler) ListWallets(c *gin.Context) {
 // @Description Get a wallet's native token and other token balances by chain type and address
 // @Tags wallets
 // @Produce json
-// @Param chain_type path string true "Blockchain network type (e.g., ethereum, bitcoin)"
 // @Param address path string true "Wallet address on the blockchain"
+// @Param chain_type path string true "Blockchain network type (e.g., ethereum, bitcoin)"
 // @Success 200 {object} []TokenBalanceResponse "Array of token balances including native currency"
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
-// @Router /wallets/{chain_type}/{address}/balance [get]
+// @Router /wallets/{address}/{chain_type}/balance [get]
 func (h *Handler) GetWalletBalance(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")

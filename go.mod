@@ -59,6 +59,8 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
+	github.com/huandu/go-sqlbuilder v1.35.0 // indirect
+	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect

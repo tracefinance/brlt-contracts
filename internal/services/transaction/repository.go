@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/huandu/go-sqlbuilder"
+
 	"vault0/internal/db"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
@@ -39,13 +41,21 @@ type Repository interface {
 
 // repository implements Repository interface for SQLite
 type repository struct {
-	db  *db.DB
-	log logger.Logger
+	db        *db.DB
+	log       logger.Logger
+	structMap *sqlbuilder.Struct
 }
 
 // NewRepository creates a new SQLite repository for transactions
 func NewRepository(db *db.DB, log logger.Logger) Repository {
-	return &repository{db: db, log: log}
+	// Create a struct mapper for Transaction
+	structMap := sqlbuilder.NewStruct(new(Transaction))
+
+	return &repository{
+		db:        db,
+		log:       log,
+		structMap: structMap,
+	}
 }
 
 // Create inserts a new transaction into the database
@@ -89,103 +99,43 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 		tx.TokenAddress = tokenAddr.Address
 	}
 
-	// Convert big.Int values to strings for storage
-	valueStr := ""
-	if tx.Value != nil {
-		valueStr = tx.Value.String()
-	}
+	// Create a struct-based insert builder with the transaction value
+	insertBuilder := r.structMap.InsertInto("transactions", tx)
 
-	gasPriceStr := ""
-	if tx.GasPrice != nil {
-		gasPriceStr = tx.GasPrice.String()
-	}
+	// Build the SQL and args
+	sql, args := insertBuilder.Build()
 
-	// Insert the transaction
-	query := `
-		INSERT INTO transactions (
-			id, wallet_id, chain_type, hash, from_address, to_address, 
-			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			token_symbol, status, timestamp, block_number, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
-
-	_, err := r.db.ExecuteStatementContext(
-		ctx,
-		query,
-		tx.ID,
-		tx.WalletID,
-		tx.ChainType,
-		tx.Hash,
-		tx.FromAddress,
-		tx.ToAddress,
-		valueStr,
-		tx.Data,
-		tx.Nonce,
-		gasPriceStr,
-		tx.GasLimit,
-		tx.Type,
-		tx.TokenAddress,
-		tx.TokenSymbol,
-		tx.Status,
-		tx.Timestamp,
-		tx.BlockNumber,
-		tx.CreatedAt,
-		tx.UpdatedAt,
-	)
-
+	// Execute the insert
+	_, err := r.db.ExecuteStatementContext(ctx, sql, args...)
 	return err
 }
 
 // GetByTxHash retrieves a transaction by its hash
 func (r *repository) GetByTxHash(ctx context.Context, hash string) (*Transaction, error) {
-	query := `
-		SELECT 
-			id, wallet_id, chain_type, hash, from_address, to_address, 
-			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			token_symbol, status, timestamp, block_number, created_at, updated_at
-		FROM transactions
-		WHERE hash = ?
-	`
+	// Create a struct-based select builder
+	sb := r.structMap.SelectFrom("transactions")
+	sb.Where(sb.Equal("hash", hash))
+	sb.Limit(1)
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, hash)
+	// Build the SQL and args
+	sql, args := sb.Build()
+
+	// Execute the query
+	transactions, err := r.executeTransactionQuery(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	if !rows.Next() {
+	if len(transactions) == 0 {
 		return nil, errors.NewTransactionNotFoundError(hash)
 	}
 
-	tx, err := ScanTransaction(rows)
-	if err != nil {
-		return nil, err
-	}
-
-	return tx, nil
+	return transactions[0], nil
 }
 
-// ListByWalletID retrieves transactions for a specific wallet
-func (r *repository) ListByWalletID(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error) {
-	query := `
-		SELECT 
-			id, wallet_id, chain_type, hash, from_address, to_address, 
-			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			token_symbol, status, timestamp, block_number, created_at, updated_at
-		FROM transactions
-		WHERE wallet_id = ?
-		ORDER BY timestamp DESC
-	`
-
-	args := []any{walletID}
-
-	// Add pagination if limit > 0
-	if limit > 0 {
-		query += " LIMIT ? OFFSET ?"
-		args = append(args, limit, offset)
-	}
-
-	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
+// executeTransactionQuery executes a query and scans the results into Transaction objects
+func (r *repository) executeTransactionQuery(ctx context.Context, sql string, args ...interface{}) ([]*Transaction, error) {
+	rows, err := r.db.ExecuteQueryContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -201,6 +151,31 @@ func (r *repository) ListByWalletID(ctx context.Context, walletID int64, limit, 
 	}
 
 	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return transactions, nil
+}
+
+// ListByWalletID retrieves transactions for a specific wallet
+func (r *repository) ListByWalletID(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error) {
+	// Create a struct-based select builder
+	sb := r.structMap.SelectFrom("transactions")
+	sb.Where(sb.Equal("wallet_id", walletID))
+	sb.OrderBy("timestamp DESC")
+
+	// Add pagination if limit > 0
+	if limit > 0 {
+		sb.Limit(limit)
+		sb.Offset(offset)
+	}
+
+	// Build the SQL and args
+	sql, args := sb.Build()
+
+	// Execute the query
+	transactions, err := r.executeTransactionQuery(ctx, sql, args...)
+	if err != nil {
 		return nil, err
 	}
 
@@ -212,40 +187,27 @@ func (r *repository) ListByWalletAddress(ctx context.Context, chainType types.Ch
 	// Just lowercase the address for querying
 	lowercaseAddress := strings.ToLower(address)
 
-	query := `
-		SELECT 
-			id, wallet_id, chain_type, hash, from_address, to_address, 
-			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			token_symbol, status, timestamp, block_number, created_at, updated_at
-		FROM transactions
-		WHERE chain_type = ? AND (lower(from_address) = ? OR lower(to_address) = ?)
-		ORDER BY timestamp DESC
-	`
-
-	args := []any{chainType, lowercaseAddress, lowercaseAddress}
+	// Create a struct-based select builder
+	sb := r.structMap.SelectFrom("transactions")
+	sb.Where(sb.Equal("chain_type", chainType))
+	sb.Where(sb.Or(
+		sb.Equal("lower(from_address)", lowercaseAddress),
+		sb.Equal("lower(to_address)", lowercaseAddress),
+	))
+	sb.OrderBy("timestamp DESC")
 
 	// Add pagination if limit > 0
 	if limit > 0 {
-		query += " LIMIT ? OFFSET ?"
-		args = append(args, limit, offset)
+		sb.Limit(limit)
+		sb.Offset(offset)
 	}
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, args...)
+	// Build the SQL and args
+	sql, args := sb.Build()
+
+	// Execute the query
+	transactions, err := r.executeTransactionQuery(ctx, sql, args...)
 	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var transactions []*Transaction
-	for rows.Next() {
-		tx, err := ScanTransaction(rows)
-		if err != nil {
-			return nil, err
-		}
-		transactions = append(transactions, tx)
-	}
-
-	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -254,67 +216,60 @@ func (r *repository) ListByWalletAddress(ctx context.Context, chainType types.Ch
 
 // List retrieves transactions based on the provided filter criteria
 func (r *repository) List(ctx context.Context, filter *Filter) (*types.Page[*Transaction], error) {
-	// Base query
-	queryBuilder := `
-		SELECT 
-			id, wallet_id, chain_type, hash, from_address, to_address, 
-			value, data, nonce, gas_price, gas_limit, type, token_address, 
-			token_symbol, status, timestamp, block_number, created_at, updated_at
-		FROM transactions
-		WHERE 1=1
-	`
-	var args []any
+	// Create a struct-based select builder
+	sb := r.structMap.SelectFrom("transactions")
 
 	// Apply filters
 	if filter.Status != nil {
-		queryBuilder += " AND status = ?"
-		args = append(args, *filter.Status)
+		sb.Where(sb.Equal("status", *filter.Status))
 	}
 
 	if filter.ChainType != nil {
-		queryBuilder += " AND chain_type = ?"
-		args = append(args, *filter.ChainType)
+		sb.Where(sb.Equal("chain_type", *filter.ChainType))
 	}
 
 	if filter.WalletID != nil {
-		queryBuilder += " AND wallet_id = ?"
-		args = append(args, *filter.WalletID)
+		sb.Where(sb.Equal("wallet_id", *filter.WalletID))
 	}
 
 	if filter.Address != nil {
 		// Just lowercase the address for querying
 		lowercaseAddress := strings.ToLower(*filter.Address)
-		queryBuilder += " AND (lower(from_address) = ? OR lower(to_address) = ?)"
-		args = append(args, lowercaseAddress, lowercaseAddress)
+		sb.Where(sb.Or(
+			sb.Equal("lower(from_address)", lowercaseAddress),
+			sb.Equal("lower(to_address)", lowercaseAddress),
+		))
+	}
+
+	if filter.TokenAddress != nil {
+		tokenAddress := strings.ToLower(*filter.TokenAddress)
+
+		// Special handling for native transactions
+		if tokenAddress == "native" || tokenAddress == types.ZeroAddress {
+			sb.Where(sb.Or(
+				sb.Equal("type", string(types.TransactionTypeNative)),
+				sb.IsNull("token_address"),
+			))
+		} else {
+			sb.Where(sb.Equal("lower(token_address)", tokenAddress))
+		}
 	}
 
 	// Order by most recent first
-	queryBuilder += " ORDER BY timestamp DESC"
+	sb.OrderBy("timestamp DESC")
 
 	// Add pagination if limit > 0
 	if filter.Limit > 0 {
-		queryBuilder += " LIMIT ? OFFSET ?"
-		args = append(args, filter.Limit, filter.Offset)
+		sb.Limit(filter.Limit)
+		sb.Offset(filter.Offset)
 	}
 
-	// Execute query
-	rows, err := r.db.ExecuteQueryContext(ctx, queryBuilder, args...)
+	// Build the SQL and args
+	sql, args := sb.Build()
+
+	// Execute the query
+	transactions, err := r.executeTransactionQuery(ctx, sql, args...)
 	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	// Process results
-	var transactions []*Transaction
-	for rows.Next() {
-		tx, err := ScanTransaction(rows)
-		if err != nil {
-			return nil, err
-		}
-		transactions = append(transactions, tx)
-	}
-
-	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -323,14 +278,18 @@ func (r *repository) List(ctx context.Context, filter *Filter) (*types.Page[*Tra
 
 // Exists checks if a transaction exists by its hash
 func (r *repository) Exists(ctx context.Context, hash string) (bool, error) {
-	query := `
-		SELECT 1 
-		FROM transactions
-		WHERE hash = ?
-		LIMIT 1
-	`
+	// Create a struct-based select builder using a minimized struct selection
+	sb := sqlbuilder.NewSelectBuilder()
+	sb.Select("1")
+	sb.From("transactions")
+	sb.Where(sb.Equal("hash", hash))
+	sb.Limit(1)
 
-	rows, err := r.db.ExecuteQueryContext(ctx, query, hash)
+	// Build the SQL and args
+	sql, args := sb.Build()
+
+	// Execute the query
+	rows, err := r.db.ExecuteQueryContext(ctx, sql, args...)
 	if err != nil {
 		return false, err
 	}
@@ -374,63 +333,15 @@ func (r *repository) Update(ctx context.Context, tx *Transaction) error {
 		tx.TokenAddress = tokenAddr.Address
 	}
 
-	// Convert big.Int values to strings for storage
-	valueStr := ""
-	if tx.Value != nil {
-		valueStr = tx.Value.String()
-	}
+	// Create a struct-based update builder
+	ub := r.structMap.Update("transactions", tx)
+	ub.Where(ub.Equal("id", tx.ID))
 
-	gasPriceStr := ""
-	if tx.GasPrice != nil {
-		gasPriceStr = tx.GasPrice.String()
-	}
+	// Build the SQL and args
+	sql, args := ub.Build()
 
-	// Update the transaction
-	query := `
-		UPDATE transactions
-		SET wallet_id = ?, 
-			chain_type = ?, 
-			hash = ?, 
-			from_address = ?, 
-			to_address = ?, 
-			value = ?, 
-			data = ?, 
-			nonce = ?, 
-			gas_price = ?, 
-			gas_limit = ?, 
-			type = ?, 
-			token_address = ?, 
-			token_symbol = ?,
-			status = ?, 
-			timestamp = ?,
-			block_number = ?,
-			updated_at = ?
-		WHERE id = ?
-	`
-
-	result, err := r.db.ExecuteStatementContext(
-		ctx,
-		query,
-		tx.WalletID,
-		tx.ChainType,
-		tx.Hash,
-		tx.FromAddress,
-		tx.ToAddress,
-		valueStr,
-		tx.Data,
-		tx.Nonce,
-		gasPriceStr,
-		tx.GasLimit,
-		tx.Type,
-		tx.TokenAddress,
-		tx.TokenSymbol,
-		tx.Status,
-		tx.Timestamp,
-		tx.BlockNumber,
-		tx.UpdatedAt,
-		tx.ID,
-	)
-
+	// Execute the update
+	result, err := r.db.ExecuteStatementContext(ctx, sql, args...)
 	if err != nil {
 		return err
 	}

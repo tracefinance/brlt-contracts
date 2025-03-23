@@ -15,10 +15,10 @@ type Transaction struct {
 	Hash         string          `db:"hash"`
 	FromAddress  string          `db:"from_address"`
 	ToAddress    string          `db:"to_address"`
-	Value        *big.Int        `db:"value"`
+	Value        types.BigInt    `db:"value"`
 	Data         []byte          `db:"data"`
 	Nonce        uint64          `db:"nonce"`
-	GasPrice     *big.Int        `db:"gas_price"`
+	GasPrice     types.BigInt    `db:"gas_price"`
 	GasLimit     uint64          `db:"gas_limit"`
 	Type         string          `db:"type"`
 	TokenAddress string          `db:"token_address"`
@@ -63,15 +63,21 @@ func ScanTransaction(row interface {
 	}
 
 	// Parse value from string
-	tx.Value = new(big.Int)
 	if valueStr != "" {
-		tx.Value.SetString(valueStr, 10)
+		value, err := types.NewBigIntFromString(valueStr)
+		if err != nil {
+			return nil, err
+		}
+		tx.Value = value
 	}
 
 	// Parse gas price from string
-	tx.GasPrice = new(big.Int)
 	if gasPriceStr != "" {
-		tx.GasPrice.SetString(gasPriceStr, 10)
+		gasPrice, err := types.NewBigIntFromString(gasPriceStr)
+		if err != nil {
+			return nil, err
+		}
+		tx.GasPrice = gasPrice
 	}
 
 	return tx, nil
@@ -91,10 +97,10 @@ func FromCoreTransaction(coreTx *types.Transaction, walletID int64) *Transaction
 		Hash:         coreTx.Hash,
 		FromAddress:  coreTx.From,
 		ToAddress:    coreTx.To,
-		Value:        coreTx.Value,
+		Value:        types.NewBigInt(coreTx.Value),
 		Data:         coreTx.Data,
 		Nonce:        coreTx.Nonce,
-		GasPrice:     coreTx.GasPrice,
+		GasPrice:     types.NewBigInt(coreTx.GasPrice),
 		GasLimit:     coreTx.GasLimit,
 		Type:         string(coreTx.Type),
 		TokenAddress: coreTx.TokenAddress,
@@ -117,10 +123,10 @@ func (t *Transaction) ToCoreTransaction() *types.Transaction {
 		Hash:         t.Hash,
 		From:         t.FromAddress,
 		To:           t.ToAddress,
-		Value:        t.Value,
+		Value:        t.Value.ToBigInt(),
 		Data:         t.Data,
 		Nonce:        t.Nonce,
-		GasPrice:     t.GasPrice,
+		GasPrice:     t.GasPrice.ToBigInt(),
 		GasLimit:     t.GasLimit,
 		Type:         types.TransactionType(t.Type),
 		TokenAddress: t.TokenAddress,
@@ -131,14 +137,15 @@ func (t *Transaction) ToCoreTransaction() *types.Transaction {
 	}
 }
 
-// Filter represents a set of filter criteria for retrieving transactions
+// Filter represents the criteria for filtering transactions
 type Filter struct {
-	Status    *string          `json:"status,omitempty"`
-	ChainType *types.ChainType `json:"chain_type,omitempty"`
-	WalletID  *int64           `json:"wallet_id,omitempty"`
-	Address   *string          `json:"address,omitempty"`
-	Limit     int              `json:"limit"`
-	Offset    int              `json:"offset"`
+	Status       *string
+	ChainType    *types.ChainType
+	WalletID     *int64
+	Address      *string
+	TokenAddress *string
+	Limit        int
+	Offset       int
 }
 
 // NewFilter creates a new transaction filter with default pagination settings
@@ -170,6 +177,12 @@ func (f *Filter) WithWalletID(walletID int64) *Filter {
 // WithAddress sets the address filter (can be from or to address)
 func (f *Filter) WithAddress(address string) *Filter {
 	f.Address = &address
+	return f
+}
+
+// WithTokenAddress sets the token address filter
+func (f *Filter) WithTokenAddress(tokenAddress string) *Filter {
+	f.TokenAddress = &tokenAddress
 	return f
 }
 

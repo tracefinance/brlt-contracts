@@ -1,0 +1,107 @@
+package types
+
+import (
+	"database/sql/driver"
+	"fmt"
+	"math/big"
+)
+
+// BigInt is a wrapper around big.Int that implements database interfaces
+// for seamless integration with SQL storage and retrieval.
+type BigInt struct {
+	*big.Int
+}
+
+// NewBigInt creates a new BigInt from a *big.Int.
+func NewBigInt(i *big.Int) BigInt {
+	if i == nil {
+		return BigInt{nil}
+	}
+	return BigInt{new(big.Int).Set(i)}
+}
+
+// NewBigIntFromString creates a new BigInt from a string representation.
+// Returns an error if the string cannot be parsed.
+func NewBigIntFromString(s string) (BigInt, error) {
+	if s == "" {
+		return BigInt{nil}, nil
+	}
+
+	i := new(big.Int)
+	_, ok := i.SetString(s, 10)
+	if !ok {
+		return BigInt{nil}, fmt.Errorf("failed to parse %q as big.Int", s)
+	}
+
+	return BigInt{i}, nil
+}
+
+// String returns the string representation of the BigInt.
+// Returns an empty string if the BigInt is nil.
+func (b BigInt) String() string {
+	if b.Int == nil {
+		return ""
+	}
+	return b.Int.String()
+}
+
+// Scan implements the sql.Scanner interface for database deserialization.
+func (b *BigInt) Scan(value interface{}) error {
+	if value == nil {
+		b.Int = nil
+		return nil
+	}
+
+	switch v := value.(type) {
+	case string:
+		if v == "" {
+			b.Int = nil
+			return nil
+		}
+		if b.Int == nil {
+			b.Int = new(big.Int)
+		}
+		_, ok := b.Int.SetString(v, 10)
+		if !ok {
+			return fmt.Errorf("failed to parse %q as big.Int", v)
+		}
+		return nil
+	case []byte:
+		if len(v) == 0 {
+			b.Int = nil
+			return nil
+		}
+		if b.Int == nil {
+			b.Int = new(big.Int)
+		}
+		_, ok := b.Int.SetString(string(v), 10)
+		if !ok {
+			return fmt.Errorf("failed to parse %q as big.Int", string(v))
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported Scan type: %T", value)
+	}
+}
+
+// Value implements the driver.Valuer interface for database serialization.
+func (b BigInt) Value() (driver.Value, error) {
+	if b.Int == nil {
+		return nil, nil
+	}
+	return b.String(), nil
+}
+
+// IsZero returns true if the BigInt is zero or nil.
+func (b BigInt) IsZero() bool {
+	return b.Int == nil || b.Int.Sign() == 0
+}
+
+// ToBigInt converts BigInt to *big.Int.
+// Returns nil if BigInt is nil, otherwise returns a copy of the wrapped *big.Int.
+func (b BigInt) ToBigInt() *big.Int {
+	if b.Int == nil {
+		return nil
+	}
+	return new(big.Int).Set(b.Int)
+}

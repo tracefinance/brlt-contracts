@@ -44,14 +44,14 @@ type SyncTransactionsResponse struct {
 
 // FromServiceTransaction converts a service transaction to a response transaction
 func FromServiceTransaction(tx *transaction.Transaction, token *types.Token) TransactionResponse {
-	valueStr := ""
-	if tx.Value != nil {
-		valueStr = token.ToBigFloat(tx.Value).Text('f', int(token.Decimals))
+	valueStr := "0"
+	if !tx.Value.IsZero() {
+		valueStr = token.ToBigFloat(tx.Value.ToBigInt()).Text('f', int(token.Decimals))
 	}
 
-	gasPriceStr := ""
-	if tx.GasPrice != nil {
-		gasPriceStr = token.ToBigFloat(tx.GasPrice).Text('f', int(token.Decimals))
+	gasPriceStr := "0"
+	if !tx.GasPrice.IsZero() {
+		gasPriceStr = token.ToBigFloat(tx.GasPrice.ToBigInt()).Text('f', int(token.Decimals))
 	}
 
 	dataStr := ""
