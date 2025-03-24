@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useTheme } from "@/components/core/providers/ThemeProvider";
+import { useTheme } from "@/providers/ThemeProvider";
 import { useEffect, useState } from "react";
 
 interface LogoProps {
@@ -13,7 +13,7 @@ interface LogoProps {
 export function Logo({ 
   width = 150, 
   height = 50, 
-  className = "h-12 w-auto" 
+  className = "h-14 w-auto" 
 }: LogoProps) {
   const { theme } = useTheme();
   const [logoSrc, setLogoSrc] = useState("/logo-black.svg");

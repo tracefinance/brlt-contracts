@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
-
 export default function Home() {
-  redirect("/wallets");
+  return <h1>Hello, Next.js!</h1>
 }
