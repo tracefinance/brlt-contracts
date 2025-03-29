@@ -132,6 +132,9 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 	wallet.CreatedAt = now
 	wallet.UpdatedAt = now
 
+	// Set balance to 0
+	wallet.Balance = types.ZeroBigInt()
+
 	// Normalize wallet address using the new Address struct
 	if wallet.Address != "" {
 		addr, err := types.NewAddress(wallet.Address, wallet.ChainType)

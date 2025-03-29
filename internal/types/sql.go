@@ -21,6 +21,11 @@ func NewBigInt(i *big.Int) BigInt {
 	return BigInt{new(big.Int).Set(i)}
 }
 
+// ZeroBigInt returns a BigInt with a value of 0.
+func ZeroBigInt() BigInt {
+	return BigInt{big.NewInt(0)}
+}
+
 // NewBigIntFromString creates a new BigInt from a string representation.
 // Returns an error if the string cannot be parsed.
 func NewBigIntFromString(s string) (BigInt, error) {
