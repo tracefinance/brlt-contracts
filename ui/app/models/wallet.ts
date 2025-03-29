@@ -2,6 +2,7 @@ import {
   Expose 
 } from 'class-transformer';
 import { BaseModel, fromJson, fromJsonArray } from './model';
+import { Token } from './token';
 
 export class Wallet extends BaseModel {
   @Expose()
@@ -45,6 +46,33 @@ export class Wallet extends BaseModel {
    */
   static fromJsonArray(jsonArray: any[]): Wallet[] {
     return fromJsonArray(Wallet, jsonArray);
+  }
+}
+
+/**
+ * Response type for token balance endpoints
+ */
+export class TokenBalanceResponse extends BaseModel {
+  @Expose()
+  token!: Token;
+  
+  @Expose()
+  balance!: string;
+  
+  @Expose({ name: 'updated_at' })
+  updatedAt!: string;
+
+  constructor(data: Partial<TokenBalanceResponse> = {}) {
+    super();
+    Object.assign(this, data);
+  }
+
+  static fromJson(json: any): TokenBalanceResponse {
+    return fromJson(TokenBalanceResponse, json);
+  }
+
+  static fromJsonArray(jsonArray: any[]): TokenBalanceResponse[] {
+    return fromJsonArray(TokenBalanceResponse, jsonArray);
   }
 }
 

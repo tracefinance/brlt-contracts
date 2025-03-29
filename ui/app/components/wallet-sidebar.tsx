@@ -1,21 +1,22 @@
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "~/components/ui/sidebar";
 import { WalletSelector } from "./wallet-selector";
-import { Token, Wallet } from "./types";
+import { Token, TokenBalance, Wallet } from "./types";
 import { Link } from "@remix-run/react";
-import { TokenIcon } from "@web3icons/react";
+import { TokenIcon } from "./token-icon";
+import { formatCurrency } from "~/lib/utils";
 
 interface WalletSidebarProps {
     wallets: Wallet[];
     selectedWallet: Wallet;
     onWalletChange: (wallet: Wallet) => void;
-    tokens: Token[];
+    balances: TokenBalance[];
 }
 
 export default function WalletSidebar({ 
     wallets,
     selectedWallet,
     onWalletChange,
-    tokens,
+    balances,
     ...props 
 }: WalletSidebarProps & React.ComponentProps<typeof Sidebar>) {
     return (
@@ -31,12 +32,15 @@ export default function WalletSidebar({
                 <SidebarGroup>
                     <SidebarGroupLabel>Tokens</SidebarGroupLabel>
                     <SidebarMenu>
-                        {tokens.map((token) => (
-                            <SidebarMenuItem key={token.address}>
+                        {balances.map((balance) => (
+                            <SidebarMenuItem key={balance.token.address}>
                                 <SidebarMenuButton asChild>
-                                    <Link to={`/wallets/${selectedWallet.address}/${selectedWallet.chainType}/transactions/${token.address}`}>
-                                        <TokenIcon symbol={token.symbol.startsWith('W') ? token.symbol.slice(1) : token.symbol} />
-                                        <span>{token.symbol}</span>
+                                    <Link className="flex items-center w-full" to={`/wallets/${selectedWallet.address}/${selectedWallet.chainType}/transactions/${balance.token.address}`}>
+                                        <TokenIcon symbol={balance.token.symbol} />
+                                        <span>{balance.token.symbol}</span>
+                                        <span className="ml-auto text-sm text-gray-500">
+                                            {formatCurrency(balance.balance)}
+                                        </span>
                                     </Link>
                                 </SidebarMenuButton>
                             </SidebarMenuItem>
