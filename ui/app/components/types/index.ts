@@ -3,3 +3,9 @@ export type Wallet = {
     address: string;
     chainType: string;
 };
+
+export type Token = {
+    address: string;
+    chainType: string;
+    symbol: string;
+};

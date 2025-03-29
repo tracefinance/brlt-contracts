@@ -4,11 +4,11 @@ import { Vault, Wallet, Settings, Repeat, Shuffle } from 'lucide-react';
 
 export function Header() {
   return (
-    <header className="flex sticky top-0 z-50 w-full items-center border-b bg-background">
-      <div className="flex h-[--header-height] w-full items-center gap-4 px-4 py-2">
+    <header className="fixed top-0 left-0 right-0 z-50 w-full border-b bg-background h-16">
+      <div className="flex w-full h-full items-center gap-4 px-4 py-2">
         <Logo className="h-10 w-auto"/>
 
-        <nav className="flex items-center space-x-6 text-sm font-medium">
+        <nav className="flex items-center space-x-6 text-sm font-medium ml-4">
           <NavLink href="/wallets" icon={Wallet}>
             Wallets
           </NavLink>

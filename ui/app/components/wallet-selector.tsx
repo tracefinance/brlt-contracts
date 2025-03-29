@@ -16,39 +16,41 @@ import { NetworkIcon } from "@web3icons/react";
 import { Wallet } from "./types";
 
 interface WalletSelectorProps {
-  currentWallet: Wallet;
+  selectedWallet: Wallet;
   wallets: Wallet[];
   onWalletChange: (wallet: Wallet) => void;
 }
 
 export function WalletSelector({
-  currentWallet,
-  wallets,
-  onWalletChange = () => { },
+  selectedWallet,
+  wallets = [],
+  onWalletChange = () => {}
 }: Partial<WalletSelectorProps>) {
   const { isMobile } = useSidebar();
-  console.log(wallets);
+  
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-            >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-                <NetworkIcon id={currentWallet?.chainType || "ethereum"} size={24} variant="mono" />
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">
-                  {currentWallet?.name || "Wallet"}
-                </span>
-              </div>
-              <ChevronsUpDown className="ml-auto" />
-            </SidebarMenuButton>
+            <div>
+              <SidebarMenuButton
+                size="lg"
+                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              >
+                <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
+                  <NetworkIcon id={selectedWallet?.chainType || "ethereum"} size={24} variant="mono" />
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">
+                    {selectedWallet?.name || "Wallet"}
+                  </span>
+                </div>
+                <ChevronsUpDown className="ml-auto" />
+              </SidebarMenuButton>
+            </div>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+          <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width] min-w-[200px]"
             align="start"
             side={isMobile ? "bottom" : "right"}
             sideOffset={4}>

@@ -33,18 +33,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body>        
-        <ThemeProvider defaultTheme="system">          
-          <Header />
-          {children}
-          <ScrollRestoration />
-          <Scripts />
-        </ThemeProvider>
+      <body>
+        {children}
+        <ScrollRestoration />
+        <Scripts />        
       </body>
     </html>
   );
 }
 
 export default function App() {
-  return <Outlet />;
+  return (
+    <div className="[--header-height:calc(theme(spacing.14))]">
+      <ThemeProvider defaultTheme="system">
+        <Header />
+        <div className="flex flex-1">
+          <Outlet />
+        </div>
+      </ThemeProvider>
+    </div>
+  );
 }
