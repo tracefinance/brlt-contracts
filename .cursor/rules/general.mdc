@@ -3,166 +3,100 @@ description: General rules
 globs: 
 alwaysApply: true
 ---
-
 # Vault0 Project Guidelines
 
+This document provides general guidelines for developing the Vault0 project, optimized for AI assistant usage.
+
 ## Project Overview
-Vault0 is a full-stack web3 application that combines blockchain technology with modern web development. The project follows a layered architecture approach with clear separation of concerns between backend, frontend, and smart contract components.
+Vault0 is a full-stack web3 application combining blockchain technology with modern web development. It uses a layered architecture with clear separation of concerns.
 
 ## Core Development Principles
-- Write clean, maintainable, and well-documented code
-- Follow DRY (Don't Repeat Yourself) principles
-- Implement comprehensive testing for all components
-- Prioritize security and performance
-- Maintain consistent code style across all technologies
-- Focus on accessibility and user experience
-- Use TypeScript for type safety where applicable
+- Write clean, maintainable, and well-documented code.
+- Follow DRY (Don't Repeat Yourself).
+- Implement comprehensive testing.
+- Prioritize security and performance.
+- Maintain consistent code style.
+- Focus on accessibility and user experience.
+- Use TypeScript where applicable.
 
 ## Project Structure
 ```
 vault0/
-├── ui/              # Frontend NextJS application
-│   ├── components/  # React components
-│   ├── hooks/       # Custom React hooks
-│   ├── lib/         # Utility functions and constants
-│   ├── pages/       # Next.js pages
-│   ├── styles/      # Global styles and Tailwind config
-│   └── types/       # TypeScript type definitions
+├── ui/              # Frontend Remix application
 ├── contracts/       # Smart contracts
-│   ├── solidity/    # Contract source files
-│   ├── test/        # Contract tests
-│   └── scripts/     # Deployment and utility scripts
 ├── cmd/             # Command-line applications
 ├── internal/        # Backend application code
-│   ├── api/         # Communication Layer (Layer 3)
-│   ├── core/        # Core/Infrastructure Layer (Layer 1)
-│   └── services/    # Service Layer (Layer 2)
 └── migrations/      # Database migrations
 ```
+*Note: Refer to `frontend.md` and `backend.md` for detailed structures of `ui/` and `internal/` respectively.* 
 
-## Technology Stack
-- Frontend: Next.js, TypeScript, TailwindCSS
-- Backend: Go, SQLite, Gin
-- Blockchain: Solidity, Hardhat
-- Testing: Jest, Go testing, Hardhat test
+## Technology Stack Overview
+- **Frontend**: Remix, TypeScript, TailwindCSS
+- **Backend**: Go, SQLite, Gin
+- **Blockchain**: Solidity, Hardhat
+- **Testing**: Jest, Go testing, Hardhat test
 
-## Code Style Guidelines
+## General Code Style Guidelines
+- Use meaningful names for variables, functions, and files.
+- Keep functions small and focused.
+- Document complex logic clearly.
+- Handle errors appropriately in each layer.
+- Implement proper logging.
+- Follow consistent formatting.
 
-### General
-- Use meaningful and descriptive names for variables, functions, and files
-- Keep functions small and focused on a single responsibility
-- Document complex logic with clear comments
-- Handle errors appropriately in each layer
-- Implement proper logging and monitoring
-- Follow consistent formatting in each language
-
-### Frontend (Next.js)
-- Use functional components with hooks
-- Implement proper TypeScript types
-- Use Tailwind for styling
-- Follow accessibility best practices
-- Implement proper error boundaries
-- Use proper state management
-- Handle loading and error states
-- Implement proper form validation
-- Use proper SEO practices
-
-### Backend (Go)
-- Follow standard Go project layout
-- Always prefer to use `any` as `interface{}`
-- Use proper error handling with context
-- Implement proper middleware
-- Use prepared statements for database operations
-- Implement proper validation
-- Use proper logging
-- Handle graceful shutdown
-- Implement proper testing
-
-### Smart Contracts (Solidity)
-- Follow latest Solidity best practices
-- Implement proper access control
-- Use safe math operations
-- Follow security best practices
-- Implement proper event logging
-- Optimize for gas efficiency
-- Implement comprehensive testing
-- Document with NatSpec comments
+*Note: Refer to `frontend.md`, `backend.md`, and `solidity.md` (if available) for language/framework-specific style guidelines.*
 
 ## Git Workflow
-- NEVER COMMIT THE CODE UNLESS YOU'RE ASKED TO DO IT
-- Follow Angular commit convention
-- Always Check git status and diff to generate meaningful commit messages
-- Keep commits focused and atomic
-- Use proper branching strategy
-- Review code before merging
-- Maintain clean git history
-- Do not commit multi-line messages (\n)! Use additionals `-m` parameter 
+- **NEVER COMMIT THE CODE UNLESS YOU'RE ASKED TO DO IT.**
+- Follow Angular commit convention (e.g., `feat: add user login`, `fix: correct validation bug`).
+- Check `git status` and `git diff` to create meaningful commit messages.
+- Keep commits focused and atomic.
+- Use a proper branching strategy (e.g., feature branches).
+- Review code before merging.
+- Maintain a clean git history.
+- **Do not use multi-line commit messages (`\n`)**. Use additional `-m` parameters if needed (e.g., `git commit -m "feat: subject" -m "Detailed description..."`).
 
-## Testing Requirements
-- Maintain high test coverage
-- Test edge cases
-- Implement integration tests
-- Test error scenarios
-- Use proper mocking
-- Test accessibility
-- Test performance
-- Test security
+## General Testing Requirements
+- Maintain high test coverage.
+- Test edge cases and error scenarios.
+- Implement integration tests.
+- Use proper mocking.
+- Include tests for accessibility, performance, and security where applicable.
 
-## Documentation
-- Maintain up-to-date README
-- Document API endpoints
-- Document component props
-- Document contract functions
-- Keep inline documentation current
-- Document deployment procedures
-- Document configuration options
+## General Documentation Guidelines
+- Maintain an up-to-date project `README.md`.
+- Document APIs, components, contract functions, configuration, and deployment procedures.
+- Keep inline code documentation current.
 
-## Security Guidelines
-- Implement proper authentication
-- Use proper authorization
-- Validate all inputs
-- Protect against common vulnerabilities
-- Use proper encryption
-- Handle sensitive data properly
-- Implement rate limiting
-- Monitor for security issues
+## General Security Guidelines
+- Implement proper authentication and authorization.
+- Validate all inputs.
+- Protect against common vulnerabilities (e.g., OWASP Top 10).
+- Handle sensitive data securely.
+- Implement rate limiting where appropriate.
+- Monitor for security issues.
 
-## Performance Guidelines
-- Optimize database queries
-- Implement proper caching
-- Optimize frontend bundle size
-- Optimize smart contract gas usage
-- Use proper indexing
-- Implement proper pagination
-- Handle large datasets efficiently
+## General Performance Guidelines
+- Optimize database queries and use proper indexing.
+- Implement caching where beneficial.
+- Optimize frontend bundle sizes and smart contract gas usage.
+- Handle large datasets efficiently (e.g., pagination).
 
-## Error Handling
-- Use proper error types
-- Implement proper error recovery
-- Log errors appropriately
-- Handle edge cases
-- Return proper error responses
-- Document error conditions
+## General Error Handling
+- Use proper error types/codes.
+- Implement sensible error recovery where possible.
+- Log errors appropriately with context.
+- Return user-friendly error responses from APIs.
 
 ## Monitoring and Logging
-- Implement proper logging
-- Use structured logging
-- Track errors and exceptions
+- Implement structured logging across the application.
+- Track errors and exceptions effectively.
 
 ## Development Environment
-- Document setup procedures
-- Use consistent tooling
-- Maintain development scripts
-- Use proper linting
-- Use proper formatting
-- Maintain development database
-- Document local testing
+- Document setup procedures clearly.
+- Use consistent tooling (linters, formatters).
+- Maintain development/local testing scripts and databases.
 
 ## Quality Assurance
-- Review code quality
-- Test accessibility
-- Test cross-browser compatibility
-- Test responsive design
-- Test performance
-- Test security
-
+- Perform code reviews focusing on quality and adherence to guidelines.
+- Test for accessibility, cross-browser compatibility, responsive design, performance, and security. 

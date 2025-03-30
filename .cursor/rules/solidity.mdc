@@ -3,87 +3,89 @@ description: Solidity
 globs: contracts/**/*,*.sol
 alwaysApply: false
 ---
-# Windsurf Rules for Smart Contract Development
+# Solidity Smart Contract Development Guidelines
+
+This document outlines rules and best practices for developing Solidity smart contracts within the Vault0 project, tailored for AI assistant usage.
 
 ## Code Organization
-- Maintain clear directory structure for contracts, tests, and deployment scripts
-- Follow single responsibility principle for contract files
-- Use meaningful and descriptive file names
-- Keep related functionality grouped together
+- Maintain a clear directory structure for contracts, tests, and deployment scripts.
+- Adhere to the single responsibility principle for individual contract files.
+- Use meaningful and descriptive filenames (e.g., `VaultManager.sol`, `AccessControl.sol`).
+- Group related functionality logically within contracts and files.
 
 ## Development Standards
-- Use latest stable Solidity version
-- Specify exact pragma version
-- ALWAYS prefer scripts from package.json instead of running commands directly for compile, test and deploy
-- Follow consistent contract structure:
-  * State variables
-  * Events
-  * Modifiers
-  * Constructor
-  * External/public functions
-  * Internal/private functions
-- Implement proper access control
-- Use descriptive variable and function names
+- Use the latest stable Solidity compiler version recommended for the project.
+- Specify the exact pragma version (e.g., `pragma solidity ^0.8.20;`).
+- **ALWAYS** use `package.json` scripts (`npm run compile`, `npm run test`, `npm run deploy`) instead of raw `npx hardhat` commands.
+- Follow a consistent contract structure:
+  1.  License Identifier (SPDX)
+  2.  Pragma Directive
+  3.  Imports
+  4.  Interfaces
+  5.  Libraries
+  6.  Contracts (State variables, Events, Modifiers, Constructor, Functions ordered by visibility: external, public, internal, private)
+- Implement robust access control mechanisms (e.g., Ownable, Role-Based Access Control).
+- Use clear and descriptive names for variables, functions, events, and modifiers.
 
 ## Security Guidelines
-- Validate all inputs with require statements
-- Implement reentrancy protection
-- Use safe math operations
-- Follow Checks-Effects-Interactions pattern
-- Implement timelocks for critical operations
-- Avoid using tx.origin for authentication
-- Protect against front-running where applicable
+- **Input Validation**: Rigorously validate all external/public function inputs using `require` statements with clear error messages or custom errors.
+- **Reentrancy Protection**: Use checks-effects-interactions pattern and/or OpenZeppelin's `ReentrancyGuard`.
+- **Safe Math**: Use SafeMath or Solidity >=0.8.0 which has built-in overflow/underflow checks.
+- **Checks-Effects-Interactions**: Ensure state changes happen *before* external calls.
+- **Timelocks**: Implement timelocks for critical administrative actions.
+- **Authentication**: Avoid `tx.origin` for authorization checks.
+- **Front-running**: Be mindful of potential front-running vulnerabilities in designs involving ordering or pricing.
+- **Explicit Visibility**: Explicitly declare visibility for all functions and state variables (public, private, internal, external).
+- **Custom Errors**: Prefer custom errors (`error Unauthorized();`) over `require` strings for gas efficiency and clarity.
 
 ## Testing Requirements
-- Maintain minimum 90% test coverage
-- Test both success and failure cases
-- Include edge case testing
-- Verify access control
-- Test time-dependent functionality
-- Validate state changes
-- Test event emissions
+- **Coverage**: Maintain a minimum of 90% test coverage.
+- **Scenarios**: Test both expected success paths and various failure conditions (invalid inputs, unauthorized access, unmet conditions).
+- **Edge Cases**: Include tests for boundary conditions and potential edge cases (e.g., zero values, maximum values, empty arrays).
+- **Access Control**: Verify that access control modifiers and logic work correctly.
+- **Time-Dependent Logic**: Test functionality relying on `block.timestamp` using Hardhat's time manipulation helpers.
+- **State Changes**: Assert correct state variable updates after function execution.
+- **Event Emissions**: Verify that correct events are emitted with the expected parameters using `expect(...).to.emit(...)`.
 
-## Documentation Rules
-- Use NatSpec comments for public/external functions
-- Document all events and their parameters
-- Explain complex logic with inline comments
-- Keep documentation synchronized with code
-- Document all state variables
-- Include deployment parameters
+## Documentation Rules (NatSpec)
+- Use NatSpec comments (`///`) for all public/external functions and state variables.
+- Document `@title`, `@notice`, `@dev` details.
+- Document `@param` for all function parameters.
+- Document `@return` for all function return values.
+- Document all `event` definitions and their parameters (`@notice`).
+- Explain complex internal logic with inline comments (`//`).
+- Keep documentation synchronized with code changes.
 
-## Performance Guidelines
-- Optimize gas usage
-- Use appropriate data structures
-- Minimize storage operations
-- Implement batching where possible
-- Use custom errors instead of strings
-- Pack storage variables efficiently
+## Performance Guidelines (Gas Optimization)
+- **Gas Usage**: Be mindful of gas costs for all operations.
+- **Data Structures**: Choose gas-efficient data structures (e.g., mappings vs. arrays where appropriate).
+- **Storage Minimization**: Minimize writes to storage (`SSTORE` is expensive). Read from storage into memory variables if used multiple times.
+- **Batching**: Implement batch operations for repetitive actions where feasible.
+- **Custom Errors**: Use custom errors (`revert CustomError();`) instead of `require(condition, "Error String")`.
+- **Storage Packing**: Pack state variables smaller than 32 bytes together where logical to save storage slots.
+- **View/Pure Functions**: Use `view` and `pure` appropriately.
 
 ## Development Workflow
-- Write meaningful commit messages
-- Keep pull requests focused
-- Update tests with code changes
-- Test on testnet before mainnet
-- Verify contract source code
-- Document deployment addresses
+- **Commits**: Write meaningful commit messages following the project's convention (see `general.md`).
+- **Pull Requests**: Keep PRs focused on a single feature or fix. Ensure tests pass and documentation is updated.
+- **Testing**: Run tests locally and in CI. Test contract interactions on a testnet (e.g., Sepolia) before mainnet deployment.
+- **Verification**: Verify contract source code on block explorers (e.g., Etherscan) after deployment.
+- **Deployment**: Document deployment addresses, parameters, and transaction hashes.
 
 ## Error Handling
-- Use specific error messages
-- Implement proper error recovery
-- Handle edge cases
-- Document error conditions
-- Use standardized error patterns
+- **Custom Errors**: Prefer custom errors for specific failure conditions.
+- **Require Statements**: Use `require` for input validation and condition checks, with clear messages or custom errors.
+- **Edge Cases**: Explicitly handle potential edge cases that could lead to errors.
+- **Documentation**: Document potential error conditions in NatSpec (`@dev` tags).
 
 ## Event Logging
-- Log all important state changes
-- Include indexed parameters
-- Use consistent naming
-- Document event purposes
-- Maintain event history
+- **Emit Events**: Emit events for significant state changes and actions that off-chain services might need to track.
+- **Indexed Parameters**: Use `indexed` for event parameters that will be frequently filtered or searched (up to 3).
+- **Naming**: Use consistent and descriptive event names (e.g., `VaultCreated`, `WithdrawalMade`).
+- **Documentation**: Document the purpose and parameters of each event using NatSpec.
 
 ## Maintenance
-- Keep dependencies updated
-- Monitor contract performance
-- Document upgrade procedures
-- Maintain deployment history
-- Track gas usage patterns
+- **Dependencies**: Keep Hardhat and library dependencies (e.g., OpenZeppelin Contracts) updated to secure versions.
+- **Monitoring**: Monitor deployed contract activity and gas usage patterns.
+- **Upgradability**: If contracts are designed to be upgradeable, clearly document the upgrade mechanism and procedures.
+- **Deployment History**: Maintain a record of all deployments across different networks. 

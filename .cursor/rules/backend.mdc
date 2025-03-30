@@ -3,556 +3,395 @@ description:
 globs: internal/**/*,migrations/*,*.go,*.sql
 alwaysApply: false
 ---
-# Backend Development Guidelines
+# Backend Development Guidelines (AI Optimized)
+
+This document provides guidelines for developing the backend of the Vault0 project, optimized for AI assistant usage.
 
 ## Architecture Overview
 
 The backend follows a three-layer architecture:
 
-### Layer 1: Core/Infrastructure Layer
-Located in `internal/core`, composed of foundational modules:
-- **Database Access**: Database connectivity and query execution
-- **Wallet Operations**: Low-level wallet functionality
-- **Keystore**: Secure storage and retrieval of cryptographic keys
-- **Blockchain Interaction**: Core blockchain communication
-- **Cryptography Utilities**: Encryption, decryption, and hashing functions
-- **Contract Interaction**: Smart contract operation abstraction
-- **Key Generation**: Cryptographic key generation utilities
-
-### Layer 2: Service Layer
-Located in `internal/services`, contains business logic modules organized by domain:
-- Domain-specific data models
-- Business operations and validation rules
-- Repository interfaces for data access
-
-Services include:
-- User management
-- Wallet administration
-- Authentication and authorization
-- Transaction processing
-- Blockchain service integration
-
-### Layer 3: Communication Layer
-Located in `internal/api`, exposes the service layer functionality:
-- RESTful API endpoints
-- Request/response handling
-- Middleware (authentication, logging, error handling)
-- Route management
+1.  **Layer 1: Core/Infrastructure (`internal/core`)**: Foundational modules (Database, Wallet Ops, Keystore, Blockchain Interaction, Crypto, Contract Interaction, Key Generation).
+2.  **Layer 2: Service (`internal/services`)**: Business logic modules organized by domain (User, Wallet, Auth, Blockchain). Contains domain models, business rules, and repository interfaces.
+3.  **Layer 3: Communication (`internal/api`)**: Exposes service layer functionality via RESTful API endpoints, handles requests/responses, and includes middleware.
 
 ## Project Structure
 
 ```
-backend/
-├── cmd/                                # Command-line applications
-│   ├── server/                         # Main server application
-│   │   └── main.go                     # Application entry point
-│   └── genkey/                         # Encryption key generation utility
-│       └── main.go                     # Key generation entry point
-├── internal/                           # Private application code
-│   ├── api/                            # Communication Layer (Layer 3)
-│   │   ├── handlers/                   # API request handlers by domain
-│   │   │   ├── user/                   # User-related endpoints
-│   │   │   │   ├── handler.go          # User handler implementation and route setup
-│   │   │   │   ├── dto.go              # User request/response structures
-│   │   │   ├── wallet/                 # Wallet-related endpoints
-│   │   │   └── blockchain/             # Blockchain-related endpoints
-│   │   ├── middleware/                 # Request middleware components
-│   │   │   ├── auth.go                 # Authentication middleware
-│   │   │   ├── logging.go              # Request logging middleware
-│   │   │   └── errors.go               # Error handling middleware
-│   │   └── server.go                   # API server setup and configuration
-│   ├── core/                           # Core/Infrastructure Layer (Layer 1)
-│   │   ├── blockchain/                 # Blockchain interaction
-│   │   ├── contract/                   # Smart contract interaction
-│   │   ├── crypto/                     # Cryptography utilities
-│   │   ├── keygen/                     # Key generation utilities
-│   │   ├── keystore/                   # Key management
-│   │   └── wallet/                     # Wallet operations
-│   ├── services/                       # Service Layer (Layer 2)
-│   │   ├── user/                       # User management domain
-│   │   ├── wallet/                     # Wallet operations domain
-│   │   ├── auth/                       # Authentication domain
-│   │   └── blockchain/                 # Blockchain operations domain
-│   ├── config/                          # Configuration management
-│   ├── db/                             # Database access
-│   ├── errors/                         # Error types and handling
-│   ├── logger/                         # Logging utilities
-│   ├── oauth2/                         # OAuth2 implementations
-│   ├── types/                          # Shared type definitions
-│   └── wire/                           # Dependency injection configuration
-├── migrations/                         # Database migrations
-└── pkg/                                # Public packages
-
+vault0/
+├── cmd/             # Command-line applications (server, genkey)
+├── internal/        # Private application code
+│   ├── api/         # Layer 3: Communication (handlers, middleware, server setup)
+│   ├── core/        # Layer 1: Core/Infrastructure (blockchain, contract, crypto, etc.)
+│   ├── services/    # Layer 2: Service (user, wallet, auth, blockchain domains)
+│   ├── config/       # Configuration management
+│   ├── db/          # Database access
+│   ├── errors/      # Error types and handling
+│   ├── logger/      # Logging utilities
+│   ├── types/       # Shared type definitions
+│   └── wire/        # Dependency injection (Google Wire)
+├── migrations/      # Database migrations
+└── pkg/             # Public packages (if any)
 ```
 
 ## Implementation Patterns
 
 ### Service Layer Pattern
 
-Each service module should follow this structure:
-
-1. **Service Interface and Implementation**:
 ```go
-// service.go
+// internal/services/wallet/service.go
+package wallet
+
+// Service defines the interface for wallet operations.
 type Service interface {
-    // Service methods
+    // Method signatures...
 }
 
 type service struct {
     repository Repository
-    // Other dependencies
+    logger     logger.Logger // Example dependency
+    // Other dependencies...
 }
 
-func NewService(repository Repository) Service {
-    return &service{repository: repository}
+// NewService creates a new wallet service instance.
+func NewService(repository Repository, logger logger.Logger) Service {
+    return &service{repository: repository, logger: logger}
 }
+
+// --- Implementation of Service methods ---
 ```
 
-2. **Models**:
 ```go
-// model.go
-type Entity struct {
+// internal/services/wallet/model.go
+package wallet
+
+import "time"
+
+// Wallet represents the wallet entity.
+type Wallet struct {
     ID        string    `db:"id"`
+    UserID    string    `db:"user_id"`
+    Address   string    `db:"address"`
     CreatedAt time.Time `db:"created_at"`
     UpdatedAt time.Time `db:"updated_at"`
+    // Other fields...
 }
 ```
 
-3. **Repository Interface and Implementation**:
 ```go
-// repository.go
+// internal/services/wallet/repository.go
+package wallet
+
+import "context"
+
+// Repository defines the interface for wallet data access.
 type Repository interface {
-    FindByID(ctx context.Context, id string) (*Entity, error)
-    Create(ctx context.Context, entity *Entity) error
+    FindByID(ctx context.Context, id string) (*Wallet, error)
+    Create(ctx context.Context, wallet *Wallet) error
+    // Other data access methods...
 }
 
 type repository struct {
-    db *db.DB
+    db *db.DB // Assuming db is your database connection wrapper
 }
 
+// NewRepository creates a new wallet repository instance.
 func NewRepository(db *db.DB) Repository {
     return &repository{db: db}
 }
+
+// --- Implementation of Repository methods ---
 ```
 
-### Handler Pattern
+### Handler Pattern (Gin)
 
 ```go
-// handler.go
+// internal/api/handlers/wallet/handler.go
+package wallet
+
+import (
+    "net/http"
+    "github.com/gin-gonic/gin"
+    "your_project/internal/services/wallet" // Adjust import path
+    "your_project/internal/api/middleware"  // Adjust import path
+    "your_project/internal/errors"         // Adjust import path
+)
+
+// Handler manages wallet API endpoints.
 type Handler struct {
-    service Service
+    service wallet.Service
 }
 
-func NewHandler(service Service) *Handler {
+// NewHandler creates a new wallet handler instance.
+func NewHandler(service wallet.Service) *Handler {
     return &Handler{service: service}
 }
 
-func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
-    router.GET("/:id", h.Get)
-    router.POST("/", h.Create)
+// SetupRoutes configures routes for wallet operations.
+func (h *Handler) SetupRoutes(router *gin.RouterGroup, authMiddleware gin.HandlerFunc) {
+    walletRoutes := router.Group("/wallets")
+    walletRoutes.Use(authMiddleware) // Apply authentication middleware
+    {
+        walletRoutes.POST("", h.CreateWallet)
+        walletRoutes.GET("/:id", h.GetWallet)
+        // Other routes...
+    }
 }
+
+// CreateWallet handles POST /wallets requests.
+func (h *Handler) CreateWallet(c *gin.Context) {
+    var req CreateWalletRequest // Defined in dto.go
+    if err := c.ShouldBindJSON(&req); err != nil {
+        // Use predefined error type
+        appErr := errors.NewInvalidRequestError("Invalid request body")
+        c.Error(appErr) // Let middleware handle the response
+        return
+    }
+
+    // Validate req...
+    if req.UserID == "" {
+         c.Error(errors.NewMissingParameterError("user_id"))
+         return
+    }
+
+    // Call service layer
+    newWallet, err := h.service.Create(c.Request.Context(), req.UserID, req.Type) // Adapt service method
+    if err != nil {
+        c.Error(err) // Propagate service error to middleware
+        return
+    }
+
+    // Success response
+    c.JSON(http.StatusCreated, NewWalletResponse(newWallet)) // Defined in dto.go
+}
+
+// GetWallet handles GET /wallets/:id requests.
+func (h *Handler) GetWallet(c *gin.Context) {
+    walletID := c.Param("id")
+    if walletID == "" {
+         c.Error(errors.NewMissingParameterError("id"))
+         return
+    }
+
+    wallet, err := h.service.GetByID(c.Request.Context(), walletID) // Adapt service method
+    if err != nil {
+        c.Error(err)
+        return
+    }
+
+    c.JSON(http.StatusOK, NewWalletResponse(wallet))
+}
+
+// dto.go would contain CreateWalletRequest, WalletResponse structs etc.
 ```
 
-## Dependency Injection with Google Wire
+## Dependency Injection (Google Wire)
 
-The project uses Google Wire for dependency injection, organized in the `internal/wire` package.
+Located in `internal/wire`. Uses `wire.Build` with Sets for Core, Services, and Server components.
 
-### Wire Structure
-
-1. **Container Definition** (`wire.go`):
 ```go
+// internal/wire/wire.go
+//go:build wireinject
+// +build wireinject
+
+package wire
+
+import (
+    // Import necessary packages...
+    "github.com/google/wire"
+)
+
+// InitializeContainer creates the main application container.
+func InitializeContainer() (*Container, func(), error) {
+    wire.Build(
+        CoreSet,
+        ServicesSet,
+        ServerSet,
+        NewContainer,
+    )
+    return nil, nil, nil // Wire will generate the implementation
+}
+
+// Container holds all major dependencies.
 type Container struct {
     Config             *config.Config
     DB                 *db.DB
     Logger             logger.Logger
     KeyStore           keystore.KeyStore
-    Chains             types.Chains
-    WalletFactory      wallet.Factory
-    BlockchainRegistry blockchain.Registry
+    // ... other core components
     Server             *api.Server
-    Services           *Services
+    Services           *Services // Struct holding all service instances
 }
-```
 
-2. **Core Dependencies** (`core.go`):
-```go
-var CoreSet = wire.NewSet(
-    config.LoadConfig,
-    db.NewDatabase,
-    logger.NewLogger,
-    keystore.NewKeyStore,
-    blockchain.NewRegistry,
-    wallet.NewFactory,
-    contract.NewSmartContract,
-    types.NewChains,
-)
-```
+// NewContainer creates the container (used by Wire).
+func NewContainer( /* Inject dependencies here */ ) *Container {
+    // ... assignment logic ...
+    return &Container{ /* ... */ }
+}
 
-3. **Services Configuration** (`services.go`):
-```go
+
+// internal/wire/services.go
+
+// Services holds instances of all application services.
 type Services struct {
     WalletService     wallet.Service
     UserService       user.Service
     BlockchainService blockchain.Service
+    // ... other services
 }
 
-var WalletServiceSet = wire.NewSet(
-	wallet.NewRepository,
-	wallet.NewService,
-)
+// Define Wire provider sets for each service
+var WalletServiceSet = wire.NewSet(wallet.NewRepository, wallet.NewService)
+var UserServiceSet = wire.NewSet(user.NewRepository, user.NewService)
+// ... other service sets
 
+// Define the set for all services
 var ServicesSet = wire.NewSet(
     WalletServiceSet,
     UserServiceSet,
-    BlockchainServiceSet,
-    NewServices,
+    // ... other service sets
+    NewServices, // Provider function for the Services struct
 )
+
+// NewServices creates the Services struct (used by Wire).
+func NewServices(walletSvc wallet.Service, userSvc user.Service /*... other services */) *Services {
+    return &Services{
+        WalletService: walletSvc,
+        UserService:   userSvc,
+        // ...
+    }
+}
 ```
+*Remember to run `go generate ./...` in `internal/wire` to generate `wire_gen.go`.*
 
-4. **Server Configuration** (`server.go`):
-```go
-var ServerSet = wire.NewSet(
-    wallet.NewHandler,
-    user.NewHandler,
-    blockchain.NewHandler,
-    api.NewServer,
-)
-```
+## Error Handling System (`internal/errors`)
 
-## Error Handling System
-
-The project implements a comprehensive error handling system with a structured approach to creating, propagating, and handling errors across all layers.
-
-### Core Error Structure
-
-All application errors should use the `Vault0Error` type defined in `internal/errors/errors.go`:
+Uses a custom `Vault0Error` struct with `Code`, `Message`, `Details`, and underlying `Err`.
 
 ```go
+// internal/errors/errors.go
+package errors
+
 type Vault0Error struct {
-    // Code is a unique identifier for the error type
-    Code string `json:"code"`
-    // Message is a human-readable error message
-    Message string `json:"message"`
-    // Details contains additional error context (optional)
-    Details map[string]any `json:"details,omitempty"`
-    // Err is the underlying error (not exposed in JSON)
-    Err error `json:"-"`
+    Code    string           `json:"code"`
+    Message string           `json:"message"`
+    Details map[string]any   `json:"details,omitempty"`
+    Err     error            `json:"-"` // Underlying error
 }
+
+func (e *Vault0Error) Error() string { /* ... */ }
+func (e *Vault0Error) Unwrap() error { return e.Err }
+// Implement Is(), MarshalJSON()
+
+// Constructor functions for specific errors
+func NewDatabaseError(err error, operation string) *Vault0Error { /* ... */ }
+func NewUserNotFoundError() *Vault0Error { /* ... */ }
+func NewInvalidRequestError(details string) *Vault0Error { /* ... */ }
+// ... many more constructors for Core, Service, Handler errors
 ```
 
-The `Vault0Error` type implements the standard error interface and provides additional methods for error identification and context:
-- `Error()`: Returns a formatted error message
-- `Unwrap()`: Returns the underlying error
-- `Is()`: Enables error comparison with `errors.Is()`
-- `MarshalJSON()`: Provides custom JSON serialization
+**Principles:**
 
-### Layer-Specific Error Types
+1.  **Use Predefined Constructors**: Always use functions like `errors.NewUserNotFoundError()` or `errors.NewDatabaseError(err, "query")` instead of creating errors manually.
+2.  **No Wrapping Between Modules**: Catch errors from lower layers (e.g., database errors in service) and return a new, domain-specific error (e.g., `errors.NewOperationFailedError("get user", err)` or `errors.NewUserNotFoundError()`). Do NOT just wrap the DB error.
+3.  **Middleware Handles API Errors**: In handlers, propagate errors using `c.Error(err)`. The `middleware.ErrorHandler` maps `Vault0Error` to HTTP status codes and JSON responses.
+4.  **Log Errors**: Log errors using the structured logger *before* returning a new error type.
 
-#### Layer 1: Core/Infrastructure Errors (`internal/errors/core.go`)
-
-Core-level components should use error types defined in `internal/errors/core.go`, organized by domain:
-
-- **Database Errors**: `ErrCodeDatabaseError`, `ErrCodeDatabaseNotFound`
-- **Blockchain Errors**: `ErrCodeBlockchainError`, `ErrCodeChainNotSupported`, etc.
-- **Keystore Errors**: `ErrCodeKeystoreError`, `ErrCodeKeyNotFound`
-- **Wallet Errors**: `ErrCodeWalletError`, `ErrCodeInvalidWalletConfig`
-- **Crypto Errors**: `ErrCodeCryptoError`, `ErrCodeEncryptionError`
-- **Explorer Errors**: `ErrCodeExplorerError`, `ErrCodeRateLimitExceeded`
-
-Example usage:
 ```go
-// Instead of generic errors
+// Bad: Wrapping
 if err != nil {
-    return fmt.Errorf("failed to decrypt key: %w", err)
+    return fmt.Errorf("service failed getting user %s: %w", id, err) // DON'T DO THIS
 }
 
-// Use structured errors
+// Good: Mapping and Logging
 if err != nil {
-    return errors.NewDecryptionError(err)
-}
-```
-
-#### Layer 2: Service Errors (`internal/errors/services.go`)
-
-Service-level components should use error types defined in `internal/errors/services.go`:
-
-- **Common Service Errors**: `ErrCodeInvalidInput`, `ErrCodeNotFound`
-- **Wallet Service Errors**: `ErrCodeWalletNotFound`, `ErrCodeWalletExists`
-- **User Service Errors**: `ErrCodeUserNotFound`, `ErrCodeInvalidCredentials`
-- **Transaction Service Errors**: `ErrCodeTransactionSyncFailed`
-
-Example usage:
-```go
-func (s *service) GetUser(ctx context.Context, id string) (*User, error) {
-    user, err := s.repository.FindByID(ctx, id)
-    if err != nil {
-        // Don't propagate database errors directly
-        if errors.Is(err, errors.ErrCodeDatabaseNotFound) {
-            return nil, errors.NewUserNotFoundError()
-        }
-        return nil, errors.NewOperationFailedError("get user", err)
+    s.logger.Error("Failed to find user in repository", logger.String("user_id", id), logger.Error(err))
+    if errors.Is(err, errors.ErrCodeDatabaseNotFound) { // Check underlying *type* if needed
+        return nil, errors.NewUserNotFoundError()
     }
-    return user, nil
-}
-```
-
-#### Layer 3: Handler Errors (`internal/errors/handlers.go`)
-
-API handlers should use error types defined in `internal/errors/handlers.go`:
-
-- **Request Validation**: `ErrCodeValidationError`, `ErrCodeInvalidRequest`
-- **Authentication**: `ErrCodeUnauthorized`, `ErrCodeInvalidAccessToken`
-- **Response Errors**: `ErrCodeInternalError`, `ErrCodeServiceUnavailable`
-
-Example usage:
-```go
-func (h *handler) CreateUser(c *gin.Context) {
-    var req CreateUserRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.Error(errors.NewInvalidRequestError("Invalid request format"))
-        return
-    }
-    
-    if req.Name == "" {
-        c.Error(errors.NewMissingParameterError("name"))
-        return
-    }
-    
-    // Process the request...
-}
-```
-
-### Error Handling in API Layer
-
-The API layer uses a middleware-based approach to handle errors consistently:
-
-1. **Error Middleware Configuration**:
-
-```go
-// In handler setup
-func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
-    // Create error handler middleware
-    errorHandler := middleware.NewErrorHandler(nil)
-    
-    // Apply middleware to routes group
-    routes := router.Group("/resource")
-    routes.Use(errorHandler.Middleware())
-    
-    // Setup routes
-    routes.POST("", h.Create)
-    routes.GET("/:id", h.Get)
-    // ...
-}
-```
-
-2. **Error Propagation in Handlers**:
-
-```go
-func (h *Handler) GetResource(c *gin.Context) {
-    id := c.Param("id")
-    
-    // Get the resource
-    resource, err := h.service.Get(c.Request.Context(), id)
-    if err != nil {
-        // Propagate the error to the middleware
-        c.Error(err)
-        return
-    }
-    
-    // Success response
-    c.JSON(http.StatusOK, resource)
-}
-```
-
-3. **Error Mapping**:
-
-The error middleware automatically maps `Vault0Error` instances to appropriate HTTP status codes and JSON responses:
-
-- Layer 1 errors typically map to 500-level errors (server errors)
-- Layer 2 errors map to either 400-level errors (client errors) or 500-level errors depending on the error type
-- Layer 3 errors map directly to their corresponding HTTP status codes
-
-Customized error mapping can be implemented by providing a custom mapper to the error handler:
-
-```go
-func CustomErrorMapper(err error) (int, any) {
-    // Custom error mapping logic
-    // ...
-}
-
-errorHandler := middleware.NewErrorHandler(CustomErrorMapper)
-```
-
-### Error Handling Principles
-
-1. **No Error Wrapping Between Modules**
-   - Don't wrap errors from other modules; create new domain-specific errors
-   - Each module should define its own error types and codes
-   - Use the predefined error constructors from the `errors` package
-
-2. **Clear Error Categories**
-   - Use appropriate error codes based on the error context
-   - Include relevant details in error messages
-   - Add context information to the `Details` field when helpful
-
-3. **Error Handling in Services**
-   - Services should not expose errors from lower layers directly
-   - Map infrastructure errors to domain-specific errors
-   - Include appropriate context in error details
-
-4. **Error Handling in API**
-   - Use middleware to convert `Vault0Error` to HTTP responses
-   - Log internal errors but return safe error messages to clients
-   - Convert unexpected errors to internal server errors
-
-### Logging Errors
-
-When handling errors, ensure proper logging for debugging and monitoring:
-
-```go
-if err != nil {
-    // Log the error with context
-    logger.WithContext(ctx).WithError(err).Error("Failed to process transaction")
-    
-    // Return a domain-specific error
-    return errors.NewTransactionFailedError(err)
+    // Return a generic service error for unexpected DB issues
+    return nil, errors.NewOperationFailedError("get user by id", err)
 }
 ```
 
 ## Development Guidelines
 
-### Database Operations
-- Use prepared statements for all SQL queries
-- Implement proper connection pooling
-- Use transactions for atomic operations
-- Include proper database indexes
-- Handle database migrations properly
+### Database (`internal/db`)
+*   Use prepared statements.
+*   Use transactions for atomicity.
+*   Manage migrations (`migrations/`).
 
-### API Design
-- Use proper HTTP methods
-- Implement proper validation
-- Use proper status codes
-- Include proper error responses
-- Document API endpoints
-- Implement proper rate limiting
+### API (`internal/api`)
+*   Use standard HTTP methods and status codes.
+*   Validate requests using DTOs and validation logic (use `errors.NewInvalidRequestError`, `errors.NewMissingParameterError`).
+*   Use `c.Error(err)` in handlers for error propagation to middleware.
+*   Document endpoints (e.g., using Swagger annotations).
 
-### Testing
-- Write unit tests for all components
-- Implement integration tests
-- Use proper mocking
-- Test error scenarios
-- Test edge cases
-- Maintain high test coverage
-- **Do not create custom error checking functions**, use `assert.ErrorContains` instead:
-  ```go
-  // Good practice
-  assert.ErrorContains(t, err, "Keystore operation failed")
-  
-  // Avoid creating custom error checking functions
-  func IsKeystoreError(err error) bool {
-	return err != nil && err.Error() == ErrCodeKeystoreError
-  }
-  ```
+### Testing (`_test.go` files)
+*   Write unit and integration tests.
+*   Use `testify/assert` and `testify/require`.
+*   **Use `assert.ErrorContains(t, err, expectedSubstring)` or `assert.ErrorIs(t, err, errors.ErrCodeSpecificError)`**. Do *not* create custom error-checking functions.
+*   Mock dependencies for unit tests.
+
+```go
+// Good assertion
+assert.ErrorIs(t, err, errors.ErrCodeUserNotFound)
+assert.ErrorContains(t, err, "database connection refused")
+
+// Bad assertion (avoid string comparison if possible)
+// assert.Equal(t, "user not found", err.Error())
+
+// Bad practice: Custom check function
+// func isNotFoundError(err error) bool { return errors.Is(err, errors.ErrCodeNotFound) } // DON'T DO THIS IN TESTS
+```
 
 ### Security
-- Implement proper authentication
-- Use proper authorization
-- Validate all inputs
-- Use proper encryption
-- Handle sensitive data properly
-- Implement rate limiting
-- Monitor for security issues
+*   Implement authentication (e.g., JWT) and authorization middleware.
+*   Validate all inputs rigorously.
+*   Store secrets securely (use `internal/keystore`).
+*   Protect against common web vulnerabilities (OWASP Top 10).
 
 ### Performance
-- Optimize database queries
-- Implement proper caching
-- Use proper indexing
-- Handle large datasets efficiently
-- Monitor performance metrics
-- Implement proper pagination
+*   Optimize database queries (indexing, query analysis).
+*   Implement caching where appropriate.
+*   Use efficient algorithms and data structures.
 
-### Logging
-The application uses a structured logging interface defined in `internal/logger/logger.go`:
+### Logging (`internal/logger`)
+
+Uses a structured `Logger` interface.
 
 ```go
-type Logger interface {
-    Debug(msg string, fields ...Field)
-    Info(msg string, fields ...Field)
-    Warn(msg string, fields ...Field)
-    Error(msg string, fields ...Field)
-    Fatal(msg string, fields ...Field)
-    With(fields ...Field) Logger
-}
-```
-
-#### Usage Guidelines
-**1. Dependency Injection**
-
-Always accept the logger as a dependency in services and components:
-
-```go
-type service struct {
-    repository Repository
-    logger     logger.Logger
-}
-
-func NewService(repository Repository, logger logger.Logger) Service {
-    return &service{repository: repository, logger: logger}
-}
-```
-
-**2. Structured Logging**
-```go
-// Don't: 
-l.Info(fmt.Sprintf("Processing %s", txID))
-
-// Do:
-l.Info("Processing transaction", 
-    logger.String("transaction_id", txID),
-    logger.String("user_id", userID))
-```
-
-**3. Contextual Logging**
-```go
-reqLogger := logger.With(
-    logger.String("request_id", requestID),
-    logger.String("user_id", userID),
+// Logging an informational message with context
+logger.Info("User created successfully",
+    logger.String("user_id", newUser.ID),
+    logger.String("email", newUser.Email), // Be careful logging PII
 )
-```
 
-**4. Error Logging**
-```go
+// Logging an error
 if err != nil {
-    logger.Error("Operation failed", 
-        logger.Error(err),
-        logger.String("context", "additional info"))
-    return errors.NewAppropriateError(err)
+    logger.Error("Failed to process payment",
+        logger.Error(err), // Include the actual error object
+        logger.String("transaction_id", txID),
+        logger.Float64("amount", amount),
+    )
+    // Propagate a domain-specific error
+    return errors.NewPaymentProcessingError(err, txID)
 }
-```
-#### Field Types
-```go
-logger.String("key", "value")
-logger.Int("count", 42)
-logger.Float64("ratio", 0.9)
-logger.Bool("enabled", true)
-logger.Duration("elapsed", time.Since(start))
-logger.Time("timestamp", time.Now())
-logger.Error(err)
-logger.Any("data", complexStruct)
+
+// Creating a contextual logger (e.g., per request)
+requestLogger := logger.With(
+    logger.String("request_id", c.GetString(middleware.RequestIDKey)), // Assuming middleware adds request ID
+    logger.String("remote_ip", c.ClientIP()),
+)
+requestLogger.Info("Handling incoming request")
 ```
 
-#### Best Practices
+**Logging Best Practices:**
 
-1. **Use snake_case for field names**
-2. **Keep messages concise and descriptive**
-3. **Include operation context** (IDs, parameters)
-4. **Never log sensitive information**
-5. **Use appropriate log levels**
-6. **In API handlers**: 
-   - Include request_id for correlation
-7. **In services**:
-   - Include relevant IDs and parameters
-8. **With errors**:
-   - Always include the error object using `logger.Error(err)`
-   - Log context around the error
-   - Return appropriate domain error types
+1.  Inject `Logger` via DI.
+2.  Use structured fields (`logger.String`, `logger.Int`, `logger.Error`). Use **snake_case** for field names.
+3.  Keep messages concise.
+4.  Include relevant context (IDs, parameters).
+5.  **NEVER** log sensitive data (passwords, raw keys, PII unless masked/absolutely necessary).
+6.  Use appropriate levels (`Debug`, `Info`, `Warn`, `Error`, `Fatal`).
+7.  Log errors with `logger.Error(err)` field.

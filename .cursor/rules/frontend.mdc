@@ -3,7 +3,7 @@ description: NextJS
 globs: ui/**/*,*.tsx,*.ts
 alwaysApply: false
 ---
-# AI Agent Guidelines: Vault0 Frontend (Remix.js)
+# Frontend Development Guidelines
 
 ## Overview
 
