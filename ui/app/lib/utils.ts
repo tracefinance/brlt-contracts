@@ -20,7 +20,7 @@ export function formatCurrency(value: string | number): string {
   
   return '$' + num.toLocaleString(undefined, {
     maximumFractionDigits: 6,
-    minimumFractionDigits: 2
+    minimumFractionDigits: 4
   });
 }
 

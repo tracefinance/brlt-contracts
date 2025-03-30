@@ -5,7 +5,8 @@ import WalletSidebar from "~/components/wallet-sidebar";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbSeparator } from "~/components/ui/breadcrumb";
 import { WalletClient } from "~/server/api";
 import { LoaderFunctionArgs, json, redirect } from "@remix-run/node";
-import { Wallet, TokenBalance } from "~/components/types";
+import { Wallet, TokenBalanceResponse } from "~/models/wallet";
+import { ZERO_ADDRESS } from "~/lib/constants";
 
 // Define the ID for this route loader data, used by child routes
 export const walletDetailsRouteId = "routes/wallets.$address.$chainType";
@@ -14,7 +15,7 @@ export const walletDetailsRouteId = "routes/wallets.$address.$chainType";
 export type WalletDetailsLoaderData = {
   wallets: Wallet[];
   currentWallet: Wallet;
-  balances: TokenBalance[];
+  balances: TokenBalanceResponse[];
 };
 
 export async function loader({ params }: LoaderFunctionArgs) {
@@ -43,7 +44,7 @@ export async function loader({ params }: LoaderFunctionArgs) {
       walletClient.getWalletBalance(chainType, address),
     ]);
 
-    // Return the data instead of redirecting
+    // Use json helper
     return json<WalletDetailsLoaderData>({ 
         wallets: walletsResponse.items,
         currentWallet,
@@ -56,27 +57,24 @@ export async function loader({ params }: LoaderFunctionArgs) {
         // Wallet not found, redirect to base wallets page
         return redirect("/wallets?error=notfound"); 
     }
-    // Throw an error response for Remix's error boundaries to handle
+    // Throw a generic error response
     throw new Response("Error loading wallet data", { status: 500 }); 
   }
 }
 
 export default function WalletDetailsLayout() {
-  const loaderData = useLoaderData<typeof loader>();
+  const loaderData = useLoaderData<WalletDetailsLoaderData>();
   const navigate = useNavigate();
   const params = useParams();
 
   // Client-side redirect effect
   useEffect(() => {
-    // Check if we are on the base wallet route (not a sub-route like /transactions/...)
-    // This avoids redirect loops if the user navigates back to the base.
-    // A more robust check might involve inspecting the full pathname.
-    if (params.address && params.chainType && !params.tokenAddress) { 
-      navigate(`/wallets/${params.address}/${params.chainType}/transactions/native`, { 
-          replace: true // Replace history entry so back button works as expected
+    // Redirect if we are on the base wallet route (no tokenAddress param)
+    if (params.address && params.chainType && !params.tokenAddress) {
+      navigate(`/wallets/${params.address}/${params.chainType}/transactions/${ZERO_ADDRESS}`, { 
+          replace: true 
       });
     }
-    // Redirect whenever address or chainType changes, but only if not already on a sub-route
   }, [params.address, params.chainType, params.tokenAddress, navigate]);
 
   // Defensive check is still good practice
@@ -93,7 +91,6 @@ export default function WalletDetailsLayout() {
   const { wallets, currentWallet, balances } = loaderData;
 
   const handleWalletChange = (wallet: Wallet) => {
-    // Navigate to the new base wallet route, the useEffect will handle the redirect
     navigate(`/wallets/${wallet.address}/${wallet.chainType}`);
   };
 
@@ -104,7 +101,6 @@ export default function WalletDetailsLayout() {
         selectedWallet={currentWallet}
         balances={balances}
         onWalletChange={handleWalletChange}
-        // Pass current params for potential highlighting in sidebar
         activeTokenAddress={params.tokenAddress}
       />
       <SidebarInset className="mt-16">
@@ -114,8 +110,10 @@ export default function WalletDetailsLayout() {
            <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <Link to={`/wallets/${currentWallet.address}/${currentWallet.chainType}`}>{currentWallet.name || 'Wallet'}</Link>
+                {currentWallet.name || 'Wallet'}
               </BreadcrumbItem>
+              <BreadcrumbSeparator/>
+              <BreadcrumbItem>Transactions</BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
         </header>

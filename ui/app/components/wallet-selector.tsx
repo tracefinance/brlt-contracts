@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { NetworkIcon } from "@web3icons/react";
-import { Wallet } from "./types";
+import { Wallet } from "~/models/wallet";
 
 interface WalletSelectorProps {
   selectedWallet: Wallet;
@@ -28,6 +28,9 @@ export function WalletSelector({
 }: Partial<WalletSelectorProps>) {
   const { isMobile } = useSidebar();
   
+  const displayChainType = selectedWallet?.chainType || "ethereum";
+  const displayName = selectedWallet?.name || "Select Wallet";
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -39,11 +42,11 @@ export function WalletSelector({
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
                 <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-                  <NetworkIcon id={selectedWallet?.chainType || "ethereum"} size={24} variant="mono" />
+                  <NetworkIcon id={displayChainType} size={24} variant="mono" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">
-                    {selectedWallet?.name || "Wallet"}
+                    {displayName}
                   </span>
                 </div>
                 <ChevronsUpDown className="ml-auto" />

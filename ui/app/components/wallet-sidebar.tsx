@@ -1,15 +1,17 @@
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "~/components/ui/sidebar";
 import { WalletSelector } from "./wallet-selector";
-import { Token, TokenBalance, Wallet } from "./types";
 import { Link } from "@remix-run/react";
 import { TokenIcon } from "./token-icon";
 import { formatCurrency } from "~/lib/utils";
+import { Wallet, TokenBalanceResponse } from "~/models/wallet";
+import { Token } from "~/models/token";
+import { ZERO_ADDRESS } from "~/lib/constants";
 
 interface WalletSidebarProps {
     wallets: Wallet[];
     selectedWallet: Wallet;
     onWalletChange: (wallet: Wallet) => void;
-    balances: TokenBalance[];
+    balances: TokenBalanceResponse[];
     activeTokenAddress?: string;
 }
 
@@ -21,9 +23,7 @@ export default function WalletSidebar({
     activeTokenAddress,
     ...props 
 }: WalletSidebarProps & React.ComponentProps<typeof Sidebar>) {
-    const comparisonAddress = activeTokenAddress === 'native' ? undefined : activeTokenAddress?.toLowerCase();
-
-    const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+    const comparisonAddress = activeTokenAddress?.toLowerCase();
 
     return (
         <Sidebar {...props}>
@@ -39,27 +39,23 @@ export default function WalletSidebar({
                     <SidebarGroupLabel>Tokens</SidebarGroupLabel>
                     <SidebarMenu>
                         {balances.map((balance) => {
-                            const isNativeToken = !balance.token.address || balance.token.address === ZERO_ADDRESS;
+                            const tokenAddr = (balance.token?.address || ZERO_ADDRESS).toLowerCase();
+                            const tokenSymbol = balance.token?.symbol || 'N/A';
                             
-                            const tokenAddressForComparison = isNativeToken ? undefined : balance.token.address.toLowerCase();
+                            const isActive = comparisonAddress === tokenAddr;
 
-                            const isActive = comparisonAddress === tokenAddressForComparison;
-
-                            const addressForUrlPath = isNativeToken ? 'native' : balance.token.address;
+                            const addressForUrlPath = tokenAddr;
                             
                             const targetUrl = `/wallets/${selectedWallet.address}/${selectedWallet.chainType}/transactions/${addressForUrlPath}`;
 
-                            const itemKey = isNativeToken ? 'native' : balance.token.address;
+                            const itemKey = tokenAddr;
 
                             return (
-                                <SidebarMenuItem 
-                                    key={itemKey} 
-                                    className={isActive ? "bg-accent" : ""}
-                                >
-                                    <SidebarMenuButton asChild>
+                                <SidebarMenuItem key={itemKey}>
+                                    <SidebarMenuButton isActive={isActive} asChild>
                                         <Link className="flex items-center w-full" to={targetUrl}>
-                                            <TokenIcon symbol={balance.token.symbol} />
-                                            <span>{balance.token.symbol}</span>
+                                            <TokenIcon symbol={tokenSymbol} />
+                                            <span>{tokenSymbol}</span>
                                             <span className="ml-auto text-sm text-gray-500">
                                                 {formatCurrency(balance.balance)}
                                             </span>
