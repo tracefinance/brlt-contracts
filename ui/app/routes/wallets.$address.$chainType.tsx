@@ -1,10 +1,21 @@
-import { Link, useLoaderData, useNavigate } from "@remix-run/react";
+import { Link, Outlet, useLoaderData, useNavigate, useParams } from "@remix-run/react";
+import { useEffect } from "react";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar";
 import WalletSidebar from "~/components/wallet-sidebar";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbSeparator } from "~/components/ui/breadcrumb";
 import { WalletClient } from "~/server/api";
-import { LoaderFunctionArgs, redirect } from "@remix-run/node";
+import { LoaderFunctionArgs, json, redirect } from "@remix-run/node";
 import { Wallet, TokenBalance } from "~/components/types";
+
+// Define the ID for this route loader data, used by child routes
+export const walletDetailsRouteId = "routes/wallets.$address.$chainType";
+
+// Define the structure of the data loaded by this route
+export type WalletDetailsLoaderData = {
+  wallets: Wallet[];
+  currentWallet: Wallet;
+  balances: TokenBalance[];
+};
 
 export async function loader({ params }: LoaderFunctionArgs) {
   const address = params.address;
@@ -15,37 +26,74 @@ export async function loader({ params }: LoaderFunctionArgs) {
     return redirect("/wallets");
   }
   
-  const client = new WalletClient("123");
-  
-  // Get all wallets for the sidebar
-  const walletsResponse = await client.listWallets(100, 0);
-  const wallets = walletsResponse.items;
-  
-  // Directly get the wallet using the API instead of finding it in the list
-  const currentWallet = await client.getWallet(chainType, address);
-  
-  // Get balances for the current wallet
-  const balances = await client.getWalletBalance(chainType, address);
-  
-  return {
-    wallets,
-    currentWallet,
-    balances,
-  };
+  // TODO: Replace hardcoded token with actual session token
+  const token = "123";
+  if (!token) {
+      // This redirect should go to login, not throw an error that the layout tries to handle
+      return redirect("/login"); 
+  }
+
+  const walletClient = new WalletClient(token);
+
+  try {
+    // Fetch data needed for the layout/sidebar
+    const [walletsResponse, currentWallet, balances] = await Promise.all([
+      walletClient.listWallets(100, 0),
+      walletClient.getWallet(chainType, address),
+      walletClient.getWalletBalance(chainType, address),
+    ]);
+
+    // Return the data instead of redirecting
+    return json<WalletDetailsLoaderData>({ 
+        wallets: walletsResponse.items,
+        currentWallet,
+        balances,
+    });
+
+  } catch (error) {
+    console.error("Error loading wallet layout data:", error);
+    if (error instanceof Response && error.status === 404) {
+        // Wallet not found, redirect to base wallets page
+        return redirect("/wallets?error=notfound"); 
+    }
+    // Throw an error response for Remix's error boundaries to handle
+    throw new Response("Error loading wallet data", { status: 500 }); 
+  }
 }
 
-type LoaderData = {
-  wallets: Wallet[];
-  currentWallet: Wallet;
-  balances: TokenBalance[];
-};
-
-export default function WalletDetails() {
-  const { wallets, currentWallet, balances } = useLoaderData<typeof loader>();
+export default function WalletDetailsLayout() {
+  const loaderData = useLoaderData<typeof loader>();
   const navigate = useNavigate();
-  
-  // Handle wallet change by redirecting to the selected wallet's URL
+  const params = useParams();
+
+  // Client-side redirect effect
+  useEffect(() => {
+    // Check if we are on the base wallet route (not a sub-route like /transactions/...)
+    // This avoids redirect loops if the user navigates back to the base.
+    // A more robust check might involve inspecting the full pathname.
+    if (params.address && params.chainType && !params.tokenAddress) { 
+      navigate(`/wallets/${params.address}/${params.chainType}/transactions/native`, { 
+          replace: true // Replace history entry so back button works as expected
+      });
+    }
+    // Redirect whenever address or chainType changes, but only if not already on a sub-route
+  }, [params.address, params.chainType, params.tokenAddress, navigate]);
+
+  // Defensive check is still good practice
+  if (!loaderData || !loaderData.currentWallet) { 
+      return (
+          <SidebarProvider>
+              <SidebarInset className="mt-16">
+                  <div className="p-4">Loading...</div>
+              </SidebarInset>
+          </SidebarProvider>
+      );
+  }
+
+  const { wallets, currentWallet, balances } = loaderData;
+
   const handleWalletChange = (wallet: Wallet) => {
+    // Navigate to the new base wallet route, the useEffect will handle the redirect
     navigate(`/wallets/${wallet.address}/${wallet.chainType}`);
   };
 
@@ -56,52 +104,25 @@ export default function WalletDetails() {
         selectedWallet={currentWallet}
         balances={balances}
         onWalletChange={handleWalletChange}
+        // Pass current params for potential highlighting in sidebar
+        activeTokenAddress={params.tokenAddress}
       />
       <SidebarInset className="mt-16">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="size-12 -ml-2" />
-          <Breadcrumb>
+           <SidebarTrigger className="size-12 -ml-2" />
+           {/* TODO: Breadcrumb logic needs update */} 
+           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <Link to={`/wallets/${currentWallet.address}/${currentWallet.chainType}`}>{currentWallet.name}</Link>
+                <Link to={`/wallets/${currentWallet.address}/${currentWallet.chainType}`}>{currentWallet.name || 'Wallet'}</Link>
               </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <span>DAI</span>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <span>Transactions</span>
-              </BreadcrumbItem>                            
             </BreadcrumbList>
           </Breadcrumb>
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4">
-          <div>
-            <h1 className="text-2xl font-bold">Wallet Details</h1>
-            <div className="mt-4">
-              <div className="text-sm text-muted-foreground">Address</div>
-              <div className="font-mono">{currentWallet.address}</div>
-            </div>
-            <div className="mt-4">
-              <div className="text-sm text-muted-foreground">Chain</div>
-              <div>{currentWallet.chainType}</div>
-            </div>
-            {balances.length > 0 && (
-              <div className="mt-6">
-                <h2 className="text-xl font-semibold mb-2">Token Balances</h2>
-                <div className="space-y-2">
-                  {balances.map((balance, i) => (
-                    <div key={i} className="flex justify-between p-2 bg-muted rounded-md">
-                      <div>{balance.token.symbol}</div>
-                      <div>{balance.balance}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>        
+          {/* Render Outlet for child routes (transactions) */}
+          <Outlet />
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

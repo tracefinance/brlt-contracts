@@ -10,6 +10,7 @@ interface WalletSidebarProps {
     selectedWallet: Wallet;
     onWalletChange: (wallet: Wallet) => void;
     balances: TokenBalance[];
+    activeTokenAddress?: string;
 }
 
 export default function WalletSidebar({ 
@@ -17,8 +18,13 @@ export default function WalletSidebar({
     selectedWallet,
     onWalletChange,
     balances,
+    activeTokenAddress,
     ...props 
 }: WalletSidebarProps & React.ComponentProps<typeof Sidebar>) {
+    const comparisonAddress = activeTokenAddress === 'native' ? undefined : activeTokenAddress?.toLowerCase();
+
+    const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
     return (
         <Sidebar {...props}>
             <SidebarHeader className="mt-16">
@@ -32,19 +38,36 @@ export default function WalletSidebar({
                 <SidebarGroup>
                     <SidebarGroupLabel>Tokens</SidebarGroupLabel>
                     <SidebarMenu>
-                        {balances.map((balance) => (
-                            <SidebarMenuItem key={balance.token.address}>
-                                <SidebarMenuButton asChild>
-                                    <Link className="flex items-center w-full" to={`/wallets/${selectedWallet.address}/${selectedWallet.chainType}/transactions/${balance.token.address}`}>
-                                        <TokenIcon symbol={balance.token.symbol} />
-                                        <span>{balance.token.symbol}</span>
-                                        <span className="ml-auto text-sm text-gray-500">
-                                            {formatCurrency(balance.balance)}
-                                        </span>
-                                    </Link>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                        ))}
+                        {balances.map((balance) => {
+                            const isNativeToken = !balance.token.address || balance.token.address === ZERO_ADDRESS;
+                            
+                            const tokenAddressForComparison = isNativeToken ? undefined : balance.token.address.toLowerCase();
+
+                            const isActive = comparisonAddress === tokenAddressForComparison;
+
+                            const addressForUrlPath = isNativeToken ? 'native' : balance.token.address;
+                            
+                            const targetUrl = `/wallets/${selectedWallet.address}/${selectedWallet.chainType}/transactions/${addressForUrlPath}`;
+
+                            const itemKey = isNativeToken ? 'native' : balance.token.address;
+
+                            return (
+                                <SidebarMenuItem 
+                                    key={itemKey} 
+                                    className={isActive ? "bg-accent" : ""}
+                                >
+                                    <SidebarMenuButton asChild>
+                                        <Link className="flex items-center w-full" to={targetUrl}>
+                                            <TokenIcon symbol={balance.token.symbol} />
+                                            <span>{balance.token.symbol}</span>
+                                            <span className="ml-auto text-sm text-gray-500">
+                                                {formatCurrency(balance.balance)}
+                                            </span>
+                                        </Link>
+                                    </SidebarMenuButton>
+                                </SidebarMenuItem>
+                            );
+                        })}
                     </SidebarMenu>
                 </SidebarGroup>
             </SidebarContent>
