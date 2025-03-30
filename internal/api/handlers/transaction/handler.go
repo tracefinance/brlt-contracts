@@ -134,14 +134,14 @@ func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 		return
 	}
 
-	// Get all addresses from transactions
-	addresses := make([]string, 0, len(page.Items))
+	// Get all tokenAddresses from transactions
+	tokenAddresses := make([]string, 0, len(page.Items))
 	for _, tx := range page.Items {
-		addresses = append(addresses, tx.FromAddress, tx.ToAddress)
+		tokenAddresses = append(tokenAddresses, tx.TokenAddress)
 	}
 
 	// Get all tokens for the addresses
-	tokens, err := h.tokenService.ListTokensByAddresses(c.Request.Context(), chainType, addresses)
+	tokens, err := h.tokenService.ListTokensByAddresses(c.Request.Context(), chainType, tokenAddresses)
 	if err != nil {
 		c.Error(err)
 		return

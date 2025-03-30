@@ -3,83 +3,75 @@ description: NextJS
 globs: ui/**/*,*.tsx,*.ts
 alwaysApply: false
 ---
-# Vault0 Remix.js Architecture
+# AI Agent Guidelines: Vault0 Frontend (Remix.js)
 
 ## Overview
 
-The Vault0 frontend is built with Remix.js, leveraging its powerful routing system, server-side rendering capabilities, and data loading patterns for a modern, type-safe, and performant web application. The frontend connects to REST APIs while maintaining a clean separation of concerns.
+This document provides essential guidelines for AI agents working on the Vault0 frontend codebase, which is built with Remix.js. Adhering to these rules ensures consistency and maintainability.
 
 ## Technology Stack
 
 - **Framework**: Remix.js
 - **Language**: TypeScript
-- **Styling**: TailwindCSS with shadcn/ui components
+- **Styling**: TailwindCSS with shadcn/ui components located in `ui/app/components/ui/`
 - **State Management**: Remix's built-in data loading + React Context API
 - **Form Handling**: Remix's FormData API with Zod validation
 - **Authentication**: Server-side authentication with HTTP-only cookies
 - **Testing**: Vitest and React Testing Library
 
-## Project Structure
+## ❗ Key Rules for AI Agents ❗
+
+1.  **Package Installation Directory**: **ALWAYS** install npm packages within the `vault0/ui` directory. Navigate using `cd ui` **BEFORE** running `npm install <package>` or `npm add <package>`. Do **NOT** install packages at the project root (`vault0/`).
+2.  **Response Helper**: **ALWAYS** use `Response.json()` to return JSON data from Remix loaders and actions. **NEVER** use the `json()` helper function imported from `@remix-run/node`.
+
+    ```typescript
+    // Correct way in loaders/actions:
+    import type { LoaderFunctionArgs } from "@remix-run/node";
+    import { getSomeData } from "~/server/api/some.server"; // Example import
+
+    export const loader = async ({ request }: LoaderFunctionArgs) => {
+      // ... authentication, data fetching ...
+      const data = await getSomeData();
+      // Use Response.json() directly. Status 200 and correct Content-Type are defaults.
+      return Response.json({ data }); 
+    };
+    
+    // Incorrect way (❌ DO NOT USE ❌):
+    // import { json } from "@remix-run/node"; // Do not import this
+    // return json(data); // Do not use this function
+    
+    // Also avoid manual stringification unless absolutely necessary:
+    // return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+    ```
+3.  **Error Responses**: For error responses, you can use `Response.json()` to return structured error details (e.g., validation errors) or the `Response` constructor for simple text errors.
+
+    ```typescript
+    // Example: Returning structured validation errors
+    if (!validation.success) {
+      return Response.json({ errors: validation.error.issues }, { status: 400 });
+    }
+    
+    // Example: Returning a simple error message
+    catch (error) {
+        console.error("Operation failed:", error);
+        return new Response("Something went wrong", { status: 500 });
+    }
+    ```
+
+## Project Structure (`vault0/ui`)
 
 ```
 vault0/ui/
 ├── public/                  # Static assets
 ├── app/
-│   ├── components/          # React components
-│   │   ├── ui/              # Base UI components (shadcn/ui)
-│   │   ├── common/          # Shared components
-│   │   │   ├── Header.tsx
-│   │   │   ├── Footer.tsx
-│   │   │   └── ...
-│   │   ├── forms/           # Form components
-│   │   │   ├── LoginForm.tsx
-│   │   │   └── ...
-│   │   └── vaults/          # Vault-specific components
+│   ├── components/          # React components (includes ui/, common/, forms/, model-specific)
+│   │   └── ui/              # shadcn/ui components reside here
 │   ├── hooks/               # Custom React hooks
-│   │   ├── useAuth.ts       # Authentication hooks
-│   │   ├── useVaults.ts     # Vault-related hooks
-│   │   └── ...
-│   ├── lib/                 # Utility functions and services
-│   │   ├── utils.ts         # Helper functions
-│   │   └── constants.ts     # Application constants
-│   ├── models/              # Data models and validations
-│   │   ├── index.ts         # Re-exports all models
-│   │   ├── types/           # Type definitions
-│   │   │   ├── vault.types.ts  # Vault-related types
-│   │   │   ├── wallet.types.ts # Wallet-related types
-│   │   │   ├── user.types.ts   # User-related types
-│   │   │   ├── signer.types.ts # Signer-related types
-│   │   │   ├── token.types.ts  # Token-related types
-│   │   │   └── common.types.ts # Shared types
-│   │   ├── schemas/         # Validation schemas
-│   │   │   ├── vault.schema.ts
-│   │   │   ├── wallet.schema.ts
-│   │   │   ├── user.schema.ts
-│   │   │   ├── signer.schema.ts
-│   │   │   └── token.schema.ts
-│   ├── routes/              # Remix routes
-│   │   ├── _index.tsx       # Homepage
-│   │   ├── login.tsx        # Login page
-│   │   ├── signup.tsx       # Signup page
-│   │   ├── dashboard.tsx    # Dashboard layout
-│   │   ├── dashboard/
-│   │   │   ├── index.tsx    # Dashboard homepage
-│   │   │   ├── vaults.tsx   # Vaults list page
-│   │   │   ├── vaults.$id.tsx  # Dynamic route for specific vault
-│   │   │   └── settings.tsx # User settings
-│   │   └── api/             # API routes (if needed)
-│   ├── server/              # Server-side code
-│   │   ├── api/             # API integration
-│   │   │   ├── client.ts    # Base API client
-│   │   │   ├── vault.server.ts  # Vault API calls
-│   │   │   ├── wallet.server.ts # Wallet API calls
-│   │   │   ├── user.server.ts   # User API calls
-│   │   │   ├── signer.server.ts # Signer API calls
-│   │   │   └── token.server.ts  # Token API calls
-│   │   ├── auth.server.ts   # Authentication logic
-│   │   └── session.server.ts # Session handling
-│   ├── styles/              # Global styles
-│   │   └── tailwind.css     # Tailwind CSS entry point
+│   ├── lib/                 # Utility functions and constants
+│   ├── models/              # Data models (types/, schemas/)
+│   ├── routes/              # Remix routes (including nested and api/ routes)
+│   ├── server/              # Server-side code (api/, auth.server.ts, session.server.ts)
+│   ├── styles/              # Global styles (tailwind.css)
 │   ├── root.tsx             # Root layout
 │   ├── entry.client.tsx     # Client entry point
 │   └── entry.server.tsx     # Server entry point
@@ -87,1005 +79,118 @@ vault0/ui/
 ├── tsconfig.json            # TypeScript configuration
 └── vite.config.ts           # Vite configuration
 ```
+*(Structure confirmed on 2024-07-27 - Re-verify if significant changes occur)*
 
-## Architecture Layers
+## Data Model Organization (`app/models`)
 
-### 1. Presentation Layer
-- **Components**: Reusable UI building blocks
-- **Routes**: Page components with data loading capabilities
+- **Types**: Core type definitions are in `app/models/types/*.types.ts`.
+- **Schemas**: Zod validation schemas are in `app/models/schemas/*.schema.ts`.
+- **Index**: `app/models/index.ts` re-exports all types and schemas for easier import.
 
-### 2. Application Layer
-- **Route Loaders & Actions**: Business logic for data loading and mutations
-- **Forms**: Form handling and validation
-- **Hooks**: Client-side state management and business logic
+## API Integration (`app/server/api`)
 
-### 3. Data Access Layer
-- **Server modules**: Server-side API communication
-- **Session handling**: Authentication and authorization
+- **Client**: A base `apiRequest` function often exists (verify `app/server/api/client.ts`) for making backend calls.
+- **Modules**: Model-specific API functions (e.g., `listVaults`, `createWallet`) are organized into separate files like `app/server/api/vault.server.ts` and `app/server/api/wallet.server.ts`.
+- **Usage**: Use these server API modules within Remix loaders and actions located in the `app/routes/` directory.
 
-### 4. Infrastructure Layer
-- **Configuration**: Environment and app settings
-- **Utils**: Shared utilities and helpers
-- **Types & Models**: Type definitions and validations
+## Remix Best Practices Snippets
 
-## Data Model Organization
-
-To effectively manage multiple data models (vault, wallet, user, signer, token), we use a structured approach:
-
-### Types Directory
-
-Each model has its core type definitions in the `models/types` directory:
+### Loader Function Example
 
 ```typescript
-// app/models/types/vault.types.ts
-export interface Vault {
-  id: string;
-  name: string;
-  description?: string;
-  userId: string;
-  createdAt: Date;
-  updatedAt: Date;
-  wallets?: string[]; // References to wallet IDs
-  signers?: string[]; // References to signer IDs
-}
+// Example: app/routes/dashboard.some-feature.tsx
+import type { LoaderFunctionArgs } from "@remix-run/node"; // Use LoaderFunctionArgs
+import { requireUserId, getToken } from "~/server/session.server"; // Authentication helpers
+import { listSomething } from "~/server/api/something.server"; // API call
+import type { Something } from "~/models"; // Data type
 
-// app/models/types/wallet.types.ts
-export interface Wallet {
-  id: string;
-  name: string;
-  vaultId: string;
-  address: string;
-  networkId: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// app/models/types/common.types.ts
-export interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-}
-
-export type SortDirection = 'asc' | 'desc';
-```
-
-### Validation Schemas
-
-Each model has corresponding validation schemas using Zod:
-
-```typescript
-// app/models/schemas/vault.schema.ts
-import { z } from "zod";
-
-export const vaultCreateSchema = z.object({
-  name: z.string().min(3, "Name must be at least 3 characters"),
-  description: z.string().optional(),
-});
-
-export type VaultCreateInput = z.infer<typeof vaultCreateSchema>;
-
-export const vaultUpdateSchema = vaultCreateSchema.partial();
-export type VaultUpdateInput = z.infer<typeof vaultUpdateSchema>;
-```
-
-### Model Utils
-
-Model-specific utility functions:
-
-```typescript
-// app/models/utils/vault.utils.ts
-import type { Vault } from "../types/vault.types";
-
-export function sortVaultsByName(vaults: Vault[]): Vault[] {
-  return [...vaults].sort((a, b) => a.name.localeCompare(b.name));
-}
-
-export function filterVaultsBySearchTerm(vaults: Vault[], term: string): Vault[] {
-  if (!term) return vaults;
-  const lowerTerm = term.toLowerCase();
-  return vaults.filter(vault => 
-    vault.name.toLowerCase().includes(lowerTerm) || 
-    vault.description?.toLowerCase().includes(lowerTerm)
-  );
-}
-```
-
-### Model Index File
-
-A barrel file for convenient imports:
-
-```typescript
-// app/models/index.ts
-// Types
-export * from './types/common.types';
-export * from './types/vault.types';
-export * from './types/wallet.types';
-export * from './types/user.types';
-export * from './types/signer.types';
-export * from './types/token.types';
-
-// Schemas
-export * from './schemas/vault.schema';
-export * from './schemas/wallet.schema';
-export * from './schemas/user.schema';
-export * from './schemas/signer.schema';
-export * from './schemas/token.schema';
-```
-
-## API Integration
-
-For API calls with multiple models, we use a modular approach in the `app/server/api` directory:
-
-### Base API Client
-
-A shared API client with common functionality:
-
-```typescript
-// app/server/api/client.ts
-import { json } from "@remix-run/node";
-
-const API_URL = process.env.API_URL || "http://localhost:8080/api";
-
-export async function apiRequest<T>(
-  path: string,
-  options: RequestInit = {},
-  token?: string
-): Promise<T> {
-  const url = `${API_URL}${path}`;
-  const headers = new Headers(options.headers);
-  
-  headers.set("Content-Type", "application/json");
-  
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-  
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-  
-  // Handle non-JSON responses
-  const contentType = response.headers.get("content-type");
-  if (!contentType || !contentType.includes("application/json")) {
-    if (!response.ok) {
-      throw new Response("API Error", { status: response.status });
-    }
-    return {} as T;
-  }
-  
-  const data = await response.json();
-  
-  // Handle error responses
-  if (!response.ok) {
-    throw json(data, { status: response.status });
-  }
-  
-  return data as T;
-}
-```
-
-### Model-Specific API Modules
-
-Each model has its own API module with relevant operations:
-
-```typescript
-// app/server/api/vault.server.ts
-import { apiRequest } from "./client";
-import type { Vault, VaultCreateInput, VaultUpdateInput } from "~/models";
-
-export async function listVaults(userId: string, token: string): Promise<Vault[]> {
-  return apiRequest<Vault[]>(`/vaults?userId=${userId}`, {}, token);
-}
-
-export async function getVault(id: string, token: string): Promise<Vault> {
-  return apiRequest<Vault>(`/vaults/${id}`, {}, token);
-}
-
-export async function createVault(data: VaultCreateInput & { userId: string }, token: string): Promise<Vault> {
-  return apiRequest<Vault>("/vaults", {
-    method: "POST",
-    body: JSON.stringify(data),
-  }, token);
-}
-
-export async function updateVault(id: string, data: VaultUpdateInput, token: string): Promise<Vault> {
-  return apiRequest<Vault>(`/vaults/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(data),
-  }, token);
-}
-
-export async function deleteVault(id: string, token: string): Promise<void> {
-  return apiRequest<void>(`/vaults/${id}`, {
-    method: "DELETE",
-  }, token);
-}
-
-// app/server/api/wallet.server.ts
-import { apiRequest } from "./client";
-import type { Wallet, WalletCreateInput, WalletUpdateInput } from "~/models";
-
-export async function listWallets(vaultId: string, token: string): Promise<Wallet[]> {
-  return apiRequest<Wallet[]>(`/wallets?vaultId=${vaultId}`, {}, token);
-}
-
-export async function getWallet(id: string, token: string): Promise<Wallet> {
-  return apiRequest<Wallet>(`/wallets/${id}`, {}, token);
-}
-
-export async function createWallet(data: WalletCreateInput, token: string): Promise<Wallet> {
-  return apiRequest<Wallet>("/wallets", {
-    method: "POST",
-    body: JSON.stringify(data),
-  }, token);
-}
-
-export async function updateWallet(id: string, data: WalletUpdateInput, token: string): Promise<Wallet> {
-  return apiRequest<Wallet>(`/wallets/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(data),
-  }, token);
-}
-
-export async function deleteWallet(id: string, token: string): Promise<void> {
-  return apiRequest<void>(`/wallets/${id}`, {
-    method: "DELETE",
-  }, token);
-}
-```
-
-### Using API Modules in Routes
-
-The API modules are used in route loaders and actions:
-
-```typescript
-// app/routes/dashboard.vaults.tsx
-import { json, type LoaderFunction } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
-import { requireUserId, getToken } from "~/server/session.server";
-import { listVaults } from "~/server/api/vault.server";
-import { VaultsList } from "~/components/vaults/VaultsList";
-import type { Vault } from "~/models";
-
+// Define expected data shape
 type LoaderData = {
-  vaults: Vault[];
+  items: Something[];
 };
 
-export const loader: LoaderFunction = async ({ request }) => {
-  // Ensure user is authenticated
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const userId = await requireUserId(request); // Enforce authentication
+  const token = await getToken(request);       // Get token for API call
+
+  try {
+    const items = await listSomething(userId, token);
+    const data: LoaderData = { items };
+    // ✅ Use Response.json()
+    return Response.json(data); 
+  } catch (error) {
+    console.error("Failed to load items:", error);
+    // Use Response constructor for simple error text
+    return new Response("Error fetching data", { status: 500 });
+  }
+};
+
+// ... component using useLoaderData<typeof loader> ...
+```
+
+### Action Function Example (Form Handling)
+
+```typescript
+// Example: app/routes/dashboard.some-feature.new.tsx
+import type { ActionFunctionArgs } from "@remix-run/node";
+import { redirect } from "@remix-run/node"; // Use for successful redirects
+import { Form, useActionData } from "@remix-run/react"; // Remix form utilities
+import { z } from "zod"; // For validation
+import { requireUserId, getToken } from "~/server/session.server"; // Authentication
+import { createSomething } from "~/server/api/something.server"; // API call
+import { Button } from "~/components/ui/button"; // shadcn/ui component
+import { Input } from "~/components/ui/input"; // shadcn/ui component
+import { SomeFeatureSchema } from "~/models"; // Zod schema import
+
+// Define possible action responses (e.g., errors)
+type ActionResponse = {
+  errors?: z.ZodIssue[]; // Validation errors
+  message?: string;      // General error message
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
   const userId = await requireUserId(request);
   const token = await getToken(request);
-  
-  // Fetch vaults from API
-  try {
-    const vaults = await listVaults(userId, token);
-    return json<LoaderData>({ vaults });
-  } catch (error) {
-    throw new Response("Error fetching vaults", { status: 500 });
-  }
-};
-
-export default function VaultsRoute() {
-  const { vaults } = useLoaderData<LoaderData>();
-  
-  return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Your Vaults</h1>
-      <VaultsList vaults={vaults} />
-    </div>
-  );
-}
-
-// app/routes/dashboard.vaults.$id.tsx
-import { json, type LoaderFunction } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
-import { requireUserId, getToken } from "~/server/session.server";
-import { getVault } from "~/server/api/vault.server";
-import { listWallets } from "~/server/api/wallet.server";
-import { VaultDetails } from "~/components/vaults/VaultDetails";
-import { WalletList } from "~/components/wallets/WalletList";
-import type { Vault, Wallet } from "~/models";
-
-type LoaderData = {
-  vault: Vault;
-  wallets: Wallet[];
-};
-
-export const loader: LoaderFunction = async ({ request, params }) => {
-  await requireUserId(request);
-  const token = await getToken(request);
-  const { id } = params;
-  
-  try {
-    // Parallel data fetching for better performance
-    const [vault, wallets] = await Promise.all([
-      getVault(id, token),
-      listWallets(id, token)
-    ]);
-    
-    return json<LoaderData>({ vault, wallets });
-  } catch (error) {
-    throw new Response("Vault not found", { status: 404 });
-  }
-};
-
-export default function VaultDetailsRoute() {
-  const { vault, wallets } = useLoaderData<LoaderData>();
-  
-  return (
-    <div className="container mx-auto py-8">
-      <VaultDetails vault={vault} />
-      <div className="mt-8">
-        <h2 className="text-2xl font-bold mb-4">Wallets</h2>
-        <WalletList wallets={wallets} vaultId={vault.id} />
-      </div>
-    </div>
-  );
-}
-```
-
-## Remix Concepts
-
-### Routes and Nested Routes
-
-Remix uses a file-based routing system where files in the `routes` directory become URL routes:
-
-```typescript
-// app/routes/_index.tsx - The homepage route (/)
-import type { MetaFunction } from "@remix-run/node";
-
-export const meta: MetaFunction = () => {
-  return [
-    { title: "Vault0 - Secure Digital Asset Management" },
-    { name: "description", content: "Manage your digital assets securely" },
-  ];
-};
-
-export default function Index() {
-  return (
-    <div className="container mx-auto py-12">
-      <h1 className="text-4xl font-bold mb-6">Welcome to Vault0</h1>
-      <p className="text-lg mb-8">
-        The secure way to manage and protect your digital assets.
-      </p>
-      {/* More content here */}
-    </div>
-  );
-}
-```
-
-### Loaders and Data Loading
-
-Remix's loaders are server functions that load data for routes:
-
-```typescript
-// app/routes/dashboard.vaults.tsx
-import { json, type LoaderFunction } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
-import { requireUserId } from "~/server/auth.server";
-import { getVaults } from "~/server/api.server";
-import { VaultsList } from "~/components/vaults/VaultsList";
-import type { Vault } from "~/models/vault";
-
-type LoaderData = {
-  vaults: Vault[];
-};
-
-export const loader: LoaderFunction = async ({ request }) => {
-  // Ensure user is authenticated
-  const userId = await requireUserId(request);
-  
-  // Fetch vaults from API
-  try {
-    const vaults = await getVaults(userId);
-    return json<LoaderData>({ vaults });
-  } catch (error) {
-    throw new Response("Error fetching vaults", { status: 500 });
-  }
-};
-
-export default function VaultsRoute() {
-  const { vaults } = useLoaderData<LoaderData>();
-  
-  return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Your Vaults</h1>
-      <VaultsList vaults={vaults} />
-    </div>
-  );
-}
-```
-
-### Actions and Form Handling
-
-Remix's actions handle data mutations, especially useful for form submissions:
-
-```typescript
-// app/routes/dashboard.vaults.new.tsx
-import { redirect, json, type ActionFunction } from "@remix-run/node";
-import { Form, useActionData } from "@remix-run/react";
-import { z } from "zod";
-import { requireUserId } from "~/server/auth.server";
-import { createVault } from "~/server/api.server";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-
-// Validation schema
-const VaultSchema = z.object({
-  name: z.string().min(3, "Name must be at least 3 characters"),
-  description: z.string().optional(),
-});
-
-type ActionData = {
-  errors?: {
-    name?: string;
-    description?: string;
-    form?: string;
-  };
-};
-
-export const action: ActionFunction = async ({ request }) => {
-  const userId = await requireUserId(request);
   const formData = await request.formData();
-  
-  const name = formData.get("name");
-  const description = formData.get("description");
-  
+  const rawData = Object.fromEntries(formData);
+
   // Validate form data
-  const result = VaultSchema.safeParse({ name, description });
-  
-  if (!result.success) {
-    return json<ActionData>({
-      errors: result.error.formErrors.fieldErrors,
-    }, { status: 400 });
+  const validation = SomeFeatureSchema.safeParse(rawData);
+
+  if (!validation.success) {
+    const responseData: ActionResponse = { errors: validation.error.issues };
+    // ✅ Use Response.json() for structured error data
+    return Response.json(responseData, { status: 400 }); 
   }
-  
+
   try {
-    // Create vault via API
-    await createVault({ 
-      userId, 
-      name: result.data.name, 
-      description: result.data.description 
-    });
-    
-    // Redirect to vaults list on success
-    return redirect("/dashboard/vaults");
-  } catch (error) {
-    return json<ActionData>({
-      errors: { form: "Failed to create vault. Please try again." }
-    }, { status: 500 });
+    // Perform action on successful validation
+    await createSomething({ ...validation.data, userId }, token);
+    // Redirect on success
+    return redirect("/dashboard/some-feature"); 
+  } catch (error: any) {
+    console.error("Failed to create item:", error);
+    const responseData: ActionResponse = { message: error.message || "Failed to create item." };
+    // ✅ Use Response.json() for structured error data
+    return Response.json(responseData, { status: 500 });
   }
 };
 
-export default function NewVaultRoute() {
-  const actionData = useActionData<ActionData>();
-  
-  return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Create New Vault</h1>
-      
-      <Form method="post" className="space-y-6 max-w-md">
-        <div>
-          <label htmlFor="name" className="block text-sm font-medium mb-1">
-            Vault Name
-          </label>
-          <Input
-            id="name"
-            name="name"
-            type="text"
-            aria-invalid={actionData?.errors?.name ? true : undefined}
-            aria-describedby={actionData?.errors?.name ? "name-error" : undefined}
-          />
-          {actionData?.errors?.name && (
-            <p className="text-sm text-red-500 mt-1" id="name-error">
-              {actionData.errors.name}
-            </p>
-          )}
-        </div>
-        
-        <div>
-          <label htmlFor="description" className="block text-sm font-medium mb-1">
-            Description (Optional)
-          </label>
-          <textarea
-            id="description"
-            name="description"
-            className="w-full rounded-md border border-input bg-background px-3 py-2"
-            rows={3}
-            aria-invalid={actionData?.errors?.description ? true : undefined}
-          />
-          {actionData?.errors?.description && (
-            <p className="text-sm text-red-500 mt-1">
-              {actionData.errors.description}
-            </p>
-          )}
-        </div>
-        
-        {actionData?.errors?.form && (
-          <div className="text-red-500 text-sm">
-            {actionData.errors.form}
-          </div>
-        )}
-        
-        <div className="flex justify-end">
-          <Button type="submit">Create Vault</Button>
-        </div>
-      </Form>
-    </div>
-  );
-}
+// ... component using <Form method="post"> and useActionData<typeof action> ...
 ```
 
-## Authentication with Session Management
+### Authentication & Session (`app/server/session.server.ts`)
 
-Remix provides built-in session management for handling authentication:
+- Use `requireUserId(request)` in loaders/actions to protect routes that require login.
+- Use `getUserId(request)` to optionally get the user ID (returns `null` if not logged in).
+- Use `getToken(request)` to retrieve the auth token needed for backend API calls.
+- Use `createUserSession` (likely found in `auth.server.ts` or similar) after successful user login.
 
-```typescript
-// app/server/session.server.ts
-import { createCookieSessionStorage, redirect } from "@remix-run/node";
-import type { User } from "~/models/user";
-import { apiRequest } from "./api.server";
+## General Guidelines
 
-// Session configuration
-const sessionStorage = createCookieSessionStorage({
-  cookie: {
-    name: "vault0_session",
-    httpOnly: true,
-    path: "/",
-    sameSite: "lax",
-    secrets: [process.env.SESSION_SECRET || "s3cr3t"],
-    secure: process.env.NODE_ENV === "production",
-  },
-});
-
-const USER_SESSION_KEY = "userId";
-const TOKEN_SESSION_KEY = "token";
-
-// Get the user session
-export async function getSession(request: Request) {
-  const cookie = request.headers.get("Cookie");
-  return sessionStorage.getSession(cookie);
-}
-
-// Create a new session with user info
-export async function createUserSession({
-  userId,
-  token,
-  redirectTo,
-}: {
-  userId: string;
-  token: string;
-  redirectTo: string;
-}) {
-  const session = await sessionStorage.getSession();
-  session.set(USER_SESSION_KEY, userId);
-  session.set(TOKEN_SESSION_KEY, token);
-  
-  return redirect(redirectTo, {
-    headers: {
-      "Set-Cookie": await sessionStorage.commitSession(session),
-    },
-  });
-}
-
-// Get the user ID from session
-export async function getUserId(request: Request): Promise<string | null> {
-  const session = await getSession(request);
-  const userId = session.get(USER_SESSION_KEY);
-  return userId || null;
-}
-
-// Get the auth token from session
-export async function getToken(request: Request): Promise<string | null> {
-  const session = await getSession(request);
-  const token = session.get(TOKEN_SESSION_KEY);
-  return token || null;
-}
-
-// Require a user to be logged in
-export async function requireUserId(
-  request: Request,
-  redirectTo: string = new URL(request.url).pathname
-): Promise<string> {
-  const userId = await getUserId(request);
-  
-  if (!userId) {
-    const searchParams = new URLSearchParams([["redirectTo", redirectTo]]);
-    throw redirect(`/login?${searchParams}`);
-  }
-  
-  return userId;
-}
-
-// Log a user in
-export async function login({
-  email,
-  password,
-}: {
-  email: string;
-  password: string;
-}): Promise<{ user: User; token: string }> {
-  // Call your API login endpoint
-  const response = await apiRequest<{ user: User; token: string }>("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
-  
-  return response;
-}
-
-// Log out
-export async function logout(request: Request) {
-  const session = await getSession(request);
-  
-  return redirect("/", {
-    headers: {
-      "Set-Cookie": await sessionStorage.destroySession(session),
-    },
-  });
-}
-```
-
-## Authentication Route Implementation
-
-Here's a login route implementation using the session management:
-
-```typescript
-// app/routes/login.tsx
-import { json, type ActionFunction, type LoaderFunction } from "@remix-run/node";
-import { Form, useActionData, useSearchParams } from "@remix-run/react";
-import { z } from "zod";
-import { login, createUserSession, getUserId } from "~/server/session.server";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-
-// Validation schema
-const LoginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-});
-
-type ActionData = {
-  errors?: {
-    email?: string;
-    password?: string;
-    form?: string;
-  };
-};
-
-export const loader: LoaderFunction = async ({ request }) => {
-  const userId = await getUserId(request);
-  
-  // If already logged in, redirect to dashboard
-  if (userId) {
-    return redirect("/dashboard");
-  }
-  
-  return json({});
-};
-
-export const action: ActionFunction = async ({ request }) => {
-  const formData = await request.formData();
-  const email = formData.get("email");
-  const password = formData.get("password");
-  
-  const redirectTo = formData.get("redirectTo") || "/dashboard";
-  
-  // Validate form data
-  const result = LoginSchema.safeParse({ email, password });
-  
-  if (!result.success) {
-    return json<ActionData>({
-      errors: result.error.formErrors.fieldErrors,
-    }, { status: 400 });
-  }
-  
-  try {
-    // Attempt to log in
-    const { user, token } = await login({
-      email: result.data.email,
-      password: result.data.password,
-    });
-    
-    // Create a new session and redirect
-    return createUserSession({
-      userId: user.id,
-      token,
-      redirectTo: redirectTo.toString(),
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-    
-    return json<ActionData>({
-      errors: { form: "Invalid email or password" },
-    }, { status: 401 });
-  }
-};
-
-export default function LoginPage() {
-  const actionData = useActionData<ActionData>();
-  const [searchParams] = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") || "/dashboard";
-  
-  return (
-    <div className="flex min-h-full flex-col justify-center">
-      <div className="mx-auto w-full max-w-md px-8">
-        <h1 className="text-3xl font-bold mb-6">Log In</h1>
-        
-        <Form method="post" className="space-y-6">
-          <input type="hidden" name="redirectTo" value={redirectTo} />
-          
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium mb-1">
-              Email
-            </label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              aria-invalid={actionData?.errors?.email ? true : undefined}
-              aria-describedby={actionData?.errors?.email ? "email-error" : undefined}
-            />
-            {actionData?.errors?.email && (
-              <p className="text-sm text-red-500 mt-1" id="email-error">
-                {actionData.errors.email}
-              </p>
-            )}
-          </div>
-          
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1">
-              Password
-            </label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              aria-invalid={actionData?.errors?.password ? true : undefined}
-              aria-describedby={actionData?.errors?.password ? "password-error" : undefined}
-            />
-            {actionData?.errors?.password && (
-              <p className="text-sm text-red-500 mt-1" id="password-error">
-                {actionData.errors.password}
-              </p>
-            )}
-          </div>
-          
-          {actionData?.errors?.form && (
-            <div className="text-red-500 text-sm">
-              {actionData.errors.form}
-            </div>
-          )}
-          
-          <div>
-            <Button type="submit" className="w-full">
-              Log In
-            </Button>
-          </div>
-        </Form>
-      </div>
-    </div>
-  );
-}
-```
-
-## Client-Side React Hooks
-
-While Remix handles most data loading through loaders and actions, client-side hooks can be useful for UI state management:
-
-```typescript
-// app/hooks/useAuth.ts
-import { useMatches } from "@remix-run/react";
-import { useMemo } from "react";
-import type { User } from "~/models/user";
-
-/**
- * Utility to find user data in loader data
- */
-export function useAuth() {
-  const matches = useMatches();
-  
-  // Find root loader data that contains user info
-  const data = useMemo(() => {
-    const rootLoader = matches.find(
-      (match) => match.id === "root"
-    )?.data;
-    
-    return rootLoader;
-  }, [matches]);
-  
-  return {
-    user: data?.user as User | undefined,
-    isAuthenticated: Boolean(data?.user),
-  };
-}
-```
-
-## Error Handling
-
-Remix provides built-in error handling through Error Boundary components:
-
-```typescript
-// app/routes/dashboard.vaults.$id.tsx
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
-
-// ... other imports and route code ...
-
-export function ErrorBoundary() {
-  const error = useRouteError();
-  
-  if (isRouteErrorResponse(error)) {
-    if (error.status === 404) {
-      return (
-        <div className="container mx-auto py-8">
-          <h1 className="text-3xl font-bold mb-4">Vault not found</h1>
-          <p>The vault you're looking for doesn't exist or you don't have access to it.</p>
-        </div>
-      );
-    }
-    
-    if (error.status === 401) {
-      return (
-        <div className="container mx-auto py-8">
-          <h1 className="text-3xl font-bold mb-4">Unauthorized</h1>
-          <p>You don't have permission to view this vault.</p>
-        </div>
-      );
-    }
-  }
-  
-  return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-4">Error</h1>
-      <p>An unexpected error occurred. Please try again later.</p>
-    </div>
-  );
-}
-```
-
-## Deployment Considerations
-
-Remix apps can be deployed to various platforms:
-
-1. **Node.js Server**: Deploy as a Node.js application using services like AWS, Heroku, or DigitalOcean.
-2. **Serverless Functions**: Deploy to Vercel, Netlify, or Cloudflare Pages with serverless functions.
-3. **Docker**: Containerize the application for deployment to Kubernetes or other container orchestration platforms.
-
-Example deployment script for a Node.js server:
-
-```json
-// package.json
-{
-  "scripts": {
-    "build": "remix build",
-    "start": "remix-serve build",
-    "start:prod": "NODE_ENV=production node ./server/index.js"
-  }
-}
-```
-
-## Testing Strategy
-
-Testing in Remix applications typically involves:
-
-1. **Unit Tests**: Testing individual components and utility functions
-2. **Integration Tests**: Testing route loaders and actions
-3. **E2E Tests**: Testing the full application flow
-
-Example test for a route loader:
-
-```typescript
-// app/routes/dashboard.vaults.test.ts
-import { createRemixStub } from "@remix-run/testing";
-import { render, screen, waitFor } from "@testing-library/react";
-import VaultsRoute, { loader } from "./dashboard.vaults";
-import * as auth from "~/server/auth.server";
-import * as api from "~/server/api.server";
-
-// Mock dependencies
-vi.mock("~/server/auth.server");
-vi.mock("~/server/api.server");
-
-const mockUserId = "user123";
-const mockVaults = [
-  { id: "vault1", name: "Personal Vault", description: "My personal stuff" },
-  { id: "vault2", name: "Work Vault", description: "Work-related assets" }
-];
-
-describe("VaultsRoute", () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-    
-    // Setup mocks
-    vi.mocked(auth.requireUserId).mockResolvedValue(mockUserId);
-    vi.mocked(api.getVaults).mockResolvedValue(mockVaults);
-  });
-  
-  it("should require authentication", async () => {
-    const request = new Request("http://localhost/dashboard/vaults");
-    await loader({ request, params: {}, context: {} });
-    
-    expect(auth.requireUserId).toHaveBeenCalledWith(request);
-  });
-  
-  it("should fetch vaults for the authenticated user", async () => {
-    const request = new Request("http://localhost/dashboard/vaults");
-    const response = await loader({ request, params: {}, context: {} });
-    const data = await response.json();
-    
-    expect(api.getVaults).toHaveBeenCalledWith(mockUserId);
-    expect(data.vaults).toEqual(mockVaults);
-  });
-  
-  it("renders vaults list", async () => {
-    // Create a Remix stub component with the route
-    const RemixStub = createRemixStub([
-      {
-        path: "/dashboard/vaults",
-        Component: VaultsRoute,
-        loader: () => ({ vaults: mockVaults })
-      }
-    ]);
-    
-    render(<RemixStub initialEntries={["/dashboard/vaults"]} />);
-    
-    // Check if vaults are rendered
-    await waitFor(() => {
-      expect(screen.getByText("Personal Vault")).toBeInTheDocument();
-      expect(screen.getByText("Work Vault")).toBeInTheDocument();
-    });
-  });
-});
-```
-
-## Performance Optimization
-
-Remix provides several performance optimization strategies:
-
-1. **Prefetching**: Using Remix's prefetching capabilities for faster navigation
-2. **Deferred Data Loading**: Loading critical data first, then loading less critical data
-3. **Resource Route Caching**: Setting appropriate cache headers for static assets
-4. **HTTP Caching**: Leveraging HTTP cache headers for improved performance
-
-Example of prefetching:
-
-```tsx
-import { Link, PrefetchPageLinks } from "@remix-run/react";
-
-export default function AppLayout() {
-  return (
-    <>
-      {/* Prefetch dashboard pages when on other pages */}
-      <PrefetchPageLinks page="/dashboard" />
-      <PrefetchPageLinks page="/dashboard/vaults" />
-      
-      <nav>
-        <Link to="/dashboard" prefetch="intent">Dashboard</Link>
-        <Link to="/dashboard/vaults" prefetch="intent">Vaults</Link>
-      </nav>
-      
-      {/* Rest of layout */}
-    </>
-  );
-}
-```
-
-## Conclusion
-
-This architecture provides a solid foundation for building a Remix.js application with REST API integration. The key benefits include:
-
-1. **Server-Side Rendering**: Improved performance and SEO
-2. **Progressive Enhancement**: Works even without JavaScript
-3. **Simplified Data Loading**: Built-in data loading patterns
-4. **Form Handling**: Robust server-validated forms
-5. **Type Safety**: End-to-end type safety with TypeScript
-6. **Modern Styling**: TailwindCSS with shadcn/ui components
-7. **Clear Separation of Concerns**: Well-organized code structure
-
-Following these patterns will result in a maintainable, performant, and user-friendly application that can scale with your project's requirements. 
+- **Follow Existing Patterns**: Mimic the style and structure of existing code in the module you are editing.
+- **TypeScript**: Use TypeScript effectively. Define types and interfaces, leverage generics, and avoid `any` where possible.
+- **Components**: Utilize `shadcn/ui` components from `~/components/ui` for consistency. Keep custom components small, focused, and reusable.
+- **Clarity**: Write clear, concise, and well-commented code, especially for complex logic.
+- **Error Handling**: Implement robust error handling in loaders, actions, and component logic.
+- **Accessibility**: Keep accessibility in mind when creating UI elements. 
