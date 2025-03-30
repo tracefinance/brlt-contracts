@@ -45,7 +45,7 @@ export async function loader({ params }: LoaderFunctionArgs) {
     ]);
 
     // Use json helper
-    return json<WalletDetailsLoaderData>({ 
+    return Response.json({ 
         wallets: walletsResponse.items,
         currentWallet,
         balances,

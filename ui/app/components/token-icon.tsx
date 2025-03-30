@@ -9,15 +9,16 @@ interface TokenIconProps {
   symbol: string;
   size?: number;
   className?: string;
+  variant?: 'branded' | 'mono' | 'background';
 }
 
 /**
  * TokenIcon component that handles wrapped token symbols by removing common prefixes
  * like 'W' (WBTC -> BTC), 's' (sETH -> ETH), etc.
  */
-export function TokenIcon({ symbol, ...props }: TokenIconProps) {
+export function TokenIcon({ symbol, variant = 'mono', ...props }: TokenIconProps) {
   const normalizedSymbol = normalizeTokenSymbol(symbol);
-  return <Web3TokenIcon symbol={normalizedSymbol} {...props} />;
+  return <Web3TokenIcon symbol={normalizedSymbol} variant={variant} {...props} />;
 }
 
 /**
