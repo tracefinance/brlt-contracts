@@ -188,6 +188,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 ## General Guidelines
 
+- **Identation**: Use **2 spaces** for identation. DO NOT USE TABS.
 - **File names**: Use *kebab-case* in file names except for route folders or files.
 - **Follow Existing Patterns**: Mimic the style and structure of existing code in the module you are editing.
 - **TypeScript**: Use TypeScript effectively. Define types and interfaces, leverage generics, and avoid `any` where possible.

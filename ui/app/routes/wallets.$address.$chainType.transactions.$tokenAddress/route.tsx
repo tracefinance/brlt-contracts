@@ -4,10 +4,11 @@ import { ZERO_ADDRESS } from "~/lib/constants";
 import type { PagedTransactions } from "~/models/transaction";
 import { TransactionClient } from "~/server/api";
 import { TransactionTable } from "./transaction-table";
-import { TransactionPagination } from "./transaction-pagination";
+import { PageControls } from "~/components/page-controls";
+import { PageSizeSelect } from "~/components/page-size-select";
 
 // Define the zero address constant
-const DEFAULT_LIMIT = 20; // Define default limit
+const DEFAULT_LIMIT = 10; // Define default limit
 
 // LoaderData now expects the full PagedTransactions object and pagination params
 type LoaderData = {
@@ -92,19 +93,26 @@ export default function TokenTransactionsRoute() {
   const explorerBaseUrl = getExplorerBaseUrl(chainType);
 
   return (
-    // Add a wrapper div with border, rounded corners, and padding
     <div className="border rounded-lg overflow-hidden">
       <TransactionTable 
         transactions={transactions.items}
         walletAddress={walletAddress}
         explorerBaseUrl={explorerBaseUrl} 
       />
-      
-      <TransactionPagination 
-        offset={offset} 
-        limit={limit} 
-        hasMore={transactions.hasMore} 
-      />
+
+      {/* Container for pagination and page size selector */}
+      {(transactions.items.length > 0 || offset > 0) && (
+        <div className="flex items-center space-x-4 p-2 border-t"> {/* Adjusted spacing */} 
+          <PageSizeSelect 
+            currentLimit={limit} 
+          />
+          <PageControls 
+            offset={offset} 
+            limit={limit} 
+            hasMore={transactions.hasMore} 
+          />
+        </div>
+      )}
     </div>
   );
-} 
+}
