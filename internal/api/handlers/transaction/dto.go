@@ -44,14 +44,23 @@ type SyncTransactionsResponse struct {
 
 // FromServiceTransaction converts a service transaction to a response transaction
 func FromServiceTransaction(tx *transaction.Transaction, token *types.Token) TransactionResponse {
+	// Get the native token for the chain to format gas price
+	nativeToken, err := types.NewNativeToken(tx.ChainType)
+	if err != nil {
+		// Fallback to 18 decimals if native token lookup fails (should not happen for valid chains)
+		nativeToken = &types.Token{Decimals: 18}
+	}
+
+	// Format valueStr using the specific token's decimals
 	valueStr := "0"
 	if !tx.Value.IsZero() {
 		valueStr = token.ToBigFloat(tx.Value.ToBigInt()).Text('f', int(token.Decimals))
 	}
 
+	// Format gasPriceStr using the NATIVE token's decimals
 	gasPriceStr := "0"
 	if !tx.GasPrice.IsZero() {
-		gasPriceStr = token.ToBigFloat(tx.GasPrice.ToBigInt()).Text('f', int(token.Decimals))
+		gasPriceStr = nativeToken.ToBigFloat(tx.GasPrice.ToBigInt()).Text('f', int(nativeToken.Decimals))
 	}
 
 	dataStr := ""
@@ -86,12 +95,12 @@ func ToResponseList(txs []*transaction.Transaction, tokensMap map[string]*types.
 	responses := make([]TransactionResponse, len(txs))
 	for i, tx := range txs {
 		// Get native token for this chain
-		nativeToken, ok := tokensMap[tx.TokenAddress]
+		token, ok := tokensMap[tx.TokenAddress]
 		if !ok {
 			// Fallback to direct conversion if token not found
-			nativeToken = &types.Token{Decimals: 18} // Default to 18 decimals
+			token = &types.Token{Decimals: 18} // Default to 18 decimals
 		}
-		responses[i] = FromServiceTransaction(tx, nativeToken)
+		responses[i] = FromServiceTransaction(tx, token)
 	}
 	return responses
 }
