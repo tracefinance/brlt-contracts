@@ -279,6 +279,8 @@ func (r *repository) ListBySymbols(ctx context.Context, symbols []string) (map[s
 	// Create a select builder for the query
 	sb := r.structMap.SelectFrom("token_prices")
 	sb.Where(sb.In("symbol", upperSymbols...))
+	// Order by rank
+	sb.OrderBy("rank ASC")
 
 	// Build and execute the query
 	sql, args := sb.Build()

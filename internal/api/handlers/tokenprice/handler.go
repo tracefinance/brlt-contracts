@@ -8,7 +8,6 @@ import (
 	"vault0/internal/errors"
 	"vault0/internal/logger"
 	tokensvc "vault0/internal/services/tokenprice"
-	"vault0/internal/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -49,7 +48,8 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 // @Produce json
 // @Param limit query int false "Maximum number of items to return" default(50) minimum(1) maximum(100)
 // @Param offset query int false "Number of items to skip" default(0) minimum(0)
-// @Success 200 {object} types.Page[TokenPriceResponse] "Paginated list of token prices"
+// @Param symbol query string false "Token symbol to filter by (can be used multiple times, e.g., ?symbol=BTC&symbol=ETH)"
+// @Success 200 {object} PagedTokenPriceResponse "Paginated list of token prices"
 // @Failure 400 {object} errors.Vault0Error "Invalid query parameters"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /token-prices [get]
@@ -71,13 +71,23 @@ func (h *Handler) ListTokenPrices(c *gin.Context) {
 		offset = *req.Offset
 	}
 
+	// Normalize symbols (convert to uppercase)
+	var symbols []string
+	if len(req.Symbol) > 0 {
+		symbols = make([]string, len(req.Symbol))
+		for i, symbol := range req.Symbol {
+			symbols[i] = strings.ToUpper(strings.TrimSpace(symbol))
+		}
+	}
+
 	h.logger.Debug("Handling list token prices request",
 		logger.Int("limit", limit),
 		logger.Int("offset", offset),
+		logger.Int("symbols_count", len(symbols)),
 	)
 
-	// Call the service with limit and offset
-	servicePage, err := h.service.ListTokenPrices(c.Request.Context(), limit, offset)
+	// Call the service with limit, offset, and optional symbols
+	servicePage, err := h.service.ListTokenPrices(c.Request.Context(), limit, offset, symbols)
 	if err != nil {
 		h.logger.Error("Failed to list token prices from service", logger.Error(err))
 		handleAPIError(c, err)
@@ -90,8 +100,13 @@ func (h *Handler) ListTokenPrices(c *gin.Context) {
 		responseItems[i] = mapModelToResponse(item)
 	}
 
-	// Create the response page (using the correct Page structure)
-	responsePage := types.NewPage(responseItems, servicePage.Offset, servicePage.Limit)
+	// Create the response using concrete PagedTokenPriceResponse instead of generic Page
+	responsePage := PagedTokenPriceResponse{
+		Items:   responseItems,
+		Offset:  servicePage.Offset,
+		Limit:   servicePage.Limit,
+		HasMore: servicePage.HasMore,
+	}
 
 	c.JSON(http.StatusOK, responsePage)
 }
