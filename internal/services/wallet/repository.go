@@ -376,7 +376,7 @@ func (r *repository) UpdateBalance(ctx context.Context, id int64, balance *big.I
 // UpdateTokenBalance updates or creates a token balance for a wallet
 func (r *repository) UpdateTokenBalance(ctx context.Context, walletID int64, tokenAddress string, balance *big.Int) error {
 	// Check if token balance exists
-	sb := r.tokenBalanceStructMap.SelectFrom("token_balances")
+	sb := r.tokenBalanceStructMap.SelectFrom("wallet_balances")
 	sb.Where(sb.Equal("wallet_id", walletID))
 	sb.Where(sb.Equal("token_address", tokenAddress))
 	sql, args := sb.Build()
@@ -397,7 +397,7 @@ func (r *repository) UpdateTokenBalance(ctx context.Context, walletID int64, tok
 		tokenBalance.UpdatedAt = now
 
 		// Create update builder
-		ub := r.tokenBalanceStructMap.Update("token_balances", tokenBalance)
+		ub := r.tokenBalanceStructMap.Update("wallet_balances", tokenBalance)
 		ub.Where(ub.Equal("wallet_id", tokenBalance.WalletID))
 		ub.Where(ub.Equal("token_address", tokenBalance.TokenAddress))
 
@@ -417,7 +417,7 @@ func (r *repository) UpdateTokenBalance(ctx context.Context, walletID int64, tok
 		}
 
 		// Create insert builder
-		ib := r.tokenBalanceStructMap.InsertInto("token_balances", tokenBalance)
+		ib := r.tokenBalanceStructMap.InsertInto("wallet_balances", tokenBalance)
 
 		// Build the SQL and args
 		sql, args := ib.Build()
@@ -431,7 +431,7 @@ func (r *repository) UpdateTokenBalance(ctx context.Context, walletID int64, tok
 // GetTokenBalances retrieves all token balances for a wallet
 func (r *repository) GetTokenBalances(ctx context.Context, walletID int64) ([]*TokenBalance, error) {
 	// Create a struct-based select builder
-	sb := r.tokenBalanceStructMap.SelectFrom("token_balances")
+	sb := r.tokenBalanceStructMap.SelectFrom("wallet_balances")
 	sb.Where(sb.Equal("wallet_id", walletID))
 
 	// Build the SQL and args
