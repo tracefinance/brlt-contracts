@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"time"
 
@@ -92,12 +93,30 @@ func (p *CoinCapPriceFeed) GetTokenPrices(ctx context.Context) ([]*TokenPriceDat
 		return nil, errors.NewInvalidPriceFeedResponse(err, "failed to decode JSON response")
 	}
 
-	// Set the UpdatedAt timestamp for each token
+	// Set the UpdatedAt timestamp for each token and deduplicate by symbol
 	now := time.Now()
+	uniqueTokens := make(map[string]*TokenPriceData)
 	for _, token := range apiResponse.Data {
 		token.UpdatedAt = now
+		// Keep only the first occurrence of each symbol (which should be the highest ranked one)
+		if _, exists := uniqueTokens[token.Symbol]; !exists {
+			uniqueTokens[token.Symbol] = token
+		}
 	}
 
-	p.log.Info("Successfully fetched token prices from CoinCap", logger.Int("count", len(apiResponse.Data)))
-	return apiResponse.Data, nil
+	// Convert map back to slice
+	result := make([]*TokenPriceData, 0, len(uniqueTokens))
+	for _, token := range uniqueTokens {
+		result = append(result, token)
+	}
+
+	// Sort by rank
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Rank < result[j].Rank
+	})
+
+	p.log.Info("Successfully fetched unique token prices from CoinCap",
+		logger.Int("total_count", len(apiResponse.Data)),
+		logger.Int("unique_count", len(result)))
+	return result, nil
 }
