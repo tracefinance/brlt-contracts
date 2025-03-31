@@ -118,7 +118,7 @@ fi
 # Count UI lines (only if counting source code)
 if [ "$COUNT_UI" = true ] && [ "$COUNT_SRC" = true ]; then
   # Count UI source files
-  UI=$(find ${UI_DIR}/src -type f \( -name "*.tsx" -o -name "*.ts" -o -name "*.jsx" -o -name "*.js" -o -name "*.css" \) | grep -v "node_modules" | xargs wc -l 2>/dev/null | awk 'END {print $1}')
+  UI=$(find ${UI_DIR} -type f \( -name "*.tsx" -o -name "*.ts" -o -name "*.jsx" -o -name "*.js" -o -name "*.css" \) | grep -v "node_modules" | xargs wc -l 2>/dev/null | awk 'END {print $1}')
   count_and_show "UI Source Code" "$UI"
 fi
 
