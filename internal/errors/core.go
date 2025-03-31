@@ -11,6 +11,9 @@ const (
 	ErrCodeDatabaseError    = "database_error"
 	ErrCodeDatabaseNotFound = "database_not_found"
 
+	// Configuration errors
+	ErrCodeConfiguration = "configuration_error"
+
 	// Resource errors
 	ErrCodeResourceNotFound = "resource_not_found"
 	ErrCodeResourceExists   = "resource_exists"
@@ -76,7 +79,20 @@ const (
 
 	// New token errors
 	ErrCodeInvalidTokenBalance = "invalid_token_balance"
+
+	// Price Feed errors
+	ErrCodePriceFeedRequestFailed        = "price_feed_request_failed"
+	ErrCodeInvalidPriceFeedResponse      = "invalid_price_feed_response"
+	ErrCodePriceFeedProviderNotSupported = "price_feed_provider_not_supported"
 )
+
+// NewConfigurationError creates an error for configuration issues.
+func NewConfigurationError(message string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeConfiguration,
+		Message: fmt.Sprintf("Configuration error: %s", message),
+	}
+}
 
 // NewInvalidBlockchainConfigError creates an error for invalid blockchain configuration
 func NewInvalidBlockchainConfigError(chain string, key string) *Vault0Error {
@@ -582,5 +598,34 @@ func NewInvalidTokenBalanceError(token string, err error) *Vault0Error {
 			"token": token,
 		},
 		Err: err,
+	}
+}
+
+// NewPriceFeedRequestFailed creates a new error for failed price feed API requests.
+func NewPriceFeedRequestFailed(err error, details string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodePriceFeedRequestFailed,
+		Message: "Price feed API request failed",
+		Details: map[string]any{"details": details},
+		Err:     err,
+	}
+}
+
+// NewInvalidPriceFeedResponse creates a new error for invalid price feed API responses.
+func NewInvalidPriceFeedResponse(err error, details string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeInvalidPriceFeedResponse,
+		Message: "Invalid price feed API response",
+		Details: map[string]any{"details": details},
+		Err:     err,
+	}
+}
+
+// NewPriceFeedProviderNotSupported creates an error for unsupported price feed providers.
+func NewPriceFeedProviderNotSupported(provider string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodePriceFeedProviderNotSupported,
+		Message: fmt.Sprintf("Price feed provider '%s' not supported", provider),
+		Err:     nil, // No underlying Go error
 	}
 }

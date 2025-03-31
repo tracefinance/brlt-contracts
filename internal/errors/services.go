@@ -30,6 +30,11 @@ const (
 	// Signer service errors
 	ErrCodeSignerNotFound        = "signer_not_found"
 	ErrCodeSignerAddressNotFound = "signer_address_not_found"
+
+	// Price Feed Service Errors
+	ErrCodeTokenPriceNotFound    = "token_price_not_found"
+	ErrCodePriceFeedUpdateFailed = "price_feed_update_failed"
+	ErrCodeDataConversionFailed  = "data_conversion_failed"
 )
 
 // NewInvalidInputError creates an error for invalid input data with a custom message
@@ -189,5 +194,39 @@ func NewSignerAddressNotFoundError(id int64) *Vault0Error {
 		Details: map[string]any{
 			"address_id": id,
 		},
+	}
+}
+
+// --- Token Price Service Errors ---
+
+// NewTokenPriceNotFoundError creates an error for when token price data is not found.
+func NewTokenPriceNotFoundError(symbol string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeTokenPriceNotFound,
+		Message: fmt.Sprintf("Token price data not found for symbol: %s", symbol),
+		Err:     nil,
+	}
+}
+
+// NewPriceFeedUpdateFailed creates an error for failures during the price feed update process.
+func NewPriceFeedUpdateFailed(err error, reason string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodePriceFeedUpdateFailed,
+		Message: fmt.Sprintf("Failed to update token prices from feed: %s", reason),
+		Err:     err,
+	}
+}
+
+// NewDataConversionFailed creates an error for failures during data conversion.
+func NewDataConversionFailed(err error, context string, details map[string]any) *Vault0Error {
+	msg := "Data conversion failed"
+	if context != "" {
+		msg = fmt.Sprintf("Data conversion failed: %s", context)
+	}
+	return &Vault0Error{
+		Code:    ErrCodeDataConversionFailed,
+		Message: msg,
+		Details: details,
+		Err:     err,
 	}
 }

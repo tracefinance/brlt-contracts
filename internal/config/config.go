@@ -101,6 +101,15 @@ const (
 // NOTE: Token configuration has been moved to the database and is now handled by
 // the TokenStore in internal/core/tokenstore/
 
+// PriceFeedConfig holds configuration for the external price feed provider
+type PriceFeedConfig struct {
+	Provider        string `yaml:"provider"` // e.g., "coincap"
+	APIURL          string `yaml:"api_url"`
+	APIKey          string `yaml:"api_key"`
+	Limit           int    `yaml:"limit"`
+	RefreshInterval int    `yaml:"refresh_interval"` // Interval in seconds
+}
+
 // Config holds the application configuration
 type Config struct {
 	// DBPath is the path to the SQLite database file
@@ -127,6 +136,8 @@ type Config struct {
 	Log LogConfig `yaml:"log"`
 	// Blockchains holds configuration for all supported blockchains
 	Blockchains BlockchainsConfig `yaml:"blockchains"`
+	// PriceFeed holds configuration for the price feed service
+	PriceFeed PriceFeedConfig `yaml:"price_feed"`
 }
 
 // LoadConfig loads the application configuration from YAML file and environment variables

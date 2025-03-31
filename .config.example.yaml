@@ -22,6 +22,14 @@ log:
   request_logging: true
   sql_logging: false
 
+# Price Feed configuration
+price_feed:
+  provider: coincap
+  api_url: https://rest.coincap.io/v3/assets
+  api_key: ${COINCAP_API_KEY}  # Keep as env var for security
+  limit: 500 # Max limit for coincap v2 API
+  refresh_interval: 300 # Refresh interval in seconds (e.g., 300 = 5 minutes)
+
 # Blockchain configurations
 blockchains:
   ethereum:

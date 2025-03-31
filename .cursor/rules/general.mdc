@@ -18,6 +18,8 @@ Vault0 is a full-stack web3 application combining blockchain technology with mod
 - Maintain consistent code style.
 - Focus on accessibility and user experience.
 - Use TypeScript where applicable.
+- Do not add unecessary comments to the code.
+- Only comment to add context for really complex code.
 
 ## Project Structure
 ```

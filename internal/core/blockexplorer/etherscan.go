@@ -97,7 +97,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 	)
 
 	var lastErr error
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := range maxRetries {
 		if attempt > 0 {
 			e.log.Debug("Retrying request",
 				logger.Int("attempt", attempt+1),

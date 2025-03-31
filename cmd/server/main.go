@@ -43,6 +43,9 @@ func main() {
 	// Start pending transaction polling
 	container.Services.TransactionService.StartPendingTransactionPolling(ctx)
 
+	// Start token price update job
+	container.Services.TokenPriceService.StartPriceUpdateJob(ctx)
+
 	// Setup routes
 	container.Server.SetupRoutes()
 
@@ -69,14 +72,17 @@ func main() {
 	// Cancel the root context
 	cancel()
 
-	// Perform cleanup
-	container.Server.Shutdown()
-
 	// Unsubscribe from events
 	container.Services.TransactionService.UnsubscribeFromTransactionEvents()
 
 	// Stop transaction polling
 	container.Services.TransactionService.StopWalletTransactionPolling()
+
+	// Stop token price update job
+	container.Services.TokenPriceService.StopPriceUpdateJob()
+
+	// Perform cleanup
+	container.Server.Shutdown()
 
 	// Close the database connection
 	if container.Core.DB != nil {
