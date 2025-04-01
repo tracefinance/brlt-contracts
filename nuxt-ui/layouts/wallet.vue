@@ -66,7 +66,7 @@ const handleWalletChange = async (wallet: Wallet) => {
         :active-token-address="activeTokenAddress"
       />
       
-      <div class="pl-[var(--sidebar-width)]">
+      <div>
         <div v-if="isLoading" class="flex justify-center items-center min-h-screen">
           <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>

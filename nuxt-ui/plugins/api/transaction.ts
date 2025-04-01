@@ -1,7 +1,8 @@
 import {
   PagedTransactions,
   SyncTransactionsResponse,
-  Transaction
+  Transaction,
+  TransactionListResponse
 } from '~/types/transaction';
 import {
   ApiClient
@@ -23,41 +24,61 @@ export class TransactionClient {
   }
   
   /**
-   * Gets a transaction by its hash
-   * @param hash Transaction hash
+   * Lists transactions with pagination and optional filtering
+   * @param limit Maximum number of transactions to return (default: 10)
+   * @param offset Number of transactions to skip for pagination (default: 0)
+   * @returns Paginated list of transactions
+   */
+  async listTransactions(limit: number = 10, offset: number = 0): Promise<TransactionListResponse> {
+    const params: Record<string, string | number | boolean> = {
+      limit,
+      offset
+    };
+    
+    const data = await this.client.get<any>(API_ENDPOINTS.TRANSACTIONS.BASE, params);
+    return TransactionListResponse.fromJson(data);
+  }
+  
+  /**
+   * Gets a transaction by its ID
+   * @param id Transaction ID
    * @returns Transaction details
    */
-  async getTransaction(hash: string): Promise<Transaction> {
-    const endpoint = API_ENDPOINTS.TRANSACTIONS.BY_ID(hash);
+  async getTransaction(id: string): Promise<Transaction> {
+    const endpoint = API_ENDPOINTS.TRANSACTIONS.BY_ID(id);
     const data = await this.client.get<any>(endpoint);
     return Transaction.fromJson(data);
   }
   
   /**
    * Gets transactions for a specific wallet
-   * @param chainType Blockchain network type
    * @param address Wallet address
+   * @param chainType Blockchain network type
    * @param limit Maximum number of transactions to return (default: 10)
    * @param offset Number of transactions to skip for pagination (default: 0)
-   * @param tokenAddress Optional token address to filter by
+   * @param tokenAddress Optional token address to filter transactions by
    * @returns Paginated list of transactions
    */
-  async getTransactionsByAddress(
-    chainType: string,
+  async getWalletTransactions(
     address: string,
+    chainType: string,
     limit: number = 10,
     offset: number = 0,
     tokenAddress?: string
-  ): Promise<PagedTransactions> {
-    const endpoint = API_ENDPOINTS.TRANSACTIONS.BY_WALLET(address, chainType);
-    const params: Record<string, any> = { limit, offset };
+  ): Promise<TransactionListResponse> {
+    const endpoint = API_ENDPOINTS.TRANSACTIONS.BY_WALLET(chainType, address);
+    
+    const params: Record<string, string | number | boolean> = {
+      limit,
+      offset
+    };
     
     if (tokenAddress) {
       params.token_address = tokenAddress;
     }
     
     const data = await this.client.get<any>(endpoint, params);
-    return PagedTransactions.fromJson(data);
+    return TransactionListResponse.fromJson(data);
   }
   
   /**
@@ -67,7 +88,7 @@ export class TransactionClient {
    * @returns Sync response containing count of synced transactions
    */
   async syncTransactions(chainType: string, address: string): Promise<SyncTransactionsResponse> {
-    const endpoint = `${API_ENDPOINTS.TRANSACTIONS.BY_WALLET(address, chainType)}/sync`;
+    const endpoint = `${API_ENDPOINTS.TRANSACTIONS.BY_WALLET(chainType, address)}/sync`;
     const data = await this.client.post<any>(endpoint);
     return SyncTransactionsResponse.fromJson(data);
   }

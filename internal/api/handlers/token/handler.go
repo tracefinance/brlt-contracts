@@ -28,12 +28,12 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 
 	tokenRoutes := router.Group("/tokens")
 	tokenRoutes.Use(errorHandler.Middleware())
-	{
-		tokenRoutes.GET("", h.listTokens)
-		tokenRoutes.POST("", h.addToken)
-		tokenRoutes.GET("/:address", h.verifyToken)
-		tokenRoutes.DELETE("/:address", h.deleteToken)
-	}
+	tokenRoutes.GET("", h.listTokens)
+	tokenRoutes.POST("", h.addToken)
+	tokenRoutes.GET("/verify/:address", h.verifyToken)
+	tokenRoutes.GET("/:chainType/:address", h.getToken)
+	tokenRoutes.DELETE("/:address", h.deleteToken)
+
 }
 
 // listTokens handles GET /tokens
@@ -173,6 +173,51 @@ func (h *Handler) verifyToken(c *gin.Context) {
 	}
 
 	token, err := h.service.VerifyToken(c.Request.Context(), address)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	// Build response
+	response := TokenResponse{
+		Address:   token.Address,
+		ChainType: token.ChainType,
+		Symbol:    token.Symbol,
+		Decimals:  token.Decimals,
+		Type:      token.Type,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// getToken handles GET /tokens/:chainType/:address
+// @Summary Get token details
+// @Description Get a token by its chain type and address
+// @Tags tokens
+// @Produce json
+// @Param chainType path string true "Chain type (ethereum, polygon, base)"
+// @Param address path string true "Token address or 'native'"
+// @Success 200 {object} TokenResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "Token not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /tokens/{chainType}/{address} [get]
+func (h *Handler) getToken(c *gin.Context) {
+	address := c.Param("address")
+	if address == "" {
+		c.Error(errors.NewInvalidParameterError("address", "cannot be empty"))
+		return
+	}
+
+	chainTypeStr := c.Param("chainType")
+	if chainTypeStr == "" {
+		c.Error(errors.NewMissingParameterError("chainType"))
+		return
+	}
+
+	chainType := types.ChainType(chainTypeStr)
+
+	token, err := h.service.GetTokenByChainAndAddress(c.Request.Context(), chainType, address)
 	if err != nil {
 		c.Error(err)
 		return

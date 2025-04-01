@@ -43,7 +43,7 @@ const comparisonAddress = computed(() => props.activeTokenAddress?.toLowerCase()
             >
               <NuxtLink 
                 class="flex items-center w-full" 
-                :to="`/wallets/${selectedWallet.address}/${selectedWallet.chainType}/transactions/${(balance.token?.address || ZERO_ADDRESS).toLowerCase()}`"
+                :to="`/wallets/${selectedWallet.chainType}/${selectedWallet.address}/transactions/${(balance.token?.address || ZERO_ADDRESS).toLowerCase()}`"
               >
                 <Web3Icon :symbol="balance.token?.symbol || 'N/A'" variant="branded" class="size-6"/>
                 <span>{{ balance.token?.symbol || 'N/A' }}</span>

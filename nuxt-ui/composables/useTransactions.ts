@@ -1,8 +1,7 @@
 import type { Ref } from 'vue';
 import type { 
   Transaction, 
-  PagedTransactions,
-  SyncTransactionsResponse
+  TransactionListResponse
 } from '~/types/transaction';
 
 /**
@@ -19,17 +18,18 @@ export function useTransactions() {
   const error: Ref<string | null> = ref(null);
   
   /**
-   * Gets a transaction by its hash
+   * Loads all transactions with pagination
    */
-  async function getTransaction(hash: string) {
+  async function loadTransactions(limit = 10, offset = 0) {
     isLoading.value = true;
     error.value = null;
     
     try {
-      currentTransaction.value = await $api.transaction.getTransaction(hash);
-      return currentTransaction.value;
+      const result: TransactionListResponse = await $api.transaction.listTransactions(limit, offset);
+      transactions.value = result.items;
+      return result;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to get transaction';
+      error.value = err instanceof Error ? err.message : 'Failed to load transactions';
       return null;
     } finally {
       isLoading.value = false;
@@ -37,31 +37,49 @@ export function useTransactions() {
   }
   
   /**
-   * Gets transactions for a specific wallet
+   * Load a specific transaction by ID
    */
-  async function getTransactionsByAddress(
+  async function getTransaction(id: string) {
+    isLoading.value = true;
+    error.value = null;
+    
+    try {
+      currentTransaction.value = await $api.transaction.getTransaction(id);
+      return currentTransaction.value;
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to load transaction';
+      return null;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+  
+  /**
+   * Get transactions for a specific wallet
+   */
+  async function getWalletTransactions(
     chainType: string,
     address: string,
-    limit: number = 10,
-    offset: number = 0,
+    limit = 10,
+    offset = 0,
     tokenAddress?: string
   ) {
     isLoading.value = true;
     error.value = null;
     
     try {
-      const result = await $api.transaction.getTransactionsByAddress(
-        chainType, 
-        address, 
-        limit, 
-        offset, 
+      const result = await $api.transaction.getWalletTransactions(
+        address,
+        chainType,
+        limit,
+        offset,
         tokenAddress
       );
       
       transactions.value = result.items;
       return result;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to get transactions';
+      error.value = err instanceof Error ? err.message : 'Failed to load wallet transactions';
       return null;
     } finally {
       isLoading.value = false;
@@ -80,7 +98,7 @@ export function useTransactions() {
       
       // Refresh the transactions list if we have transactions for this wallet
       if (transactions.value.length > 0) {
-        await getTransactionsByAddress(chainType, address);
+        await getWalletTransactions(chainType, address);
       }
       
       return result;
@@ -126,8 +144,9 @@ export function useTransactions() {
     error,
     
     // Methods
+    loadTransactions,
     getTransaction,
-    getTransactionsByAddress,
+    getTransactionsByAddress: getWalletTransactions,
     syncTransactions,
     filterTransactions
   };

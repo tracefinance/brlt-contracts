@@ -230,3 +230,15 @@ func NewDataConversionFailed(err error, context string, details map[string]any) 
 		Err:     err,
 	}
 }
+
+// NewTokenNotFoundError creates an error for when a token is not found
+func NewTokenNotFoundError(address string, chainType string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeNotFound,
+		Message: fmt.Sprintf("Token not found for address %s on chain %s", address, chainType),
+		Details: map[string]any{
+			"address":    address,
+			"chain_type": chainType,
+		},
+	}
+}

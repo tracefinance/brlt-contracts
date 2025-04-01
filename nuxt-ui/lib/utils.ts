@@ -35,3 +35,16 @@ export function formatCurrency(value: string | number): string {
     minimumFractionDigits: 2
   });
 }
+
+/**
+ * Shorten an Ethereum address or hash to a displayable format
+ * @param address The address or hash to shorten
+ * @param prefixLength Number of characters to keep at the start
+ * @param suffixLength Number of characters to keep at the end
+ * @returns Shortened string with ellipsis
+ */
+export function shortenAddress(address: string, prefixLength = 4, suffixLength = 4): string {
+  if (!address) return ''
+  if (address.length < (prefixLength + suffixLength + 3)) return address
+  return `${address.slice(0, prefixLength)}...${address.slice(-suffixLength)}`
+}

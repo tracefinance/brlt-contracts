@@ -1,20 +1,21 @@
 import { 
-  Expose 
+  Expose,
+  Type
 } from 'class-transformer';
 import { BaseModel, fromJson, fromJsonArray } from './model';
 
+/**
+ * Transaction model representing a blockchain transaction
+ */
 export class Transaction extends BaseModel {
   @Expose()
-  id!: number;
-  
-  @Expose({ name: 'wallet_id' })
-  walletId!: number;
-  
-  @Expose({ name: 'chain_type' })
-  chainType!: string;
+  id!: string;
   
   @Expose()
   hash!: string;
+  
+  @Expose({ name: 'chain_type' })
+  chainType!: string;
   
   @Expose({ name: 'from_address' })
   fromAddress!: string;
@@ -26,19 +27,7 @@ export class Transaction extends BaseModel {
   value!: string;
   
   @Expose()
-  data?: string;
-  
-  @Expose()
-  nonce!: number;
-  
-  @Expose({ name: 'gas_price' })
-  gasPrice?: string;
-  
-  @Expose({ name: 'gas_limit' })
-  gasLimit?: number;
-  
-  @Expose()
-  type!: string;
+  status?: string;
   
   @Expose({ name: 'token_address' })
   tokenAddress?: string;
@@ -47,17 +36,11 @@ export class Transaction extends BaseModel {
   tokenSymbol?: string;
   
   @Expose()
-  status!: string;
-  
-  @Expose()
   timestamp!: number;
   
   @Expose({ name: 'created_at' })
   createdAt!: string;
   
-  @Expose({ name: 'updated_at' })
-  updatedAt!: string;
-
   constructor(data: Partial<Transaction> = {}) {
     super();
     Object.assign(this, data);
@@ -75,6 +58,33 @@ export class Transaction extends BaseModel {
    */
   static fromJsonArray(jsonArray: any[]): Transaction[] {
     return fromJsonArray(Transaction, jsonArray);
+  }
+}
+
+/**
+ * Response model for paginated transaction list
+ */
+export class TransactionListResponse extends BaseModel {
+  @Expose()
+  @Type(() => Transaction)
+  items!: Transaction[];
+  
+  @Expose()
+  total!: number;
+  
+  @Expose()
+  limit!: number;
+  
+  @Expose()
+  offset!: number;
+  
+  constructor(data: Partial<TransactionListResponse> = {}) {
+    super();
+    Object.assign(this, data);
+  }
+  
+  static fromJson(json: any): TransactionListResponse {
+    return fromJson(TransactionListResponse, json);
   }
 }
 

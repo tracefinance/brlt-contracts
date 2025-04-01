@@ -32,7 +32,7 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	errorHandler := middleares.NewErrorHandler(nil)
 
 	// Wallet-scoped transaction routes
-	walletRoutes := router.Group("/wallets/:address/:chain_type/transactions")
+	walletRoutes := router.Group("/wallets/:chain_type/:address/transactions")
 	walletRoutes.Use(errorHandler.Middleware())
 	walletRoutes.GET("", h.GetTransactionsByAddress)
 	walletRoutes.GET("/:hash", h.GetTransaction)
@@ -45,20 +45,20 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	transactionRoutes.GET("", h.FilterTransactions)
 }
 
-// GetTransaction handles GET /wallets/:address/:chain_type/transactions/:hash
+// GetTransaction handles GET /wallets/:chain_type/:address/transactions/:hash
 // or GET /transactions/:hash
 // @Summary Get a transaction
 // @Description Get transaction details by hash
 // @Tags transactions
 // @Produce json
-// @Param address path string true "Wallet address (required only for wallet-scoped route)"
 // @Param chain_type path string true "Chain type (required only for wallet-scoped route)"
+// @Param address path string true "Wallet address (required only for wallet-scoped route)"
 // @Param hash path string true "Transaction hash"
 // @Success 200 {object} TransactionResponse
 // @Failure 404 {object} errors.Vault0Error "Transaction not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /transactions/{hash} [get]
-// @Router /wallets/{address}/{chain_type}/transactions/{hash} [get]
+// @Router /wallets/{chain_type}/{address}/transactions/{hash} [get]
 func (h *Handler) GetTransaction(c *gin.Context) {
 	hash := c.Param("hash")
 
@@ -78,13 +78,13 @@ func (h *Handler) GetTransaction(c *gin.Context) {
 	c.JSON(http.StatusOK, FromServiceTransaction(tx, token))
 }
 
-// GetTransactionsByAddress handles GET /wallets/:address/:chain_type/transactions
+// GetTransactionsByAddress handles GET /wallets/:chain_type/:address/transactions
 // @Summary List transactions for an address
 // @Description Get a paginated list of transactions for a specific wallet address
 // @Tags transactions
 // @Produce json
-// @Param address path string true "Wallet address"
 // @Param chain_type path string true "Chain type"
+// @Param address path string true "Wallet address"
 // @Param limit query int false "Number of items to return (default: 10)" default(10)
 // @Param offset query int false "Number of items to skip (default: 0)" default(0)
 // @Param token_address query string false "Filter transactions by token address (use 'native' for native transactions)"
@@ -92,7 +92,7 @@ func (h *Handler) GetTransaction(c *gin.Context) {
 // @Failure 400 {object} errors.Vault0Error "Invalid request"
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
-// @Router /wallets/{address}/{chain_type}/transactions [get]
+// @Router /wallets/{chain_type}/{address}/transactions [get]
 func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")
@@ -156,18 +156,18 @@ func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 	c.JSON(http.StatusOK, ToPagedResponse(page, tokensMap))
 }
 
-// SyncTransactions handles POST /wallets/:address/:chain_type/transactions/sync
+// SyncTransactions handles POST /wallets/:chain_type/:address/transactions/sync
 // @Summary Sync transactions for an address
 // @Description Sync blockchain transactions for a specific wallet address
 // @Tags transactions
 // @Produce json
-// @Param address path string true "Wallet address"
 // @Param chain_type path string true "Chain type"
+// @Param address path string true "Wallet address"
 // @Success 200 {object} SyncTransactionsResponse
 // @Failure 400 {object} errors.Vault0Error "Invalid request"
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
-// @Router /wallets/{address}/{chain_type}/transactions/sync [post]
+// @Router /wallets/{chain_type}/{address}/transactions/sync [post]
 func (h *Handler) SyncTransactions(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")

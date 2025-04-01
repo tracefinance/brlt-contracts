@@ -1,5 +1,7 @@
-import { ApiClient, createApiClient } from './client';
+import { defineNuxtPlugin } from '#app';
+import { ApiClient } from './client';
 import { WalletClient } from './wallet';
+import { TokenClient } from './token';
 import { TransactionClient } from './transaction';
 
 /**
@@ -8,11 +10,14 @@ import { TransactionClient } from './transaction';
 export class ApiService {
   client: ApiClient;
   wallet: WalletClient;
+  token: TokenClient;
   transaction: TransactionClient;
 
   constructor(baseUrl: string) {
-    this.client = createApiClient(undefined, baseUrl);
+    this.client = new ApiClient();
+    this.client.setBaseUrl(baseUrl);
     this.wallet = new WalletClient(this.client);
+    this.token = new TokenClient(this.client);
     this.transaction = new TransactionClient(this.client);
   }
 
@@ -25,17 +30,27 @@ export class ApiService {
 }
 
 export default defineNuxtPlugin((nuxtApp) => {
-  // Get API URL from runtime config
+  // Create the API client
+  const apiClient = new ApiClient();
+  
+  // Get the API base URL from runtime config
   const config = useRuntimeConfig();
-  const baseUrl = (config.public?.apiUrl as string) || 'http://localhost:8080/api/v1';
+  const apiBase = config.public.apiBase as string || 'http://localhost:8080/api/v1';
+  apiClient.setBaseUrl(apiBase);
   
-  // Create API service
-  const apiService = new ApiService(baseUrl);
+  // Create service clients
+  const walletClient = new WalletClient(apiClient);
+  const tokenClient = new TokenClient(apiClient);
+  const transactionClient = new TransactionClient(apiClient);
   
-  // Provide the API service to the app
+  // Provide API services to the application
   return {
     provide: {
-      api: apiService
+      api: {
+        wallet: walletClient,
+        token: tokenClient,
+        transaction: transactionClient
+      }
     }
   };
 });

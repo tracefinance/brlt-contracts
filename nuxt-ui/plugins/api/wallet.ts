@@ -41,7 +41,7 @@ export class WalletClient {
    * @returns Wallet details
    */
   async getWallet(chainType: string, address: string): Promise<Wallet> {
-    const endpoint = API_ENDPOINTS.WALLETS.BY_ADDRESS(address, chainType);
+    const endpoint = API_ENDPOINTS.WALLETS.BY_ADDRESS(chainType, address);
     const data = await this.client.get<any>(endpoint);
     return Wallet.fromJson(data);
   }
@@ -58,7 +58,7 @@ export class WalletClient {
     address: string,
     request: UpdateWalletRequest
   ): Promise<Wallet> {
-    const endpoint = API_ENDPOINTS.WALLETS.BY_ADDRESS(address, chainType);
+    const endpoint = API_ENDPOINTS.WALLETS.BY_ADDRESS(chainType, address);
     const data = await this.client.put<any>(endpoint, request.toJson());
     return Wallet.fromJson(data);
   }
@@ -69,7 +69,7 @@ export class WalletClient {
    * @param address Wallet address
    */
   async deleteWallet(chainType: string, address: string): Promise<void> {
-    const endpoint = API_ENDPOINTS.WALLETS.BY_ADDRESS(address, chainType);
+    const endpoint = API_ENDPOINTS.WALLETS.BY_ADDRESS(chainType, address);
     await this.client.delete<void>(endpoint);
   }
   
@@ -92,7 +92,7 @@ export class WalletClient {
    * @returns Array of token balances
    */
   async getWalletBalance(chainType: string, address: string): Promise<TokenBalanceResponse[]> {
-    const endpoint = API_ENDPOINTS.WALLETS.BALANCE(address, chainType);
+    const endpoint = API_ENDPOINTS.WALLETS.BALANCE(chainType, address);
     const data = await this.client.get<any[]>(endpoint);
     
     return data.map(item => TokenBalanceResponse.fromJson(item));

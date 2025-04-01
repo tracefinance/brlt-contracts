@@ -6,8 +6,8 @@ export const API_ENDPOINTS = {
   // Wallet endpoints
   WALLETS: {
     BASE: '/wallets',
-    BY_ADDRESS: (address: string, chainType: string) => `/wallets/${address}/${chainType}`,
-    BALANCE: (address: string, chainType: string) => `/wallets/${address}/${chainType}/balance`,
+    BY_ADDRESS: (chainType: string, address: string) => `/wallets/${chainType}/${address}`,
+    BALANCE: (chainType: string, address: string) => `/wallets/${chainType}/${address}/balance`,
   },
   
   // Auth endpoints
@@ -21,15 +21,15 @@ export const API_ENDPOINTS = {
   TRANSACTIONS: {
     BASE: '/transactions',
     BY_ID: (id: string) => `/transactions/${id}`,
-    BY_WALLET: (address: string, chainType: string) => `/wallets/${address}/${chainType}/transactions`,
+    BY_WALLET: (chainType: string, address: string) => `/wallets/${chainType}/${address}/transactions`,
   },
   
   // Token endpoints
   TOKENS: {
     BASE: '/tokens',
-    BY_ADDRESS: (address: string, chainType: string) => `/tokens/${address}/${chainType}`,
-    BY_ID: (id: string) => `/tokens/${id}`,
-    VERIFY: (address: string, chainType: string) => `/tokens/${address}/${chainType}/verify`,
+    BY_ADDRESS: (chainType: string, address: string) => `/tokens/${chainType}/${address}`,
+    DELETE: (address: string) => `/tokens/${address}`,
+    VERIFY: (address: string) => `/tokens/verify/${address}`,
   },
   
   // Signer endpoints
@@ -44,4 +44,4 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/users/${id}`,
     PROFILE: '/users/profile',
   },
-}; 
+};
