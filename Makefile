@@ -7,6 +7,7 @@ GOTEST = $(GOCMD) test
 GOGET = $(GOCMD) get
 GOMOD = $(GOCMD) mod
 GOCLEAN = $(GOCMD) clean
+GOINSTALL = $(GOCMD) install
 
 # Build flags
 LDFLAGS = -ldflags="-s -w"
@@ -105,7 +106,7 @@ server-clean:
 # Install Wire tool
 wire-install:
 	@echo "Installing Wire tool..."
-	$(GOGET) github.com/google/wire/cmd/wire
+	$(GOINSTALL) github.com/google/wire/cmd/wire@latest
 
 # Generate Wire code
 wire:
