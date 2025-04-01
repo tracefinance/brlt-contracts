@@ -1,5 +1,6 @@
 import { ApiClient, createApiClient } from './client';
 import { WalletClient } from './wallet';
+import { TransactionClient } from './transaction';
 
 /**
  * API service that provides access to all API clients
@@ -7,10 +8,12 @@ import { WalletClient } from './wallet';
 export class ApiService {
   client: ApiClient;
   wallet: WalletClient;
+  transaction: TransactionClient;
 
   constructor(baseUrl: string) {
     this.client = createApiClient(undefined, baseUrl);
     this.wallet = new WalletClient(this.client);
+    this.transaction = new TransactionClient(this.client);
   }
 
   /**
