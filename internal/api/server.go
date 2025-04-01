@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -45,6 +46,8 @@ func NewServer(
 	tokenPriceHandler *tokenprice.Handler,
 ) *Server {
 	router := gin.Default()
+	router.Use(cors.Default())
+
 	return &Server{
 		router:             router,
 		logger:             logger,

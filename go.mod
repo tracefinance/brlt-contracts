@@ -6,6 +6,7 @@ toolchain go1.24.0
 
 require (
 	github.com/ethereum/go-ethereum v1.15.5
+	github.com/gin-contrib/cors v1.7.4
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-oauth2/oauth2/v4 v4.5.2
 	github.com/go-playground/validator/v10 v10.25.0
