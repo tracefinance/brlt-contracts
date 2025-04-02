@@ -1,7 +1,7 @@
 import {
   AddTokenRequest,
   Token,
-  TokenListResponse
+  PagedTokens
 } from '~/types/token';
 import {
   ApiClient
@@ -35,7 +35,7 @@ export class TokenClient {
     tokenType?: string,
     limit: number = 10,
     offset: number = 0
-  ): Promise<TokenListResponse> {
+  ): Promise<PagedTokens> {
     const params: Record<string, string | number | boolean> = {
       limit,
       offset
@@ -50,7 +50,7 @@ export class TokenClient {
     }
     
     const data = await this.client.get<any>(API_ENDPOINTS.TOKENS.BASE, params);
-    return TokenListResponse.fromJson(data);
+    return PagedTokens.fromJson(data);
   }
   
   /**

@@ -400,7 +400,7 @@ const emit = defineEmits<{
 ## General Guidelines
 
 - **Indentation**: Use **2 spaces** for indentation. DO NOT USE TABS.
-- **File names**: Use *kebab-case* for file names.
+- **File names**: Use *camelCase* for file names.
 - **Component names**: Use *PascalCase* for component names in both file names and component definitions.
 - **Follow Existing Patterns**: Mimic the style and structure of existing code in the module you are editing.
 - **TypeScript**: Use TypeScript effectively. Define types and interfaces, leverage generics, and avoid `any` where possible.

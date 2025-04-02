@@ -110,13 +110,10 @@ export class AddTokenRequest extends BaseModel {
 /**
  * Response model for paginated token list
  */
-export class TokenListResponse extends BaseModel {
+export class PagedTokens extends BaseModel {
   @Expose()
   @Type(() => Token)
   items!: Token[];
-  
-  @Expose()
-  total!: number;
   
   @Expose()
   limit!: number;
@@ -124,12 +121,15 @@ export class TokenListResponse extends BaseModel {
   @Expose()
   offset!: number;
   
-  constructor(data: Partial<TokenListResponse> = {}) {
+  @Expose({ name: 'has_more' })
+  hasMore!: boolean;
+  
+  constructor(data: Partial<PagedTokens> = {}) {
     super();
     Object.assign(this, data);
   }
   
-  static fromJson(json: any): TokenListResponse {
-    return fromJson(TokenListResponse, json);
+  static fromJson(json: any): PagedTokens {
+    return fromJson(PagedTokens, json);
   }
 } 

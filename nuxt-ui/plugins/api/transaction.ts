@@ -2,7 +2,6 @@ import {
   PagedTransactions,
   SyncTransactionsResponse,
   Transaction,
-  TransactionListResponse
 } from '~/types/transaction';
 import {
   ApiClient
@@ -29,14 +28,14 @@ export class TransactionClient {
    * @param offset Number of transactions to skip for pagination (default: 0)
    * @returns Paginated list of transactions
    */
-  async listTransactions(limit: number = 10, offset: number = 0): Promise<TransactionListResponse> {
+  async listTransactions(limit: number = 10, offset: number = 0): Promise<PagedTransactions> {
     const params: Record<string, string | number | boolean> = {
       limit,
       offset
     };
     
     const data = await this.client.get<any>(API_ENDPOINTS.TRANSACTIONS.BASE, params);
-    return TransactionListResponse.fromJson(data);
+    return PagedTransactions.fromJson(data);
   }
   
   /**
@@ -65,7 +64,7 @@ export class TransactionClient {
     limit: number = 10,
     offset: number = 0,
     tokenAddress?: string
-  ): Promise<TransactionListResponse> {
+  ): Promise<PagedTransactions> {
     const endpoint = API_ENDPOINTS.TRANSACTIONS.BY_WALLET(chainType, address);
     
     const params: Record<string, string | number | boolean> = {
@@ -78,7 +77,7 @@ export class TransactionClient {
     }
     
     const data = await this.client.get<any>(endpoint, params);
-    return TransactionListResponse.fromJson(data);
+    return PagedTransactions.fromJson(data);
   }
   
   /**

@@ -1,7 +1,7 @@
 import type { Ref } from 'vue';
-import type { 
+import { 
   Transaction, 
-  TransactionListResponse
+  PagedTransactions
 } from '~/types/transaction';
 
 /**
@@ -12,10 +12,19 @@ export function useTransactions() {
   const { $api } = useNuxtApp();
   
   // Reactive state
-  const transactions: Ref<Transaction[]> = ref([]);
+  const pagedData = ref<PagedTransactions>(new PagedTransactions({
+    items: [],
+    limit: 10,
+    offset: 0,
+    hasMore: false
+  }));
   const currentTransaction: Ref<Transaction | null> = ref(null);
   const isLoading: Ref<boolean> = ref(false);
   const error: Ref<string | null> = ref(null);
+  
+  // Computed properties for easier access
+  const transactions = computed(() => pagedData.value.items);
+  const hasMoreTransactions = computed(() => pagedData.value.hasMore);
   
   /**
    * Loads all transactions with pagination
@@ -25,15 +34,28 @@ export function useTransactions() {
     error.value = null;
     
     try {
-      const result: TransactionListResponse = await $api.transaction.listTransactions(limit, offset);
-      transactions.value = result.items;
+      const result: PagedTransactions = await $api.transaction.listTransactions(limit, offset);      
+      pagedData.value = result;    
       return result;
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load transactions';
+      resetPagedData();
       return null;
     } finally {
       isLoading.value = false;
     }
+  }
+  
+  /**
+   * Reset paged data to initial state
+   */
+  function resetPagedData() {
+    pagedData.value = new PagedTransactions({
+      items: [],
+      limit: 10,
+      offset: 0,
+      hasMore: false
+    });
   }
   
   /**
@@ -76,10 +98,12 @@ export function useTransactions() {
         tokenAddress
       );
       
-      transactions.value = result.items;
+      pagedData.value = result;
+      
       return result;
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load wallet transactions';
+      resetPagedData();
       return null;
     } finally {
       isLoading.value = false;
@@ -97,7 +121,7 @@ export function useTransactions() {
       const result = await $api.transaction.syncTransactions(chainType, address);
       
       // Refresh the transactions list if we have transactions for this wallet
-      if (transactions.value.length > 0) {
+      if (pagedData.value.items.length > 0) {
         await getWalletTransactions(chainType, address);
       }
       
@@ -121,15 +145,19 @@ export function useTransactions() {
     limit?: number;
     offset?: number;
   }) {
+    const { limit = 10, offset = 0 } = options;
     isLoading.value = true;
     error.value = null;
     
     try {
       const result = await $api.transaction.filterTransactions(options);
-      transactions.value = result.items;
+      
+      pagedData.value = result;
+      
       return result;
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to filter transactions';
+      resetPagedData();
       return null;
     } finally {
       isLoading.value = false;
@@ -142,6 +170,7 @@ export function useTransactions() {
     currentTransaction,
     isLoading,
     error,
+    hasMoreTransactions,
     
     // Methods
     loadTransactions,

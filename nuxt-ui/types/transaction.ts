@@ -62,33 +62,6 @@ export class Transaction extends BaseModel {
 }
 
 /**
- * Response model for paginated transaction list
- */
-export class TransactionListResponse extends BaseModel {
-  @Expose()
-  @Type(() => Transaction)
-  items!: Transaction[];
-  
-  @Expose()
-  total!: number;
-  
-  @Expose()
-  limit!: number;
-  
-  @Expose()
-  offset!: number;
-  
-  constructor(data: Partial<TransactionListResponse> = {}) {
-    super();
-    Object.assign(this, data);
-  }
-  
-  static fromJson(json: any): TransactionListResponse {
-    return fromJson(TransactionListResponse, json);
-  }
-}
-
-/**
  * Class representing a paginated response containing Transactions
  */
 export class PagedTransactions extends BaseModel {

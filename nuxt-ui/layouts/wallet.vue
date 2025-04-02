@@ -66,12 +66,23 @@ const handleWalletChange = async (wallet: Wallet) => {
         :active-token-address="activeTokenAddress"
       />
       
-      <div>
-        <div v-if="isLoading" class="flex justify-center items-center min-h-screen">
-          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <SidebarInset>
+        <header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+           <SidebarTrigger class="size-10 -ml-2" />
+           <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                {{ currentWallet?.name || 'Wallet' }}
+              </BreadcrumbItem>
+              <BreadcrumbSeparator/>
+              <BreadcrumbItem>Transactions</BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </header>
+        <div class="flex flex-1 flex-col gap-4">
+          <slot />
         </div>
-        <slot v-else />
-      </div>
+      </SidebarInset>
     </SidebarProvider>
   </div>
 </template> 
