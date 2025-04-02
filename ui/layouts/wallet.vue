@@ -94,11 +94,9 @@ const handleWalletChange = async (wallet: IWallet) => {
 <template>
   <AppHeader />
   <div class="flex mt-16">
-    <SidebarProvider>
-      <TokenSidebarSkeleton v-if="isLoading" />
-      
+    <SidebarProvider>      
       <WalletTokenSidebar
-        v-else-if="currentWallet"
+        v-if="currentWallet"
         :wallets="wallets"
         :selected-wallet="currentWallet"
         :on-wallet-change="handleWalletChange"

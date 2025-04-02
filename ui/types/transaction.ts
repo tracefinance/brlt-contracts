@@ -8,24 +8,22 @@ import type { IWallet } from './wallet';
  * Interface representing a transaction
  */
 export interface ITransaction {
-  id: string;
+  id: number;
   chainType: string;
-  walletAddress: string;
+  walletId?: number;
   hash: string;
-  blockHash: string;
-  blockNumber: number;
-  from: string;
-  to: string;
+  fromAddress: string;
+  toAddress: string;
   value: string;
   gasPrice: string;
-  gasLimit: string;
-  gasUsed: string;
+  gasLimit: number;
   nonce: number;
+  type?: string;
   status: string;
   timestamp: number;
   data?: string;
-  token?: IToken;
-  wallet?: IWallet;
+  tokenSymbol?: string;
+  tokenAddress?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -39,16 +37,6 @@ export const Transaction = {
    */
   fromJson(json: any): ITransaction {
     const transaction = fromJson<ITransaction>(json);
-    
-    // Handle nested objects
-    if (json.token) {
-      transaction.token = Token.fromJson(json.token);
-    }
-    
-    if (json.wallet) {
-      transaction.wallet = Wallet.fromJson(json.wallet);
-    }
-    
     return transaction;
   },
 
