@@ -1,15 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { IWallet, ITokenBalanceResponse } from '~/types'
+import type { IWallet, ITokenBalanceResponse, IPagedWallets } from '~/types'
 import TokenSidebarSkeleton from '~/components/wallet/TokenSidebarSkeleton.vue'
 
 // API client
 const { $api } = useNuxtApp()
-
-// State refs
-const wallets = ref<IWallet[]>([])
-const currentWallet = ref<IWallet | null>(null)
-const balances = ref<ITokenBalanceResponse[]>([])
 
 // Route handling
 const route = useRoute()
@@ -20,18 +15,16 @@ const activeTokenAddress = computed(() =>
 )
 
 // Async data fetching
-const { data: walletsData, status: walletsStatus } = useAsyncData(
+const { data: walletsData, status: walletsStatus } = await useAsyncData(
   'wallets',
   () => $api.wallet.listWallets(10, 0),
-  { immediate: true }
+  { 
+    immediate: true,
+  }
 )
 
-// Watch for wallets data and update local state
-watch(walletsData, (newData) => {
-  if (newData?.items) {
-    wallets.value = newData.items
-  }
-})
+// Make sure walletsData is always treated as an array
+const wallets = computed<IWallet[]>(() => walletsData.value?.items || [])
 
 // Fetch wallet data based on route or first wallet
 const fetchCurrentWallet = async () => {
@@ -40,7 +33,7 @@ const fetchCurrentWallet = async () => {
     const chainType = typeof route.params.chainType === 'string' ? route.params.chainType : route.params.chainType[0]
     
     return { chainType, address }
-  } else if (walletsData.value?.items && walletsData.value.items.length > 0) {
+  } else if (walletsData.value && walletsData.value.items.length > 0) {
     const wallet = walletsData.value.items[0]
     return { chainType: wallet.chainType, address: wallet.address }
   }
@@ -49,7 +42,7 @@ const fetchCurrentWallet = async () => {
 }
 
 // Fetch current wallet data
-const { data: walletData, status: walletStatus } = useAsyncData(
+const { data: currentWallet, status: walletStatus } = await useAsyncData(
   'currentWallet',
   async () => {
     const params = await fetchCurrentWallet()
@@ -58,18 +51,13 @@ const { data: walletData, status: walletStatus } = useAsyncData(
     }
     return null
   },
-  { watch: [walletsData] }
+  { 
+    watch: [walletsData, route]
+  }
 )
 
-// Watch for wallet data and update current wallet
-watch(walletData, (newData) => {
-  if (newData) {
-    currentWallet.value = newData
-  }
-})
-
 // Fetch balances for current wallet
-const { data: balanceData, status: balancesStatus } = useAsyncData(
+const { data: balancesData, status: balancesStatus } = await useAsyncData(
   'walletBalances',
   async () => {
     if (currentWallet.value) {
@@ -80,15 +68,13 @@ const { data: balanceData, status: balancesStatus } = useAsyncData(
     }
     return [] as ITokenBalanceResponse[]
   },
-  { watch: [() => currentWallet.value] }
+  { 
+    watch: [currentWallet]
+  }
 )
 
-// Watch for balance data and update balances
-watch(balanceData, (newData) => {
-  if (newData) {
-    balances.value = newData
-  }
-})
+// Make sure balances is always treated as an array
+const balances = computed<ITokenBalanceResponse[]>(() => balancesData.value || [])
 
 // Combined loading state
 const isLoading = computed(() => 
@@ -99,9 +85,8 @@ const isLoading = computed(() =>
 
 // Handle wallet change
 const handleWalletChange = async (wallet: IWallet) => {
-  currentWallet.value = wallet
-  
   // Navigate to the wallet's transactions page
+  // This will trigger the watcher to update the wallet data
   navigateTo(`/wallets/${wallet.chainType}/${wallet.address}/transactions`)
 }
 </script>
