@@ -1,40 +1,75 @@
-# Welcome to Remix!
+# Nuxt Minimal Starter
 
-- 📖 [Remix docs](https://remix.run/docs)
+Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
 
-## Development
+## Setup
 
-Run the dev server:
+Make sure to install dependencies:
 
-```shellscript
+```bash
+# npm
+npm install
+
+# pnpm
+pnpm install
+
+# yarn
+yarn install
+
+# bun
+bun install
+```
+
+## Development Server
+
+Start the development server on `http://localhost:3000`:
+
+```bash
+# npm
 npm run dev
+
+# pnpm
+pnpm dev
+
+# yarn
+yarn dev
+
+# bun
+bun run dev
 ```
 
-## Deployment
+## Production
 
-First, build your app for production:
+Build the application for production:
 
-```sh
+```bash
+# npm
 npm run build
+
+# pnpm
+pnpm build
+
+# yarn
+yarn build
+
+# bun
+bun run build
 ```
 
-Then run the app in production mode:
+Locally preview production build:
 
-```sh
-npm start
+```bash
+# npm
+npm run preview
+
+# pnpm
+pnpm preview
+
+# yarn
+yarn preview
+
+# bun
+bun run preview
 ```
 
-Now you'll need to pick a host to deploy it to.
-
-### DIY
-
-If you're familiar with deploying Node applications, the built-in Remix app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-- `build/server`
-- `build/client`
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever css framework you prefer. See the [Vite docs on css](https://vitejs.dev/guide/features.html#css) for more information.
+Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
