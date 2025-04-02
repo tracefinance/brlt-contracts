@@ -1,26 +1,27 @@
 <script setup lang="ts">
-// Define page metadata
+import { ZERO_ADDRESS } from '~/lib/utils'
+
+// Define page metadata with server-side middleware for redirection
 definePageMeta({
-  layout: 'wallet'
+  layout: 'wallet',
+  middleware: async (to) => {
+    // Fetch wallets data on the server
+    const { wallets, loadWallets } = useWallets()
+    await loadWallets()
+    
+    // If there are wallets, redirect to the first one's transactions
+    if (wallets.value.length > 0) {
+      const wallet = wallets.value[0]
+      return navigateTo(`/wallets/${wallet.chainType}/${wallet.address}/transactions/${ZERO_ADDRESS}`, { 
+        redirectCode: 302 
+      })
+    }
+  }
 })
 </script>
 
 <template>
-  <div class="container p-8">
-    <h1 class="text-3xl font-bold mb-6">Wallet Dashboard</h1>
-    <p class="text-lg mb-4">
-      Welcome to your wallet dashboard. Select a wallet from the sidebar to view your tokens and transactions.
-    </p>
-    
-    <div class="grid gap-6 mt-8">
-      <div class="bg-card rounded-lg shadow-sm p-6">
-        <h2 class="text-xl font-semibold mb-4">Getting Started</h2>
-        <ul class="list-disc pl-5 space-y-2">
-          <li>Select a wallet from the dropdown in the sidebar</li>
-          <li>View your token balances in the sidebar</li>
-          <li>Click on a token to view its transaction history</li>
-        </ul>
-      </div>
-    </div>
+  <div>
+    <h1>Redirecting to first wallet transactions...</h1>
   </div>
 </template> 
