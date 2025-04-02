@@ -5,13 +5,13 @@ interface Props {
   symbol: string
   size?: string
   class?: string
-  variant?: 'solid' | 'branded'
+  variant?: 'mono' | 'branded'
 }
 
 const props = withDefaults(defineProps<Props>(), {
   size: '1em',
   class: '',
-  variant: 'solid'
+  variant: 'mono'
 })
 
 // Compute the icon name by normalizing symbol: convert to lowercase, remove 'w' prefix for wrapped tokens, and add token: prefix
