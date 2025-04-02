@@ -1,4 +1,4 @@
-import { snakeToCamelCase, camelToSnakeCase } from '~/utils/caseConversion';
+import { snakeToCamelCase, camelToSnakeCase } from '~/lib/caseConversion';
 
 /**
  * Converts a snake_case JSON object to a camelCase typed interface

@@ -1,8 +1,4 @@
-import { fromJson, fromJsonArray } from './model';
-import { Token } from './token';
-import type { IToken } from './token';
-import { Wallet } from './wallet';
-import type { IWallet } from './wallet';
+import { fromJson } from './model';
 
 /**
  * Interface representing a transaction

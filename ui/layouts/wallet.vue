@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import type { IWallet, ITokenBalanceResponse, IPagedWallets } from '~/types'
-import TokenSidebarSkeleton from '~/components/wallet/TokenSidebarSkeleton.vue'
+import { computed } from 'vue'
+import type { ITokenBalanceResponse, IWallet } from '~/types'
 
 // API client
 const { $api } = useNuxtApp()

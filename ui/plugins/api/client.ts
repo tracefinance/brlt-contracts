@@ -22,7 +22,7 @@ export interface ApiRequestOptions {
   headers?: HeadersInit;
 }
 
-import { camelToSnakeCase, snakeToCamelCase } from '~/utils/caseConversion';
+import { camelToSnakeCase, snakeToCamelCase } from '~/lib/caseConversion';
 
 /**
  * Base API client class that handles API communication
