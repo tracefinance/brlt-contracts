@@ -35,7 +35,7 @@ CONTRACTS_DIR = ./contracts
 # Package name
 PACKAGE = vault0
 
-.PHONY: all build clean server-build server-test server-test-coverage server-deps server-install genkey-build genkey-install server server-clean git-reset git-status git-pull git-push ui-build ui-deps ui ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests git-diff-setup verify-tokens verify-tokens-build swag-install server-docs
+.PHONY: all build clean server-build server-test server-test-coverage server-deps server-build-debug genkey-build genkey-install server server-clean git-reset git-status git-pull git-push ui-build ui-deps ui ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests git-diff-setup verify-tokens verify-tokens-build swag-install server-docs delve-install wire-install wire server-install
 
 # Count lines of code in the project
 count-lines:
@@ -92,6 +92,11 @@ server-deps:
 	$(GOMOD) download
 	$(GOMOD) tidy
 
+# Install all server development tools
+server-install: wire-install delve-install swag-install
+	@echo "All server development tools installed."
+	$(GOMOD) tidy
+
 # Run server
 server: server-build
 	@echo "Running server..."
@@ -107,6 +112,11 @@ server-clean:
 wire-install:
 	@echo "Installing Wire tool..."
 	$(GOINSTALL) github.com/google/wire/cmd/wire@latest
+
+# Install Delve debugger tool
+delve-install:
+	@echo "Installing Delve debugger tool..."
+	$(GOINSTALL) github.com/go-delve/delve/cmd/dlv@latest
 
 # Generate Wire code
 wire:

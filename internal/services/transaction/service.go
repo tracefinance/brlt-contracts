@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"vault0/internal/config"
@@ -351,7 +352,7 @@ func (s *transactionService) processTransaction(ctx context.Context, coreTx *typ
 func (s *transactionService) createAddressToWalletMap(wallets []*wallet.Wallet) map[string]*wallet.Wallet {
 	addressToWallet := make(map[string]*wallet.Wallet)
 	for _, w := range wallets {
-		addressToWallet[w.Address] = w
+		addressToWallet[strings.ToLower(w.Address)] = w
 	}
 	return addressToWallet
 }
@@ -361,13 +362,13 @@ func (s *transactionService) createAddressToWalletMap(wallets []*wallet.Wallet) 
 func (s *transactionService) findRelevantWallet(fromAddr string, toAddr string, addressToWallet map[string]*wallet.Wallet) *wallet.Wallet {
 	// Check if the transaction involves any of our monitored wallets
 	if fromAddr != "" {
-		if w, exists := addressToWallet[fromAddr]; exists {
+		if w, exists := addressToWallet[strings.ToLower(fromAddr)]; exists {
 			return w
 		}
 	}
 
 	if toAddr != "" {
-		if w, exists := addressToWallet[toAddr]; exists {
+		if w, exists := addressToWallet[strings.ToLower(toAddr)]; exists {
 			return w
 		}
 	}
