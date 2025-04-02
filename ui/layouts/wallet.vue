@@ -49,7 +49,7 @@ const handleWalletChange = async (wallet: Wallet) => {
   await loadWalletBalances(wallet.chainType, wallet.address)
   
   // Navigate to the wallet's transactions page
-  navigateTo(`/wallets/${wallet.address}/${wallet.chainType}/transactions`)
+  navigateTo(`/wallets/${wallet.chainType}/${wallet.address}/transactions`)
 }
 </script>
 
