@@ -1,152 +1,129 @@
-import { 
-  Expose,
-  Type 
-} from 'class-transformer';
-import { BaseModel, fromJson, fromJsonArray } from './model';
-import { Token } from './token';
-
-export class Wallet extends BaseModel {
-  @Expose()
-  id!: number;
-  
-  @Expose({ name: 'key_id' })
-  keyId!: string;
-  
-  @Expose({ name: 'chain_type' })
-  chainType!: string;
-  
-  @Expose()
-  address!: string;
-  
-  @Expose()
-  name!: string;
-  
-  @Expose()
-  tags?: Record<string, string>;
-  
-  @Expose({ name: 'created_at' })
-  createdAt!: string;
-  
-  @Expose({ name: 'updated_at' })
-  updatedAt!: string;
-
-  constructor(data: Partial<Wallet> = {}) {
-    super();
-    Object.assign(this, data);
-  }
-
-  /**
-   * Converts a plain JSON object from the API to a Wallet instance
-   */
-  static fromJson(json: any): Wallet {
-    return fromJson(Wallet, json);
-  }
-
-  /**
-   * Converts an array of plain JSON objects from the API to Wallet instances
-   */
-  static fromJsonArray(jsonArray: any[]): Wallet[] {
-    return fromJsonArray(Wallet, jsonArray);
-  }
-}
+import { fromJson, fromJsonArray } from './model';
+import type { IToken } from './token';
 
 /**
- * Response type for token balance endpoints
+ * Interface representing a wallet
  */
-export class TokenBalanceResponse extends BaseModel {
-  @Expose()
-  @Type(() => Token)
-  token!: Token;
-  
-  @Expose()
-  balance!: string;
-  
-  @Expose({ name: 'updated_at' })
-  updatedAt!: string;
-
-  constructor(data: Partial<TokenBalanceResponse> = {}) {
-    super();
-    Object.assign(this, data);
-  }
-
-  static fromJson(json: any): TokenBalanceResponse {
-    return fromJson(TokenBalanceResponse, json);
-  }
-
-  static fromJsonArray(jsonArray: any[]): TokenBalanceResponse[] {
-    return fromJsonArray(TokenBalanceResponse, jsonArray);
-  }
-}
-
-/**
- * Class representing a request to create a wallet
- */
-export class CreateWalletRequest extends BaseModel {
-  @Expose({ name: 'chain_type' })
+export interface IWallet {
+  id: number;
+  keyId: string;
   chainType: string;
-  
-  @Expose()
+  address: string;
   name: string;
-  
-  @Expose()
   tags?: Record<string, string>;
-
-  constructor(chainType: string, name: string, tags?: Record<string, string>) {
-    super();
-    this.chainType = chainType;
-    this.name = name;
-    this.tags = tags;
-  }
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
- * Class representing a request to update a wallet
+ * Factory functions for IWallet
  */
-export class UpdateWalletRequest extends BaseModel {
-  @Expose()
-  name: string;
-  
-  @Expose()
-  tags?: Record<string, string>;
-
-  constructor(name: string, tags?: Record<string, string>) {
-    super();
-    this.name = name;
-    this.tags = tags;
-  }
-}
-
-/**
- * Class representing a paginated response containing Wallets
- */
-export class PagedWallets extends BaseModel {
-  @Expose()
-  @Type(() => Wallet)
-  items!: Wallet[];
-
-  @Expose()
-  limit!: number;
-
-  @Expose()
-  offset!: number;
-
-  @Expose({ name: 'has_more' })
-  hasMore!: boolean;
-
-  constructor(data: Partial<PagedWallets> = {}) {
-    super();
-    Object.assign(this, data);
-    this.items = data.items || [];
-  }
+export const Wallet = {
+  /**
+   * Converts a plain JSON object from the API to an IWallet
+   */
+  fromJson(json: any): IWallet {
+    return fromJson<IWallet>(json);
+  },
 
   /**
-   * Converts a plain JSON paged response to a PagedWallets instance
+   * Converts an array of plain JSON objects from the API to IWallet objects
    */
-  static fromJson(json: any): PagedWallets {
-    const response = fromJson(PagedWallets, json);
+  fromJsonArray(jsonArray: any[]): IWallet[] {
+    return fromJsonArray<IWallet>(jsonArray);
+  }
+};
+
+/**
+ * Interface representing a token balance response
+ */
+export interface ITokenBalanceResponse {
+  token: IToken;
+  balance: string;
+  updatedAt: string;
+}
+
+/**
+ * Factory functions for ITokenBalanceResponse
+ */
+export const TokenBalanceResponse = {
+  fromJson(json: any): ITokenBalanceResponse {
+    const response = fromJson<ITokenBalanceResponse>(json);
+    
+    // Convert nested token
+    if (json.token) {
+      response.token = fromJson<IToken>(json.token);
+    }
+    
+    return response;
+  },
+
+  fromJsonArray(jsonArray: any[]): ITokenBalanceResponse[] {
+    return jsonArray.map(json => TokenBalanceResponse.fromJson(json));
+  }
+};
+
+/**
+ * Interface representing a request to create a wallet
+ */
+export interface ICreateWalletRequest {
+  chainType: string;
+  name: string;
+  tags?: Record<string, string>;
+}
+
+/**
+ * Factory functions for ICreateWalletRequest
+ */
+export const CreateWalletRequest = {
+  create(chainType: string, name: string, tags?: Record<string, string>): ICreateWalletRequest {
+    return { chainType, name, tags };
+  }
+};
+
+/**
+ * Interface representing a request to update a wallet
+ */
+export interface IUpdateWalletRequest {
+  name: string;
+  tags?: Record<string, string>;
+}
+
+/**
+ * Factory functions for IUpdateWalletRequest
+ */
+export const UpdateWalletRequest = {
+  create(name: string, tags?: Record<string, string>): IUpdateWalletRequest {
+    return { name, tags };
+  }
+};
+
+/**
+ * Interface representing a paginated response containing Wallets
+ */
+export interface IPagedWallets {
+  items: IWallet[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+/**
+ * Factory functions for IPagedWallets
+ */
+export const PagedWallets = {
+  /**
+   * Converts a plain JSON paged response to IPagedWallets
+   */
+  fromJson(json: any): IPagedWallets {
+    const response = fromJson<IPagedWallets>(json);
     
     // Convert each item in the items array
-    response.items = Wallet.fromJsonArray(json.items || []);
+    if (json.items && Array.isArray(json.items)) {
+      response.items = Wallet.fromJsonArray(json.items);
+    } else {
+      response.items = [];
+    }
 
     return response;
   }

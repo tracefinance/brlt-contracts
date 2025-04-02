@@ -2,7 +2,12 @@ import {
   AddTokenRequest,
   Token,
   PagedTokens
-} from '~/types/token';
+} from '~/types';
+import type {
+  IAddTokenRequest,
+  IPagedTokens,
+  IToken
+} from '~/types';
 import {
   ApiClient
 } from './client';
@@ -35,7 +40,7 @@ export class TokenClient {
     tokenType?: string,
     limit: number = 10,
     offset: number = 0
-  ): Promise<PagedTokens> {
+  ): Promise<IPagedTokens> {
     const params: Record<string, string | number | boolean> = {
       limit,
       offset
@@ -55,11 +60,11 @@ export class TokenClient {
   
   /**
    * Adds a new token
-   * @param request Token creation request data
+   * @param request Token creation request
    * @returns Created token
    */
-  async addToken(request: AddTokenRequest): Promise<Token> {
-    const data = await this.client.post<any>(API_ENDPOINTS.TOKENS.BASE, request.toJson());
+  async addToken(request: IAddTokenRequest): Promise<IToken> {
+    const data = await this.client.post<any>(API_ENDPOINTS.TOKENS.BASE, request);
     return Token.fromJson(data);
   }
   
@@ -68,7 +73,7 @@ export class TokenClient {
    * @param address Token address
    * @returns Token details
    */
-  async verifyToken(address: string): Promise<Token> {
+  async verifyToken(address: string): Promise<IToken> {
     const endpoint = API_ENDPOINTS.TOKENS.VERIFY(address);
     const data = await this.client.get<any>(endpoint);
     return Token.fromJson(data);
@@ -80,7 +85,7 @@ export class TokenClient {
    * @param address Token address
    * @returns Token details
    */
-  async getToken(chainType: string, address: string): Promise<Token> {
+  async getToken(chainType: string, address: string): Promise<IToken> {
     const endpoint = API_ENDPOINTS.TOKENS.BY_ADDRESS(chainType, address);
     const data = await this.client.get<any>(endpoint);
     return Token.fromJson(data);

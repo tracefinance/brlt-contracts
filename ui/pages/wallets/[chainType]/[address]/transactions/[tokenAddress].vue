@@ -129,8 +129,8 @@ const explorerBaseUrl = computed(() => getExplorerBaseUrl(chainType.value))
   <div>
     <div v-if="currentWallet && currentToken">          
         <div class="p-4">          
-          <div v-if="isLoading" class="flex justify-center p-6">
-            <Icon name="lucide:loader" class="animate-spin h-8 w-8 text-muted-foreground" />
+          <div v-if="isLoading">
+            <TransactionTableSkeleton :rows="limit" />
           </div>
           
           <div v-else-if="error" class="p-4 bg-red-50 text-red-700 rounded-md">

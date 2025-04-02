@@ -1,13 +1,11 @@
 import type { Ref } from 'vue';
-import type { 
-  Wallet, 
-  PagedWallets,
-  TokenBalanceResponse 
-} from '~/types/wallet';
-import { 
-  CreateWalletRequest, 
-  UpdateWalletRequest 
-} from '~/types/wallet';
+import type {
+  ICreateWalletRequest,
+  IPagedWallets,
+  ITokenBalanceResponse,
+  IUpdateWalletRequest,
+  IWallet
+} from '~/types';
 
 /**
  * Composable for wallet-related functionality
@@ -17,9 +15,9 @@ export function useWallets() {
   const { $api } = useNuxtApp();
   
   // Reactive state
-  const wallets: Ref<Wallet[]> = ref([]);
-  const currentWallet: Ref<Wallet | null> = ref(null);
-  const balances: Ref<TokenBalanceResponse[]> = ref([]);
+  const wallets: Ref<IWallet[]> = ref([]);
+  const currentWallet: Ref<IWallet | null> = ref(null);
+  const balances: Ref<ITokenBalanceResponse[]> = ref([]);
   const isLoading: Ref<boolean> = ref(false);
   const error: Ref<string | null> = ref(null);
   
@@ -31,7 +29,7 @@ export function useWallets() {
     error.value = null;
     
     try {
-      const result: PagedWallets = await $api.wallet.listWallets(limit, offset);
+      const result: IPagedWallets = await $api.wallet.listWallets(limit, offset);
       wallets.value = result.items;
       return result;
     } catch (err) {
@@ -63,12 +61,11 @@ export function useWallets() {
   /**
    * Create a new wallet
    */
-  async function createWallet(chainType: string, name: string, tags?: Record<string, string>) {
+  async function createWallet(request: ICreateWalletRequest) {
     isLoading.value = true;
     error.value = null;
     
     try {
-      const request = new CreateWalletRequest(chainType, name, tags);
       const newWallet = await $api.wallet.createWallet(request);
       
       // Add to local wallet list if exists
@@ -88,12 +85,11 @@ export function useWallets() {
   /**
    * Update an existing wallet
    */
-  async function updateWallet(chainType: string, address: string, name: string, tags?: Record<string, string>) {
+  async function updateWallet(chainType: string, address: string, request: IUpdateWalletRequest) {
     isLoading.value = true;
     error.value = null;
     
-    try {
-      const request = new UpdateWalletRequest(name, tags);
+    try {      
       const updatedWallet = await $api.wallet.updateWallet(chainType, address, request);
       
       // Update in the list if present

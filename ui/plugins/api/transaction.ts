@@ -2,7 +2,12 @@ import {
   PagedTransactions,
   SyncTransactionsResponse,
   Transaction,
-} from '~/types/transaction';
+} from '~/types';
+import type {
+  IPagedTransactions,
+  ISyncTransactionsResponse,
+  ITransaction,
+} from '~/types';
 import {
   ApiClient
 } from './client';
@@ -28,7 +33,7 @@ export class TransactionClient {
    * @param offset Number of transactions to skip for pagination (default: 0)
    * @returns Paginated list of transactions
    */
-  async listTransactions(limit: number = 10, offset: number = 0): Promise<PagedTransactions> {
+  async listTransactions(limit: number = 10, offset: number = 0): Promise<IPagedTransactions> {
     const params: Record<string, string | number | boolean> = {
       limit,
       offset
@@ -43,7 +48,7 @@ export class TransactionClient {
    * @param id Transaction ID
    * @returns Transaction details
    */
-  async getTransaction(id: string): Promise<Transaction> {
+  async getTransaction(id: string): Promise<ITransaction> {
     const endpoint = API_ENDPOINTS.TRANSACTIONS.BY_ID(id);
     const data = await this.client.get<any>(endpoint);
     return Transaction.fromJson(data);
@@ -64,7 +69,7 @@ export class TransactionClient {
     limit: number = 10,
     offset: number = 0,
     tokenAddress?: string
-  ): Promise<PagedTransactions> {
+  ): Promise<IPagedTransactions> {
     const endpoint = API_ENDPOINTS.TRANSACTIONS.BY_WALLET(chainType, address);
     
     const params: Record<string, string | number | boolean> = {
@@ -86,7 +91,7 @@ export class TransactionClient {
    * @param address Wallet address
    * @returns Sync response containing count of synced transactions
    */
-  async syncTransactions(chainType: string, address: string): Promise<SyncTransactionsResponse> {
+  async syncTransactions(chainType: string, address: string): Promise<ISyncTransactionsResponse> {
     const endpoint = `${API_ENDPOINTS.TRANSACTIONS.BY_WALLET(chainType, address)}/sync`;
     const data = await this.client.post<any>(endpoint);
     return SyncTransactionsResponse.fromJson(data);
@@ -104,7 +109,7 @@ export class TransactionClient {
     status?: string;
     limit?: number;
     offset?: number;
-  }): Promise<PagedTransactions> {
+  }): Promise<IPagedTransactions> {
     const {
       chainType,
       address,

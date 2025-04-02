@@ -1,8 +1,8 @@
 import type { Ref } from 'vue';
-import { 
-  Transaction, 
-  PagedTransactions
-} from '~/types/transaction';
+import type {
+  IPagedTransactions,
+  ITransaction
+} from '~/types';
 
 /**
  * Composable for transaction-related functionality
@@ -12,13 +12,13 @@ export function useTransactions() {
   const { $api } = useNuxtApp();
   
   // Reactive state
-  const pagedData = ref<PagedTransactions>(new PagedTransactions({
+  const pagedData = ref<IPagedTransactions>({
     items: [],
     limit: 10,
     offset: 0,
     hasMore: false
-  }));
-  const currentTransaction: Ref<Transaction | null> = ref(null);
+  });
+  const currentTransaction: Ref<ITransaction | null> = ref(null);
   const isLoading: Ref<boolean> = ref(false);
   const error: Ref<string | null> = ref(null);
   
@@ -34,7 +34,7 @@ export function useTransactions() {
     error.value = null;
     
     try {
-      const result: PagedTransactions = await $api.transaction.listTransactions(limit, offset);      
+      const result: IPagedTransactions = await $api.transaction.listTransactions(limit, offset);      
       pagedData.value = result;    
       return result;
     } catch (err) {
@@ -50,12 +50,12 @@ export function useTransactions() {
    * Reset paged data to initial state
    */
   function resetPagedData() {
-    pagedData.value = new PagedTransactions({
+    pagedData.value = {
       items: [],
       limit: 10,
       offset: 0,
       hasMore: false
-    });
+    };
   }
   
   /**

@@ -22,6 +22,8 @@ export interface ApiRequestOptions {
   headers?: HeadersInit;
 }
 
+import { camelToSnakeCase, snakeToCamelCase } from '~/utils/caseConversion';
+
 /**
  * Base API client class that handles API communication
  */
@@ -73,15 +75,21 @@ export class ApiClient {
       requestHeaders['Authorization'] = `Bearer ${this.token}`;
     }
     
+    // Convert request body from camelCase to snake_case if necessary
+    const processedBody = method !== 'GET' && body ? camelToSnakeCase<Record<string, any>>(body) : undefined;
+    
     try {
       // Make the request using $fetch
-      return await $fetch<T>(path, {
+      const response = await $fetch(path, {
         baseURL: this.baseUrl,
         method,
-        body: method !== 'GET' ? body : undefined,
-        params,
+        body: processedBody,
+        params: params ? camelToSnakeCase(params) : undefined,
         headers: requestHeaders
       });
+      
+      // Convert response from snake_case to camelCase
+      return snakeToCamelCase<T>(response);
     } catch (error: any) {
       // Handle FetchError type from Nuxt
       if (error.name === 'FetchError') {

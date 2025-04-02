@@ -1,67 +1,28 @@
-import { 
-  plainToInstance, 
-  instanceToPlain,
-} from 'class-transformer';
-import 'reflect-metadata';
-import type { ClassConstructor } from 'class-transformer';
+import { snakeToCamelCase, camelToSnakeCase } from '~/utils/caseConversion';
 
 /**
- * Converts a plain JSON object to an instance of the specified class
- * @param cls The class constructor
+ * Converts a snake_case JSON object to a camelCase typed interface
  * @param json The plain JSON object
- * @returns An instance of the specified class
+ * @returns A typed interface with camelCase keys
  */
-export function fromJson<T>(cls: ClassConstructor<T>, json: any): T {
-  return plainToInstance(cls, json, {
-    excludeExtraneousValues: true
-  });
+export function fromJson<T>(json: any): T {
+  return snakeToCamelCase<T>(json);
 }
 
 /**
- * Converts an array of plain JSON objects to instances of the specified class
- * @param cls The class constructor
+ * Converts an array of snake_case JSON objects to camelCase typed interfaces
  * @param jsonArray The array of plain JSON objects
- * @returns An array of instances of the specified class
+ * @returns An array of typed interfaces with camelCase keys
  */
-export function fromJsonArray<T>(cls: ClassConstructor<T>, jsonArray: any[]): T[] {
-  return jsonArray.map(json => fromJson(cls, json));
+export function fromJsonArray<T>(jsonArray: any[]): T[] {
+  return jsonArray.map(json => fromJson<T>(json));
 }
 
 /**
- * Converts an instance to a plain JSON object
- * @param instance The instance to convert
- * @returns A plain JSON object
+ * Converts a camelCase typed interface to a snake_case JSON object
+ * @param data The typed interface with camelCase keys
+ * @returns A plain JSON object with snake_case keys
  */
-export function toJson<T>(instance: T): any {
-  return instanceToPlain(instance, {
-    excludeExtraneousValues: true
-  });
-}
-
-/**
- * Base model class that provides common JSON conversion methods
- */
-export abstract class BaseModel {
-  /**
-   * Converts this instance to a plain JSON object for sending to the API
-   */
-  toJson(): any {
-    return toJson(this);
-  }
-
-  /**
-   * Creates a static fromJson method for the derived class
-   * This is a helper factory method for model classes
-   */
-  static createFromJson<T extends BaseModel>(cls: ClassConstructor<T>) {
-    return (json: any): T => fromJson(cls, json);
-  }
-
-  /**
-   * Creates a static fromJsonArray method for the derived class
-   * This is a helper factory method for model classes
-   */
-  static createFromJsonArray<T extends BaseModel>(cls: ClassConstructor<T>) {
-    return (jsonArray: any[]): T[] => fromJsonArray(cls, jsonArray);
-  }
+export function toJson<T>(data: T): any {
+  return camelToSnakeCase(data);
 } 

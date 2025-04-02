@@ -1,19 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import type { Wallet } from '~/types/wallet'
+import { computed, ref, watch } from 'vue'
+import type { IWallet, ITokenBalanceResponse } from '~/types'
+import TokenSidebarSkeleton from '~/components/wallet/TokenSidebarSkeleton.vue'
 
-// Get wallets functionality from composable
-const { 
-  wallets,
-  currentWallet, 
-  balances,
-  isLoading,
-  loadWallets, 
-  loadWallet,
-  loadWalletBalances
-} = useWallets()
+// API client
+const { $api } = useNuxtApp()
 
-// Get route for active token
+// State refs
+const wallets = ref<IWallet[]>([])
+const currentWallet = ref<IWallet | null>(null)
+const balances = ref<ITokenBalanceResponse[]>([])
+
+// Route handling
 const route = useRoute()
 const activeTokenAddress = computed(() => 
   typeof route.params.tokenAddress === 'string' 
@@ -21,32 +19,87 @@ const activeTokenAddress = computed(() =>
     : undefined
 )
 
-// Initialize with data
-onMounted(async () => {
-  await loadWallets()
-  
-  // If we have a wallet in the route, load it
+// Async data fetching
+const { data: walletsData, status: walletsStatus } = useAsyncData(
+  'wallets',
+  () => $api.wallet.listWallets(10, 0),
+  { immediate: true }
+)
+
+// Watch for wallets data and update local state
+watch(walletsData, (newData) => {
+  if (newData?.items) {
+    wallets.value = newData.items
+  }
+})
+
+// Fetch wallet data based on route or first wallet
+const fetchCurrentWallet = async () => {
   if (route.params.address && route.params.chainType) {
     const address = typeof route.params.address === 'string' ? route.params.address : route.params.address[0]
     const chainType = typeof route.params.chainType === 'string' ? route.params.chainType : route.params.chainType[0]
     
-    await loadWallet(chainType, address)
-    
-    if (currentWallet.value) {
-      await loadWalletBalances(currentWallet.value.chainType, currentWallet.value.address)
+    return { chainType, address }
+  } else if (walletsData.value?.items && walletsData.value.items.length > 0) {
+    const wallet = walletsData.value.items[0]
+    return { chainType: wallet.chainType, address: wallet.address }
+  }
+  
+  return null
+}
+
+// Fetch current wallet data
+const { data: walletData, status: walletStatus } = useAsyncData(
+  'currentWallet',
+  async () => {
+    const params = await fetchCurrentWallet()
+    if (params) {
+      return $api.wallet.getWallet(params.chainType, params.address)
     }
-  } else if (wallets.value.length > 0) {
-    // If no wallet in route but we have wallets, load the first one
-    const wallet = wallets.value[0]
-    await loadWallet(wallet.chainType, wallet.address)
-    await loadWalletBalances(wallet.chainType, wallet.address)
+    return null
+  },
+  { watch: [walletsData] }
+)
+
+// Watch for wallet data and update current wallet
+watch(walletData, (newData) => {
+  if (newData) {
+    currentWallet.value = newData
   }
 })
 
+// Fetch balances for current wallet
+const { data: balanceData, status: balancesStatus } = useAsyncData(
+  'walletBalances',
+  async () => {
+    if (currentWallet.value) {
+      return $api.wallet.getWalletBalance(
+        currentWallet.value.chainType, 
+        currentWallet.value.address
+      )
+    }
+    return [] as ITokenBalanceResponse[]
+  },
+  { watch: [() => currentWallet.value] }
+)
+
+// Watch for balance data and update balances
+watch(balanceData, (newData) => {
+  if (newData) {
+    balances.value = newData
+  }
+})
+
+// Combined loading state
+const isLoading = computed(() => 
+  walletsStatus.value === 'pending' || 
+  walletStatus.value === 'pending' || 
+  balancesStatus.value === 'pending'
+)
+
 // Handle wallet change
-const handleWalletChange = async (wallet: Wallet) => {
-  await loadWallet(wallet.chainType, wallet.address)
-  await loadWalletBalances(wallet.chainType, wallet.address)
+const handleWalletChange = async (wallet: IWallet) => {
+  currentWallet.value = wallet
   
   // Navigate to the wallet's transactions page
   navigateTo(`/wallets/${wallet.chainType}/${wallet.address}/transactions`)
@@ -57,8 +110,10 @@ const handleWalletChange = async (wallet: Wallet) => {
   <AppHeader />
   <div class="flex mt-16">
     <SidebarProvider>
-      <WalletSidebar
-        v-if="currentWallet"
+      <TokenSidebarSkeleton v-if="isLoading" />
+      
+      <WalletTokenSidebar
+        v-else-if="currentWallet"
         :wallets="wallets"
         :selected-wallet="currentWallet"
         :on-wallet-change="handleWalletChange"

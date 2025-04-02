@@ -1,117 +1,112 @@
-import { 
-  Expose,
-  Type
-} from 'class-transformer';
-import { BaseModel, fromJson, fromJsonArray } from './model';
+import { fromJson, fromJsonArray } from './model';
+import { Token } from './token';
+import type { IToken } from './token';
+import { Wallet } from './wallet';
+import type { IWallet } from './wallet';
 
 /**
- * Transaction model representing a blockchain transaction
+ * Interface representing a transaction
  */
-export class Transaction extends BaseModel {
-  @Expose()
-  id!: string;
-  
-  @Expose()
-  hash!: string;
-  
-  @Expose({ name: 'chain_type' })
-  chainType!: string;
-  
-  @Expose({ name: 'from_address' })
-  fromAddress!: string;
-  
-  @Expose({ name: 'to_address' })
-  toAddress!: string;
-  
-  @Expose()
-  value!: string;
-  
-  @Expose()
-  status?: string;
-  
-  @Expose({ name: 'token_address' })
-  tokenAddress?: string;
-  
-  @Expose({ name: 'token_symbol' })
-  tokenSymbol?: string;
-  
-  @Expose()
-  timestamp!: number;
-  
-  @Expose({ name: 'created_at' })
-  createdAt!: string;
-  
-  constructor(data: Partial<Transaction> = {}) {
-    super();
-    Object.assign(this, data);
-  }
-
-  /**
-   * Converts a plain JSON object from the API to a Transaction instance
-   */
-  static fromJson(json: any): Transaction {
-    return fromJson(Transaction, json);
-  }
-
-  /**
-   * Converts an array of plain JSON objects from the API to Transaction instances
-   */
-  static fromJsonArray(jsonArray: any[]): Transaction[] {
-    return fromJsonArray(Transaction, jsonArray);
-  }
+export interface ITransaction {
+  id: string;
+  chainType: string;
+  walletAddress: string;
+  hash: string;
+  blockHash: string;
+  blockNumber: number;
+  from: string;
+  to: string;
+  value: string;
+  gasPrice: string;
+  gasLimit: string;
+  gasUsed: string;
+  nonce: number;
+  status: string;
+  timestamp: number;
+  data?: string;
+  token?: IToken;
+  wallet?: IWallet;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
- * Class representing a paginated response containing Transactions
+ * Factory functions for ITransaction
  */
-export class PagedTransactions extends BaseModel {
-  @Expose()
-  items!: Transaction[];
-
-  @Expose()
-  limit!: number;
-
-  @Expose()
-  offset!: number;
-
-  @Expose({ name: 'has_more' })
-  hasMore!: boolean;
-
-  constructor(data: Partial<PagedTransactions> = {}) {
-    super();
-    Object.assign(this, data);
-    this.items = data.items || [];
-  }
+export const Transaction = {
+  /**
+   * Converts a plain JSON object from the API to an ITransaction
+   */
+  fromJson(json: any): ITransaction {
+    const transaction = fromJson<ITransaction>(json);
+    
+    // Handle nested objects
+    if (json.token) {
+      transaction.token = Token.fromJson(json.token);
+    }
+    
+    if (json.wallet) {
+      transaction.wallet = Wallet.fromJson(json.wallet);
+    }
+    
+    return transaction;
+  },
 
   /**
-   * Converts a plain JSON paged response to a PagedTransactions instance
+   * Converts an array of plain JSON objects from the API to ITransaction objects
    */
-  static fromJson(json: any): PagedTransactions {
-    const response = fromJson(PagedTransactions, json);
+  fromJsonArray(jsonArray: any[]): ITransaction[] {
+    return jsonArray.map(json => Transaction.fromJson(json));
+  }
+};
 
+/**
+ * Interface representing a paginated response containing Transactions
+ */
+export interface IPagedTransactions {
+  items: ITransaction[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+/**
+ * Factory functions for IPagedTransactions
+ */
+export const PagedTransactions = {
+  /**
+   * Converts a plain JSON paged response to IPagedTransactions
+   */
+  fromJson(json: any): IPagedTransactions {
+    const response = fromJson<IPagedTransactions>(json);
+    
     // Convert each item in the items array
-    response.items = Transaction.fromJsonArray(json.items || []);
+    if (json.items && Array.isArray(json.items)) {
+      response.items = Transaction.fromJsonArray(json.items);
+    } else {
+      response.items = [];
+    }
 
     return response;
   }
+};
+
+/**
+ * Interface representing a sync transactions response
+ */
+export interface ISyncTransactionsResponse {
+  count: number;
+  status: string;
 }
 
 /**
- * Class representing a transaction sync response
+ * Factory functions for ISyncTransactionsResponse
  */
-export class SyncTransactionsResponse extends BaseModel {
-  @Expose()
-  count!: number;
-
-  constructor(data: Partial<SyncTransactionsResponse> = {}) {
-    super();
-    Object.assign(this, data);
-  }
-
+export const SyncTransactionsResponse = {
   /**
-   * Converts a plain JSON sync response to a SyncTransactionsResponse instance
+   * Converts a plain JSON object from the API to an ISyncTransactionsResponse
    */
-  static fromJson(json: any): SyncTransactionsResponse {
-    return fromJson(SyncTransactionsResponse, json);
+  fromJson(json: any): ISyncTransactionsResponse {
+    return fromJson<ISyncTransactionsResponse>(json);
   }
-} 
+}; 

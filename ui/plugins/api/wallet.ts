@@ -1,10 +1,17 @@
+import type {
+  ICreateWalletRequest,
+  IPagedWallets,
+  ITokenBalanceResponse,
+  IUpdateWalletRequest,
+  IWallet
+} from '~/types';
 import {
   CreateWalletRequest,
   PagedWallets,
   TokenBalanceResponse,
   UpdateWalletRequest,
   Wallet
-} from '~/types/wallet';
+} from '~/types';
 import {
   ApiClient
 } from './client';
@@ -26,11 +33,11 @@ export class WalletClient {
   
   /**
    * Creates a new wallet
-   * @param request Wallet creation request data
+   * @param request Wallet creation request
    * @returns Created wallet
    */
-  async createWallet(request: CreateWalletRequest): Promise<Wallet> {
-    const data = await this.client.post<any>(API_ENDPOINTS.WALLETS.BASE, request.toJson());
+  async createWallet(request: ICreateWalletRequest): Promise<IWallet> {
+    const data = await this.client.post<any>(API_ENDPOINTS.WALLETS.BASE, request);
     return Wallet.fromJson(data);
   }
   
@@ -40,7 +47,7 @@ export class WalletClient {
    * @param address Wallet address
    * @returns Wallet details
    */
-  async getWallet(chainType: string, address: string): Promise<Wallet> {
+  async getWallet(chainType: string, address: string): Promise<IWallet> {
     const endpoint = API_ENDPOINTS.WALLETS.BY_ADDRESS(chainType, address);
     const data = await this.client.get<any>(endpoint);
     return Wallet.fromJson(data);
@@ -50,16 +57,16 @@ export class WalletClient {
    * Updates a wallet's properties
    * @param chainType Blockchain network type
    * @param address Wallet address
-   * @param request Wallet update request data
+   * @param request Wallet update request
    * @returns Updated wallet
    */
   async updateWallet(
     chainType: string,
     address: string,
-    request: UpdateWalletRequest
-  ): Promise<Wallet> {
+    request: IUpdateWalletRequest
+  ): Promise<IWallet> {
     const endpoint = API_ENDPOINTS.WALLETS.BY_ADDRESS(chainType, address);
-    const data = await this.client.put<any>(endpoint, request.toJson());
+    const data = await this.client.put<any>(endpoint, request);
     return Wallet.fromJson(data);
   }
   
@@ -79,7 +86,7 @@ export class WalletClient {
    * @param offset Number of wallets to skip for pagination (default: 0)
    * @returns Paginated list of wallets
    */
-  async listWallets(limit: number = 10, offset: number = 0): Promise<PagedWallets> {
+  async listWallets(limit: number = 10, offset: number = 0): Promise<IPagedWallets> {
     const params = { limit, offset };
     const data = await this.client.get<any>(API_ENDPOINTS.WALLETS.BASE, params);
     return PagedWallets.fromJson(data);
@@ -91,10 +98,9 @@ export class WalletClient {
    * @param address Wallet address
    * @returns Array of token balances
    */
-  async getWalletBalance(chainType: string, address: string): Promise<TokenBalanceResponse[]> {
+  async getWalletBalance(chainType: string, address: string): Promise<ITokenBalanceResponse[]> {
     const endpoint = API_ENDPOINTS.WALLETS.BALANCE(chainType, address);
     const data = await this.client.get<any[]>(endpoint);
-    
     return data.map(item => TokenBalanceResponse.fromJson(item));
   }
 } 

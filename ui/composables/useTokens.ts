@@ -1,9 +1,9 @@
 import type { Ref } from 'vue';
-import { 
-  Token,
-  PagedTokens,
-  AddTokenRequest
-} from '~/types/token';
+import type { 
+  IToken,
+  IPagedTokens,
+  IAddTokenRequest
+} from '~/types';
 
 /**
  * Composable for token-related functionality
@@ -13,13 +13,13 @@ export function useTokens() {
   const { $api } = useNuxtApp();
   
   // Reactive state
-  const pagedData = ref<PagedTokens>(new PagedTokens({
+  const pagedData = ref<IPagedTokens>({
     items: [],
     limit: 10,
     offset: 0,
     hasMore: false
-  }));
-  const currentToken: Ref<Token | null> = ref(null);
+  });
+  const currentToken: Ref<IToken | null> = ref(null);
   const isLoading: Ref<boolean> = ref(false);
   const error: Ref<string | null> = ref(null);
   
@@ -31,12 +31,12 @@ export function useTokens() {
    * Reset paged data to initial state
    */
   function resetPagedData() {
-    pagedData.value = new PagedTokens({
+    pagedData.value = {
       items: [],
       limit: 10,
       offset: 0,
       hasMore: false
-    });
+    };
   }
   
   /**
@@ -47,7 +47,7 @@ export function useTokens() {
     error.value = null;
     
     try {
-      const result: PagedTokens = await $api.token.listTokens(
+      const result: IPagedTokens = await $api.token.listTokens(
         chainType,
         tokenType,
         limit, 
@@ -106,7 +106,7 @@ export function useTokens() {
   /**
    * Add a new token
    */
-  async function addToken(request: AddTokenRequest) {
+  async function addToken(request: IAddTokenRequest) {
     isLoading.value = true;
     error.value = null;
     
@@ -139,10 +139,10 @@ export function useTokens() {
       
       // Remove from list if in memory
       if (pagedData.value.items.length > 0) {
-        pagedData.value = new PagedTokens({
+        pagedData.value = {
           ...pagedData.value,
           items: pagedData.value.items.filter(t => t.address !== address)
-        });
+        };
       }
       
       return true;

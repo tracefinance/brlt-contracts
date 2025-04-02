@@ -1,89 +1,58 @@
-import { 
-  Expose,
-  Type
-} from 'class-transformer';
-import { BaseModel, fromJson, fromJsonArray, toJson } from './model';
+import { fromJson, fromJsonArray, toJson } from './model';
 
 /**
- * Token model representing a blockchain token
+ * Interface representing a blockchain token
  */
-export class Token extends BaseModel {
-  @Expose()
-  id!: string;
-  
-  @Expose()
-  address!: string;
-  
-  @Expose({ name: 'chain_type' })
-  chainType!: string;
-  
-  @Expose({ name: 'token_type' })
-  tokenType!: string;
-  
-  @Expose()
-  name!: string;
-  
-  @Expose()
-  symbol!: string;
-  
-  @Expose()
-  decimals!: number;
-  
-  @Expose()
+export interface IToken {
+  id: string;
+  address: string;
+  chainType: string;
+  tokenType: string;
+  name: string;
+  symbol: string;
+  decimals: number;
   logo?: string;
-  
-  @Expose({ name: 'created_at' })
-  createdAt!: string;
-  
-  @Expose({ name: 'updated_at' })
-  updatedAt!: string;
-  
-  constructor(data: Partial<Token> = {}) {
-    super();
-    Object.assign(this, data);
-  }
-
-  /**
-   * Converts a plain JSON object from the API to a Token instance
-   */
-  static fromJson(json: any): Token {
-    return fromJson(Token, json);
-  }
-
-  /**
-   * Converts an array of plain JSON objects from the API to Token instances
-   */
-  static fromJsonArray(jsonArray: any[]): Token[] {
-    return fromJsonArray(Token, jsonArray);
-  }
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
- * Request model for adding a new token
+ * Factory functions for IToken
  */
-export class AddTokenRequest extends BaseModel {
-  @Expose()
-  address!: string;
-  
-  @Expose({ name: 'chain_type' })
-  chainType!: string;
-  
-  @Expose({ name: 'token_type' })
-  tokenType!: string;
-  
-  @Expose()
-  name!: string;
-  
-  @Expose()
-  symbol!: string;
-  
-  @Expose()
-  decimals!: number;
-  
-  @Expose()
+export const Token = {
+  /**
+   * Converts a plain JSON object from the API to an IToken
+   */
+  fromJson(json: any): IToken {
+    return fromJson<IToken>(json);
+  },
+
+  /**
+   * Converts an array of plain JSON objects from the API to IToken objects
+   */
+  fromJsonArray(jsonArray: any[]): IToken[] {
+    return fromJsonArray<IToken>(jsonArray);
+  }
+};
+
+/**
+ * Interface for adding a new token
+ */
+export interface IAddTokenRequest {
+  address: string;
+  chainType: string;
+  tokenType: string;
+  name: string;
+  symbol: string;
+  decimals: number;
   logo?: string;
-  
-  constructor(
+}
+
+/**
+ * Factory functions for IAddTokenRequest
+ */
+export const AddTokenRequest = {
+  create(
     address: string,
     chainType: string,
     tokenType: string,
@@ -91,45 +60,47 @@ export class AddTokenRequest extends BaseModel {
     symbol: string,
     decimals: number,
     logo?: string
-  ) {
-    super();
-    this.address = address;
-    this.chainType = chainType;
-    this.tokenType = tokenType;
-    this.name = name;
-    this.symbol = symbol;
-    this.decimals = decimals;
-    this.logo = logo;
-  }
+  ): IAddTokenRequest {
+    return {
+      address,
+      chainType,
+      tokenType,
+      name,
+      symbol,
+      decimals,
+      logo
+    };
+  },
   
-  override toJson(): any {
-    return toJson(this);
+  toJson(request: IAddTokenRequest): any {
+    return toJson(request);
   }
+};
+
+/**
+ * Interface for paginated token list
+ */
+export interface IPagedTokens {
+  items: IToken[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
 }
 
 /**
- * Response model for paginated token list
+ * Factory functions for IPagedTokens
  */
-export class PagedTokens extends BaseModel {
-  @Expose()
-  @Type(() => Token)
-  items!: Token[];
-  
-  @Expose()
-  limit!: number;
-  
-  @Expose()
-  offset!: number;
-  
-  @Expose({ name: 'has_more' })
-  hasMore!: boolean;
-  
-  constructor(data: Partial<PagedTokens> = {}) {
-    super();
-    Object.assign(this, data);
+export const PagedTokens = {
+  fromJson(json: any): IPagedTokens {
+    const response = fromJson<IPagedTokens>(json);
+    
+    // Convert each item in the items array
+    if (json.items && Array.isArray(json.items)) {
+      response.items = Token.fromJsonArray(json.items);
+    } else {
+      response.items = [];
+    }
+    
+    return response;
   }
-  
-  static fromJson(json: any): PagedTokens {
-    return fromJson(PagedTokens, json);
-  }
-} 
+}; 

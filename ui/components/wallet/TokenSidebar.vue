@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ZERO_ADDRESS, formatCurrency } from '~/lib/utils'
-import type { Wallet, TokenBalanceResponse } from '~/types/wallet'
+import type { IWallet, ITokenBalanceResponse } from '~/types'
 
 // Define props
 interface Props {
-  wallets: Wallet[]
-  selectedWallet: Wallet
-  onWalletChange: (wallet: Wallet) => void
-  balances: TokenBalanceResponse[]
+  wallets: IWallet[]
+  selectedWallet: IWallet
+  onWalletChange: (wallet: IWallet) => void
+  balances: ITokenBalanceResponse[]
   activeTokenAddress?: string
 }
 
@@ -26,7 +26,7 @@ const comparisonAddress = computed(() => props.activeTokenAddress?.toLowerCase()
 <template>
   <Sidebar class="mt-16">
     <SidebarHeader>
-      <WalletSelector 
+      <WalletSelect
         :wallets="wallets" 
         :selected-wallet="selectedWallet" 
         :on-wallet-change="onWalletChange"
