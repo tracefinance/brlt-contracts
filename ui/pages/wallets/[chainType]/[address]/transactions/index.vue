@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import { ZERO_ADDRESS } from '~/lib/utils'
 
 // Define page metadata with server-side middleware

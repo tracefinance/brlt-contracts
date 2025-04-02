@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { formatDistanceToNow } from 'date-fns'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { shortenAddress, formatCurrency } from '~/lib/utils'
 
 // Define page metadata
 definePageMeta({
   layout: 'wallet'
 })
+
+// Get API client
+const { $api } = useNuxtApp()
 
 // Get route params
 const route = useRoute()
@@ -27,57 +30,60 @@ const offset = computed(() => {
   return isNaN(queryOffset) ? 0 : queryOffset
 })
 
-// Get current wallet and its tokens
-const { currentWallet, loadWallet, isLoading: isWalletLoading } = useWallets()
-
-// Get token information
-const { currentToken, loadToken, isLoading: isTokenLoading } = useTokens()
-
-// Get transaction data
-const { 
-  transactions, 
-  isLoading: isTransactionsLoading, 
-  error, 
-  getTransactionsByAddress,
-  hasMoreTransactions 
-} = useTransactions()
-
-// Compute overall loading state
-const isLoading = computed(() => isWalletLoading.value || isTransactionsLoading.value || isTokenLoading.value)
-
-// Watch for changes in pagination parameters and reload data
-watch([limit, offset], () => {
-  if (currentWallet.value && currentToken.value) {
-    loadTransactions()
+// Fetch wallet data
+const { data: currentWallet, status: walletStatus } = await useAsyncData(
+  'currentWallet',
+  () => $api.wallet.getWallet(chainType.value, address.value),
+  {
+    watch: [chainType, address]
   }
-})
+)
 
-// Get token and transactions on component mount
-onMounted(async () => {
-  try {
-    // First load the wallet data
-    await loadWallet(chainType.value, address.value)
-    
-    // Load token data
-    await loadToken(chainType.value, tokenAddress.value)
-      
-    // Finally, load transactions
-    await loadTransactions()
-  } catch (err) {
-    console.error('Error loading data:', err)
+// Fetch token data
+const { data: currentToken, status: tokenStatus } = await useAsyncData(
+  'currentToken',
+  () => $api.token.getToken(chainType.value, tokenAddress.value),
+  {
+    watch: [chainType, tokenAddress]
   }
-})
+)
 
-// Fetch transactions function
-async function loadTransactions() {
-  return await getTransactionsByAddress(
-    chainType.value,
+// Fetch transactions
+const { data: transactionsData, status: transactionsStatus } = await useAsyncData(
+  'transactions',
+  () => $api.transaction.getWalletTransactions(
     address.value,
+    chainType.value,
     limit.value,
     offset.value,
     tokenAddress.value
-  )
-}
+  ),
+  {
+    watch: [chainType, address, tokenAddress, limit, offset]
+  }
+)
+
+// Extract transactions and pagination info
+const transactions = computed(() => transactionsData.value?.items || [])
+const hasMoreTransactions = computed(() => {
+  if (!transactionsData.value) return false
+  return transactionsData.value.hasMore || false
+})
+
+// Handle errors
+const error = computed(() => {
+  if (walletStatus.value === 'error') return 'Failed to load wallet data'
+  if (tokenStatus.value === 'error') return 'Failed to load token data'
+  if (transactionsStatus.value === 'error') return 'Failed to load transactions'
+  return null
+})
+
+// Compute overall loading state
+const isLoading = computed(() => 
+  walletStatus.value === 'pending' || 
+  tokenStatus.value === 'pending' || 
+  transactionsStatus.value === 'pending'
+)
 
 // Handle page size change
 function handleLimitChange(newLimit: number) {
@@ -129,11 +135,7 @@ const explorerBaseUrl = computed(() => getExplorerBaseUrl(chainType.value))
   <div>
     <div v-if="currentWallet && currentToken">          
         <div class="p-4">          
-          <div v-if="isLoading">
-            <TransactionTableSkeleton :rows="limit" />
-          </div>
-          
-          <div v-else-if="error" class="p-4 bg-red-50 text-red-700 rounded-md">
+          <div v-if="error" class="p-4 bg-red-50 text-red-700 rounded-md">
             {{ error }}
           </div>
           
