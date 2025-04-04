@@ -30,6 +30,12 @@ price_feed:
   limit: 500 # Max limit for coincap v2 API
   refresh_interval: 300 # Refresh interval in seconds (e.g., 300 = 5 minutes)
 
+# provider: coinpaprika
+#   api_url: https://api.coinpaprika.com/v1/tickers
+#   api_key: ''
+#   limit: 150
+#   refresh_interval: 1800 # Refresh interval in seconds (default: 30 minutes)
+
 # Blockchain configurations
 blockchains:
   ethereum:

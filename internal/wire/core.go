@@ -20,6 +20,23 @@ func NewSnowflake(config *config.Config) (*db.Snowflake, error) {
 	return db.NewSnowflake(config.Snowflake.DataCenterID, config.Snowflake.MachineID)
 }
 
+// CoreSet combines all core dependencies
+var CoreSet = wire.NewSet(
+	config.LoadConfig,
+	NewSnowflake,
+	db.NewDatabase,
+	logger.NewLogger,
+	keystore.NewKeyStore,
+	tokenstore.NewTokenStore,
+	blockchain.NewRegistry,
+	wallet.NewFactory,
+	blockexplorer.NewFactory,
+	contract.NewFactory,
+	types.NewChains,
+	pricefeed.NewPriceFeed,
+	NewCore,
+)
+
 // Core holds all core infrastructure dependencies
 type Core struct {
 	Config               *config.Config
@@ -63,20 +80,3 @@ func NewCore(
 		PriceFeed:            priceFeed,
 	}
 }
-
-// CoreSet combines all core dependencies
-var CoreSet = wire.NewSet(
-	config.LoadConfig,
-	NewSnowflake,
-	db.NewDatabase,
-	logger.NewLogger,
-	keystore.NewKeyStore,
-	tokenstore.NewTokenStore,
-	blockchain.NewRegistry,
-	wallet.NewFactory,
-	blockexplorer.NewFactory,
-	contract.NewFactory,
-	types.NewChains,
-	pricefeed.NewPriceFeed,
-	NewCore,
-)

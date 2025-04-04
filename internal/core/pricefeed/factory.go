@@ -23,6 +23,14 @@ func NewPriceFeed(cfg *config.Config, log logger.Logger) (PriceFeed, error) {
 			return nil, err
 		}
 		return provider, nil
+	case "coinpaprika":
+		log.Info("Initializing CoinPaprika price feed provider")
+		provider, err := NewCoinPaprikaPriceFeed(cfg.PriceFeed, log)
+		if err != nil {
+			log.Error("Failed to initialize CoinPaprika provider", logger.Error(err))
+			return nil, err
+		}
+		return provider, nil
 	// Add cases for other providers like "coingecko" here in the future
 	default:
 		log.Warn("Unsupported price feed provider configured")

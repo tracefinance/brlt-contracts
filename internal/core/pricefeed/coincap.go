@@ -15,10 +15,22 @@ import (
 	"vault0/internal/logger"
 )
 
+// CoinCapPriceData represents the price data structure returned by CoinCap API.
+type CoinCapPriceData struct {
+	ID           string  `json:"id"`
+	Symbol       string  `json:"symbol"`
+	Name         string  `json:"name"`
+	Rank         int     `json:"rank,string"`
+	PriceUSD     float64 `json:"priceUsd,string"`
+	Supply       float64 `json:"supply,string"`
+	MarketCapUSD float64 `json:"marketCapUsd,string"`
+	VolumeUSD24h float64 `json:"volumeUsd24Hr,string"`
+}
+
 // coinCapResponse represents the top-level structure of the CoinCap API response.
 type coinCapResponse struct {
-	Data      []*TokenPriceData `json:"data"`
-	Timestamp int64             `json:"timestamp"`
+	Data      []*CoinCapPriceData `json:"data"`
+	Timestamp int64               `json:"timestamp"`
 }
 
 // CoinCapPriceFeed implements the PriceFeedProvider interface for the CoinCap API.
@@ -46,6 +58,21 @@ func NewCoinCapPriceFeed(cfg config.PriceFeedConfig, log logger.Logger) (*CoinCa
 		limit:      cfg.Limit,
 		log:        log.With(logger.String("provider", "coincap")),
 	}, nil
+}
+
+// mapToTokenPriceData converts CoinCapPriceData to TokenPriceData abstraction
+func (p *CoinCapPriceFeed) mapToTokenPriceData(data *CoinCapPriceData, updatedAt time.Time) *TokenPriceData {
+	return &TokenPriceData{
+		ID:           data.ID,
+		Symbol:       data.Symbol,
+		Name:         data.Name,
+		Rank:         data.Rank,
+		PriceUSD:     data.PriceUSD,
+		Supply:       data.Supply,
+		MarketCapUSD: data.MarketCapUSD,
+		VolumeUSD24h: data.VolumeUSD24h,
+		UpdatedAt:    updatedAt,
+	}
 }
 
 // GetTokenPrices fetches token prices from the CoinCap API.
@@ -97,10 +124,11 @@ func (p *CoinCapPriceFeed) GetTokenPrices(ctx context.Context) ([]*TokenPriceDat
 	now := time.Now()
 	uniqueTokens := make(map[string]*TokenPriceData)
 	for _, token := range apiResponse.Data {
-		token.UpdatedAt = now
+		// Map provider-specific data to the abstracted TokenPriceData
+		abstractedToken := p.mapToTokenPriceData(token, now)
 		// Keep only the first occurrence of each symbol (which should be the highest ranked one)
-		if _, exists := uniqueTokens[token.Symbol]; !exists {
-			uniqueTokens[token.Symbol] = token
+		if _, exists := uniqueTokens[abstractedToken.Symbol]; !exists {
+			uniqueTokens[abstractedToken.Symbol] = abstractedToken
 		}
 	}
 
