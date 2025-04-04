@@ -160,13 +160,19 @@ func (s *transactionService) processBlock(ctx context.Context, chainType types.C
 		return
 	}
 
-	// Create a map of wallet addresses for quick lookup using helper function
-	addressToWallet := s.createAddressToWalletMap(wallets)
+	// Create a map of wallet addresses for quick lookup
+	walletMap := wallet.NewWalletMap(wallets, chainType)
 
 	// Process each transaction in the block
 	for _, tx := range block.Transactions {
-		// Find the relevant wallet for this transaction
-		wallet := s.findRelevantWallet(tx.From, tx.To, addressToWallet)
+		// Check if the transaction involves any of our monitored wallets
+		var wallet *wallet.Wallet
+		if tx.From != "" {
+			wallet = walletMap.Get(tx.From)
+		}
+		if wallet == nil && tx.To != "" {
+			wallet = walletMap.Get(tx.To)
+		}
 
 		// If this transaction involves one of our wallets, process it
 		if wallet != nil {
@@ -218,11 +224,17 @@ func (s *transactionService) processERC20TransferLog(ctx context.Context, chain 
 		return
 	}
 
-	// Create a map of wallet addresses for quick lookup using helper function
-	addressToWallet := s.createAddressToWalletMap(wallets)
+	// Create a map of wallet addresses for quick lookup
+	walletMap := wallet.NewWalletMap(wallets, chain.Type)
 
-	// Find the relevant wallet for this transaction
-	wallet := s.findRelevantWallet(fromAddr, toAddr, addressToWallet)
+	// Check if the transfer involves any of our monitored wallets
+	var wallet *wallet.Wallet
+	if fromAddr != "" {
+		wallet = walletMap.Get(fromAddr)
+	}
+	if wallet == nil && toAddr != "" {
+		wallet = walletMap.Get(toAddr)
+	}
 
 	// If this transfer doesn't involve any of our wallets, ignore it
 	if wallet == nil {

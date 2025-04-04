@@ -2,7 +2,6 @@ package transaction
 
 import (
 	"context"
-	"strings"
 	"sync"
 
 	"vault0/internal/config"
@@ -345,35 +344,6 @@ func (s *transactionService) processTransaction(ctx context.Context, coreTx *typ
 
 	// Convert to service transaction model
 	return FromCoreTransaction(coreTx, walletID)
-}
-
-// createAddressToWalletMap creates a map of normalized wallet addresses to wallet objects
-// for efficient lookup. All addresses are converted to lowercase for consistent comparison.
-func (s *transactionService) createAddressToWalletMap(wallets []*wallet.Wallet) map[string]*wallet.Wallet {
-	addressToWallet := make(map[string]*wallet.Wallet)
-	for _, w := range wallets {
-		addressToWallet[strings.ToLower(w.Address)] = w
-	}
-	return addressToWallet
-}
-
-// findRelevantWallet determines if a transaction involves one of our monitored wallets
-// and returns the wallet if found. Addresses are normalized for consistent comparison.
-func (s *transactionService) findRelevantWallet(fromAddr string, toAddr string, addressToWallet map[string]*wallet.Wallet) *wallet.Wallet {
-	// Check if the transaction involves any of our monitored wallets
-	if fromAddr != "" {
-		if w, exists := addressToWallet[strings.ToLower(fromAddr)]; exists {
-			return w
-		}
-	}
-
-	if toAddr != "" {
-		if w, exists := addressToWallet[strings.ToLower(toAddr)]; exists {
-			return w
-		}
-	}
-
-	return nil
 }
 
 // processTransactionRecord handles transaction database operations (check existence, retrieve or create)
