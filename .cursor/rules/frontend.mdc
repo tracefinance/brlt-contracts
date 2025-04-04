@@ -1,6 +1,6 @@
 ---
 description: NextJS
-globs: ui/**/*,*.tsx,*.ts,nuxt-ui/**/*
+globs: ui/**/*,*.tsx,*.ts
 alwaysApply: false
 ---
 # Frontend Development Guidelines
