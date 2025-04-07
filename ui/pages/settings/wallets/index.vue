@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import type { IWallet, IPagedWallets } from '~/types/wallet'
 
 definePageMeta({
@@ -9,17 +10,33 @@ definePageMeta({
 // API client
 const { $api } = useNuxtApp()
 
+// Get router and route
+const router = useRouter()
+const route = useRoute()
+
 // State
 const walletsData = ref<IPagedWallets | null>(null)
 const isLoading = ref(true)
 const error = ref<string | null>(null)
+
+// Get pagination parameters from route query
+const limit = computed(() => {
+  const queryLimit = route.query.limit ? Number(route.query.limit) : 10
+  return isNaN(queryLimit) ? 10 : queryLimit
+})
+
+const offset = computed(() => {
+  const queryOffset = route.query.offset ? Number(route.query.offset) : 0
+  return isNaN(queryOffset) ? 0 : queryOffset
+})
 
 // Fetch wallets
 const fetchWallets = async () => {
   isLoading.value = true
   error.value = null
   try {
-    walletsData.value = await $api.wallet.listWallets(100, 0) // Fetch up to 100 wallets for now
+    // Use reactive limit and offset
+    walletsData.value = await $api.wallet.listWallets(limit.value, offset.value) 
   } catch (err) {
     console.error("Error fetching wallets:", err)
     error.value = err instanceof Error ? err.message : 'Failed to load wallets'
@@ -28,11 +45,46 @@ const fetchWallets = async () => {
   }
 }
 
-// Initial fetch
-onMounted(fetchWallets)
+// Initial fetch and watch for changes
+watch([limit, offset], fetchWallets, { immediate: true })
 
 // Computed wallets list
 const wallets = computed<IWallet[]>(() => walletsData.value?.items || [])
+
+// Compute hasMore based on API response
+const hasMoreWallets = computed(() => walletsData.value?.hasMore || false)
+
+// Handle page size change
+function handleLimitChange(newLimit: number) {
+  router.push({ 
+    query: { 
+      ...route.query, 
+      limit: newLimit,
+      offset: 0 // Reset offset when changing page size
+    } 
+  })
+}
+
+// Handle pagination events
+function handlePreviousPage() {
+  const newOffset = Math.max(0, offset.value - limit.value);
+  router.push({ 
+    query: { 
+      ...route.query, 
+      offset: newOffset 
+    } 
+  });
+}
+
+function handleNextPage() {
+  const newOffset = offset.value + limit.value;
+  router.push({ 
+    query: { 
+      ...route.query, 
+      offset: newOffset 
+    } 
+  });
+}
 
 </script>
 
@@ -87,7 +139,18 @@ const wallets = computed<IWallet[]>(() => walletsData.value?.items || [])
           </TableRow>
         </TableBody>
       </Table>
+      <!-- Add Pagination Controls -->      
     </div>
+    <div class="flex items-center gap-2 mt-2">
+        <PaginationSizeSelect :current-limit="limit" @update:limit="handleLimitChange" />
+        <PaginationControls 
+          :offset="offset" 
+          :limit="limit" 
+          :has-more="hasMoreWallets" 
+          @previous="handlePreviousPage"
+          @next="handleNextPage"
+        />
+      </div>
   </div>
 </template>
 

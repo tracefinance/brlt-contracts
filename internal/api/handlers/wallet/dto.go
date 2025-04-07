@@ -22,15 +22,16 @@ type UpdateWalletRequest struct {
 
 // @Description Response model containing wallet details
 type WalletResponse struct {
-	ID        int64             `json:"id" example:"1"`
-	KeyID     string            `json:"key_id" example:"wallet_key_e8a1b8f7"`
-	ChainType types.ChainType   `json:"chain_type" example:"ethereum"`
-	Address   string            `json:"address" example:"0x71C7656EC7ab88b098defB751B7401B5f6d8976F"`
-	Name      string            `json:"name" example:"My ETH Wallet"`
-	Tags      map[string]string `json:"tags,omitempty" example:"{\"purpose\":\"defi\",\"environment\":\"production\"}"`
-	Balance   string            `json:"balance" example:"1.234567890000000000"`
-	CreatedAt time.Time         `json:"created_at" example:"2023-01-01T12:00:00Z"`
-	UpdatedAt time.Time         `json:"updated_at" example:"2023-01-02T12:00:00Z"`
+	ID              int64             `json:"id" example:"1"`
+	KeyID           string            `json:"key_id" example:"wallet_key_e8a1b8f7"`
+	ChainType       types.ChainType   `json:"chain_type" example:"ethereum"`
+	Address         string            `json:"address" example:"0x71C7656EC7ab88b098defB751B7401B5f6d8976F"`
+	Name            string            `json:"name" example:"My ETH Wallet"`
+	Tags            map[string]string `json:"tags,omitempty" example:"{\"purpose\":\"defi\",\"environment\":\"production\"}"`
+	Balance         string            `json:"balance" example:"1.234567890000000000"`
+	LastBlockNumber int64             `json:"last_block_number,omitempty" example:"12345678"`
+	CreatedAt       time.Time         `json:"created_at" example:"2023-01-01T12:00:00Z"`
+	UpdatedAt       time.Time         `json:"updated_at" example:"2023-01-02T12:00:00Z"`
 }
 
 // @Description Response model containing token balance details
@@ -66,15 +67,16 @@ func ToResponse(wallet *wallet.Wallet) *WalletResponse {
 	balanceFloat := nativeToken.ToBigFloat(wallet.Balance.ToBigInt())
 
 	return &WalletResponse{
-		ID:        wallet.ID,
-		KeyID:     wallet.KeyID,
-		ChainType: wallet.ChainType,
-		Address:   wallet.Address,
-		Name:      wallet.Name,
-		Tags:      wallet.Tags,
-		Balance:   balanceFloat.Text('f', int(nativeToken.Decimals)),
-		CreatedAt: wallet.CreatedAt,
-		UpdatedAt: wallet.UpdatedAt,
+		ID:              wallet.ID,
+		KeyID:           wallet.KeyID,
+		ChainType:       wallet.ChainType,
+		Address:         wallet.Address,
+		Name:            wallet.Name,
+		Tags:            wallet.Tags,
+		Balance:         balanceFloat.Text('f', int(nativeToken.Decimals)),
+		LastBlockNumber: wallet.LastBlockNumber,
+		CreatedAt:       wallet.CreatedAt,
+		UpdatedAt:       wallet.UpdatedAt,
 	}
 }
 
