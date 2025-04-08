@@ -1,6 +1,6 @@
 ---
 description: NextJS
-globs: ui/**/*,*.tsx,*.ts
+globs: ui/**/*,*.ts,*.vue
 alwaysApply: false
 ---
 # Frontend Development Guidelines
@@ -14,20 +14,20 @@ This document provides essential guidelines for AI agents working on the Vault0 
 - **Framework**: Nuxt v3
 - **Language**: TypeScript
 - **Styling**: TailwindCSS with shadcn/ui components located in `nuxt-ui/components/ui/`
-- **State Management**: Nuxt's built-in composables with Vue's Composition API
-- **Form Handling**: Vue's v-model with Zod validation
+- **State Management**: Nuxt\'s built-in composables with Vue\'s Composition API
+- **Form Handling**: Vue\'s v-model with Zod validation
 - **Authentication**: Server-side authentication with HTTP-only cookies
 - **Testing**: Vitest and Vue Testing Library
 
 ## ❗ Key Rules for AI Agents ❗
 
-1. **Package Installation Directory**: **ALWAYS** install npm packages within the `vault0/nuxt-ui` directory. Navigate using `cd nuxt-ui` **BEFORE** running `npm install <package>` or `npm add <package>`. Do **NOT** install packages at the project root (`vault0/`).
+1. **Package Installation Directory**: **ALWAYS** install npm packages within the `vault0/ui` directory. Navigate using `cd ui` **BEFORE** running `npm install <package>` or `npm add <package>`. Do **NOT** install packages at the project root (`vault0/`).
 
 2. **API Integration**: Use the API client from plugins for server communication. Access it in your composables and components using `const { $api } = useNuxtApp()`.
 
-3. **Model Types**: Define and use TypeScript types in the `types/` directory. Use transformation decorators where appropriate for mapping API data.
+3. **Model Types**: Define and use TypeScript interfaces in the `types/` directory. Use helper functions and factory objects for mapping API data (snake_case) to frontend types (camelCase).
 
-## Project Structure (`vault0/nuxt-ui`)
+## Project Structure (`vault0/ui`)
 
 ```
 vault0/ui/
@@ -52,9 +52,9 @@ vault0/ui/
 
 ## Data Model Organization (`types/`)
 
-- **Model Types**: Core type definitions in `types/*.ts` files.
+- **Model Types**: Core type definitions as interfaces (`IModel`) in `types/*.ts` files.
 - **Index**: `types/index.ts` should re-export all types for easier imports.
-- **Transformation**: Use class-transformer decorators (@Expose, @Type) for API model conversion.
+- **Transformation**: Use helper functions (`fromJson`, `fromJsonArray` from `types/model.ts`) within factory objects (`Model`) associated with each interface to convert snake_case API responses to camelCase TypeScript interfaces. See the example below.
 
 ## API Integration (`plugins/api/` and `composables/`)
 
@@ -97,148 +97,120 @@ export default defineNuxtPlugin((nuxtApp) => {
 });
 ```
 
-### Composable Pattern
+### Composable Pattern (Data Fetching with `useAsyncData`)
+
+Use Nuxt's `useAsyncData` for fetching data within composables. It simplifies handling loading states, errors, and reactivity.
 
 ```typescript
-// composables/useAuth.ts
-export function useAuth() {
+// composables/useWallets.ts
+import { IWallet, PagedWallets } from '~/types'; // Assuming PagedWallets type exists
+
+export function useWallets(limit: Ref<number>, offset: Ref<number>) {
   const { $api } = useNuxtApp();
-  const user = useState('user', () => null);
-  const isAuthenticated = computed(() => !!user.value);
-  const isLoading = ref(false);
-  const error = ref(null);
-  
-  const login = async (email: string, password: string) => {
-    isLoading.value = true;
-    error.value = null;
-    
-    try {
-      const response = await $api.auth.login({ email, password });
-      user.value = response.user;
-      return true;
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Login failed';
-      return false;
-    } finally {
-      isLoading.value = false;
+
+  const { 
+    data: walletsData, 
+    status, // 'idle', 'pending', 'success', 'error'
+    error, 
+    refresh // Function to manually trigger a refetch
+  } = useAsyncData<IPagedWallets>(
+    'wallets', // Unique key for the data
+    () => $api.wallet.getWallets(limit.value, offset.value), // API call
+    {
+      watch: [limit, offset], // Automatically refetch when limit or offset changes
+      // transform: (data) => data.items, // Optional: Transform data before returning
+      // default: () => ({ items: [], limit: 10, offset: 0, hasMore: false }) // Optional: Provide default value
     }
-  };
-  
-  const logout = async () => {
-    try {
-      await $api.auth.logout();
-      user.value = null;
-      navigateTo('/login');
-    } catch (err) {
-      console.error('Logout error:', err);
-    }
-  };
-  
+  );
+
+  // Computed properties for easier access in components
+  const wallets = computed(() => walletsData.value?.items || []);
+  const hasMore = computed(() => walletsData.value?.hasMore || false);
+  const isLoading = computed(() => status.value === 'pending');
+
   return {
-    user,
-    isAuthenticated,
+    wallets,
+    hasMore,
     isLoading,
     error,
-    login,
-    logout
+    refresh, // Expose refresh function if manual refetching is needed
   };
 }
 ```
 
 ### Using Composables in Components
 
+Components can directly use these composables to access data, loading states, and error information.
+
 ```vue
-<!-- pages/login.vue -->
+<!-- pages/wallets/index.vue -->
 <script setup lang="ts">
-import { z } from 'zod';
+import { ref, computed } from 'vue';
+import { useWallets } from '~/composables/useWallets';
 
-// Form validation schema
-const schema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters')
-});
+// Pagination state
+const limit = ref(10);
+const offset = ref(0);
 
-// Form state
-const form = reactive({
-  email: '',
-  password: ''
-});
+// Use the composable to fetch wallets
+const { wallets, hasMore, isLoading, error, refresh } = useWallets(limit, offset);
 
-const { login, isLoading, error } = useAuth();
-
-// Form submission
-const errors = ref({});
-const submitForm = async () => {
-  try {
-    // Validate form
-    schema.parse(form);
-    errors.value = {};
-    
-    // Submit credentials
-    const success = await login(form.email, form.password);
-    if (success) {
-      navigateTo('/dashboard');
-    }
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      // Map validation errors
-      errors.value = err.errors.reduce((acc, error) => {
-        const field = error.path[0];
-        acc[field] = error.message;
-        return acc;
-      }, {});
-    }
+// Pagination handlers (simplified)
+function nextPage() {
+  if (hasMore.value) {
+    offset.value += limit.value;
   }
-};
+}
+
+function prevPage() {
+  offset.value = Math.max(0, offset.value - limit.value);
+}
+
+function handleLimitChange(newLimit: number) {
+  limit.value = newLimit;
+  offset.value = 0; // Reset offset when limit changes
+}
+
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center">
-    <div class="w-full max-w-md p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
-      <h1 class="text-2xl font-bold mb-6">Login</h1>
-      
-      <form @submit.prevent="submitForm">
-        <div class="space-y-4">
-          <!-- Email field -->
-          <div>
-            <label for="email" class="block text-sm font-medium mb-1">Email</label>
-            <input
-              id="email"
-              v-model="form.email"
-              type="email"
-              class="w-full px-3 py-2 border rounded-md"
-              :class="{ 'border-red-500': errors.email }"
-            />
-            <p v-if="errors.email" class="mt-1 text-sm text-red-500">{{ errors.email }}</p>
-          </div>
-          
-          <!-- Password field -->
-          <div>
-            <label for="password" class="block text-sm font-medium mb-1">Password</label>
-            <input
-              id="password"
-              v-model="form.password"
-              type="password"
-              class="w-full px-3 py-2 border rounded-md"
-              :class="{ 'border-red-500': errors.password }"
-            />
-            <p v-if="errors.password" class="mt-1 text-sm text-red-500">{{ errors.password }}</p>
-          </div>
-          
-          <!-- Error message -->
-          <p v-if="error" class="text-red-500">{{ error }}</p>
-          
-          <!-- Submit button -->
-          <button
-            type="submit"
-            class="w-full py-2 px-4 bg-primary text-white rounded-md"
-            :disabled="isLoading"
-          >
-            {{ isLoading ? 'Logging in...' : 'Login' }}
-          </button>
-        </div>
-      </form>
+  <div>
+    <h1>My Wallets</h1>
+
+    <div v-if="isLoading" class="p-4">
+      Loading wallets...
     </div>
+
+    <div v-else-if="error" class="p-4 bg-red-50 text-red-700 rounded-md">
+      Error loading wallets: {{ error.message }}
+      <button @click="refresh">Retry</button>
+    </div>
+
+    <div v-else-if="wallets.length === 0" class="p-4 text-muted-foreground">
+      No wallets found.
+    </div>
+
+    <div v-else>
+      <!-- List Wallets -->
+      <div v-for="wallet in wallets" :key="wallet.id" class="border-b p-4">
+        <p><strong>Name:</strong> {{ wallet.name }}</p>
+        <p><strong>Address:</strong> {{ wallet.address }}</p>
+        <p><strong>Chain:</strong> {{ wallet.chainType }}</p>
+      </div>
+
+      <!-- Pagination Controls -->
+      <div class="flex items-center gap-2 mt-4 p-4">
+        <PaginationSizeSelect :current-limit="limit" @update:limit="handleLimitChange" />
+        <PaginationControls 
+          :offset="offset" 
+          :limit="limit" 
+          :has-more="hasMore" 
+          @previous="prevPage"
+          @next="nextPage"
+        />
+      </div>
+    </div>
+
   </div>
 </template>
 ```
@@ -274,7 +246,7 @@ export class ApiClient {
     };
     
     if (this.token) {
-      requestHeaders['Authorization'] = `Bearer ${this.token}`;
+      requestHeaders['Authorization'] = \`Bearer \${this.token}\`;
     }
     
     try {
@@ -290,7 +262,7 @@ export class ApiClient {
       // Handle errors
       if (error.name === 'FetchError') {
         const apiError = error.data as ApiError;
-        throw new Error(apiError?.message || error.message || `API Error: ${error.status}`);
+        throw new Error(apiError?.message || error.message || \`API Error: \${error.status}\`);
       }
       
       throw error;
@@ -314,37 +286,46 @@ export class ApiClient {
 
 ```typescript
 // types/wallet.ts
-import { Expose, Type } from 'class-transformer';
-import { BaseModel } from './model';
+import { fromJson, fromJsonArray } from './model'; // Import helper functions
 
-export class Wallet extends BaseModel {
-  @Expose()
-  id!: number;
-  
-  @Expose({ name: 'chain_type' })
-  chainType!: string;
-  
-  @Expose()
-  address!: string;
-  
-  @Expose()
-  name!: string;
-  
-  @Expose()
+/**
+ * Interface representing a wallet
+ */
+export interface IWallet {
+  id: number;
+  keyId: string;       // Mapped from API's snake_case key_id
+  chainType: string;   // Mapped from API's snake_case chain_type
+  address: string;
+  name: string;
   tags?: Record<string, string>;
-  
-  @Expose({ name: 'created_at' })
-  createdAt!: string;
-  
-  constructor(data: Partial<Wallet> = {}) {
-    super();
-    Object.assign(this, data);
-  }
-
-  static fromJson(json: any): Wallet {
-    return fromJson(Wallet, json);
-  }
+  lastBlockNumber?: number; // Mapped from API's snake_case last_block_number
+  createdAt: string;     // Mapped from API's snake_case created_at
+  updatedAt: string;     // Mapped from API's snake_case updated_at
 }
+
+/**
+ * Factory functions for IWallet
+ */
+export const Wallet = {
+  /**
+   * Converts a plain JSON object (snake_case) from the API to an IWallet (camelCase)
+   */
+  fromJson(json: any): IWallet {
+    return fromJson<IWallet>(json); // Use the generic helper
+  },
+
+  /**
+   * Converts an array of plain JSON objects from the API to IWallet objects
+   */
+  fromJsonArray(jsonArray: any[]): IWallet[] {
+    return fromJsonArray<IWallet>(jsonArray); // Use the generic helper
+  }
+};
+
+// Example usage:
+// const apiResponse = { id: 1, key_id: 'abc', chain_type: 'ETH', ... };
+// const wallet: IWallet = Wallet.fromJson(apiResponse);
+// console.log(wallet.keyId); // Output: abc
 ```
 
 ## shadcn/ui Integration
@@ -356,15 +337,15 @@ shadcn/ui components are installed in the `components/ui/` directory. These comp
 ```vue
 <!-- components/WalletCard.vue -->
 <script setup lang="ts">
-import { Wallet } from '~/types/wallet';
+import { IWallet } from '~/types/wallet';
 
 defineProps<{
-  wallet: Wallet;
+  wallet: IWallet;
 }>();
 
 const emit = defineEmits<{
-  edit: [wallet: Wallet];
-  delete: [wallet: Wallet];
+  edit: [wallet: IWallet];
+  delete: [wallet: IWallet];
 }>();
 </script>
 
