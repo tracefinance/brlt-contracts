@@ -1,12 +1,12 @@
 import {
   AddTokenRequest,
   Token,
-  PagedTokens
+  fromJsonArray
 } from '~/types';
 import type {
   IAddTokenRequest,
-  IPagedTokens,
-  IToken
+  IPagedResponse,
+  IToken,
 } from '~/types';
 import {
   ApiClient
@@ -40,7 +40,7 @@ export class TokenClient {
     tokenType?: string,
     limit: number = 10,
     offset: number = 0
-  ): Promise<IPagedTokens> {
+  ): Promise<IPagedResponse<IToken>> {
     const params: Record<string, string | number | boolean> = {
       limit,
       offset
@@ -55,7 +55,12 @@ export class TokenClient {
     }
     
     const data = await this.client.get<any>(API_ENDPOINTS.TOKENS.BASE, params);
-    return PagedTokens.fromJson(data);
+    return {
+      items: fromJsonArray<IToken>(data.items || []),
+      limit: data.limit,
+      offset: data.offset,
+      hasMore: data.has_more
+    };
   }
   
   /**

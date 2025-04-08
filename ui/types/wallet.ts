@@ -97,35 +97,4 @@ export const UpdateWalletRequest = {
   create(name: string, tags?: Record<string, string>): IUpdateWalletRequest {
     return { name, tags };
   }
-};
-
-/**
- * Interface representing a paginated response containing Wallets
- */
-export interface IPagedWallets {
-  items: IWallet[];
-  limit: number;
-  offset: number;
-  hasMore: boolean;
-}
-
-/**
- * Factory functions for IPagedWallets
- */
-export const PagedWallets = {
-  /**
-   * Converts a plain JSON paged response to IPagedWallets
-   */
-  fromJson(json: any): IPagedWallets {
-    const response = fromJson<IPagedWallets>(json);
-    
-    // Convert each item in the items array
-    if (json.items && Array.isArray(json.items)) {
-      response.items = Wallet.fromJsonArray(json.items);
-    } else {
-      response.items = [];
-    }
-
-    return response;
-  }
-} 
+}; 

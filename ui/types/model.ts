@@ -25,4 +25,14 @@ export function fromJsonArray<T>(jsonArray: any[]): T[] {
  */
 export function toJson<T>(data: T): any {
   return camelToSnakeCase(data);
+}
+
+/**
+ * Generic interface for paginated API responses
+ */
+export interface IPagedResponse<T> {
+  items: T[];
+  limit: number;
+  offset: number;
+  hasMore: boolean; // Mapped from API's has_more
 } 

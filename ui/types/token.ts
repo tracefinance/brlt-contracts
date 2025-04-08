@@ -75,32 +75,4 @@ export const AddTokenRequest = {
   toJson(request: IAddTokenRequest): any {
     return toJson(request);
   }
-};
-
-/**
- * Interface for paginated token list
- */
-export interface IPagedTokens {
-  items: IToken[];
-  limit: number;
-  offset: number;
-  hasMore: boolean;
-}
-
-/**
- * Factory functions for IPagedTokens
- */
-export const PagedTokens = {
-  fromJson(json: any): IPagedTokens {
-    const response = fromJson<IPagedTokens>(json);
-    
-    // Convert each item in the items array
-    if (json.items && Array.isArray(json.items)) {
-      response.items = Token.fromJsonArray(json.items);
-    } else {
-      response.items = [];
-    }
-    
-    return response;
-  }
 }; 

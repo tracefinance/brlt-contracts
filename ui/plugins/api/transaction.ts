@@ -1,10 +1,10 @@
 import {
-  PagedTransactions,
   SyncTransactionsResponse,
   Transaction,
+  fromJsonArray
 } from '~/types';
 import type {
-  IPagedTransactions,
+  IPagedResponse,
   ISyncTransactionsResponse,
   ITransaction,
 } from '~/types';
@@ -33,14 +33,19 @@ export class TransactionClient {
    * @param offset Number of transactions to skip for pagination (default: 0)
    * @returns Paginated list of transactions
    */
-  async listTransactions(limit: number = 10, offset: number = 0): Promise<IPagedTransactions> {
+  async listTransactions(limit: number = 10, offset: number = 0): Promise<IPagedResponse<ITransaction>> {
     const params: Record<string, string | number | boolean> = {
       limit,
       offset
     };
     
     const data = await this.client.get<any>(API_ENDPOINTS.TRANSACTIONS.BASE, params);
-    return PagedTransactions.fromJson(data);
+    return {
+      items: fromJsonArray<ITransaction>(data.items || []),
+      limit: data.limit,
+      offset: data.offset,
+      hasMore: data.has_more
+    };
   }
   
   /**
@@ -69,7 +74,7 @@ export class TransactionClient {
     limit: number = 10,
     offset: number = 0,
     tokenAddress?: string
-  ): Promise<IPagedTransactions> {
+  ): Promise<IPagedResponse<ITransaction>> {
     const endpoint = API_ENDPOINTS.TRANSACTIONS.BY_WALLET(chainType, address);
     
     const params: Record<string, string | number | boolean> = {
@@ -82,7 +87,12 @@ export class TransactionClient {
     }
     
     const data = await this.client.get<any>(endpoint, params);
-    return PagedTransactions.fromJson(data);
+    return {
+      items: fromJsonArray<ITransaction>(data.items || []),
+      limit: data.limit,
+      offset: data.offset,
+      hasMore: data.has_more
+    };
   }
   
   /**
@@ -109,7 +119,7 @@ export class TransactionClient {
     status?: string;
     limit?: number;
     offset?: number;
-  }): Promise<IPagedTransactions> {
+  }): Promise<IPagedResponse<ITransaction>> {
     const {
       chainType,
       address,
@@ -127,6 +137,11 @@ export class TransactionClient {
     if (status) params.status = status;
     
     const data = await this.client.get<any>(API_ENDPOINTS.TRANSACTIONS.BASE, params);
-    return PagedTransactions.fromJson(data);
+    return {
+      items: fromJsonArray<ITransaction>(data.items || []),
+      limit: data.limit,
+      offset: data.offset,
+      hasMore: data.has_more
+    };
   }
 } 

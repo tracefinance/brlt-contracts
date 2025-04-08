@@ -1,16 +1,14 @@
 import type {
   ICreateWalletRequest,
-  IPagedWallets,
+  IPagedResponse,
   ITokenBalanceResponse,
   IUpdateWalletRequest,
   IWallet
 } from '~/types';
 import {
-  CreateWalletRequest,
-  PagedWallets,
   TokenBalanceResponse,
-  UpdateWalletRequest,
-  Wallet
+  Wallet,
+  fromJsonArray
 } from '~/types';
 import {
   ApiClient
@@ -86,10 +84,15 @@ export class WalletClient {
    * @param offset Number of wallets to skip for pagination (default: 0)
    * @returns Paginated list of wallets
    */
-  async listWallets(limit: number = 10, offset: number = 0): Promise<IPagedWallets> {
+  async listWallets(limit: number = 10, offset: number = 0): Promise<IPagedResponse<IWallet>> {
     const params = { limit, offset };
     const data = await this.client.get<any>(API_ENDPOINTS.WALLETS.BASE, params);
-    return PagedWallets.fromJson(data);
+    return {
+      items: fromJsonArray<IWallet>(data.items || []),
+      limit: data.limit,
+      offset: data.offset,
+      hasMore: data.has_more
+    };
   }
   
   /**
