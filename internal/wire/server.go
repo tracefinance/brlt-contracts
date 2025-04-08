@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"vault0/internal/api/handlers/reference"
 	"vault0/internal/api/handlers/signer"
 	"vault0/internal/api/handlers/token"
 	"vault0/internal/api/handlers/tokenprice"
@@ -20,5 +21,6 @@ var ServerSet = wire.NewSet(
 	token.NewHandler,
 	signer.NewHandler,
 	tokenprice.NewHandler,
+	reference.NewHandler,
 	api.NewServer,
 )
