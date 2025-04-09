@@ -24,7 +24,7 @@ const isActive = (path: string) => {
             <span>Wallets</span>
           </NuxtLink>
 
-          <NuxtLink to="/vaults" :class="{
+          <NuxtLink to="/" :class="{
             'flex items-center gap-2': true,
             'text-primary font-semibold': isActive('/vaults'),
             'text-muted-foreground hover:text-foreground': !isActive('/vaults')
@@ -33,7 +33,7 @@ const isActive = (path: string) => {
             <span>Vaults</span>
           </NuxtLink>
           
-          <NuxtLink to="/swaps" :class="{
+          <NuxtLink to="/" :class="{
             'flex items-center gap-2': true,
             'text-primary font-semibold': isActive('/swaps'),
             'text-muted-foreground hover:text-foreground': !isActive('/swaps')
@@ -42,7 +42,7 @@ const isActive = (path: string) => {
             <span>Swap</span>
           </NuxtLink>
 
-          <NuxtLink to="/bridges" :class="{
+          <NuxtLink to="/" :class="{
             'flex items-center gap-2': true,
             'text-primary font-semibold': isActive('/bridges'),
             'text-muted-foreground hover:text-foreground': !isActive('/bridges')
