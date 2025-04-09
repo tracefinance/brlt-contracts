@@ -13,19 +13,19 @@ This document provides essential guidelines for AI agents working on the Vault0 
 
 - **Framework**: Nuxt v3
 - **Language**: TypeScript
-- **Styling**: TailwindCSS with shadcn/ui components located in `nuxt-ui/components/ui/`
-- **State Management**: Nuxt\'s built-in composables with Vue\'s Composition API
-- **Form Handling**: Vue\'s v-model with Zod validation
+- **Styling**: TailwindCSS with shadcn/ui components located in `~/components/ui/`
+- **State Management**: Nuxt's built-in composables with Vue's Composition API
+- **Form Handling**: Vue's v-model with Zod validation
 - **Authentication**: Server-side authentication with HTTP-only cookies
 - **Testing**: Vitest and Vue Testing Library
 
 ## ❗ Key Rules for AI Agents ❗
 
-1. **Package Installation Directory**: **ALWAYS** install npm packages within the `vault0/ui` directory. Navigate using `cd ui` **BEFORE** running `npm install <package>` or `npm add <package>`. Do **NOT** install packages at the project root (`vault0/`).
-
-2. **API Integration**: Use the API client from plugins for server communication. Access it in your composables and components using `const { $api } = useNuxtApp()`.
-
-3. **Model Types**: Define and use TypeScript interfaces in the `types/` directory. Use helper functions and factory objects for mapping API data (snake_case) to frontend types (camelCase).
+1.  **Package Installation Directory**: **ALWAYS** install npm packages within the `vault0/ui` directory. Navigate using `cd ui` **BEFORE** running `npm install <package>` or `npm add <package>`. Do **NOT** install packages at the project root (`vault0/`).
+2.  **API Integration**: Use the specific API client modules (e.g., `wallet`, `token`) provided by the Nuxt plugin (`$api`) for server communication. Access them in your composables and components using `const { $api } = useNuxtApp()`.
+3.  **Model Types**: Define and use TypeScript interfaces in the `types/` directory. Use helper functions and factory objects for mapping API data (snake_case) to frontend types (camelCase).
+4.  **Nuxt Auto-Imports**: Leverage Nuxt 3's auto-import feature. **DO NOT** explicitly import components from `~/components/` or composables from `~/composables/`. Nuxt handles this automatically.
+5.  **Composable Exports**: Composables should **ALWAYS** export a default function (e.g., `export default function() { ... }`) instead of a named function (e.g., `export function useMyComposable() { ... }`). This is required for Nuxt's auto-import to work correctly with composables.
 
 ## Project Structure (`vault0/ui`)
 
@@ -34,15 +34,26 @@ vault0/ui/
 ├── .nuxt/                    # Nuxt build directory (auto-generated)
 ├── public/                   # Static assets
 ├── assets/                   # Global assets (images, fonts, etc.)
-├── components/               # Vue components
+├── components/               # Vue components (auto-imported)
 │   └── ui/                   # shadcn/ui components
-├── composables/              # Vue composables for reusable logic
+├── composables/              # Vue composables (auto-imported)
 ├── layouts/                  # Page layouts
 ├── pages/                    # Application routes/pages
 ├── plugins/                  # Nuxt plugins
-│   └── api/                  # API client and service modules
+│   ├── api/                  # API client infrastructure and service modules
+│   │   ├── client.ts         # Base API client class
+│   │   ├── endpoints.ts      # API endpoint definitions
+│   │   ├── index.ts          # Nuxt plugin setup
+│   │   ├── wallet.ts         # Wallet API client module
+│   │   ├── token.ts          # Token API client module
+│   │   └── transaction.ts    # Transaction API client module
+│   │   └── reference.ts      # Reference API client module
+│   │   └── ...               # Other specific client modules
 ├── server/                   # Server-side code
 ├── types/                    # TypeScript type definitions
+│   ├── index.ts              # Type exports
+│   ├── model.ts              # Base model helpers (fromJson, etc.)
+│   └── ...                   # Specific type definitions (IWallet, etc.)
 ├── app.vue                   # Root Vue component
 ├── nuxt.config.ts            # Nuxt configuration
 ├── tailwind.config.js        # Tailwind CSS configuration
@@ -56,74 +67,205 @@ vault0/ui/
 - **Index**: `types/index.ts` should re-export all types for easier imports.
 - **Transformation**: Use helper functions (`fromJson`, `fromJsonArray` from `types/model.ts`) within factory objects (`Model`) associated with each interface to convert snake_case API responses to camelCase TypeScript interfaces. See the example below.
 
-## API Integration (`plugins/api/` and `composables/`)
+## API Integration (`plugins/api/`)
 
-- **Client**: The base API client in `plugins/api/client.ts` handles communication with the backend.
-- **Modules**: Model-specific API functions organized into separate files like `plugins/api/wallet.ts`.
-- **Composables**: Wrap API calls in Vue composables (`composables/useWallets.ts`) for component use.
+The API integration layer consists of:
+1.  **Base Client (`client.ts`)**: Handles the core logic of making requests (setting headers, base URL, error handling).
+2.  **Endpoints (`endpoints.ts`)**: A central place to define all API endpoint paths.
+3.  **Specific Client Modules (e.g., `wallet.ts`, `token.ts`)**: Classes that use the `ApiClient` to interact with specific parts of the API (e.g., wallet endpoints). These modules handle data transformation using factories from `types/`.
+4.  **Nuxt Plugin (`index.ts`)**: Initializes the `ApiClient` and all specific client modules, providing them to the application via `$api`.
+
+### Adding a New API Client Module
+
+To add integration for a new set of API endpoints (e.g., for a "Products" feature):
+
+1.  **Define Endpoints**: Add the relevant endpoint paths to the `API_ENDPOINTS` object in `ui/plugins/api/endpoints.ts`.
+    ```typescript
+    // ui/plugins/api/endpoints.ts
+    export const API_ENDPOINTS = {
+      // ... existing endpoints ...
+      PRODUCTS: {
+        BASE: '/products',
+        BY_ID: (id: string) => `/products/${id}`,
+        // ... other product endpoints
+      },
+      // ... more endpoints ...
+    };
+    ```
+2.  **Create Client Module**: Create a new file `ui/plugins/api/product.ts` (using camelCase). Implement a class (e.g., `ProductClient`) that takes the `ApiClient` instance in its constructor. Add methods corresponding to the product endpoints, using the base client's request methods (`get`, `post`, etc.) and transforming responses using type factories (e.g., `Product.fromJson`). Use `ui/plugins/api/wallet.ts` as a reference.
+    ```typescript
+    // ui/plugins/api/product.ts
+    import type { IProduct, IPagedResponse /* ... other types */ } from '~/types';
+    import { Product, fromJsonArray } from '~/types';
+    import { ApiClient } from './client';
+    import { API_ENDPOINTS } from './endpoints';
+
+    export class ProductClient {
+      private client: ApiClient;
+
+      constructor(client: ApiClient) {
+        this.client = client;
+      }
+
+      async listProducts(limit: number = 10, offset: number = 0): Promise<IPagedResponse<IProduct>> {
+        const params = { limit, offset };
+        const data = await this.client.get<any>(API_ENDPOINTS.PRODUCTS.BASE, params);
+        return {
+          items: fromJsonArray<IProduct>(data.items || []),
+          limit: data.limit,
+          offset: data.offset,
+          hasMore: data.hasMore
+        };
+      }
+
+      async getProduct(id: string): Promise<IProduct> {
+        const data = await this.client.get<any>(API_ENDPOINTS.PRODUCTS.BY_ID(id));
+        return Product.fromJson(data);
+      }
+
+      // ... other methods for create, update, delete ...
+    }
+    ```
+3.  **Register in Plugin**: Import and instantiate your new `ProductClient` in `ui/plugins/api/index.ts` and add it to the `provide.api` object.
+    ```typescript
+    // ui/plugins/api/index.ts
+    import { defineNuxtPlugin } from '#app';
+    import { ApiClient } from './client';
+    import { WalletClient } from './wallet';
+    import { TokenClient } from './token';
+    import { TransactionClient } from './transaction';
+    import { ReferenceClient } from './reference';
+    import { ProductClient } from './product'; // Import the new client
+
+    export default defineNuxtPlugin((nuxtApp) => {
+      // Create the API client
+      const apiClient = new ApiClient();
+
+      // Get the API base URL from runtime config
+      const config = useRuntimeConfig();
+      const apiBase = config.public.apiBase as string || 'http://localhost:8080/api/v1';
+      apiClient.setBaseUrl(apiBase);
+
+      // Create service clients
+      const walletClient = new WalletClient(apiClient);
+      const tokenClient = new TokenClient(apiClient);
+      const transactionClient = new TransactionClient(apiClient);
+      const referenceClient = new ReferenceClient(apiClient);
+      const productClient = new ProductClient(apiClient); // Instantiate the new client
+
+      // Provide API services to the application
+      return {
+        provide: {
+          api: {
+            wallet: walletClient,
+            token: tokenClient,
+            transaction: transactionClient,
+            reference: referenceClient,
+            product: productClient // Add the new client here
+          }
+        }
+      };
+    });
+    ```
+
+Now, you can access the product API methods in composables and components using `const { $api } = useNuxtApp(); $api.product.listProducts(...)`.
 
 ## Nuxt Best Practices Snippets
 
-### API Plugin Setup
+### Specific API Client Module Example (`wallet.ts`)
+
+This shows the structure for a module handling wallet-related API calls. Note how it uses the injected `ApiClient` and type factories.
 
 ```typescript
-// plugins/api/index.ts
-import { defineNuxtPlugin } from '#app';
-import { ApiClient } from './client';
-import { WalletClient } from './wallet';
-import { TransactionClient } from './transaction';
+// ui/plugins/api/wallet.ts
+import type {
+  ICreateWalletRequest,
+  IPagedResponse,
+  ITokenBalanceResponse,
+  IUpdateWalletRequest,
+  IWallet
+} from '~/types'; // Import necessary types
+import {
+  TokenBalanceResponse,
+  Wallet, // Import the Wallet factory
+  fromJsonArray // Import helper for arrays
+} from '~/types';
+import { ApiClient } from './client'; // Import base client
+import { API_ENDPOINTS } from './endpoints'; // Import endpoints
 
-export default defineNuxtPlugin((nuxtApp) => {
-  // Create the API client
-  const apiClient = new ApiClient();
-  
-  // Get the API base URL from runtime config
-  const config = useRuntimeConfig();
-  apiClient.setBaseUrl(config.public.apiBase);
-  
-  // Create service clients
-  const walletClient = new WalletClient(apiClient);
-  const transactionClient = new TransactionClient(apiClient);
-  
-  // Provide API services to the application
-  return {
-    provide: {
-      api: {
-        wallet: walletClient,
-        transaction: transactionClient
-      }
-    }
-  };
-});
+/**
+ * Client for interacting with wallet-related API endpoints
+ */
+export class WalletClient {
+  private client: ApiClient; // Store the injected ApiClient
+
+  constructor(client: ApiClient) {
+    this.client = client;
+  }
+
+  /**
+   * Lists wallets with pagination
+   * @param limit Maximum number of wallets to return (default: 10)
+   * @param offset Number of wallets to skip for pagination (default: 0)
+   * @returns Paginated list of wallets
+   */
+  async listWallets(limit: number = 10, offset: number = 0): Promise<IPagedResponse<IWallet>> {
+    const params = { limit, offset };
+    // Use the base client's get method
+    const data = await this.client.get<any>(API_ENDPOINTS.WALLETS.BASE, params);
+    // Transform the response data using type helpers/factories
+    return {
+      items: fromJsonArray<IWallet>(data.items || []),
+      limit: data.limit,
+      offset: data.offset,
+      hasMore: data.hasMore
+    };
+  }
+
+  /**
+   * Gets a wallet by its chain type and address
+   * @param chainType Blockchain network type (e.g., ethereum, bitcoin)
+   * @param address Wallet address
+   * @returns Wallet details
+   */
+  async getWallet(chainType: string, address: string): Promise<IWallet> {
+    const endpoint = API_ENDPOINTS.WALLETS.BY_ADDRESS(chainType, address);
+    const data = await this.client.get<any>(endpoint);
+    // Transform single object response
+    return Wallet.fromJson(data);
+  }
+
+  // ... other methods (createWallet, updateWallet, deleteWallet, getWalletBalance) ...
+}
 ```
 
 ### Composable Pattern (Data Fetching with `useAsyncData`)
 
-Use Nuxt's `useAsyncData` for fetching data within composables. It simplifies handling loading states, errors, and reactivity.
+Use Nuxt's `useAsyncData` for fetching data within composables. Remember the **default export** rule and access the specific API client module via `$api`.
 
 ```typescript
 // composables/useWallets.ts
-import { IWallet, PagedWallets } from '~/types'; // Assuming PagedWallets type exists
+import { IWallet, IPagedWallets } from '~/types'; // Type imports still needed
 
-export function useWallets(limit: Ref<number>, offset: Ref<number>) {
-  const { $api } = useNuxtApp();
+// Use default export for the composable function
+export default function(limit: Ref<number>, offset: Ref<number>) {
+  const { $api } = useNuxtApp(); // Access Nuxt app context to get $api
 
-  const { 
-    data: walletsData, 
-    status, // 'idle', 'pending', 'success', 'error'
-    error, 
-    refresh // Function to manually trigger a refetch
+  const {
+    data: walletsData,
+    status,
+    error,
+    refresh
   } = useAsyncData<IPagedWallets>(
-    'wallets', // Unique key for the data
-    () => $api.wallet.getWallets(limit.value, offset.value), // API call
+    'wallets', // Unique key
+    // Call the specific client method via $api
+    () => $api.wallet.listWallets(limit.value, offset.value),
     {
-      watch: [limit, offset], // Automatically refetch when limit or offset changes
-      // transform: (data) => data.items, // Optional: Transform data before returning
-      // default: () => ({ items: [], limit: 10, offset: 0, hasMore: false }) // Optional: Provide default value
+      watch: [limit, offset],
+      // default: () => ({ items: [], limit: 10, offset: 0, hasMore: false })
     }
   );
 
-  // Computed properties for easier access in components
   const wallets = computed(() => walletsData.value?.items || []);
   const hasMore = computed(() => walletsData.value?.hasMore || false);
   const isLoading = computed(() => status.value === 'pending');
@@ -133,153 +275,48 @@ export function useWallets(limit: Ref<number>, offset: Ref<number>) {
     hasMore,
     isLoading,
     error,
-    refresh, // Expose refresh function if manual refetching is needed
+    refresh,
   };
 }
 ```
 
 ### Using Composables in Components
 
-Components can directly use these composables to access data, loading states, and error information.
+Components directly use composables thanks to auto-imports.
 
 ```vue
 <!-- pages/wallets/index.vue -->
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useWallets } from '~/composables/useWallets';
+import { ref, computed } from 'vue'; // Auto-imported
+// No import needed for useWallets composable
+// No import needed for WalletCard, Pagination components
 
-// Pagination state
 const limit = ref(10);
 const offset = ref(0);
 
-// Use the composable to fetch wallets
+// Use the composable (auto-imported)
 const { wallets, hasMore, isLoading, error, refresh } = useWallets(limit, offset);
 
-// Pagination handlers (simplified)
-function nextPage() {
-  if (hasMore.value) {
-    offset.value += limit.value;
-  }
-}
-
-function prevPage() {
-  offset.value = Math.max(0, offset.value - limit.value);
-}
-
-function handleLimitChange(newLimit: number) {
-  limit.value = newLimit;
-  offset.value = 0; // Reset offset when limit changes
-}
-
+// ... pagination handlers ...
 </script>
 
 <template>
   <div>
     <h1>My Wallets</h1>
-
-    <div v-if="isLoading" class="p-4">
-      Loading wallets...
-    </div>
-
-    <div v-else-if="error" class="p-4 bg-red-50 text-red-700 rounded-md">
-      Error loading wallets: {{ error.message }}
-      <button @click="refresh">Retry</button>
-    </div>
-
-    <div v-else-if="wallets.length === 0" class="p-4 text-muted-foreground">
-      No wallets found.
-    </div>
-
+    <!-- Loading/Error/Empty States -->
+    <div v-if="isLoading">Loading...</div>
+    <div v-else-if="error">Error: {{ error.message }} <button @click="refresh">Retry</button></div>
+    <div v-else-if="wallets.length === 0">No wallets found.</div>
+    <!-- Wallet List & Pagination -->
     <div v-else>
-      <!-- List Wallets -->
-      <div v-for="wallet in wallets" :key="wallet.id" class="border-b p-4">
-        <p><strong>Name:</strong> {{ wallet.name }}</p>
-        <p><strong>Address:</strong> {{ wallet.address }}</p>
-        <p><strong>Chain:</strong> {{ wallet.chainType }}</p>
-      </div>
-
-      <!-- Pagination Controls -->
+      <WalletCard v-for="wallet in wallets" :key="wallet.id" :wallet="wallet" class="mb-4" />
       <div class="flex items-center gap-2 mt-4 p-4">
         <PaginationSizeSelect :current-limit="limit" @update:limit="handleLimitChange" />
-        <PaginationControls 
-          :offset="offset" 
-          :limit="limit" 
-          :has-more="hasMore" 
-          @previous="prevPage"
-          @next="nextPage"
-        />
+        <PaginationControls :offset="offset" :limit="limit" :has-more="hasMore" @previous="prevPage" @next="nextPage" />
       </div>
     </div>
-
   </div>
 </template>
-```
-
-### API Client Structure
-
-```typescript
-// plugins/api/client.ts
-export class ApiClient {
-  private baseUrl: string;
-  private token: string | undefined;
-
-  constructor(token?: string, baseUrl?: string) {
-    this.baseUrl = baseUrl || '';
-    this.token = token;
-  }
-
-  setBaseUrl(baseUrl: string) {
-    this.baseUrl = baseUrl;
-  }
-
-  setToken(token: string) {
-    this.token = token;
-  }
-
-  async request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-    const { method = 'GET', body, params, headers = {} } = options;
-    
-    // Prepare headers
-    const requestHeaders: Record<string, string> = { 
-      ...headers as Record<string, string>,
-      'Content-Type': 'application/json'
-    };
-    
-    if (this.token) {
-      requestHeaders['Authorization'] = \`Bearer \${this.token}\`;
-    }
-    
-    try {
-      // Use Nuxt's $fetch utility
-      return await $fetch<T>(path, {
-        baseURL: this.baseUrl,
-        method,
-        body: method !== 'GET' ? body : undefined,
-        params,
-        headers: requestHeaders
-      });
-    } catch (error: any) {
-      // Handle errors
-      if (error.name === 'FetchError') {
-        const apiError = error.data as ApiError;
-        throw new Error(apiError?.message || error.message || \`API Error: \${error.status}\`);
-      }
-      
-      throw error;
-    }
-  }
-
-  // HTTP method convenience wrappers
-  get<T>(path: string, params?: Record<string, string | number | boolean>): Promise<T> {
-    return this.request<T>(path, { method: 'GET', params });
-  }
-
-  post<T>(path: string, body?: any): Promise<T> {
-    return this.request<T>(path, { method: 'POST', body });
-  }
-
-  // Additional methods: put, patch, delete...
-}
 ```
 
 ### Type Definition with Transformation
@@ -322,22 +359,28 @@ export const Wallet = {
   }
 };
 
-// Example usage:
-// const apiResponse = { id: 1, key_id: 'abc', chain_type: 'ETH', ... };
-// const wallet: IWallet = Wallet.fromJson(apiResponse);
-// console.log(wallet.keyId); // Output: abc
+// Example Paged Response Interface (adjust as needed)
+export interface IPagedWallets extends IPagedResponse<IWallet> {}
+
+// Base Paged Response (can be in types/model.ts or similar)
+export interface IPagedResponse<T> {
+  items: T[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
 ```
 
 ## shadcn/ui Integration
 
-shadcn/ui components are installed in the `components/ui/` directory. These components are built with TailwindCSS and provide a consistent design system.
+shadcn/ui components are installed in the `components/ui/` directory. Nuxt auto-imports these components.
 
 ### Using shadcn/ui Components
 
 ```vue
 <!-- components/WalletCard.vue -->
 <script setup lang="ts">
-import { IWallet } from '~/types/wallet';
+import { IWallet } from '~/types/wallet'; // Type imports are still needed
 
 defineProps<{
   wallet: IWallet;
@@ -347,6 +390,8 @@ const emit = defineEmits<{
   edit: [wallet: IWallet];
   delete: [wallet: IWallet];
 }>();
+
+// Components like Card, Button, Badge are auto-imported by Nuxt
 </script>
 
 <template>
@@ -355,24 +400,13 @@ const emit = defineEmits<{
       <CardTitle>{{ wallet.name }}</CardTitle>
       <CardDescription>{{ wallet.chainType }}</CardDescription>
     </CardHeader>
-    
     <CardContent>
       <p class="font-mono text-sm">{{ wallet.address }}</p>
-      
-      <div v-if="wallet.tags" class="mt-4">
-        <div v-for="(value, key) in wallet.tags" :key="key" class="inline-flex items-center mr-2 mb-2">
-          <Badge variant="outline">{{ key }}: {{ value }}</Badge>
-        </div>
-      </div>
+      <!-- Tag display -->
     </CardContent>
-    
     <CardFooter class="flex justify-end space-x-2">
-      <Button variant="outline" size="sm" @click="emit('edit', wallet)">
-        Edit
-      </Button>
-      <Button variant="destructive" size="sm" @click="emit('delete', wallet)">
-        Delete
-      </Button>
+      <Button variant="outline" size="sm" @click="emit('edit', wallet)">Edit</Button>
+      <Button variant="destructive" size="sm" @click="emit('delete', wallet)">Delete</Button>
     </CardFooter>
   </Card>
 </template>
@@ -380,12 +414,13 @@ const emit = defineEmits<{
 
 ## General Guidelines
 
-- **Indentation**: Use **2 spaces** for indentation. DO NOT USE TABS.
-- **File names**: Use *camelCase* for file names.
-- **Component names**: Use *PascalCase* for component names in both file names and component definitions.
-- **Follow Existing Patterns**: Mimic the style and structure of existing code in the module you are editing.
-- **TypeScript**: Use TypeScript effectively. Define types and interfaces, leverage generics, and avoid `any` where possible.
-- **Components**: Utilize shadcn/ui components from `components/ui` for consistency. Keep custom components small, focused, and reusable.
-- **Clarity**: Write clear, concise, and well-commented code, especially for complex logic.
-- **Error Handling**: Implement robust error handling in API calls and component logic.
-- **Accessibility**: Keep accessibility in mind when creating UI elements. 
+- **Indentation**: Use **2 spaces**.
+- **File names**: *camelCase* for composables/plugins/utilities. *PascalCase* for components (`MyComponent.vue`).
+- **Component names**: *PascalCase* in definitions. Nuxt derives tag names (`<MyComponent>`).
+- **Follow Existing Patterns**: Mimic existing code style.
+- **TypeScript**: Use types effectively, avoid `any`. Import types explicitly.
+- **Components**: Use shadcn/ui components. Keep custom components small and reusable. Rely on auto-imports.
+- **Composables**: Use default exports. Rely on auto-imports.
+- **Clarity**: Write clear code. Comment only complex logic.
+- **Error Handling**: Implement robust error handling.
+- **Accessibility**: Keep accessibility in mind.

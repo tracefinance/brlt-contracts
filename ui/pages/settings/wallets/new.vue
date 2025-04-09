@@ -1,26 +1,29 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import type { ICreateWalletRequest } from '~/types/wallet'
+import type { ICreateWalletRequest } from '~/types'
+import { toast } from 'vue-sonner'
 
 definePageMeta({
   layout: 'settings'
 })
 
-// API client & Router
-const { $api } = useNuxtApp()
+// Composables
 const router = useRouter()
+const { 
+  createWallet: mutateCreateWallet,
+  isCreating, 
+  error: mutationError 
+} = useWalletMutations()
+const { chains, isLoading: isLoadingChains, error: chainsError, refresh: refreshChains } = useChains()
 
 // Form state
 const formData = reactive<ICreateWalletRequest>({
   name: '',
-  chainType: '', // Assuming free text for now, could be a <Select> later
+  chainType: '', // Initialize as empty, will be set by Select
   tags: {}
 })
 const tagsList = ref([{ key: '', value: '' }])
-
-const isLoading = ref(false)
-const error = ref<string | null>(null)
 
 // Add a new tag input row
 const addTag = () => {
@@ -32,10 +35,26 @@ const removeTag = (index: number) => {
   tagsList.value.splice(index, 1)
 }
 
+// Watch for errors from the mutation composable
+watch(mutationError, (newError) => {
+  if (newError) {
+    let errorMessage = 'An unknown error occurred while creating the wallet.'
+    const errorValue = newError
+    const errorAsAny = errorValue as any
+    if (errorAsAny?.data?.message) {
+      errorMessage = String(errorAsAny.data.message)
+    } else if (errorAsAny?.message) {
+      errorMessage = String(errorAsAny.message)
+    } else if (typeof errorValue === 'string') {
+      errorMessage = errorValue
+    }
+    toast.error(errorMessage)
+  }
+})
+
 // Handle form submission
 const handleSubmit = async () => {
-  isLoading.value = true
-  error.value = null
+  mutationError.value = null
 
   // Convert tagsList to the Record<string, string> format
   const tags: Record<string, string> = tagsList.value
@@ -53,21 +72,15 @@ const handleSubmit = async () => {
 
   // Basic validation
   if (!payload.name || !payload.chainType) {
-    error.value = 'Wallet Name and Chain Type are required.'
-    isLoading.value = false
+    toast.error('Wallet Name and Chain Type are required.')
     return
   }
 
-  try {
-    await $api.wallet.createWallet(payload)
-    // Navigate back to the wallets list on success
+  const newWallet = await mutateCreateWallet(payload)
+
+  if (newWallet) {
+    toast.success('Wallet created successfully!')
     router.push('/settings/wallets')
-    // TODO: Add success notification/toast
-  } catch (err) {
-    console.error("Error creating wallet:", err)
-    error.value = err instanceof Error ? err.message : 'Failed to create wallet'
-  } finally {
-    isLoading.value = false
   }
 }
 </script>
@@ -89,8 +102,33 @@ const handleSubmit = async () => {
           <!-- Chain Type -->
           <div class="space-y-2">
             <Label for="chainType">Chain Type</Label>
-            <Input id="chainType" v-model="formData.chainType" required placeholder="ethereum" />
-            <!-- TODO: Consider using a <Select> component if chain types are predefined -->
+            <!-- Loading State -->
+            <div v-if="isLoadingChains" class="flex items-center space-x-2 text-muted-foreground">
+              <Icon name="svg-spinners:180-ring-with-bg" class="h-4 w-4" />
+              <span>Loading supported chains...</span>
+            </div>
+            <!-- Error State -->
+            <div v-else-if="chainsError" class="text-red-500 text-sm">
+              <span>Error loading chains: {{ chainsError.message }}.</span>
+              <Button variant="link" size="sm" @click="refreshChains" class="p-0 h-auto ml-1">Retry</Button>
+            </div>
+            <!-- Select Input -->
+            <Select v-else v-model="formData.chainType" required>
+              <SelectTrigger id="chainType">
+                <SelectValue placeholder="Select chain type..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="chain in chains" :key="chain.type" :value="chain.type">
+                  <div class="flex items-center gap-2"> 
+                    <Web3Icon :symbol="chain.type" size="16px" /> 
+                    <span>{{ chain.name }}</span>
+                  </div>
+                </SelectItem>
+                <div v-if="chains.length === 0" class="p-2 text-center text-sm text-muted-foreground">
+                   No chains available.
+                </div>
+              </SelectContent>
+            </Select>
           </div>
 
           <!-- Tags -->
@@ -108,19 +146,15 @@ const handleSubmit = async () => {
               Add Tag
             </Button>
           </div>
-
-          <!-- Error Message -->
-          <div v-if="error" class="text-red-500 text-sm">
-            {{ error }}
-          </div>
         </form>
       </CardContent>
       <CardFooter class="flex justify-end gap-2">
          <NuxtLink to="/settings/wallets">
             <Button variant="outline">Cancel</Button>
           </NuxtLink>
-        <Button type="submit" @click="handleSubmit" :disabled="isLoading">
-          {{ isLoading ? 'Creating...' : 'Create Wallet' }}
+        <Button type="submit" @click="handleSubmit" :disabled="isCreating">
+          <Icon v-if="isCreating" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-2" />
+          {{ isCreating ? 'Creating...' : 'Create Wallet' }}
         </Button>
       </CardFooter>
     </Card>

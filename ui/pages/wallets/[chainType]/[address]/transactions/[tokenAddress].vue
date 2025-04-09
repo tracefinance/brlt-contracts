@@ -53,7 +53,7 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
   <div>
     <!-- Show loading state -->
     <div v-if="isLoading">
-      <TableSkeleton />
+      <TransactionTableSkeleton />
     </div>
 
     <!-- Show error state -->

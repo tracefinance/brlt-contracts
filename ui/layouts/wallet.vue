@@ -30,7 +30,7 @@ const targetAddress = computed(() => {
 })
 
 // Use the current wallet composable
-const { currentWallet, isLoading: isLoadingCurrentWallet } = useCurrentWallet(targetChainType, targetAddress)
+const { currentWallet, isLoading: isLoadingCurrentWallet } = useWalletDetails(targetChainType, targetAddress)
 
 // Use the wallet balances composable
 const { balances, isLoading: isLoadingBalances } = useWalletBalances(targetChainType, targetAddress)
