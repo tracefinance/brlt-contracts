@@ -50,13 +50,8 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
 </script>
 
 <template>
-  <!-- Show loading state -->
-  <div v-if="isLoading">
-    <TransactionTableSkeleton />
-  </div>
-
   <!-- Show error state -->
-  <div v-else-if="error">
+  <div v-if="error">
     <Alert variant="destructive">
       <Icon name="lucide:alert-triangle" class="w-4 h-4" />
       <AlertTitle>Error</AlertTitle>
