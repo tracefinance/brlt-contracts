@@ -44,4 +44,9 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/users/${id}`,
     PROFILE: '/users/profile',
   },
+
+  // Reference data endpoints
+  REFERENCES: {
+    CHAINS: '/references/chains',
+  },
 };

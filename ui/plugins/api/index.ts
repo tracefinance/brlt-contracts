@@ -3,6 +3,7 @@ import { ApiClient } from './client';
 import { WalletClient } from './wallet';
 import { TokenClient } from './token';
 import { TransactionClient } from './transaction';
+import { ReferenceClient } from './reference';
 
 /**
  * API service that provides access to all API clients
@@ -45,6 +46,7 @@ export default defineNuxtPlugin((nuxtApp) => {
   const walletClient = new WalletClient(apiClient);
   const tokenClient = new TokenClient(apiClient);
   const transactionClient = new TransactionClient(apiClient);
+  const referenceClient = new ReferenceClient(apiClient);
   
   // Provide API services to the application
   return {
@@ -52,7 +54,8 @@ export default defineNuxtPlugin((nuxtApp) => {
       api: {
         wallet: walletClient,
         token: tokenClient,
-        transaction: transactionClient
+        transaction: transactionClient,
+        reference: referenceClient
       }
     }
   };

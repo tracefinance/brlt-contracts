@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { formatDistanceToNow } from 'date-fns'
 import { computed } from 'vue'
-import { shortenAddress, formatCurrency } from '~/lib/utils'
+import { useRoute, useRouter } from 'vue-router'
+import { formatCurrency, shortenAddress } from '~/lib/utils'
+import { getTransactionExplorerUrl, getAddressExplorerUrl } from '~/lib/explorers'
 
 // Define page metadata
 definePageMeta({
@@ -30,80 +32,42 @@ const offset = computed(() => {
 
 // Use composables for data fetching
 const { 
-  currentWallet, 
-  isLoading: isLoadingWallet, 
-  error: errorWallet 
-} = useCurrentWallet(chainType, address)
-
-const { 
-  currentToken, 
-  isLoading: isLoadingToken, 
-  error: errorToken 
-} = useTokenDetails(chainType, tokenAddress)
-
-const { 
   transactions, 
-  hasMore: hasMoreTransactions, 
-  isLoading: isLoadingTransactions, 
-  error: errorTransactions, 
+  isLoading, 
+  error: walletTransactionsError, 
+  hasMore 
 } = useWalletTransactions(chainType, address, tokenAddress, limit, offset)
 
+// Use the useChains composable
+const { chains, isLoading: chainsLoading, error: chainsError } = useChains()
 
-const error = computed(() => {
-  if (errorWallet.value) return `Failed to load wallet: ${errorWallet.value.message}`
-  if (errorToken.value) return `Failed to load token: ${errorToken.value.message}`
-  if (errorTransactions.value) return `Failed to load transactions: ${errorTransactions.value.message}`
-  return null
+// Find the current chain based on the route parameter
+const currentChain = computed(() => {
+  if (chainsLoading.value || chainsError.value) return null // Guard against loading/error state
+  return chains.value.find(chain => chain.type.toLowerCase() === chainType.value.toLowerCase())
 })
 
-const isLoading = computed(() => 
-  isLoadingWallet.value || isLoadingToken.value || isLoadingTransactions.value
-)
+// Computed property for the base explorer URL
+const explorerBaseUrl = computed(() => {
+  return currentChain.value?.explorerUrl
+})
 
-// Handle page size change
-function handleLimitChange(newLimit: number) {
-  // Reset offset to 0 when limit changes to avoid invalid page numbers
-  router.push({ 
-    query: { 
-      ...route.query, 
-      limit: newLimit,
-      offset: 0 // Reset offset when changing page size
-    } 
-  })
-}
+const error = computed(() => walletTransactionsError.value || chainsError.value)
 
 // Handle pagination events
 function handlePreviousPage() {
-  const newOffset = Math.max(0, offset.value - limit.value);
-  router.push({ 
-    query: { 
-      ...route.query, 
-      offset: newOffset 
-    } 
-  });
+  const newOffset = Math.max(0, offset.value - limit.value)
+  router.push({ query: { ...route.query, offset: newOffset } })
 }
 
 function handleNextPage() {
-  const newOffset = offset.value + limit.value;
-  router.push({ 
-    query: { 
-      ...route.query, 
-      offset: newOffset 
-    } 
-  });
+  const newOffset = offset.value + limit.value
+  router.push({ query: { ...route.query, offset: newOffset } })
 }
 
-// Determine the explorer URL based on chainType
-function getExplorerBaseUrl(chainType: string) {
-  // Simple example, replace with actual logic
-  if (chainType.toLowerCase() === 'ethereum') {
-    return "https://etherscan.io"
-  }
-  // Add other chains as needed
-  return "https://etherscan.io" // Default fallback
+function handleLimitChange(newLimit: number) {
+  router.push({ query: { ...route.query, limit: newLimit, offset: 0 } })
 }
-
-const explorerBaseUrl = computed(() => getExplorerBaseUrl(chainType.value))
 </script>
 
 <template>
@@ -119,7 +83,7 @@ const explorerBaseUrl = computed(() => getExplorerBaseUrl(chainType.value))
     </div>
 
     <!-- Show content when loaded and no errors -->
-    <div v-else-if="currentWallet && currentToken">          
+    <div v-else-if="currentChain">          
         <div class="p-4">          
           <div v-if="transactions.length === 0" class="text-muted-foreground">
             No transactions available for this token yet.
@@ -143,8 +107,8 @@ const explorerBaseUrl = computed(() => getExplorerBaseUrl(chainType.value))
                 <TableBody>
                   <TableRow v-for="tx in transactions" :key="tx.hash">
                     <TableCell>
-                      <a :href="`${explorerBaseUrl}/tx/${tx.hash}`" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">
-                        {{ shortenAddress(tx.hash, 6, 6) }}
+                      <a :href="getTransactionExplorerUrl(explorerBaseUrl, tx.hash)" target="_blank" rel="noopener noreferrer" class="hover:underline">
+                        {{ shortenAddress(tx.hash, 6, 4) }}
                       </a>
                     </TableCell>
                     <TableCell>
@@ -157,12 +121,12 @@ const explorerBaseUrl = computed(() => getExplorerBaseUrl(chainType.value))
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <a :href="`${explorerBaseUrl}/address/${tx.fromAddress}`" target="_blank" rel="noopener noreferrer" class="hover:underline">
+                      <a :href="getAddressExplorerUrl(explorerBaseUrl, tx.fromAddress)" target="_blank" rel="noopener noreferrer" class="hover:underline">
                         {{ shortenAddress(tx.fromAddress) }}
                       </a>
                     </TableCell>
                     <TableCell>
-                      <a :href="`${explorerBaseUrl}/address/${tx.toAddress}`" target="_blank" rel="noopener noreferrer" class="hover:underline">
+                      <a :href="getAddressExplorerUrl(explorerBaseUrl, tx.toAddress)" target="_blank" rel="noopener noreferrer" class="hover:underline">
                         {{ shortenAddress(tx.toAddress) }}
                       </a>
                     </TableCell>
@@ -209,7 +173,7 @@ const explorerBaseUrl = computed(() => getExplorerBaseUrl(chainType.value))
                 <PaginationControls 
                   :offset="offset" 
                   :limit="limit" 
-                  :has-more="hasMoreTransactions" 
+                  :has-more="hasMore" 
                   @previous="handlePreviousPage"
                   @next="handleNextPage"
                 />
