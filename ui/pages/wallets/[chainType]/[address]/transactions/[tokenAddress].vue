@@ -77,7 +77,7 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
           </AlertDescription>
       </Alert>
     </div>
-    
+
     <div v-else>                      
       <div class="overflow-auto rounded-lg border">
         <Table>
@@ -170,14 +170,5 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
           />
       </div>
     </div>
-  </div>
-  <div v-else>
-    <Alert>
-      <Icon name="lucide:info" class="w-4 h-4" />
-      <AlertTitle>Select Wallet and Token</AlertTitle>
-      <AlertDescription>
-        Please select a wallet and token from the sidebar to view transactions.
-      </AlertDescription>
-    </Alert>
   </div>
 </template> 

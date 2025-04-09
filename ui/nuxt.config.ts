@@ -23,7 +23,11 @@ export default defineNuxtConfig({
   ],
   
   colorMode: {
-    classSuffix: ''
+    preference: 'system',
+    fallback: 'light',
+    classSuffix: '',
+    storage: 'cookie',
+    storageKey: 'nuxt-color-mode',
   },
   
   shadcn: {
