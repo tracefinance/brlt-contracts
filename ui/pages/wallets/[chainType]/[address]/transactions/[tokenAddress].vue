@@ -36,7 +36,7 @@ const { chains, isLoading: isLoadingChains, error: chainsError } = useChains()
 // Find the current chain based on the route parameter
 const currentChain = computed(() => {
   if (isLoadingChains.value || chainsError.value) return null // Guard against loading/error state
-  return chains.value.find((chain: IChain) => chain.type.toLowerCase() === chainType.value.toLowerCase())
+  return chains.value.find((chain: IChain) => chain.type?.toLowerCase() === chainType.value?.toLowerCase())
 })
 
 // Computed property for the base explorer URL
@@ -122,9 +122,11 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
                       </a>
                     </TableCell>
                     <TableCell class="flex items-center">
-                      <Web3Icon v-if="tx.tokenSymbol" :symbol="tx.tokenSymbol" class="mr-2 h-5 w-5" />
-                      <Icon v-else name="lucide:help-circle" class="mr-2 h-5 w-5 text-muted-foreground" />
-                      {{ tx.tokenSymbol || 'N/A' }}
+                      <div class="flex items-center gap-2">
+                        <Web3Icon v-if="tx.tokenSymbol" :symbol="tx.tokenSymbol" class="size-5" />
+                        <Icon v-else name="lucide:help-circle" class="size-5 text-muted-foreground" />
+                        {{ tx.tokenSymbol || 'N/A' }}
+                      </div>
                     </TableCell>
                     <TableCell class="text-right">{{ formatCurrency(tx.value) }}</TableCell>
                     <TableCell :title="new Date(tx.timestamp * 1000).toLocaleString()">

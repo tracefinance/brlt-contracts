@@ -129,9 +129,11 @@ const goToEditWallet = (wallet: IWallet) => {
         <TableBody>
           <TableRow v-for="wallet in wallets" :key="wallet.id || `${wallet.chainType}-${wallet.address}`">
             <TableCell class="font-medium">{{ wallet.name }}</TableCell>
-            <TableCell class="flex items-center gap-2">
-              <Web3Icon :symbol="wallet.chainType" class="size-5" variant="branded" />
-              <span class="capitalize">{{ wallet.chainType }}</span>
+            <TableCell>
+              <div class="flex items-center gap-2">
+                <Web3Icon :symbol="wallet.chainType" class="size-5" variant="branded" />
+                <span class="capitalize">{{ wallet.chainType }}</span>
+              </div>
             </TableCell>
             <TableCell>
               <a
