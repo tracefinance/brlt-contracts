@@ -27,7 +27,8 @@ defineProps({
           <TableHead class="w-[15%]">Chain</TableHead>
           <TableHead class="w-[30%]">Address</TableHead>
           <TableHead class="w-[15%]">Last Sync Block</TableHead>
-          <TableHead class="w-[25%]">Tags</TableHead>
+          <TableHead class="w-[20%]">Tags</TableHead>
+          <TableHead class="w-[5%] text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -46,6 +47,9 @@ defineProps({
               <Skeleton class="h-5 w-16 rounded" />
               <Skeleton class="h-5 w-20 rounded" />
             </div>
+          </TableCell>
+          <TableCell class="text-right">
+            <Skeleton class="inline-block size-8" />
           </TableCell>
         </TableRow>
       </TableBody>

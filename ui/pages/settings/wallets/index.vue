@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { toast } from 'vue-sonner'
 import { getAddressExplorerUrl } from '~/lib/explorers'
 import type { IWallet } from '~/types'
 
@@ -10,10 +11,8 @@ definePageMeta({
 
 const router = useRouter()
 
-// Use the pagination composable
-const { limit, offset, setLimit, previousPage, nextPage } = usePagination(10) // Default limit 10
+const { limit, offset, setLimit, previousPage, nextPage } = usePagination(10)
 
-// Use the composable for wallets data fetching, passing reactive limit/offset
 const { 
   wallets, 
   isLoading: isLoadingWallets, 
@@ -22,27 +21,28 @@ const {
   refresh: refreshWallets
 } = useWalletsList(limit, offset)
 
-// Use the composable for chains data fetching
 const { 
   chains, 
   isLoading: isLoadingChains,
   error: chainsError 
 } = useChains()
 
-// Combine loading states
+const { 
+  deleteWallet,
+  isDeleting,
+  error: walletMutationsError
+} = useWalletMutations()
+
 const isLoading = computed(() => isLoadingWallets.value || isLoadingChains.value)
 
-// Combine errors (show the first error encountered)
-const error = computed(() => walletsError.value || chainsError.value)
+const error = computed(() => walletsError.value || chainsError.value || walletMutationsError.value)
 
-// Helper function to find the explorer URL for a given wallet
 const getWalletExplorerBaseUrl = (wallet: IWallet): string | undefined => {
   if (isLoadingChains.value || chainsError.value) return undefined
   const chain = chains.value.find(c => c.type?.toLowerCase() === wallet.chainType?.toLowerCase())
   return chain?.explorerUrl
 }
 
-// --- Delete Dialog State --- 
 const isDeleteDialogOpen = ref(false)
 const walletToDelete = ref<IWallet | null>(null)
 
@@ -51,29 +51,36 @@ const openDeleteDialog = (wallet: IWallet) => {
   isDeleteDialogOpen.value = true
 }
 
-const handleDeleteConfirm = () => {
-  if (walletToDelete.value) {
-    console.log('Deleting wallet:', walletToDelete.value.id) // Replace with actual delete logic
-    // TODO: Call delete composable/API here
-    // e.g., const { deleteWallet } = useWalletMutations()
-    // await deleteWallet(walletToDelete.value.id)
-    // TODO: Refresh list after deletion
-    // refreshWallets() 
+const handleDeleteConfirm = async () => {
+  if (!walletToDelete.value || !walletToDelete.value.chainType || !walletToDelete.value.address) {
+    toast.error('Cannot delete wallet: Invalid data provided.')
+    isDeleteDialogOpen.value = false
+    walletToDelete.value = null
+    return
   }
+
+  const { chainType, address, name } = walletToDelete.value
+  
+  const success = await deleteWallet(chainType, address)
+
+  if (success) {
+    toast.success(`Wallet \"${name}\" deleted successfully.`)
+    await refreshWallets()
+  } else {
+    toast.error(`Failed to delete wallet \"${name}\"": ${walletMutationsError.value?.message || 'Unknown error'}`)
+  }
+
   isDeleteDialogOpen.value = false
   walletToDelete.value = null
 }
-// --- End Delete Dialog State ---
 
-// Navigation function for editing - Updated to use chainType and address
 const goToEditWallet = (wallet: IWallet) => {
-  // Basic validation
   if (!wallet || !wallet.chainType || !wallet.address) {
     console.error('Invalid wallet data for edit navigation:', wallet)
-    // TODO: Show user-friendly error (e.g., toast notification)
+    toast.error('Invalid wallet data. Cannot navigate to edit page.')
     return
   }
-  // Encode parameters in case they contain special characters
+
   const chainTypeEncoded = encodeURIComponent(wallet.chainType)
   const addressEncoded = encodeURIComponent(wallet.address)
   router.push(`/settings/wallets/${chainTypeEncoded}/${addressEncoded}/edit`)
@@ -103,7 +110,6 @@ const goToEditWallet = (wallet: IWallet) => {
          <AlertTitle>No Wallets Found</AlertTitle>
          <AlertDescription>
            You haven't added any wallets yet. Create or import one!
-           <!-- TODO: Add a button/link to the create page -->
          </AlertDescription>
        </Alert>
     </div>
@@ -127,7 +133,7 @@ const goToEditWallet = (wallet: IWallet) => {
               <Web3Icon :symbol="wallet.chainType" class="size-5" variant="branded" />
               <span class="capitalize">{{ wallet.chainType }}</span>
             </TableCell>
-            <TableCell class="font-mono text-xs">
+            <TableCell>
               <a
                 :href="getAddressExplorerUrl(getWalletExplorerBaseUrl(wallet), wallet.address)"
                 target="_blank"
@@ -154,16 +160,16 @@ const goToEditWallet = (wallet: IWallet) => {
                 <DropdownMenuTrigger as-child>
                   <Button variant="ghost" class="h-8 w-8 p-0">
                     <span class="sr-only">Open menu</span>
-                    <Icon name="lucide:more-horizontal" class="h-4 w-4" />
+                    <Icon name="lucide:more-horizontal" class="size-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem @click="goToEditWallet(wallet)" :disabled="!wallet.chainType || !wallet.address">
-                    <Icon name="lucide:pencil" class="mr-2 h-4 w-4" />
+                    <Icon name="lucide:pencil" class="mr-2 size-4" />
                     <span>Edit</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem @click="openDeleteDialog(wallet)" class="text-destructive focus:text-destructive focus:bg-destructive/10">
-                    <Icon name="lucide:trash-2" class="mr-2 h-4 w-4" />
+                    <Icon name="lucide:trash-2" class="mr-2 size-4" />
                     <span>Delete</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -184,7 +190,6 @@ const goToEditWallet = (wallet: IWallet) => {
       />
     </div>
 
-    <!-- --- Delete Confirmation Dialog --- -->
     <AlertDialog :open="isDeleteDialogOpen" @update:open="isDeleteDialogOpen = $event">
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -196,14 +201,14 @@ const goToEditWallet = (wallet: IWallet) => {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel @click="isDeleteDialogOpen = false">Cancel</AlertDialogCancel>
-          <AlertDialogAction @click="handleDeleteConfirm" variant="destructive">
-            Delete Wallet
+          <AlertDialogCancel :disabled="isDeleting" @click="isDeleteDialogOpen = false">Cancel</AlertDialogCancel>
+          <AlertDialogAction @click="handleDeleteConfirm" variant="destructive" :disabled="isDeleting">
+            <span v-if="isDeleting">Deleting...</span>
+            <span v-else>Delete Wallet</span>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-     <!-- --- End Delete Confirmation Dialog --- -->
 
   </div>
 </template>
