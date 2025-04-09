@@ -1,91 +1,52 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { ITokenBalanceResponse, IWallet } from '~/types'
-
-// API client
-const { $api } = useNuxtApp()
+import { ref, computed } from 'vue'
+import type { IWallet } from '~/types'
 
 // Route handling
 const route = useRoute()
+
+// Reactive pagination state for wallet list (optional, can be static)
+const walletLimit = ref(100) // Fetch a larger number if needed for the sidebar
+const walletOffset = ref(0)
+
+// Use the wallets list composable
+const { wallets, isLoading: isLoadingWallets } = useWalletsList(walletLimit, walletOffset)
+
+// Determine target chainType and address from route or first wallet
+const targetChainType = computed(() => {
+  if (route.params.chainType) {
+    return route.params.chainType as string
+  }
+  // Fallback to the first wallet in the list if no route params
+  return wallets.value.length > 0 ? wallets.value[0].chainType : undefined
+})
+
+const targetAddress = computed(() => {
+  if (route.params.address) {
+    return route.params.address as string
+  }
+  // Fallback to the first wallet in the list if no route params
+  return wallets.value.length > 0 ? wallets.value[0].address : undefined
+})
+
+// Use the current wallet composable
+const { currentWallet, isLoading: isLoadingCurrentWallet } = useCurrentWallet(targetChainType, targetAddress)
+
+// Use the wallet balances composable
+const { balances, isLoading: isLoadingBalances } = useWalletBalances(targetChainType, targetAddress)
+
+// Active token address from route for highlighting in sidebar
 const activeTokenAddress = computed(() => 
-  typeof route.params.tokenAddress === 'string' 
-    ? route.params.tokenAddress 
-    : undefined
+  route.params.tokenAddress as string | undefined
 )
-
-// Async data fetching
-const { data: walletsData, status: walletsStatus } = await useAsyncData(
-  'wallets',
-  () => $api.wallet.listWallets(10, 0),
-  { 
-    immediate: true,
-  }
-)
-
-// Make sure walletsData is always treated as an array
-const wallets = computed<IWallet[]>(() => walletsData.value?.items || [])
-
-// Fetch wallet data based on route or first wallet
-const fetchCurrentWallet = async () => {
-  if (route.params.address && route.params.chainType) {
-    const address = typeof route.params.address === 'string' ? route.params.address : route.params.address[0]
-    const chainType = typeof route.params.chainType === 'string' ? route.params.chainType : route.params.chainType[0]
-    
-    return { chainType, address }
-  } else if (walletsData.value && walletsData.value.items.length > 0) {
-    const wallet = walletsData.value.items[0]
-    return { chainType: wallet.chainType, address: wallet.address }
-  }
-  
-  return null
-}
-
-// Fetch current wallet data
-const { data: currentWallet, status: walletStatus } = await useAsyncData(
-  'currentWallet',
-  async () => {
-    const params = await fetchCurrentWallet()
-    if (params) {
-      return $api.wallet.getWallet(params.chainType, params.address)
-    }
-    return null
-  },
-  { 
-    watch: [walletsData, route]
-  }
-)
-
-// Fetch balances for current wallet
-const { data: balancesData, status: balancesStatus } = await useAsyncData(
-  'walletBalances',
-  async () => {
-    if (currentWallet.value) {
-      return $api.wallet.getWalletBalance(
-        currentWallet.value.chainType, 
-        currentWallet.value.address
-      )
-    }
-    return [] as ITokenBalanceResponse[]
-  },
-  { 
-    watch: [currentWallet]
-  }
-)
-
-// Make sure balances is always treated as an array
-const balances = computed<ITokenBalanceResponse[]>(() => balancesData.value || [])
 
 // Combined loading state
 const isLoading = computed(() => 
-  walletsStatus.value === 'pending' || 
-  walletStatus.value === 'pending' || 
-  balancesStatus.value === 'pending'
+  isLoadingWallets.value || isLoadingCurrentWallet.value || isLoadingBalances.value
 )
 
-// Handle wallet change
-const handleWalletChange = async (wallet: IWallet) => {
-  // Navigate to the wallet's transactions page
-  // This will trigger the watcher to update the wallet data
+// Handle wallet change (navigation triggers data refresh via route params)
+const handleWalletChange = (wallet: IWallet) => {
   navigateTo(`/wallets/${wallet.chainType}/${wallet.address}/transactions`)
 }
 </script>
@@ -101,6 +62,7 @@ const handleWalletChange = async (wallet: IWallet) => {
         :on-wallet-change="handleWalletChange"
         :balances="balances"
         :active-token-address="activeTokenAddress"
+        :is-loading="isLoading" 
       />
       
       <SidebarInset>
@@ -112,7 +74,7 @@ const handleWalletChange = async (wallet: IWallet) => {
                 {{ currentWallet?.name || 'Wallet' }}
               </BreadcrumbItem>
               <BreadcrumbSeparator/>
-              <BreadcrumbItem>Transactions</BreadcrumbItem>
+              <BreadcrumbItem>Transactions</BreadcrumbItem> 
             </BreadcrumbList>
           </Breadcrumb>
         </header>
