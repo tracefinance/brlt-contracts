@@ -135,7 +135,7 @@ func (s *dbTokenStore) ListTokensByChain(ctx context.Context, chainType types.Ch
 	// Add pagination if limit > 0
 	if limit > 0 {
 		query += " LIMIT ? OFFSET ?"
-		args = append(args, limit, offset)
+		args = append(args, limit+1, offset) // Fetch one extra item
 	}
 
 	rows, err := s.db.ExecuteQueryContext(ctx, query, args...)
@@ -169,7 +169,7 @@ func (s *dbTokenStore) ListTokens(ctx context.Context, offset, limit int) (*type
 	// Add pagination if limit > 0
 	if limit > 0 {
 		query += " LIMIT ? OFFSET ?"
-		args = append(args, limit, offset)
+		args = append(args, limit+1, offset) // Fetch one extra item
 	}
 
 	rows, err := s.db.ExecuteQueryContext(ctx, query, args...)

@@ -316,7 +316,7 @@ func (r *repository) List(ctx context.Context, offset int, limit int) (*types.Pa
 
 	// Add pagination if limit > 0
 	if limit > 0 {
-		sb.Limit(limit)
+		sb.Limit(limit + 1) // Fetch one extra item
 		sb.Offset(offset)
 	}
 

@@ -166,7 +166,7 @@ func (r *repository) ListByWalletID(ctx context.Context, walletID int64, limit, 
 
 	// Add pagination if limit > 0
 	if limit > 0 {
-		sb.Limit(limit)
+		sb.Limit(limit + 1) // Fetch one extra item to check for HasMore
 		sb.Offset(offset)
 	}
 
@@ -198,7 +198,7 @@ func (r *repository) ListByWalletAddress(ctx context.Context, chainType types.Ch
 
 	// Add pagination if limit > 0
 	if limit > 0 {
-		sb.Limit(limit)
+		sb.Limit(limit + 1) // Fetch one extra item to check for HasMore
 		sb.Offset(offset)
 	}
 
@@ -260,7 +260,7 @@ func (r *repository) List(ctx context.Context, filter *Filter) (*types.Page[*Tra
 
 	// Add pagination if limit > 0
 	if filter.Limit > 0 {
-		sb.Limit(filter.Limit)
+		sb.Limit(filter.Limit + 1) // Fetch one extra item to check for HasMore
 		sb.Offset(filter.Offset)
 	}
 
