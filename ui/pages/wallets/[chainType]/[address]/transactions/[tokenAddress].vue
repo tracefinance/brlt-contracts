@@ -1,50 +1,42 @@
 <script setup lang="ts">
 import { formatDistanceToNow } from 'date-fns'
 import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { formatCurrency, shortenAddress } from '~/lib/utils'
 import { getTransactionExplorerUrl, getAddressExplorerUrl } from '~/lib/explorers'
+import type { IChain } from '~/types'
 
 // Define page metadata
 definePageMeta({
   layout: 'wallet'
 })
 
-// Get route params and router
+// Get route params
 const route = useRoute()
-const router = useRouter()
 
 // Reactive route parameters
 const address = computed(() => route.params.address as string)
 const chainType = computed(() => route.params.chainType as string)
 const tokenAddress = computed(() => route.params.tokenAddress as string)
 
-// Reactive pagination parameters from route query
-const limit = computed(() => {
-  const queryLimit = route.query.limit ? Number(route.query.limit) : 10
-  return isNaN(queryLimit) || queryLimit <= 0 ? 10 : queryLimit // Ensure limit is positive
-})
-
-const offset = computed(() => {
-  const queryOffset = route.query.offset ? Number(route.query.offset) : 0
-  return isNaN(queryOffset) || queryOffset < 0 ? 0 : queryOffset // Ensure offset is non-negative
-})
+// Use the pagination composable
+const { limit, offset, setLimit, previousPage, nextPage } = usePagination(10)
 
 // Use composables for data fetching
 const { 
   transactions, 
-  isLoading, 
+  isLoading: isLoadingTransactions, 
   error: walletTransactionsError, 
   hasMore 
 } = useWalletTransactions(chainType, address, tokenAddress, limit, offset)
 
 // Use the useChains composable
-const { chains, isLoading: chainsLoading, error: chainsError } = useChains()
+const { chains, isLoading: isLoadingChains, error: chainsError } = useChains()
 
 // Find the current chain based on the route parameter
 const currentChain = computed(() => {
-  if (chainsLoading.value || chainsError.value) return null // Guard against loading/error state
-  return chains.value.find(chain => chain.type.toLowerCase() === chainType.value.toLowerCase())
+  if (isLoadingChains.value || chainsError.value) return null // Guard against loading/error state
+  return chains.value.find((chain: IChain) => chain.type.toLowerCase() === chainType.value.toLowerCase())
 })
 
 // Computed property for the base explorer URL
@@ -52,22 +44,9 @@ const explorerBaseUrl = computed(() => {
   return currentChain.value?.explorerUrl
 })
 
+// Combine loading and error states
+const isLoading = computed(() => isLoadingTransactions.value || isLoadingChains.value)
 const error = computed(() => walletTransactionsError.value || chainsError.value)
-
-// Handle pagination events
-function handlePreviousPage() {
-  const newOffset = Math.max(0, offset.value - limit.value)
-  router.push({ query: { ...route.query, offset: newOffset } })
-}
-
-function handleNextPage() {
-  const newOffset = offset.value + limit.value
-  router.push({ query: { ...route.query, offset: newOffset } })
-}
-
-function handleLimitChange(newLimit: number) {
-  router.push({ query: { ...route.query, limit: newLimit, offset: 0 } })
-}
 </script>
 
 <template>
@@ -79,7 +58,7 @@ function handleLimitChange(newLimit: number) {
 
     <!-- Show error state -->
     <div v-else-if="error" class="p-4 m-4 bg-red-50 text-red-700 rounded-md">
-      {{ error }}
+      {{ error.message || 'Failed to load data' }}
     </div>
 
     <!-- Show content when loaded and no errors -->
@@ -169,13 +148,13 @@ function handleLimitChange(newLimit: number) {
               </Table>              
             </div>
             <div class="flex items-center gap-2 mt-2">
-                <PaginationSizeSelect :current-limit="limit" @update:limit="handleLimitChange" />
+                <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
                 <PaginationControls 
                   :offset="offset" 
                   :limit="limit" 
                   :has-more="hasMore" 
-                  @previous="handlePreviousPage"
-                  @next="handleNextPage"
+                  @previous="previousPage"
+                  @next="nextPage"
                 />
             </div>
           </div>

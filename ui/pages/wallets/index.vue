@@ -10,8 +10,8 @@ definePageMeta({
     
     // Fetch wallets data on the server
     const { data: walletsData } = await useAsyncData(
-      'wallets',
-      () => $api.wallet.listWallets(10, 0)
+      'walletsRedirect',
+      () => $api.wallet.listWallets(1, 0)
     )
     
     // If there are wallets, redirect to the first one's transactions
