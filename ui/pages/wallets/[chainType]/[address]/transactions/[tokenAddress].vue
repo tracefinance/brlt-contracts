@@ -50,138 +50,134 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
 </script>
 
 <template>
-  <div>
-    <!-- Show loading state -->
-    <div v-if="isLoading">
-      <TransactionTableSkeleton />
-    </div>
+  <!-- Show loading state -->
+  <div v-if="isLoading">
+    <TransactionTableSkeleton />
+  </div>
 
-    <!-- Show error state -->
-    <div v-else-if="error">
-      <Alert variant="destructive">
-        <Icon name="lucide:alert-triangle" class="w-4 h-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>
-          {{ error.message || 'Failed to load data' }}
-        </AlertDescription>
-      </Alert>
-    </div>
+  <!-- Show error state -->
+  <div v-else-if="error">
+    <Alert variant="destructive">
+      <Icon name="lucide:alert-triangle" class="w-4 h-4" />
+      <AlertTitle>Error</AlertTitle>
+      <AlertDescription>
+        {{ error.message || 'Failed to load data' }}
+      </AlertDescription>
+    </Alert>
+  </div>
 
-    <!-- Show content when loaded and no errors -->
-    <div v-else-if="currentChain">          
-        <div>          
-          <div v-if="transactions.length === 0">
-            <Alert>
-              <Icon name="lucide:inbox" class="w-4 h-4" />
-                <AlertTitle>No Transactions</AlertTitle>
-                <AlertDescription>
-                  No transactions available for this token yet.
-                </AlertDescription>
-            </Alert>
-          </div>
-          
-          <div v-else>                      
-            <div class="overflow-auto rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow class="bg-muted hover:bg-muted">
-                    <TableHead class="w-[15%]">Hash</TableHead>
-                    <TableHead class="w-[10%]">Type</TableHead>
-                    <TableHead class="w-[15%]">From</TableHead>
-                    <TableHead class="w-[15%]">To</TableHead>
-                    <TableHead class="w-[11%]">Token</TableHead>
-                    <TableHead class="w-[12%] text-right">Value</TableHead>
-                    <TableHead class="w-[12%]">Age</TableHead>
-                    <TableHead class="w-[10%]">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow v-for="tx in transactions" :key="tx.hash">
-                    <TableCell>
-                      <a :href="getTransactionExplorerUrl(explorerBaseUrl, tx.hash)" target="_blank" rel="noopener noreferrer" class="hover:underline">
-                        {{ shortenAddress(tx.hash) }}
-                      </a>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" class="rounded-full px-2 py-1">
-                        <Icon 
-                          :name="tx.fromAddress.toLowerCase() === address.toLowerCase() ? 'lucide:arrow-up-right' : 'lucide:arrow-down-left'" 
-                          class="mr-1 h-4 w-4" 
-                        />
-                        {{ tx.fromAddress.toLowerCase() === address.toLowerCase() ? 'Send' : 'Receive' }}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <a :href="getAddressExplorerUrl(explorerBaseUrl, tx.fromAddress)" target="_blank" rel="noopener noreferrer" class="hover:underline">
-                        {{ shortenAddress(tx.fromAddress) }}
-                      </a>
-                    </TableCell>
-                    <TableCell>
-                      <a :href="getAddressExplorerUrl(explorerBaseUrl, tx.toAddress)" target="_blank" rel="noopener noreferrer" class="hover:underline">
-                        {{ shortenAddress(tx.toAddress) }}
-                      </a>
-                    </TableCell>
-                    <TableCell class="flex items-center">
-                      <div class="flex items-center gap-2">
-                        <Web3Icon v-if="tx.tokenSymbol" :symbol="tx.tokenSymbol" class="size-5" />
-                        <Icon v-else name="lucide:help-circle" class="size-5 text-muted-foreground" />
-                        {{ tx.tokenSymbol || 'N/A' }}
-                      </div>
-                    </TableCell>
-                    <TableCell class="text-right">{{ formatCurrency(tx.value) }}</TableCell>
-                    <TableCell :title="new Date(tx.timestamp * 1000).toLocaleString()">
-                      {{ formatDistanceToNow(new Date(tx.timestamp * 1000), { addSuffix: true }) }}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" class="rounded-full px-2 py-1">
-                        <Icon 
-                          v-if="tx.status?.toLowerCase() === 'success'" 
-                          name="lucide:check-circle" 
-                          class="mr-1 h-4 w-4 text-green-600" 
-                        />
-                        <Icon 
-                          v-else-if="tx.status?.toLowerCase() === 'pending'" 
-                          name="lucide:loader" 
-                          class="mr-1 h-4 w-4 animate-spin text-muted-foreground" 
-                        />
-                        <Icon 
-                          v-else-if="tx.status?.toLowerCase() === 'failed'" 
-                          name="lucide:x-circle" 
-                          class="mr-1 h-4 w-4 text-destructive" 
-                        />
-                        <Icon 
-                          v-else 
-                          name="lucide:help-circle" 
-                          class="mr-1 h-4 w-4 text-muted-foreground" 
-                        />
-                        {{ tx.status || 'Unknown' }}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>              
-            </div>
-            <div class="flex items-center gap-2 mt-2">
-                <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
-                <PaginationControls 
-                  :offset="offset" 
-                  :limit="limit" 
-                  :has-more="hasMore" 
-                  @previous="previousPage"
-                  @next="nextPage"
-                />
-            </div>
-          </div>
-        </div>
-      </div>
-    <div v-else class="p-8 text-center">
+  <!-- Show content when loaded and no errors -->
+  <div v-else-if="currentChain">                   
+    <div v-if="transactions.length === 0">
       <Alert>
-        <Icon name="lucide:info" class="w-4 h-4" />
-        <AlertTitle>Select Wallet and Token</AlertTitle>
-        <AlertDescription>
-          Please select a wallet and token from the sidebar to view transactions.
-        </AlertDescription>
+        <Icon name="lucide:inbox" class="w-4 h-4" />
+          <AlertTitle>No Transactions</AlertTitle>
+          <AlertDescription>
+            No transactions available for this token yet.
+          </AlertDescription>
       </Alert>
     </div>
+    
+    <div v-else>                      
+      <div class="overflow-auto rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow class="bg-muted hover:bg-muted">
+              <TableHead class="w-[15%]">Hash</TableHead>
+              <TableHead class="w-[10%]">Type</TableHead>
+              <TableHead class="w-[15%]">From</TableHead>
+              <TableHead class="w-[15%]">To</TableHead>
+              <TableHead class="w-[11%]">Token</TableHead>
+              <TableHead class="w-[12%] text-right">Value</TableHead>
+              <TableHead class="w-[12%]">Age</TableHead>
+              <TableHead class="w-[10%]">Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="tx in transactions" :key="tx.hash">
+              <TableCell>
+                <a :href="getTransactionExplorerUrl(explorerBaseUrl, tx.hash)" target="_blank" rel="noopener noreferrer" class="hover:underline">
+                  {{ shortenAddress(tx.hash) }}
+                </a>
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline" class="rounded-full px-2 py-1">
+                  <Icon 
+                    :name="tx.fromAddress.toLowerCase() === address.toLowerCase() ? 'lucide:arrow-up-right' : 'lucide:arrow-down-left'" 
+                    class="mr-1 h-4 w-4" 
+                  />
+                  {{ tx.fromAddress.toLowerCase() === address.toLowerCase() ? 'Send' : 'Receive' }}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <a :href="getAddressExplorerUrl(explorerBaseUrl, tx.fromAddress)" target="_blank" rel="noopener noreferrer" class="hover:underline">
+                  {{ shortenAddress(tx.fromAddress) }}
+                </a>
+              </TableCell>
+              <TableCell>
+                <a :href="getAddressExplorerUrl(explorerBaseUrl, tx.toAddress)" target="_blank" rel="noopener noreferrer" class="hover:underline">
+                  {{ shortenAddress(tx.toAddress) }}
+                </a>
+              </TableCell>
+              <TableCell class="flex items-center">
+                <div class="flex items-center gap-2">
+                  <Web3Icon v-if="tx.tokenSymbol" :symbol="tx.tokenSymbol" class="size-5" />
+                  <Icon v-else name="lucide:help-circle" class="size-5 text-muted-foreground" />
+                  {{ tx.tokenSymbol || 'N/A' }}
+                </div>
+              </TableCell>
+              <TableCell class="text-right">{{ formatCurrency(tx.value) }}</TableCell>
+              <TableCell :title="new Date(tx.timestamp * 1000).toLocaleString()">
+                {{ formatDistanceToNow(new Date(tx.timestamp * 1000), { addSuffix: true }) }}
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline" class="rounded-full px-2 py-1">
+                  <Icon 
+                    v-if="tx.status?.toLowerCase() === 'success'" 
+                    name="lucide:check-circle" 
+                    class="mr-1 h-4 w-4 text-green-600" 
+                  />
+                  <Icon 
+                    v-else-if="tx.status?.toLowerCase() === 'pending'" 
+                    name="lucide:loader" 
+                    class="mr-1 h-4 w-4 animate-spin text-muted-foreground" 
+                  />
+                  <Icon 
+                    v-else-if="tx.status?.toLowerCase() === 'failed'" 
+                    name="lucide:x-circle" 
+                    class="mr-1 h-4 w-4 text-destructive" 
+                  />
+                  <Icon 
+                    v-else 
+                    name="lucide:help-circle" 
+                    class="mr-1 h-4 w-4 text-muted-foreground" 
+                  />
+                  {{ tx.status || 'Unknown' }}
+                </Badge>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>              
+      </div>
+      <div class="flex items-center gap-2 mt-2">
+          <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
+          <PaginationControls 
+            :offset="offset" 
+            :limit="limit" 
+            :has-more="hasMore" 
+            @previous="previousPage"
+            @next="nextPage"
+          />
+      </div>
+    </div>
+  </div>
+  <div v-else>
+    <Alert>
+      <Icon name="lucide:info" class="w-4 h-4" />
+      <AlertTitle>Select Wallet and Token</AlertTitle>
+      <AlertDescription>
+        Please select a wallet and token from the sidebar to view transactions.
+      </AlertDescription>
+    </Alert>
   </div>
 </template> 

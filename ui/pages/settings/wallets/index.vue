@@ -35,7 +35,7 @@ const {
 
 const isLoading = computed(() => isLoadingWallets.value || isLoadingChains.value)
 
-const error = computed(() => walletsError.value || chainsError.value || walletMutationsError.value)
+const error = computed(() => walletsError.value || chainsError.value)
 
 const getWalletExplorerBaseUrl = (wallet: IWallet): string | undefined => {
   if (isLoadingChains.value || chainsError.value) return undefined
@@ -67,7 +67,9 @@ const handleDeleteConfirm = async () => {
     toast.success(`Wallet \"${name}\" deleted successfully.`)
     await refreshWallets()
   } else {
-    toast.error(`Failed to delete wallet \"${name}\"": ${walletMutationsError.value?.message || 'Unknown error'}`)
+    toast.error(`Failed to delete wallet \"${name}\"`, {
+      description: walletMutationsError.value?.message || 'Unknown error'
+    })
   }
 
   isDeleteDialogOpen.value = false
@@ -89,32 +91,32 @@ const goToEditWallet = (wallet: IWallet) => {
 </script>
 
 <template>
-  <div class="flex flex-col">
-    <div v-if="isLoading">
-      <WalletTableSkeleton />
-    </div>
-    
-    <div v-else-if="error">
-      <Alert variant="destructive">
-        <Icon name="lucide:alert-triangle" class="w-4 h-4" />
-        <AlertTitle>Error Loading Wallets</AlertTitle>
-        <AlertDescription>
-          {{ error.message || 'Failed to load wallets or chains' }}
-        </AlertDescription>
-      </Alert>
-    </div>
-    
-    <div v-else-if="wallets.length === 0">
-       <Alert>
-         <Icon name="lucide:inbox" class="w-4 h-4" />
-         <AlertTitle>No Wallets Found</AlertTitle>
-         <AlertDescription>
-           You haven't added any wallets yet. Create or import one!
-         </AlertDescription>
-       </Alert>
-    </div>
+  <div v-if="isLoading">
+    <WalletTableSkeleton />
+  </div>
 
-    <div v-else class="border rounded-lg overflow-hidden">
+  <div v-else-if="error">
+    <Alert variant="destructive">
+      <Icon name="lucide:alert-triangle" class="w-4 h-4" />
+      <AlertTitle>Error Loading Wallets</AlertTitle>
+      <AlertDescription>
+        {{ error.message || 'Failed to load wallets or chains' }}
+      </AlertDescription>
+    </Alert>
+  </div>
+
+  <div v-else-if="wallets.length === 0">
+    <Alert>
+      <Icon name="lucide:inbox" class="w-4 h-4" />
+      <AlertTitle>No Wallets Found</AlertTitle>
+      <AlertDescription>
+        You haven't added any wallets yet. Create or import one!
+      </AlertDescription>
+    </Alert>
+  </div>
+
+  <div v-else>
+    <div class="border rounded-lg overflow-hidden">
       <Table>
         <TableHeader class="bg-muted">
           <TableRow>
@@ -136,13 +138,9 @@ const goToEditWallet = (wallet: IWallet) => {
               </div>
             </TableCell>
             <TableCell>
-              <a
-                :href="getAddressExplorerUrl(getWalletExplorerBaseUrl(wallet), wallet.address)"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="hover:underline"
-                v-if="wallet.address && getWalletExplorerBaseUrl(wallet)"
-              >
+              <a :href="getAddressExplorerUrl(getWalletExplorerBaseUrl(wallet), wallet.address)" target="_blank"
+                rel="noopener noreferrer" class="hover:underline"
+                v-if="wallet.address && getWalletExplorerBaseUrl(wallet)">
                 {{ wallet.address }}
               </a>
               <span v-else-if="wallet.address">{{ wallet.address }}</span>
@@ -150,12 +148,12 @@ const goToEditWallet = (wallet: IWallet) => {
             </TableCell>
             <TableCell>{{ wallet.lastBlockNumber || 'N/A' }}</TableCell>
             <TableCell>
-               <div v-if="wallet.tags && Object.keys(wallet.tags).length > 0" class="flex flex-wrap gap-1">
-                 <Badge v-for="(value, key) in wallet.tags" :key="key" variant="secondary" class="whitespace-nowrap">
-                   {{ key }}: {{ value }}
-                 </Badge>
-               </div>
-               <span v-else class="text-xs text-muted-foreground">No tags</span>
+              <div v-if="wallet.tags && Object.keys(wallet.tags).length > 0" class="flex flex-wrap gap-1">
+                <Badge v-for="(value, key) in wallet.tags" :key="key" variant="secondary" class="whitespace-nowrap">
+                  {{ key }}: {{ value }}
+                </Badge>
+              </div>
+              <span v-else class="text-xs text-muted-foreground">No tags</span>
             </TableCell>
             <TableCell class="text-right">
               <DropdownMenu>
@@ -170,7 +168,8 @@ const goToEditWallet = (wallet: IWallet) => {
                     <Icon name="lucide:pencil" class="mr-2 size-4" />
                     <span>Edit</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem @click="openDeleteDialog(wallet)" class="text-destructive focus:text-destructive focus:bg-destructive/10">
+                  <DropdownMenuItem @click="openDeleteDialog(wallet)"
+                    class="text-destructive focus:text-destructive focus:bg-destructive/10">
                     <Icon name="lucide:trash-2" class="mr-2 size-4" />
                     <span>Delete</span>
                   </DropdownMenuItem>
@@ -183,38 +182,28 @@ const goToEditWallet = (wallet: IWallet) => {
     </div>
     <div class="flex items-center gap-2 mt-2">
       <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
-      <PaginationControls 
-        :offset="offset" 
-        :limit="limit" 
-        :has-more="hasMore" 
-        @previous="previousPage"
-        @next="nextPage"
-      />
+      <PaginationControls :offset="offset" :limit="limit" :has-more="hasMore" @previous="previousPage"
+        @next="nextPage" />
     </div>
-
-    <AlertDialog :open="isDeleteDialogOpen" @update:open="isDeleteDialogOpen = $event">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete the wallet 
-            "{{ walletToDelete?.name }}" ({{ walletToDelete?.address?.substring(0,6) }}...). 
-            Associated transaction data might also be affected depending on system configuration.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel :disabled="isDeleting" @click="isDeleteDialogOpen = false">Cancel</AlertDialogCancel>
-          <AlertDialogAction @click="handleDeleteConfirm" variant="destructive" :disabled="isDeleting">
-            <span v-if="isDeleting">Deleting...</span>
-            <span v-else>Delete Wallet</span>
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-
   </div>
-</template>
 
-<style scoped>
-/* Add any specific styles if needed */
-</style> 
+  <AlertDialog :open="isDeleteDialogOpen" @update:open="isDeleteDialogOpen = $event">
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+        <AlertDialogDescription>
+          This action cannot be undone. This will permanently delete the wallet
+          "{{ walletToDelete?.name }}" ({{ walletToDelete?.address?.substring(0, 6) }}...).
+          Associated transaction data might also be affected depending on system configuration.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel :disabled="isDeleting" @click="isDeleteDialogOpen = false">Cancel</AlertDialogCancel>
+        <AlertDialogAction @click="handleDeleteConfirm" variant="destructive" :disabled="isDeleting">
+          <span v-if="isDeleting">Deleting...</span>
+          <span v-else>Delete Wallet</span>
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+</template>
