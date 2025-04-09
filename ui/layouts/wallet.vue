@@ -78,7 +78,7 @@ const handleWalletChange = (wallet: IWallet) => {
             </BreadcrumbList>
           </Breadcrumb>
         </header>
-        <div class="flex flex-1 flex-col gap-4">
+        <div class="flex flex-1 flex-col gap-4 p-4">
           <slot />
         </div>
       </SidebarInset>

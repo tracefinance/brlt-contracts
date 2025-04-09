@@ -52,20 +52,32 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
 <template>
   <div>
     <!-- Show loading state -->
-    <div v-if="isLoading" class="p-8 text-center text-muted-foreground">
-      Loading transactions...
+    <div v-if="isLoading">
+      <TableSkeleton />
     </div>
 
     <!-- Show error state -->
-    <div v-else-if="error" class="p-4 m-4 bg-red-50 text-red-700 rounded-md">
-      {{ error.message || 'Failed to load data' }}
+    <div v-else-if="error">
+      <Alert variant="destructive">
+        <Icon name="lucide:alert-triangle" class="w-4 h-4" />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          {{ error.message || 'Failed to load data' }}
+        </AlertDescription>
+      </Alert>
     </div>
 
     <!-- Show content when loaded and no errors -->
     <div v-else-if="currentChain">          
-        <div class="p-4">          
-          <div v-if="transactions.length === 0" class="text-muted-foreground">
-            No transactions available for this token yet.
+        <div>          
+          <div v-if="transactions.length === 0">
+            <Alert>
+              <Icon name="lucide:inbox" class="w-4 h-4" />
+                <AlertTitle>No Transactions</AlertTitle>
+                <AlertDescription>
+                  No transactions available for this token yet.
+                </AlertDescription>
+            </Alert>
           </div>
           
           <div v-else>                      
@@ -73,21 +85,21 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
               <Table>
                 <TableHeader>
                   <TableRow class="bg-muted hover:bg-muted">
-                    <TableHead>Hash</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>From</TableHead>
-                    <TableHead>To</TableHead>
-                    <TableHead>Token</TableHead>
-                    <TableHead class="text-right">Value</TableHead>
-                    <TableHead>Age</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead class="w-[15%]">Hash</TableHead>
+                    <TableHead class="w-[10%]">Type</TableHead>
+                    <TableHead class="w-[15%]">From</TableHead>
+                    <TableHead class="w-[15%]">To</TableHead>
+                    <TableHead class="w-[11%]">Token</TableHead>
+                    <TableHead class="w-[12%] text-right">Value</TableHead>
+                    <TableHead class="w-[12%]">Age</TableHead>
+                    <TableHead class="w-[10%]">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   <TableRow v-for="tx in transactions" :key="tx.hash">
                     <TableCell>
                       <a :href="getTransactionExplorerUrl(explorerBaseUrl, tx.hash)" target="_blank" rel="noopener noreferrer" class="hover:underline">
-                        {{ shortenAddress(tx.hash, 6, 4) }}
+                        {{ shortenAddress(tx.hash) }}
                       </a>
                     </TableCell>
                     <TableCell>
@@ -161,7 +173,13 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
         </div>
       </div>
     <div v-else class="p-8 text-center">
-      <p class="text-lg text-muted-foreground">Select a wallet and token to view transactions</p>
+      <Alert>
+        <Icon name="lucide:info" class="w-4 h-4" />
+        <AlertTitle>Select Wallet and Token</AlertTitle>
+        <AlertDescription>
+          Please select a wallet and token from the sidebar to view transactions.
+        </AlertDescription>
+      </Alert>
     </div>
   </div>
 </template> 

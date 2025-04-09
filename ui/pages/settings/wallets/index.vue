@@ -42,24 +42,39 @@ const getWalletExplorerBaseUrl = (wallet: IWallet): string | undefined => {
 
 <template>
   <div class="flex flex-col">
-    <div v-if="isLoading" class="text-center py-4">
-      Loading wallets...
+    <div v-if="isLoading">
+      <WalletTableSkeleton />
     </div>
-    <div v-else-if="error" class="text-red-500 text-center py-4">
-      Error: {{ error.message || 'Failed to load wallets' }}
+    
+    <div v-else-if="error">
+      <Alert variant="destructive">
+        <Icon name="lucide:alert-triangle" class="w-4 h-4" />
+        <AlertTitle>Error Loading Wallets</AlertTitle>
+        <AlertDescription>
+          {{ error.message || 'Failed to load wallets' }}
+        </AlertDescription>
+      </Alert>
     </div>
-    <div v-else-if="wallets.length === 0" class="text-center py-4">
-      No wallets found. Create one!
+    
+    <div v-else-if="wallets.length === 0">
+       <Alert>
+         <Icon name="lucide:inbox" class="w-4 h-4" />
+         <AlertTitle>No Wallets Found</AlertTitle>
+         <AlertDescription>
+           You haven't added any wallets yet. Create or import one!
+         </AlertDescription>
+       </Alert>
     </div>
+
     <div v-else class="border rounded-lg overflow-hidden">
       <Table>
         <TableHeader class="bg-muted">
           <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Chain</TableHead>
-            <TableHead>Address</TableHead>
-            <TableHead>Last Sync Block</TableHead>
-            <TableHead>Tags</TableHead>
+            <TableHead class="w-[15%]">Name</TableHead>
+            <TableHead class="w-[15%]">Chain</TableHead>
+            <TableHead class="w-[30%]">Address</TableHead>
+            <TableHead class="w-[15%]">Last Sync Block</TableHead>
+            <TableHead class="w-[25%]">Tags</TableHead>
             <!-- <TableHead>Actions</TableHead> -->
           </TableRow>
         </TableHeader>
@@ -90,15 +105,7 @@ const getWalletExplorerBaseUrl = (wallet: IWallet): string | undefined => {
                  </Badge>
                </div>
                <span v-else class="text-xs text-muted-foreground">No tags</span>
-            </TableCell>
-            <!-- <TableCell class="text-right">
-              <Button variant="ghost" size="icon" @click="// TODO: Implement edit">
-                <Icon name="lucide:pencil" class="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" @click="// TODO: Implement delete">
-                 <Icon name="lucide:trash-2" class="h-4 w-4 text-red-500" />
-              </Button>
-            </TableCell> -->
+            </TableCell>           
           </TableRow>
         </TableBody>
       </Table>

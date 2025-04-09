@@ -11,18 +11,18 @@ defineProps({
 </script>
 
 <template>
-  <div class="overflow-auto rounded-lg border">
+  <div class="overflow-hidden rounded-lg border">
     <Table>
       <TableHeader>
         <TableRow class="bg-muted hover:bg-muted">
-          <TableHead>Hash</TableHead>
-          <TableHead>Type</TableHead>
-          <TableHead>From</TableHead>
-          <TableHead>To</TableHead>
-          <TableHead>Token</TableHead>
-          <TableHead class="text-right">Value</TableHead>
-          <TableHead>Age</TableHead>
-          <TableHead>Status</TableHead>
+          <TableHead class="w-[15%]">Hash</TableHead>
+          <TableHead class="w-[10%]">Type</TableHead>
+          <TableHead class="w-[15%]">From</TableHead>
+          <TableHead class="w-[15%]">To</TableHead>
+          <TableHead class="w-[11%]">Token</TableHead>
+          <TableHead class="w-[12%] text-right">Value</TableHead>
+          <TableHead class="w-[12%]">Age</TableHead>
+          <TableHead class="w-[10%]">Status</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -45,7 +45,8 @@ defineProps({
     </Table>              
   </div>
   <div class="flex items-center gap-2 mt-2">
-    <Skeleton class="h-8 w-24" />
-    <Skeleton class="h-8 w-36 ml-auto" />
+    <Skeleton class="h-9 w-24" />
+    <Skeleton class="size-9" />
+    <Skeleton class="size-9" />
   </div>
 </template> 
