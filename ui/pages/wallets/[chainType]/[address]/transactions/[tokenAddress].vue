@@ -8,81 +8,56 @@ definePageMeta({
   layout: 'wallet'
 })
 
-// Get API client
-const { $api } = useNuxtApp()
-
-// Get route params
+// Get route params and router
 const route = useRoute()
 const router = useRouter()
 
+// Reactive route parameters
 const address = computed(() => route.params.address as string)
 const chainType = computed(() => route.params.chainType as string)
 const tokenAddress = computed(() => route.params.tokenAddress as string)
 
-// Get pagination parameters from route query
+// Reactive pagination parameters from route query
 const limit = computed(() => {
   const queryLimit = route.query.limit ? Number(route.query.limit) : 10
-  return isNaN(queryLimit) ? 10 : queryLimit
+  return isNaN(queryLimit) || queryLimit <= 0 ? 10 : queryLimit // Ensure limit is positive
 })
 
 const offset = computed(() => {
   const queryOffset = route.query.offset ? Number(route.query.offset) : 0
-  return isNaN(queryOffset) ? 0 : queryOffset
+  return isNaN(queryOffset) || queryOffset < 0 ? 0 : queryOffset // Ensure offset is non-negative
 })
 
-// Fetch wallet data
-const { data: currentWallet, status: walletStatus } = await useAsyncData(
-  'currentWallet',
-  () => $api.wallet.getWallet(chainType.value, address.value),
-  {
-    watch: [chainType, address]
-  }
-)
+// Use composables for data fetching
+const { 
+  currentWallet, 
+  isLoading: isLoadingWallet, 
+  error: errorWallet 
+} = useCurrentWallet(chainType, address)
 
-// Fetch token data
-const { data: currentToken, status: tokenStatus } = await useAsyncData(
-  'currentToken',
-  () => $api.token.getToken(chainType.value, tokenAddress.value),
-  {
-    watch: [chainType, tokenAddress]
-  }
-)
+const { 
+  currentToken, 
+  isLoading: isLoadingToken, 
+  error: errorToken 
+} = useTokenDetails(chainType, tokenAddress)
 
-// Fetch transactions
-const { data: transactionsData, status: transactionsStatus } = await useAsyncData(
-  'transactions',
-  () => $api.transaction.getWalletTransactions(
-    address.value,
-    chainType.value,
-    limit.value,
-    offset.value,
-    tokenAddress.value
-  ),
-  {
-    watch: [chainType, address, tokenAddress, limit, offset]
-  }
-)
+const { 
+  transactions, 
+  hasMore: hasMoreTransactions, 
+  isLoading: isLoadingTransactions, 
+  error: errorTransactions, 
+} = useWalletTransactions(chainType, address, tokenAddress, limit, offset)
 
-// Extract transactions and pagination info
-const transactions = computed(() => transactionsData.value?.items || [])
-const hasMoreTransactions = computed(() => {
-  if (!transactionsData.value) return false
-  return transactionsData.value.hasMore || false
-})
 
-// Handle errors
 const error = computed(() => {
-  if (walletStatus.value === 'error') return 'Failed to load wallet data'
-  if (tokenStatus.value === 'error') return 'Failed to load token data'
-  if (transactionsStatus.value === 'error') return 'Failed to load transactions'
+  if (errorWallet.value) return `Failed to load wallet: ${errorWallet.value.message}`
+  if (errorToken.value) return `Failed to load token: ${errorToken.value.message}`
+  if (errorTransactions.value) return `Failed to load transactions: ${errorTransactions.value.message}`
   return null
 })
 
-// Compute overall loading state
 const isLoading = computed(() => 
-  walletStatus.value === 'pending' || 
-  tokenStatus.value === 'pending' || 
-  transactionsStatus.value === 'pending'
+  isLoadingWallet.value || isLoadingToken.value || isLoadingTransactions.value
 )
 
 // Handle page size change
@@ -133,13 +108,20 @@ const explorerBaseUrl = computed(() => getExplorerBaseUrl(chainType.value))
 
 <template>
   <div>
-    <div v-if="currentWallet && currentToken">          
+    <!-- Show loading state -->
+    <div v-if="isLoading" class="p-8 text-center text-muted-foreground">
+      Loading transactions...
+    </div>
+
+    <!-- Show error state -->
+    <div v-else-if="error" class="p-4 m-4 bg-red-50 text-red-700 rounded-md">
+      {{ error }}
+    </div>
+
+    <!-- Show content when loaded and no errors -->
+    <div v-else-if="currentWallet && currentToken">          
         <div class="p-4">          
-          <div v-if="error" class="p-4 bg-red-50 text-red-700 rounded-md">
-            {{ error }}
-          </div>
-          
-          <div v-else-if="transactions.length === 0" class="text-muted-foreground">
+          <div v-if="transactions.length === 0" class="text-muted-foreground">
             No transactions available for this token yet.
           </div>
           

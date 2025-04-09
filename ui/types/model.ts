@@ -34,5 +34,5 @@ export interface IPagedResponse<T> {
   items: T[];
   limit: number;
   offset: number;
-  hasMore: boolean; // Mapped from API's has_more
+  hasMore: boolean;
 } 

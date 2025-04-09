@@ -59,7 +59,7 @@ export class TokenClient {
       items: fromJsonArray<IToken>(data.items || []),
       limit: data.limit,
       offset: data.offset,
-      hasMore: data.has_more
+      hasMore: data.hasMore
     };
   }
   

@@ -44,7 +44,7 @@ export class TransactionClient {
       items: fromJsonArray<ITransaction>(data.items || []),
       limit: data.limit,
       offset: data.offset,
-      hasMore: data.has_more
+      hasMore: data.hasMore
     };
   }
   
@@ -71,9 +71,9 @@ export class TransactionClient {
   async getWalletTransactions(
     address: string,
     chainType: string,
+    tokenAddress?: string,
     limit: number = 10,
-    offset: number = 0,
-    tokenAddress?: string
+    offset: number = 0    
   ): Promise<IPagedResponse<ITransaction>> {
     const endpoint = API_ENDPOINTS.TRANSACTIONS.BY_WALLET(chainType, address);
     
@@ -91,7 +91,7 @@ export class TransactionClient {
       items: fromJsonArray<ITransaction>(data.items || []),
       limit: data.limit,
       offset: data.offset,
-      hasMore: data.has_more
+      hasMore: data.hasMore
     };
   }
   
@@ -141,7 +141,7 @@ export class TransactionClient {
       items: fromJsonArray<ITransaction>(data.items || []),
       limit: data.limit,
       offset: data.offset,
-      hasMore: data.has_more
+      hasMore: data.hasMore
     };
   }
 } 
