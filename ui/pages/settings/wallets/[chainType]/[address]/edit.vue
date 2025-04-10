@@ -66,17 +66,11 @@ watch(wallet, (newWallet) => {
 
 watch(mutationError, (newError) => {
   if (newError) {
-    let errorMessage = 'An unknown error occurred while saving.'
-    const errorValue = newError
-    const errorAsAny = errorValue as any
-    if (errorAsAny?.data?.message) {
-      errorMessage = String(errorAsAny.data.message)
-    } else if (errorAsAny?.message) {
-      errorMessage = String(errorAsAny.message)
-    } else if (typeof errorValue === 'string') {
-      errorMessage = errorValue
-    }
-    toast.error(errorMessage)
+    // Attempt to extract a meaningful message, defaulting to a generic one
+    const errorMessage = (newError as any)?.message
+                      || (typeof newError === 'string' ? newError : null) // Handle string errors directly
+                      || 'An unknown error occurred while saving.';
+    toast.error(errorMessage);
   }
 })
 
