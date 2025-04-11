@@ -42,33 +42,6 @@ func NewAddress(address string, chainType ChainType) (*Address, error) {
 	return addr, nil
 }
 
-// ParseAddress parses an address string based on the chain type and returns
-// a properly formatted address. For EVM chains, it validates and converts to
-// checksum format.
-func ParseAddress(address string, chainType ChainType) (string, error) {
-	if address == "" {
-		return "", errors.NewInvalidAddressError("")
-	}
-
-	switch chainType {
-	case ChainTypeEthereum, ChainTypePolygon, ChainTypeBase:
-		// Ensure address has 0x prefix
-		if !strings.HasPrefix(address, "0x") {
-			address = "0x" + address
-		}
-
-		// Check if the address has the correct format
-		if !common.IsHexAddress(address) {
-			return "", errors.NewInvalidAddressError(address)
-		}
-
-		// Convert to checksum address
-		return common.HexToAddress(address).Hex(), nil
-	default:
-		return "", errors.NewChainNotSupportedError(string(chainType))
-	}
-}
-
 // Validate checks if the address is valid for its chain type
 func (a *Address) Validate() error {
 	if a.Address == "" {

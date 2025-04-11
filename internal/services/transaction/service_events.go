@@ -6,27 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-
 	"vault0/internal/core/tokenstore"
-	"vault0/internal/errors"
 	"vault0/internal/logger"
-	"vault0/internal/services/wallet"
 	"vault0/internal/types"
-)
-
-// TransactionEvent represents an event related to a transaction
-type TransactionEvent struct {
-	WalletID    int64
-	Transaction *Transaction
-	BlockNumber int64
-	EventType   string
-}
-
-// Event types for transaction events
-const (
-	EventTypeTransactionDetected = "TRANSACTION_DETECTED"
-	EventTypeNewBlock            = "NEW_BLOCK"
 )
 
 // SubscribeToTransactionEvents starts listening for new blocks and processing transactions
@@ -44,39 +26,6 @@ func (s *transactionService) SubscribeToTransactionEvents(ctx context.Context) {
 
 	// Subscribe to token events to dynamically update ERC20 token subscriptions
 	go s.subscribeToTokenEvents(s.eventCtx)
-
-	// Continue listening for wallet lifecycle events
-	go func() {
-		eventCh := s.walletService.LifecycleEvents()
-		for {
-			select {
-			case <-s.eventCtx.Done():
-				return
-			case event, ok := <-eventCh:
-				if !ok {
-					// Channel was closed
-					return
-				}
-
-				switch event.EventType {
-				case wallet.EventTypeWalletCreated:
-					// When a new wallet is created, sync its historical transactions
-					if err := s.handleWalletCreated(s.eventCtx, event); err != nil {
-						s.log.Error("Failed to handle wallet created event",
-							logger.Int64("wallet_id", event.WalletID),
-							logger.String("address", event.Address),
-							logger.Error(err))
-					}
-
-				case wallet.EventTypeWalletDeleted:
-					// When a wallet is deleted, we don't need to do anything
-					// The transactions will remain in the database for historical purposes
-					s.log.Info("Wallet deleted",
-						logger.Int64("wallet_id", event.WalletID))
-				}
-			}
-		}
-	}()
 }
 
 // UnsubscribeFromTransactionEvents stops listening for blockchain events
@@ -88,13 +37,6 @@ func (s *transactionService) UnsubscribeFromTransactionEvents() {
 
 	// Close the transaction events channel
 	close(s.transactionEvents)
-}
-
-// TransactionEvents returns a channel that emits transaction events.
-// These events include new transactions detected for monitored wallets.
-// The channel is closed when UnsubscribeFromTransactionEvents is called.
-func (s *transactionService) TransactionEvents() <-chan *TransactionEvent {
-	return s.transactionEvents
 }
 
 // subscribeToChainBlocks subscribes to new blocks for a specific chain
@@ -132,70 +74,32 @@ func (s *transactionService) subscribeToChainBlocks(ctx context.Context, chain t
 				logger.String("chain_type", string(chain.Type)),
 				logger.Error(err))
 		case block := <-blockCh:
-			s.processBlock(ctx, chain.Type, &block)
+			s.processBlock(chain.Type, &block)
 		}
 	}
 }
 
-// processBlock processes a new block, looking for transactions for monitored wallets
-func (s *transactionService) processBlock(ctx context.Context, chainType types.ChainType, block *types.Block) {
-	// Emit block event
-	s.emitTransactionEvent(&TransactionEvent{
-		BlockNumber: block.Number.Int64(),
-		EventType:   EventTypeNewBlock,
-	})
-
+// processBlock processes a new block, emitting all transactions found
+func (s *transactionService) processBlock(chainType types.ChainType, block *types.Block) {
 	s.log.Debug("Processing new block",
 		logger.String("chain_type", string(chainType)),
 		logger.Int64("block_number", block.Number.Int64()),
 		logger.String("block_hash", block.Hash),
 		logger.Int("transaction_count", block.TransactionCount))
 
-	// Get all wallets for this chain type
-	wallets, err := s.getWalletsByChainType(ctx, chainType)
-	if err != nil {
-		s.log.Error("Failed to get wallets for chain type",
-			logger.String("chain_type", string(chainType)),
-			logger.Error(err))
-		return
-	}
-
-	// Create a map of wallet addresses for quick lookup
-	walletMap := wallet.NewWalletMap(wallets, chainType)
-
 	// Process each transaction in the block
 	for _, tx := range block.Transactions {
-		// Check if the transaction involves any of our monitored wallets
-		var wallet *wallet.Wallet
-		if tx.From != "" {
-			wallet = walletMap.Get(tx.From)
-		}
-		if wallet == nil && tx.To != "" {
-			wallet = walletMap.Get(tx.To)
-		}
-
-		// If this transaction involves one of our wallets, process it
-		if wallet != nil {
-			// Set the timestamp to the block timestamp
+		// Set the timestamp to the block timestamp if not already set
+		if tx.Timestamp == 0 {
 			tx.Timestamp = block.Timestamp.Unix()
-
-			// Process the transaction record (check existence, retrieve or create)
-			transaction, err := s.processTransactionRecord(ctx, tx, wallet.ID)
-			if err != nil {
-				// Already logged the error in processTransactionRecord
-				continue
-			}
-
-			// Update balances if needed
-			s.updateBalanceForTransaction(ctx, transaction, wallet)
-
-			// Handle transaction completion (emit events, update last block number)
-			s.handleTransactionCompletion(ctx, wallet, transaction, block.Number.Int64())
 		}
+
+		// Emit the raw transaction (filtered by monitored addresses inside emitTransactionEvent)
+		s.emitTransactionEvent(tx)
 	}
 }
 
-// processERC20TransferLog processes an ERC20 Transfer event log
+// processERC20TransferLog processes an ERC20 Transfer event log and emits the transaction
 func (s *transactionService) processERC20TransferLog(ctx context.Context, chain types.Chain, log types.Log) {
 	// Check if we have enough topics (event signature + from + to)
 	if len(log.Topics) < 3 {
@@ -204,42 +108,30 @@ func (s *transactionService) processERC20TransferLog(ctx context.Context, chain 
 		return
 	}
 
-	// Extract from and to addresses from the topics
-	// Topics[0] is the event signature hash
-	// Topics[1] is the indexed 'from' address
-	// Topics[2] is the indexed 'to' address
-	fromAddr := common.HexToAddress(log.Topics[1]).Hex()
-	toAddr := common.HexToAddress(log.Topics[2]).Hex()
-
-	// Normalize addresses to ensure proper comparison
-	fromAddr = strings.ToLower(fromAddr)
-	toAddr = strings.ToLower(toAddr)
-
-	// Get wallets for this chain to check if transfer involves any of our wallets
-	wallets, err := s.getWalletsByChainType(ctx, chain.Type)
+	// Extract and parse 'from' address using the address utilities
+	// The topics in ERC20 Transfer events are 32 bytes with padding, so we need to extract the last 20 bytes
+	fromTopicAddress := "0x" + log.Topics[1][len(log.Topics[1])-40:] // Last 40 hex chars (20 bytes)
+	fromAddrObj, err := types.NewAddress(fromTopicAddress, chain.Type)
 	if err != nil {
-		s.log.Error("Failed to get wallets for ERC20 transfer processing",
-			logger.String("chain_type", string(chain.Type)),
+		s.log.Warn("Invalid from address in ERC20 transfer",
+			logger.String("tx_hash", log.TransactionHash),
+			logger.String("raw_address", fromTopicAddress),
 			logger.Error(err))
 		return
 	}
+	fromAddr := strings.ToLower(fromAddrObj.Address)
 
-	// Create a map of wallet addresses for quick lookup
-	walletMap := wallet.NewWalletMap(wallets, chain.Type)
-
-	// Check if the transfer involves any of our monitored wallets
-	var wallet *wallet.Wallet
-	if fromAddr != "" {
-		wallet = walletMap.Get(fromAddr)
-	}
-	if wallet == nil && toAddr != "" {
-		wallet = walletMap.Get(toAddr)
-	}
-
-	// If this transfer doesn't involve any of our wallets, ignore it
-	if wallet == nil {
+	// Extract and parse 'to' address using the address utilities
+	toTopicAddress := "0x" + log.Topics[2][len(log.Topics[2])-40:] // Last 40 hex chars (20 bytes)
+	toAddrObj, err := types.NewAddress(toTopicAddress, chain.Type)
+	if err != nil {
+		s.log.Warn("Invalid to address in ERC20 transfer",
+			logger.String("tx_hash", log.TransactionHash),
+			logger.String("raw_address", toTopicAddress),
+			logger.Error(err))
 		return
 	}
+	toAddr := strings.ToLower(toAddrObj.Address)
 
 	// Get blockchain client to fetch transaction details and block information
 	client, err := s.blockchainRegistry.GetBlockchain(chain.Type)
@@ -285,7 +177,16 @@ func (s *transactionService) processERC20TransferLog(ctx context.Context, chain 
 	}
 
 	// Create a new transaction directly from the log data
-	tokenAddress := log.Address
+	// Parse the token address using the address utilities
+	tokenAddrObj, err := types.NewAddress(log.Address, chain.Type)
+	if err != nil {
+		s.log.Warn("Invalid token address in ERC20 transfer",
+			logger.String("tx_hash", log.TransactionHash),
+			logger.String("raw_address", log.Address),
+			logger.Error(err))
+		return
+	}
+	tokenAddress := tokenAddrObj.Address
 
 	// Parse the transfer amount from log data
 	var value *big.Int
@@ -313,32 +214,18 @@ func (s *transactionService) processERC20TransferLog(ctx context.Context, chain 
 		Nonce:        nonce,
 	}
 
-	// Get token details from token store
+	// Get token details from token store to enrich the emitted transaction
 	token, err := s.tokenStore.GetToken(ctx, tokenAddress)
 	if err == nil && token != nil {
 		tx.TokenSymbol = token.Symbol
 	} else {
-		s.log.Warn("Token not found in token store for ERC20 transfer",
+		s.log.Warn("Token not found in token store for ERC20 transfer, emitting without symbol",
 			logger.String("token_address", tokenAddress),
 			logger.String("chain", string(chain.Type)))
 	}
 
-	// Process the transaction record
-	transaction, err := s.processTransactionRecord(ctx, tx, wallet.ID)
-	if err != nil {
-		// Error already logged in processTransactionRecord
-		return
-	}
-
-	// Update token balance for successful transactions
-	s.updateBalanceForTransaction(ctx, transaction, wallet)
-
-	// Handle transaction completion (emit events, update last block number)
-	blockNumber := int64(0)
-	if log.BlockNumber != nil {
-		blockNumber = log.BlockNumber.Int64()
-	}
-	s.handleTransactionCompletion(ctx, wallet, transaction, blockNumber)
+	// Emit the raw transaction (filtered by monitored addresses inside emitTransactionEvent)
+	s.emitTransactionEvent(tx)
 }
 
 // subscribeToTokenEvents listens for token event notifications and updates ERC20 subscriptions
@@ -393,22 +280,6 @@ func (s *transactionService) subscribeToTokenEvents(ctx context.Context) {
 	}
 }
 
-// handleWalletCreated handles the wallet created event by syncing historical transactions
-func (s *transactionService) handleWalletCreated(ctx context.Context, event *wallet.LifecycleEvent) error {
-	// Sync historical transactions for the new wallet
-	count, err := s.SyncTransactionsByAddress(ctx, event.ChainType, event.Address)
-	if err != nil {
-		return errors.NewTransactionSyncFailedError("sync_history", err)
-	}
-
-	s.log.Info("Synced historical transactions for new wallet",
-		logger.Int64("wallet_id", event.WalletID),
-		logger.String("address", event.Address),
-		logger.Int("transaction_count", count))
-
-	return nil
-}
-
 // subscribeToERC20Transfers subscribes to ERC20 token transfer events on a specific chain
 func (s *transactionService) subscribeToERC20Transfers(ctx context.Context, chain types.Chain) {
 	// Get blockchain client for the chain type
@@ -455,7 +326,7 @@ func (s *transactionService) subscribeToERC20Transfers(ctx context.Context, chai
 		ctx,
 		tokenAddresses,
 		string(types.ERC20TransferEventSignature),
-		nil, // No specific args filter, we'll check if from/to match our wallets
+		nil, // No specific args filter, emitTransactionEvent handles address filtering
 		0,   // Start from recent blocks
 	)
 
@@ -480,5 +351,35 @@ func (s *transactionService) subscribeToERC20Transfers(ctx context.Context, chai
 		case log := <-logCh:
 			s.processERC20TransferLog(ctx, chain, log)
 		}
+	}
+}
+
+// emitTransactionEvent sends a raw transaction to the transaction events channel
+// if the transaction involves a monitored address.
+func (s *transactionService) emitTransactionEvent(tx *types.Transaction) {
+	s.addressMutex.RLock()
+	chainMap, chainExists := s.monitoredAddresses[tx.Chain]
+	fromMonitored := false
+	toMonitored := false
+	if chainExists {
+		_, fromMonitored = chainMap[strings.ToLower(tx.From)]
+		_, toMonitored = chainMap[strings.ToLower(tx.To)]
+	}
+	s.addressMutex.RUnlock()
+
+	// Only emit if from or to address is monitored
+	if !fromMonitored && !toMonitored {
+		return
+	}
+
+	select {
+	case s.transactionEvents <- tx:
+		s.log.Debug("Emitted transaction event",
+			logger.String("tx_hash", tx.Hash),
+			logger.String("chain", string(tx.Chain)))
+	default:
+		s.log.Warn("Transaction events channel is full, dropping event",
+			logger.String("tx_hash", tx.Hash),
+			logger.String("chain", string(tx.Chain)))
 	}
 }

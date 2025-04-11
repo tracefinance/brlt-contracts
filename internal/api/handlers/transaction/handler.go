@@ -36,7 +36,6 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	walletRoutes.Use(errorHandler.Middleware())
 	walletRoutes.GET("", h.GetTransactionsByAddress)
 	walletRoutes.GET("/:hash", h.GetTransaction)
-	walletRoutes.POST("/sync", h.SyncTransactions)
 
 	// Direct transaction routes
 	transactionRoutes := router.Group("/transactions")
@@ -154,34 +153,6 @@ func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, ToPagedResponse(page, tokensMap))
-}
-
-// SyncTransactions handles POST /wallets/:chain_type/:address/transactions/sync
-// @Summary Sync transactions for an address
-// @Description Sync blockchain transactions for a specific wallet address
-// @Tags transactions
-// @Produce json
-// @Param chain_type path string true "Chain type"
-// @Param address path string true "Wallet address"
-// @Success 200 {object} SyncTransactionsResponse
-// @Failure 400 {object} errors.Vault0Error "Invalid request"
-// @Failure 404 {object} errors.Vault0Error "Wallet not found"
-// @Failure 500 {object} errors.Vault0Error "Internal server error"
-// @Router /wallets/{chain_type}/{address}/transactions/sync [post]
-func (h *Handler) SyncTransactions(c *gin.Context) {
-	chainType := types.ChainType(c.Param("chain_type"))
-	address := c.Param("address")
-
-	// Sync transactions
-	count, err := h.transactionService.SyncTransactionsByAddress(c.Request.Context(), chainType, address)
-	if err != nil {
-		c.Error(err)
-		return
-	}
-
-	c.JSON(http.StatusOK, SyncTransactionsResponse{
-		Count: count,
-	})
 }
 
 // FilterTransactions handles GET /transactions

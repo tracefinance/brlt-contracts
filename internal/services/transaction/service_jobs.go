@@ -5,101 +5,8 @@ import (
 	"time"
 
 	"vault0/internal/logger"
-	"vault0/internal/services/wallet"
 	"vault0/internal/types"
 )
-
-// StartWalletTransactionPolling starts a background scheduler that periodically polls for transactions from all active wallets
-func (s *transactionService) StartWalletTransactionPolling(ctx context.Context) {
-	// Get interval from config with fallback to default
-	interval := 60 // Default to 1 minute if not specified
-	if s.config.TransactionPollingInterval > 0 {
-		interval = s.config.TransactionPollingInterval
-	}
-
-	s.pollingCtx, s.pollingCancel = context.WithCancel(ctx)
-
-	s.log.Info("Starting transaction polling scheduler",
-		logger.Int("interval_seconds", interval))
-
-	// Start the scheduler goroutine
-	go func() {
-		ticker := time.NewTicker(time.Duration(interval) * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-s.pollingCtx.Done():
-				s.log.Info("Transaction polling scheduler stopped")
-				return
-			case <-ticker.C:
-				s.pollTransactionsForAllWallets(s.pollingCtx)
-			}
-		}
-	}()
-}
-
-// StopWalletTransactionPolling stops the transaction polling scheduler
-func (s *transactionService) StopWalletTransactionPolling() {
-	if s.pollingCancel != nil {
-		s.pollingCancel()
-		s.pollingCancel = nil
-		s.log.Info("Transaction polling scheduler stopped")
-	}
-}
-
-// pollTransactionsForAllWallets fetches all active wallets and syncs their transactions
-func (s *transactionService) pollTransactionsForAllWallets(ctx context.Context) {
-	s.log.Info("Running scheduled transaction poll for all wallets")
-
-	// Get all wallets
-	walletPage, err := s.walletService.List(ctx, 0, 0)
-	if err != nil {
-		s.log.Error("Failed to list wallets for transaction polling",
-			logger.Error(err))
-		return
-	}
-
-	var totalSynced int
-	for _, wallet := range walletPage.Items {
-		// Check if context is cancelled
-		if ctx.Err() != nil {
-			return
-		}
-
-		// Sync transactions for this wallet
-		count, err := s.SyncTransactions(ctx, wallet.ID)
-		if err != nil {
-			s.log.Warn("Failed to sync transactions for wallet during polling",
-				logger.Int64("wallet_id", wallet.ID),
-				logger.String("address", wallet.Address),
-				logger.String("chain_type", string(wallet.ChainType)),
-				logger.Error(err))
-			continue
-		}
-
-		if count > 0 {
-			s.log.Info("Synced transactions during polling",
-				logger.Int64("wallet_id", wallet.ID),
-				logger.String("address", wallet.Address),
-				logger.String("chain_type", string(wallet.ChainType)),
-				logger.Int("transaction_count", count))
-		}
-
-		// Update wallet balances regardless of whether new transactions were found
-		s.updateWalletBalances(ctx, wallet)
-		s.log.Info("Updated balances during polling",
-			logger.Int64("wallet_id", wallet.ID),
-			logger.String("address", wallet.Address),
-			logger.String("chain_type", string(wallet.ChainType)))
-
-		totalSynced += count
-	}
-
-	s.log.Info("Completed transaction polling cycle",
-		logger.Int("total_wallets", len(walletPage.Items)),
-		logger.Int("total_transactions_synced", totalSynced))
-}
 
 // StartPendingTransactionPolling starts a background scheduler that periodically polls for pending or mined transactions
 func (s *transactionService) StartPendingTransactionPolling(ctx context.Context) {
@@ -141,7 +48,7 @@ func (s *transactionService) updateTransactionStatus(
 	updatedTxData *types.Transaction,
 ) (*Transaction, error) {
 	// Process the transaction to set token symbol and create Transaction model
-	updatedTransaction := s.processTransaction(ctx, updatedTxData, originalTx.WalletID)
+	updatedTransaction := s.processTransaction(ctx, updatedTxData)
 
 	// Preserve original metadata
 	updatedTransaction.ID = originalTx.ID
@@ -158,21 +65,6 @@ func (s *transactionService) updateTransactionStatus(
 	}
 
 	return updatedTransaction, nil
-}
-
-// handleStatusChange handles transaction status changes, particularly transitions to success state
-func (s *transactionService) handleStatusChange(
-	ctx context.Context,
-	wallet *wallet.Wallet,
-	transaction *Transaction,
-	originalStatus types.TransactionStatus,
-	newStatus types.TransactionStatus,
-) {
-	// Only handle special transition to success status
-	if originalStatus != types.TransactionStatusSuccess && newStatus == types.TransactionStatusSuccess {
-		// Update balances using the helper method from service_events.go
-		s.updateBalanceForTransaction(ctx, transaction, wallet)
-	}
 }
 
 // StopPendingTransactionPolling stops the pending transaction polling scheduler
@@ -194,10 +86,6 @@ func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context)
 
 	s.log.Info("Running scheduled poll for pending and mined transactions",
 		logger.Any("statuses", statuses))
-
-	// Prevent concurrent syncs
-	s.syncMutex.Lock()
-	defer s.syncMutex.Unlock()
 
 	updatedCount := 0
 
@@ -281,33 +169,11 @@ func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context)
 					logger.String("old_status", string(originalStatus)),
 					logger.String("new_status", string(updatedStatus)))
 
-				// Update transaction with new status
-				updatedTransaction, err := s.updateTransactionStatus(ctx, tx, updatedTx)
-				if err != nil {
+				// Update transaction with new status and data
+				if _, err := s.updateTransactionStatus(ctx, tx, updatedTx); err != nil {
 					// Error already logged in updateTransactionStatus
 					continue
 				}
-
-				// Get wallet information
-				wallet, err := s.walletService.GetByID(ctx, tx.WalletID)
-				if err != nil {
-					s.log.Error("Failed to get wallet for transaction",
-						logger.Int64("wallet_id", tx.WalletID),
-						logger.Error(err))
-					continue
-				}
-
-				// Handle any special status change logic (like success transitions)
-				s.handleStatusChange(ctx, wallet, updatedTransaction, originalStatus, updatedStatus)
-
-				// Emit transaction event for the status change
-				blockNumber := int64(0)
-				if updatedTx.BlockNumber != nil {
-					blockNumber = updatedTx.BlockNumber.Int64()
-				}
-
-				// Using the helper from service_events.go
-				s.handleTransactionCompletion(ctx, wallet, updatedTransaction, blockNumber)
 
 				updatedCount++
 			}

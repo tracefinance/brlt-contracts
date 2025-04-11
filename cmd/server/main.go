@@ -37,9 +37,6 @@ func main() {
 	// Start transaction event subscriptions
 	container.Services.TransactionService.SubscribeToTransactionEvents(ctx)
 
-	// Start transaction polling scheduler using config
-	container.Services.TransactionService.StartWalletTransactionPolling(ctx)
-
 	// Start pending transaction polling
 	container.Services.TransactionService.StartPendingTransactionPolling(ctx)
 
@@ -75,8 +72,8 @@ func main() {
 	// Unsubscribe from events
 	container.Services.TransactionService.UnsubscribeFromTransactionEvents()
 
-	// Stop transaction polling
-	container.Services.TransactionService.StopWalletTransactionPolling()
+	// Stop pending transaction polling
+	container.Services.TransactionService.StopPendingTransactionPolling()
 
 	// Stop token price update job
 	container.Services.TokenPriceService.StopPriceUpdateJob()

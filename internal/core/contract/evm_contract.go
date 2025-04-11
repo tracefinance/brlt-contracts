@@ -239,8 +239,8 @@ func (c *EVMSmartContract) Deploy(
 	}, nil
 }
 
-// WaitForDeployment waits for a contract deployment to complete
-func (c *EVMSmartContract) WaitForDeployment(
+// GetDeployment waits for a contract deployment to complete
+func (c *EVMSmartContract) GetDeployment(
 	ctx context.Context,
 	transactionHash string,
 ) (*DeploymentResult, error) {

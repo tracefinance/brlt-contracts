@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"vault0/internal/config"
@@ -10,7 +11,6 @@ import (
 	"vault0/internal/core/tokenstore"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
-	"vault0/internal/services/wallet"
 	"vault0/internal/types"
 )
 
@@ -28,12 +28,6 @@ type Service interface {
 	// FilterTransactions retrieves transactions based on the provided filter criteria
 	FilterTransactions(ctx context.Context, filter *Filter) (*types.Page[*Transaction], error)
 
-	// SyncTransactions fetches and stores transactions for a wallet
-	SyncTransactions(ctx context.Context, walletID int64) (int, error)
-
-	// SyncTransactionsByAddress fetches and stores transactions for an address
-	SyncTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string) (int, error)
-
 	// StartPendingTransactionPolling starts a background scheduler that periodically polls
 	// for pending or mined transactions to update their status.
 	//
@@ -43,17 +37,6 @@ type Service interface {
 
 	// StopPendingTransactionPolling stops the pending transaction polling scheduler
 	StopPendingTransactionPolling()
-
-	// StartWalletTransactionPolling starts a background scheduler that periodically polls
-	// for transactions from all active wallets.
-	// This provides a fallback mechanism to ensure transactions are not missed by the event-based system.
-	//
-	// Parameters:
-	//   - ctx: Context for the operation, used to cancel the polling
-	StartWalletTransactionPolling(ctx context.Context)
-
-	// StopWalletTransactionPolling stops the transaction polling scheduler
-	StopWalletTransactionPolling()
 
 	// SubscribeToTransactionEvents starts listening for new blocks and processing transactions.
 	// This method:
@@ -69,10 +52,16 @@ type Service interface {
 	// This should be called when shutting down the service.
 	UnsubscribeFromTransactionEvents()
 
-	// TransactionEvents returns a channel that emits transaction events.
-	// These events include new transactions detected for monitored wallets.
+	// TransactionEvents returns a channel that emits raw blockchain transactions.
+	// These events include all transactions detected on monitored chains.
 	// The channel is closed when UnsubscribeFromTransactionEvents is called.
-	TransactionEvents() <-chan *TransactionEvent
+	TransactionEvents() <-chan *types.Transaction
+
+	// MonitorAddress adds an address to the list of addresses whose transactions should be emitted.
+	MonitorAddress(ctx context.Context, addr *types.Address) error
+
+	// UnmonitoredAddress removes an address from the monitoring list.
+	UnmonitoredAddress(ctx context.Context, addr *types.Address) error
 }
 
 // transactionService implements the Service interface
@@ -80,19 +69,18 @@ type transactionService struct {
 	config               *config.Config
 	log                  logger.Logger
 	repository           Repository
-	walletService        wallet.Service
 	tokenStore           tokenstore.TokenStore
 	blockExplorerFactory blockexplorer.Factory
 	blockchainRegistry   blockchain.Registry
 	chains               *types.Chains
-	syncMutex            sync.Mutex
 	eventCtx             context.Context
 	eventCancel          context.CancelFunc
-	pollingCtx           context.Context
-	pollingCancel        context.CancelFunc
 	pendingPollingCtx    context.Context
 	pendingPollingCancel context.CancelFunc
-	transactionEvents    chan *TransactionEvent
+	transactionEvents    chan *types.Transaction
+	// In-memory store for addresses to monitor
+	monitoredAddresses map[types.ChainType]map[string]struct{}
+	addressMutex       sync.RWMutex
 }
 
 // NewService creates a new transaction service
@@ -100,7 +88,6 @@ func NewService(
 	config *config.Config,
 	log logger.Logger,
 	repository Repository,
-	walletService wallet.Service,
 	tokenStore tokenstore.TokenStore,
 	blockExplorerFactory blockexplorer.Factory,
 	blockchainRegistry blockchain.Registry,
@@ -111,12 +98,13 @@ func NewService(
 		config:               config,
 		log:                  log,
 		repository:           repository,
-		walletService:        walletService,
 		tokenStore:           tokenStore,
 		blockExplorerFactory: blockExplorerFactory,
 		blockchainRegistry:   blockchainRegistry,
 		chains:               chains,
-		transactionEvents:    make(chan *TransactionEvent, channelBufferSize),
+		transactionEvents:    make(chan *types.Transaction, channelBufferSize),
+		// Initialize the monitored addresses map
+		monitoredAddresses: make(map[types.ChainType]map[string]struct{}),
 	}
 }
 
@@ -190,132 +178,8 @@ func (s *transactionService) FilterTransactions(ctx context.Context, filter *Fil
 	return s.repository.List(ctx, filter)
 }
 
-// SyncTransactions fetches and stores transactions for a wallet
-func (s *transactionService) SyncTransactions(ctx context.Context, walletID int64) (int, error) {
-	// Prevent concurrent syncs
-	s.syncMutex.Lock()
-	defer s.syncMutex.Unlock()
-
-	// Validate input
-	if walletID <= 0 {
-		return 0, errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "")
-	}
-
-	// Get wallet from wallet service by ID
-	wallet, err := s.walletService.GetByID(ctx, walletID)
-	if err != nil {
-		return 0, err
-	}
-
-	// Sync transactions for the wallet's address
-	return s.SyncTransactionsByAddress(ctx, wallet.ChainType, wallet.Address)
-}
-
-// SyncTransactionsByAddress fetches and stores transactions for an address
-func (s *transactionService) SyncTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string) (int, error) {
-	// Validate input
-	if chainType == "" {
-		return 0, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
-	}
-	if address == "" {
-		return 0, errors.NewInvalidInputError("Address is required", "address", "")
-	}
-
-	// Get explorer for the chain
-	explorer, err := s.blockExplorerFactory.GetExplorer(chainType)
-	if err != nil {
-		return 0, err
-	}
-
-	// Get wallet ID and last block number if exists
-	wallet, err := s.walletService.GetByAddress(ctx, chainType, address)
-	if err != nil {
-		return 0, err
-	}
-
-	// Prepare options for fetching transactions
-	options := blockexplorer.TransactionHistoryOptions{
-		StartBlock: wallet.LastBlockNumber,
-		EndBlock:   0, // Latest block
-		Page:       1,
-		PageSize:   100,
-		TransactionTypes: []blockexplorer.TransactionType{
-			blockexplorer.TxTypeNormal,
-			blockexplorer.TxTypeInternal,
-			blockexplorer.TxTypeERC20,
-			blockexplorer.TxTypeERC721,
-		},
-		SortAscending: false, // Get oldest transactions first
-	}
-
-	// Fetch transactions from explorer
-	txs, err := explorer.GetTransactionHistory(ctx, address, options)
-	if err != nil {
-		return 0, errors.NewTransactionSyncFailedError("fetch_history", err)
-	}
-
-	// Save transactions to database
-	count := 0
-	var maxBlockNumber int64
-	for _, coreTx := range txs.Items {
-		// Update max block number if this transaction's block number is higher
-		if coreTx.BlockNumber != nil {
-			blockNum := coreTx.BlockNumber.Int64()
-			if blockNum > maxBlockNumber {
-				maxBlockNumber = blockNum
-			}
-		}
-
-		// Check if transaction already exists
-		exists, err := s.repository.Exists(ctx, coreTx.Hash)
-		if err != nil {
-			s.log.Warn("Failed to check transaction existence",
-				logger.String("hash", coreTx.Hash),
-				logger.Error(err))
-			continue
-		}
-
-		if exists {
-			continue
-		}
-
-		// Process the transaction to set token symbol
-		tx := s.processTransaction(ctx, coreTx, wallet.ID)
-
-		// Save to database
-		err = s.repository.Create(ctx, tx)
-		if err != nil {
-			s.log.Warn("Failed to save transaction",
-				logger.String("hash", coreTx.Hash),
-				logger.Error(err))
-			continue
-		}
-
-		count++
-	}
-
-	// Update wallet's last block number if we found new transactions with a higher block number
-	if wallet != nil && maxBlockNumber > wallet.LastBlockNumber {
-		if err := s.walletService.UpdateLastBlockNumber(ctx, wallet.ChainType, wallet.Address, maxBlockNumber); err != nil {
-			s.log.Error("Failed to update wallet's last block number",
-				logger.Int64("wallet_id", wallet.ID),
-				logger.Int64("block_number", maxBlockNumber),
-				logger.Error(err))
-		}
-	}
-
-	// Always update wallet balances, even if no new transactions were found
-	s.updateWalletBalances(ctx, wallet)
-	s.log.Info("Updated wallet balances",
-		logger.Int64("wallet_id", wallet.ID),
-		logger.String("address", wallet.Address),
-		logger.String("chain_type", string(wallet.ChainType)))
-
-	return count, nil
-}
-
 // processTransaction resolves the token symbol and creates a Transaction model
-func (s *transactionService) processTransaction(ctx context.Context, coreTx *types.Transaction, walletID int64) *Transaction {
+func (s *transactionService) processTransaction(ctx context.Context, coreTx *types.Transaction) *Transaction {
 	// Resolve token symbol if not already set
 	if coreTx.TokenSymbol == "" {
 		// For native transactions, use the chain's native token symbol
@@ -342,257 +206,83 @@ func (s *transactionService) processTransaction(ctx context.Context, coreTx *typ
 		}
 	}
 
-	// Convert to service transaction model
-	return FromCoreTransaction(coreTx, walletID)
+	// Convert to service transaction model, WalletID is now 0 as it's not linked here
+	return FromCoreTransaction(coreTx, 0)
 }
 
-// processTransactionRecord handles transaction database operations (check existence, retrieve or create)
-func (s *transactionService) processTransactionRecord(ctx context.Context, tx *types.Transaction, walletID int64) (*Transaction, error) {
-	// Process the transaction to set token symbol and create Transaction model
-	transaction := s.processTransaction(ctx, tx, walletID)
+// TransactionEvents returns a channel that emits raw blockchain transactions.
+// These events include all transactions detected on monitored chains.
+// The channel is closed when UnsubscribeFromTransactionEvents is called.
+func (s *transactionService) TransactionEvents() <-chan *types.Transaction {
+	return s.transactionEvents
+}
 
-	// Check if transaction already exists
-	exists, err := s.repository.Exists(ctx, transaction.Hash)
-	if err != nil {
-		s.log.Error("Failed to check if transaction exists",
-			logger.String("tx_hash", tx.Hash),
-			logger.Int64("wallet_id", walletID),
-			logger.Error(err))
-		return nil, err
+// MonitorAddress adds an address to the in-memory monitoring list
+func (s *transactionService) MonitorAddress(ctx context.Context, addr *types.Address) error {
+	if addr == nil {
+		return errors.NewInvalidInputError("Address cannot be nil", "address", nil)
+	}
+	if err := addr.Validate(); err != nil {
+		return err
 	}
 
-	// If transaction exists, get it from the database
-	if exists {
-		transaction, err = s.repository.GetByTxHash(ctx, transaction.Hash)
-		if err != nil {
-			s.log.Error("Failed to get existing transaction",
-				logger.String("tx_hash", tx.Hash),
-				logger.Int64("wallet_id", walletID),
-				logger.Error(err))
-			return nil, err
+	normalizedAddr := strings.ToLower(addr.Address) // Normalize for consistent lookup
+
+	s.addressMutex.Lock()
+	defer s.addressMutex.Unlock()
+
+	if _, ok := s.monitoredAddresses[addr.ChainType]; !ok {
+		s.monitoredAddresses[addr.ChainType] = make(map[string]struct{})
+	}
+
+	if _, exists := s.monitoredAddresses[addr.ChainType][normalizedAddr]; !exists {
+		s.monitoredAddresses[addr.ChainType][normalizedAddr] = struct{}{}
+		s.log.Info("Added address to monitoring list",
+			logger.String("address", addr.Address),
+			logger.String("chain_type", string(addr.ChainType)))
+	} else {
+		s.log.Debug("Address already monitored",
+			logger.String("address", addr.Address),
+			logger.String("chain_type", string(addr.ChainType)))
+	}
+
+	return nil
+}
+
+// UnmonitoredAddress removes an address from the in-memory monitoring list
+func (s *transactionService) UnmonitoredAddress(ctx context.Context, addr *types.Address) error {
+	if addr == nil {
+		return errors.NewInvalidInputError("Address cannot be nil", "address", nil)
+	}
+	// We don't strictly need validation here, but it's good practice
+	if err := addr.Validate(); err != nil {
+		return err
+	}
+
+	normalizedAddr := strings.ToLower(addr.Address) // Normalize for consistent lookup
+
+	s.addressMutex.Lock()
+	defer s.addressMutex.Unlock()
+
+	if chainMap, ok := s.monitoredAddresses[addr.ChainType]; ok {
+		if _, exists := chainMap[normalizedAddr]; exists {
+			delete(chainMap, normalizedAddr)
+			s.log.Info("Removed address from monitoring list",
+				logger.String("address", addr.Address),
+				logger.String("chain_type", string(addr.ChainType)))
+			// Clean up the chain map if it becomes empty
+			if len(chainMap) == 0 {
+				delete(s.monitoredAddresses, addr.ChainType)
+			}
+		} else {
+			s.log.Debug("Address not found in monitoring list for removal",
+				logger.String("address", addr.Address),
+				logger.String("chain_type", string(addr.ChainType)))
 		}
 	} else {
-		// Otherwise, save the new transaction
-		err = s.repository.Create(ctx, transaction)
-		if err != nil {
-			s.log.Error("Failed to save transaction",
-				logger.String("tx_hash", tx.Hash),
-				logger.Int64("wallet_id", walletID),
-				logger.Error(err))
-			return nil, err
-		}
+		s.log.Debug("Chain type not found in monitoring list for removal",
+			logger.String("chain_type", string(addr.ChainType)))
 	}
 
-	return transaction, nil
-}
-
-// updateBalanceForTransaction is a helper method called during transaction processing
-// to update related balances. This is a non-blocking operation as transaction processing
-// should continue even if balance updates fail.
-// Balance updates are considered non-critical side effects of transaction processing.
-func (s *transactionService) updateBalanceForTransaction(
-	ctx context.Context,
-	transaction *Transaction,
-	wallet *wallet.Wallet,
-) {
-	chainType := wallet.ChainType
-
-	// Only update balances for successful transactions
-	if transaction.Status != string(types.TransactionStatusSuccess) {
-		return
-	}
-
-	// Handle based on transaction type
-	if transaction.Type == string(types.TransactionTypeNative) {
-		// Native token transaction
-		s.updateNativeBalance(ctx, wallet, chainType)
-	} else if transaction.Type == string(types.TransactionTypeERC20) && transaction.TokenAddress != "" {
-		// ERC20 token transaction
-		s.updateTokenBalance(ctx, wallet, chainType, transaction.TokenAddress)
-	}
-}
-
-// updateNativeBalance updates the native token balance for a wallet.
-// This method handles all errors internally and logs them without returning errors to callers.
-// If any operation fails (blockchain client retrieval, balance fetching, or database updates),
-// the error is logged but transaction processing continues.
-// This design prioritizes transaction tracking over balance accuracy,
-// as balances can be corrected in subsequent update attempts.
-func (s *transactionService) updateNativeBalance(
-	ctx context.Context,
-	wallet *wallet.Wallet,
-	chainType types.ChainType,
-) {
-	// Get blockchain client
-	client, err := s.blockchainRegistry.GetBlockchain(chainType)
-	if err != nil {
-		s.log.Error("Failed to get blockchain client for native balance update",
-			logger.String("chain_type", string(chainType)),
-			logger.Error(err))
-		return
-	}
-
-	// Get the latest balance from blockchain
-	balance, err := client.GetBalance(ctx, wallet.Address)
-	if err != nil {
-		s.log.Error("Failed to get wallet balance",
-			logger.String("address", wallet.Address),
-			logger.String("chain_type", string(chainType)),
-			logger.Error(err))
-		return
-	}
-
-	// Update wallet balance
-	if err := s.walletService.UpdateWalletBalance(ctx, chainType, wallet.Address, balance); err != nil {
-		s.log.Error("Failed to update wallet balance",
-			logger.String("address", wallet.Address),
-			logger.String("chain_type", string(chainType)),
-			logger.Error(err))
-	} else {
-		s.log.Info("Updated wallet balance",
-			logger.String("address", wallet.Address),
-			logger.String("chain_type", string(chainType)),
-			logger.String("balance", balance.String()))
-	}
-}
-
-// updateTokenBalance updates a token balance for a wallet.
-// Like other balance update methods, this follows a non-blocking error handling approach,
-// where errors are logged but not returned to callers.
-// This allows the main transaction processing flow to continue uninterrupted
-// even if token balance updates cannot be completed.
-// The logs contain detailed error context for diagnostic purposes.
-func (s *transactionService) updateTokenBalance(
-	ctx context.Context,
-	wallet *wallet.Wallet,
-	chainType types.ChainType,
-	tokenAddress string,
-) {
-	// Get blockchain client
-	client, err := s.blockchainRegistry.GetBlockchain(chainType)
-	if err != nil {
-		s.log.Error("Failed to get blockchain client for token balance update",
-			logger.String("chain_type", string(chainType)),
-			logger.Error(err))
-		return
-	}
-
-	// Get token info
-	token, err := s.tokenStore.GetToken(ctx, tokenAddress)
-	if err != nil {
-		s.log.Error("Failed to get token",
-			logger.String("token_address", tokenAddress),
-			logger.String("chain_type", string(chainType)),
-			logger.Error(err))
-		return
-	}
-
-	// Get the latest token balance from blockchain
-	tokenBalance, err := client.GetTokenBalance(ctx, wallet.Address, tokenAddress)
-	if err != nil {
-		s.log.Error("Failed to get token balance",
-			logger.String("address", wallet.Address),
-			logger.String("token_address", tokenAddress),
-			logger.String("chain_type", string(chainType)),
-			logger.Error(err))
-		return
-	}
-
-	// Update token balance
-	if err := s.walletService.UpdateTokenBalance(ctx, chainType, wallet.Address, tokenAddress, tokenBalance); err != nil {
-		s.log.Error("Failed to update token balance",
-			logger.String("address", wallet.Address),
-			logger.String("token_address", tokenAddress),
-			logger.String("chain_type", string(chainType)),
-			logger.Error(err))
-	} else {
-		s.log.Info("Updated token balance",
-			logger.String("address", wallet.Address),
-			logger.String("token_address", tokenAddress),
-			logger.String("token_symbol", token.Symbol),
-			logger.String("chain_type", string(chainType)),
-			logger.String("balance", tokenBalance.String()))
-	}
-}
-
-// handleTransactionCompletion emits events and updates the last block number
-func (s *transactionService) handleTransactionCompletion(
-	ctx context.Context,
-	wallet *wallet.Wallet,
-	transaction *Transaction,
-	blockNumber int64,
-) {
-	// Emit transaction event
-	s.emitTransactionEvent(&TransactionEvent{
-		WalletID:    wallet.ID,
-		Transaction: transaction,
-		BlockNumber: blockNumber,
-		EventType:   EventTypeTransactionDetected,
-	})
-
-	// Update last block number for the wallet if this block is newer
-	if blockNumber > wallet.LastBlockNumber {
-		if err := s.walletService.UpdateLastBlockNumber(ctx, wallet.ChainType, wallet.Address, blockNumber); err != nil {
-			s.log.Error("Failed to update last block number",
-				logger.Int64("wallet_id", wallet.ID),
-				logger.String("address", wallet.Address),
-				logger.Error(err))
-		}
-	}
-}
-
-// getWalletsByChainType retrieves all wallets for a specific chain type
-func (s *transactionService) getWalletsByChainType(ctx context.Context, chainType types.ChainType) ([]*wallet.Wallet, error) {
-	// Get all wallets
-	walletPage, err := s.walletService.List(ctx, 0, 0)
-	if err != nil {
-		return nil, errors.NewOperationFailedError("list wallets", err)
-	}
-
-	// Filter wallets by chain type
-	var wallets []*wallet.Wallet
-	for _, wallet := range walletPage.Items {
-		if wallet.ChainType == chainType {
-			wallets = append(wallets, wallet)
-		}
-	}
-
-	return wallets, nil
-}
-
-// emitTransactionEvent sends a transaction event to the transaction events channel
-func (s *transactionService) emitTransactionEvent(event *TransactionEvent) {
-	select {
-	case s.transactionEvents <- event:
-		s.log.Debug("Emitted transaction event",
-			logger.String("event_type", event.EventType),
-			logger.Int64("block_number", event.BlockNumber))
-	default:
-		s.log.Debug("Transaction events channel is full, dropping event",
-			logger.String("event_type", event.EventType),
-			logger.Int64("block_number", event.BlockNumber))
-	}
-}
-
-// UpdateWalletBalances updates the native and token balances for a wallet
-// This method can be called independently of transaction processing
-// to refresh wallet balances even when no new transactions are found.
-func (s *transactionService) updateWalletBalances(ctx context.Context, wallet *wallet.Wallet) {
-	// Update native balance
-	s.updateNativeBalance(ctx, wallet, wallet.ChainType)
-
-	// Get all tokens for the chain type from token store
-	// Using pagination with limit 0 to get all tokens
-	tokens, err := s.tokenStore.ListTokensByChain(ctx, wallet.ChainType, 0, 0)
-	if err != nil {
-		s.log.Error("Failed to get tokens for balance update",
-			logger.String("chain_type", string(wallet.ChainType)),
-			logger.Error(err))
-		return
-	}
-
-	// Update balance for each token
-	for _, token := range tokens.Items {
-		s.updateTokenBalance(ctx, wallet, wallet.ChainType, token.Address)
-	}
+	return nil
 }
