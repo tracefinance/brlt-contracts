@@ -2,7 +2,6 @@ package transaction
 
 import (
 	"context"
-	"strings"
 	"sync"
 
 	"vault0/internal/config"
@@ -27,6 +26,12 @@ type Service interface {
 
 	// FilterTransactions retrieves transactions based on the provided filter criteria
 	FilterTransactions(ctx context.Context, filter *Filter) (*types.Page[*Transaction], error)
+
+	// MonitorAddress adds an address to the list of addresses whose transactions should be emitted.
+	MonitorAddress(ctx context.Context, addr *types.Address) error
+
+	// UnmonitoredAddress removes an address from the monitoring list.
+	UnmonitoredAddress(ctx context.Context, addr *types.Address) error
 
 	// StartPendingTransactionPolling starts a background scheduler that periodically polls
 	// for pending or mined transactions to update their status.
@@ -56,12 +61,6 @@ type Service interface {
 	// These events include all transactions detected on monitored chains.
 	// The channel is closed when UnsubscribeFromTransactionEvents is called.
 	TransactionEvents() <-chan *types.Transaction
-
-	// MonitorAddress adds an address to the list of addresses whose transactions should be emitted.
-	MonitorAddress(ctx context.Context, addr *types.Address) error
-
-	// UnmonitoredAddress removes an address from the monitoring list.
-	UnmonitoredAddress(ctx context.Context, addr *types.Address) error
 }
 
 // transactionService implements the Service interface
@@ -215,74 +214,4 @@ func (s *transactionService) processTransaction(ctx context.Context, coreTx *typ
 // The channel is closed when UnsubscribeFromTransactionEvents is called.
 func (s *transactionService) TransactionEvents() <-chan *types.Transaction {
 	return s.transactionEvents
-}
-
-// MonitorAddress adds an address to the in-memory monitoring list
-func (s *transactionService) MonitorAddress(ctx context.Context, addr *types.Address) error {
-	if addr == nil {
-		return errors.NewInvalidInputError("Address cannot be nil", "address", nil)
-	}
-	if err := addr.Validate(); err != nil {
-		return err
-	}
-
-	normalizedAddr := strings.ToLower(addr.Address) // Normalize for consistent lookup
-
-	s.addressMutex.Lock()
-	defer s.addressMutex.Unlock()
-
-	if _, ok := s.monitoredAddresses[addr.ChainType]; !ok {
-		s.monitoredAddresses[addr.ChainType] = make(map[string]struct{})
-	}
-
-	if _, exists := s.monitoredAddresses[addr.ChainType][normalizedAddr]; !exists {
-		s.monitoredAddresses[addr.ChainType][normalizedAddr] = struct{}{}
-		s.log.Info("Added address to monitoring list",
-			logger.String("address", addr.Address),
-			logger.String("chain_type", string(addr.ChainType)))
-	} else {
-		s.log.Debug("Address already monitored",
-			logger.String("address", addr.Address),
-			logger.String("chain_type", string(addr.ChainType)))
-	}
-
-	return nil
-}
-
-// UnmonitoredAddress removes an address from the in-memory monitoring list
-func (s *transactionService) UnmonitoredAddress(ctx context.Context, addr *types.Address) error {
-	if addr == nil {
-		return errors.NewInvalidInputError("Address cannot be nil", "address", nil)
-	}
-	// We don't strictly need validation here, but it's good practice
-	if err := addr.Validate(); err != nil {
-		return err
-	}
-
-	normalizedAddr := strings.ToLower(addr.Address) // Normalize for consistent lookup
-
-	s.addressMutex.Lock()
-	defer s.addressMutex.Unlock()
-
-	if chainMap, ok := s.monitoredAddresses[addr.ChainType]; ok {
-		if _, exists := chainMap[normalizedAddr]; exists {
-			delete(chainMap, normalizedAddr)
-			s.log.Info("Removed address from monitoring list",
-				logger.String("address", addr.Address),
-				logger.String("chain_type", string(addr.ChainType)))
-			// Clean up the chain map if it becomes empty
-			if len(chainMap) == 0 {
-				delete(s.monitoredAddresses, addr.ChainType)
-			}
-		} else {
-			s.log.Debug("Address not found in monitoring list for removal",
-				logger.String("address", addr.Address),
-				logger.String("chain_type", string(addr.ChainType)))
-		}
-	} else {
-		s.log.Debug("Chain type not found in monitoring list for removal",
-			logger.String("chain_type", string(addr.ChainType)))
-	}
-
-	return nil
 }

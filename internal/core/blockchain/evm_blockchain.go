@@ -25,7 +25,7 @@ import (
 
 const (
 	// Subscription configuration
-	subscriptionLogBufferSize = 100   // Buffer size for the log channel
+	subscriptionLogBufferSize = 1000  // Buffer size for the log channel
 	subscriptionErrBufferSize = 10    // Buffer size for the error channel
 	subscriptionBlockLookback = 50000 // Number of blocks to look back for historical events
 

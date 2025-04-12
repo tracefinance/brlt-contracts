@@ -12,22 +12,9 @@ import (
 	coreWallet "vault0/internal/core/wallet"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
+	"vault0/internal/services/transaction"
 	"vault0/internal/types"
 )
-
-// Event types for wallet lifecycle events
-const (
-	EventTypeWalletCreated = "WALLET_CREATED"
-	EventTypeWalletDeleted = "WALLET_DELETED"
-)
-
-// LifecycleEvent represents a wallet lifecycle event
-type LifecycleEvent struct {
-	WalletID  int64
-	EventType string
-	ChainType types.ChainType
-	Address   string
-}
 
 // Service defines the wallet service interface
 type Service interface {
@@ -145,38 +132,48 @@ type Service interface {
 	//   - error: ErrInvalidInput for invalid parameters
 	Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error)
 
-	// LifecycleEvents returns a channel that emits wallet lifecycle events.
-	// These are events like wallet creation, deletion, etc.
-	// The channel is closed when UnsubscribeFromEvents is called.
-	LifecycleEvents() <-chan *LifecycleEvent
-
-	// UpdateWalletBalance updates the native balance for a wallet identified by chain type and address
+	// UpdateWalletBalance updates the native balance for a wallet based on a transaction.
+	// It determines if the transaction involves the wallet as sender or receiver
+	// and updates the native balance accordingly, including gas costs for senders.
 	// Parameters:
 	//   - ctx: Context for the operation
-	//   - chainType: The blockchain network type
-	//   - address: The wallet's blockchain address
-	//   - balance: The new balance value
+	//   - tx: The transaction details
 	// Returns:
-	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
-	UpdateWalletBalance(ctx context.Context, chainType types.ChainType, address string, balance *big.Int) error
+	//   - error: ErrWalletNotFound if wallet doesn't exist, or other processing errors
+	UpdateWalletBalance(ctx context.Context, tx *types.Transaction) error
 
-	// UpdateTokenBalance updates a token balance for a wallet
+	// UpdateTokenBalance updates the token balance for a wallet based on a transaction.
+	// It identifies the involved wallet (sender or receiver) and updates the specific
+	// token balance. For senders, it also deducts the native currency gas cost.
 	// Parameters:
 	//   - ctx: Context for the operation
-	//   - chainType: The blockchain network type
-	//   - walletAddress: The wallet's blockchain address
-	//   - tokenAddress: The token's contract address
-	//   - balance: The new token balance value
+	//   - tx: The transaction details (must be of type ERC20)
 	// Returns:
-	//   - error: ErrWalletNotFound or ErrTokenNotFound if wallet or token doesn't exist,
-	//            ErrInvalidInput for invalid parameters
-	UpdateTokenBalance(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string, balance *big.Int) error
+	//   - error: ErrWalletNotFound, ErrTokenNotFound, or other processing errors
+	UpdateTokenBalance(ctx context.Context, tx *types.Transaction) error
 
 	// GetWalletBalances retrieves the native and token balances for a wallet
 	GetWalletBalances(ctx context.Context, id int64) ([]*TokenBalanceData, error)
 
 	// GetWalletBalancesByAddress retrieves the native and token balances for a wallet by its address
 	GetWalletBalancesByAddress(ctx context.Context, chainType types.ChainType, address string) ([]*TokenBalanceData, error)
+
+	// StartTransactionMonitoring starts monitoring transactions for all wallets.
+	// It performs the following steps:
+	// 1. Retrieves all active wallets
+	// 2. Monitors each wallet's address for transactions
+	// 3. Processes incoming transaction events and saves them to the database
+	//
+	// Parameters:
+	//   - ctx: Context for the operation
+	//
+	// Returns:
+	//   - error: Any error that occurred during setup
+	StartTransactionMonitoring(ctx context.Context) error
+
+	// StopTransactionMonitoring stops monitoring transactions.
+	// This should be called when shutting down the service.
+	StopTransactionMonitoring()
 }
 
 // walletService implements the Service interface
@@ -189,8 +186,11 @@ type walletService struct {
 	walletFactory      coreWallet.Factory
 	blockchainRegistry blockchain.Registry
 	chains             *types.Chains
+	txService          transaction.Service
 	mu                 sync.RWMutex
-	lifecycleEvents    chan *LifecycleEvent
+	// Transaction monitoring fields
+	monitorCtx    context.Context
+	monitorCancel context.CancelFunc
 }
 
 // NewService creates a new wallet service
@@ -203,8 +203,8 @@ func NewService(
 	walletFactory coreWallet.Factory,
 	blockchainRegistry blockchain.Registry,
 	chains *types.Chains,
+	txService transaction.Service,
 ) Service {
-	const channelBuffer = 100
 	return &walletService{
 		config:             config,
 		log:                log,
@@ -214,19 +214,8 @@ func NewService(
 		walletFactory:      walletFactory,
 		blockchainRegistry: blockchainRegistry,
 		chains:             chains,
+		txService:          txService,
 		mu:                 sync.RWMutex{},
-		lifecycleEvents:    make(chan *LifecycleEvent, channelBuffer),
-	}
-}
-
-// emitLifecycleEvent sends a lifecycle event to the lifecycle events channel
-func (s *walletService) emitLifecycleEvent(event *LifecycleEvent) {
-	select {
-	case s.lifecycleEvents <- event:
-	default:
-		s.log.Warn("Lifecycle events channel is full, dropping event",
-			logger.Int64("wallet_id", event.WalletID),
-			logger.String("event_type", event.EventType))
 	}
 }
 
@@ -268,12 +257,10 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 		return nil, err
 	}
 
-	s.emitLifecycleEvent(&LifecycleEvent{
-		WalletID:  wallet.ID,
-		EventType: EventTypeWalletCreated,
-		ChainType: wallet.ChainType,
-		Address:   wallet.Address,
-	})
+	// Monitor the new wallet's address for transactions if transaction monitoring is active
+	if s.monitorCtx != nil {
+		s.monitorAddress(ctx, wallet.ChainType, wallet.Address)
+	}
 
 	return wallet, nil
 }
@@ -376,12 +363,10 @@ func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, a
 		return err
 	}
 
-	s.emitLifecycleEvent(&LifecycleEvent{
-		WalletID:  wallet.ID,
-		EventType: EventTypeWalletDeleted,
-		ChainType: wallet.ChainType,
-		Address:   wallet.Address,
-	})
+	// Unmonitor the wallet's address if transaction monitoring is active
+	if s.monitorCtx != nil {
+		s.unmonitorAddress(ctx, wallet.ChainType, wallet.Address)
+	}
 
 	return nil
 }
@@ -464,86 +449,148 @@ func (s *walletService) GetByID(ctx context.Context, id int64) (*Wallet, error) 
 	return wallet, nil
 }
 
-// LifecycleEvents returns the lifecycle events channel
-func (s *walletService) LifecycleEvents() <-chan *LifecycleEvent {
-	return s.lifecycleEvents
+// UpdateWalletBalance updates the native balance for a wallet based on a transaction
+func (s *walletService) UpdateWalletBalance(ctx context.Context, tx *types.Transaction) error {
+	if tx == nil {
+		return errors.NewInvalidInputError("Transaction is required", "tx", nil)
+	}
+
+	if tx.Type != types.TransactionTypeNative {
+		// This method handles native balances, call UpdateTokenBalance for gas adjustments in token transfers
+		// If the transaction is incoming token transfer, we don't need to do anything here
+		return nil
+	}
+
+	isOutgoing := false
+
+	// Determine if the wallet is the sender or receiver
+	wallet, err := s.repository.GetByAddress(ctx, tx.Chain, tx.From)
+	if err == nil {
+		isOutgoing = true
+	} else {
+		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.To)
+		if err != nil {
+			// Wallet involved in the transaction not found in our DB
+			return errors.NewWalletNotFoundError(tx.From + " or " + tx.To)
+		}
+		// Wallet is the receiver, isFrom remains false
+	}
+
+	// Get the current balance
+	currentBalance := wallet.Balance.ToBigInt()
+	var newBalance *big.Int
+
+	if isOutgoing {
+		// Outgoing native transaction: subtract amount + gas
+		gasUsed := new(big.Int).SetUint64(tx.GasUsed)
+		totalSpent := new(big.Int).Add(tx.Value, new(big.Int).Mul(tx.GasPrice, gasUsed))
+		newBalance = new(big.Int).Sub(currentBalance, totalSpent)
+		if newBalance.Sign() < 0 {
+			newBalance = big.NewInt(0) // Ensure balance doesn't go negative
+		}
+	} else {
+		// Incoming native transaction: add amount
+		newBalance = new(big.Int).Add(currentBalance, tx.Value)
+	}
+
+	// Update the wallet balance in the repository
+	return s.repository.UpdateBalance(ctx, wallet.ID, newBalance)
 }
 
-// UpdateWalletBalance updates the native balance for a wallet
-func (s *walletService) UpdateWalletBalance(ctx context.Context, chainType types.ChainType, address string, balance *big.Int) error {
-	if chainType == "" {
-		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
+// UpdateTokenBalance updates the token balance for a wallet based on a transaction
+func (s *walletService) UpdateTokenBalance(ctx context.Context, tx *types.Transaction) error {
+	if tx == nil {
+		return errors.NewInvalidInputError("Transaction is required", "tx", nil)
 	}
-	if address == "" {
-		return errors.NewInvalidInputError("Address is required", "address", "")
+	if tx.Type != types.TransactionTypeERC20 {
+		return errors.NewInvalidInputError("Transaction must be ERC20 type", "tx.Type", tx.Type)
 	}
-	if balance.Sign() < 0 {
-		return errors.NewInvalidInputError("Balance cannot be negative", "balance", balance.String())
+	if tx.TokenAddress == "" {
+		return errors.NewInvalidInputError("Token address is required for ERC20 transaction", "tx.TokenAddress", "")
 	}
 
-	// Validate chain type and address
-	chain, err := s.chains.Get(chainType)
+	isOutgoing := false
+
+	// Determine if the wallet is the sender or receiver
+	wallet, err := s.repository.GetByAddress(ctx, tx.Chain, tx.From)
+	if err == nil {
+		isOutgoing = true
+	} else {
+		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.To)
+		if err != nil {
+			// Wallet involved in the transaction not found in our DB
+			return errors.NewWalletNotFoundError(tx.From + " or " + tx.To)
+		}
+		// Wallet is the receiver, isFrom remains false
+	}
+
+	// --- Update Token Balance ---
+	// Get the current token balance
+	tokenBalances, err := s.repository.GetTokenBalances(ctx, wallet.ID)
 	if err != nil {
 		return err
 	}
 
-	if !chain.IsValidAddress(address) {
-		return errors.NewInvalidAddressError(address)
+	// Find the specific token balance
+	var currentTokenBalance *big.Int
+	found := false
+	for _, tb := range tokenBalances {
+		if tb.TokenAddress == tx.TokenAddress {
+			currentTokenBalance = tb.Balance.ToBigInt()
+			found = true
+			break
+		}
 	}
 
-	// Get wallet by address
-	wallet, err := s.repository.GetByAddress(ctx, chainType, address)
-	if err != nil {
-		return err
+	// If not found, start with zero balance
+	if !found {
+		currentTokenBalance = big.NewInt(0)
 	}
 
-	// Update the wallet balance
-	return s.repository.UpdateBalance(ctx, wallet.ID, balance)
-}
-
-// UpdateTokenBalance updates a token balance for a wallet
-func (s *walletService) UpdateTokenBalance(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string, balance *big.Int) error {
-	if chainType == "" {
-		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
-	}
-	if walletAddress == "" {
-		return errors.NewInvalidInputError("Wallet address is required", "wallet_address", "")
-	}
-	if tokenAddress == "" {
-		return errors.NewInvalidInputError("Token address is required", "token_address", "")
-	}
-	if balance.Sign() < 0 {
-		return errors.NewInvalidInputError("Balance cannot be negative", "balance", balance.String())
+	// Calculate new token balance based on transaction direction
+	var newTokenBalance *big.Int
+	if isOutgoing {
+		// Outgoing transaction: subtract amount
+		newTokenBalance = new(big.Int).Sub(currentTokenBalance, tx.Value) // ERC20 value is the token amount
+		if newTokenBalance.Sign() < 0 {
+			newTokenBalance = big.NewInt(0) // Prevent negative balance
+		}
+	} else {
+		// Incoming transaction: add amount
+		newTokenBalance = new(big.Int).Add(currentTokenBalance, tx.Value)
 	}
 
-	// Validate chain type and addresses
-	chain, err := s.chains.Get(chainType)
-	if err != nil {
-		return err
+	// Update the token balance in the repository
+	if err := s.repository.UpdateTokenBalance(ctx, wallet.ID, tx.TokenAddress, newTokenBalance); err != nil {
+		return err // Return the error if token balance update fails
 	}
 
-	if !chain.IsValidAddress(walletAddress) {
-		return errors.NewInvalidAddressError(walletAddress)
+	// --- Update Native Balance for Gas (Sender Only) ---
+	if isOutgoing {
+		// Get the current native balance
+		currentNativeBalance := wallet.Balance.ToBigInt()
+
+		// Calculate gas cost
+		gasUsed := new(big.Int).SetUint64(tx.GasUsed)
+		gasCost := new(big.Int).Mul(tx.GasPrice, gasUsed)
+
+		// Calculate new native balance
+		newNativeBalance := new(big.Int).Sub(currentNativeBalance, gasCost)
+		if newNativeBalance.Sign() < 0 {
+			newNativeBalance = big.NewInt(0) // Ensure balance doesn't go negative
+		}
+
+		// Update the native balance in the repository
+		if err := s.repository.UpdateBalance(ctx, wallet.ID, newNativeBalance); err != nil {
+			// Log error, but don't necessarily fail the whole operation if token balance updated successfully
+			s.log.Error("Failed to update sender native balance for gas during token transfer",
+				logger.Int64("wallet_id", wallet.ID),
+				logger.String("tx_hash", tx.Hash),
+				logger.Error(err))
+		}
 	}
 
-	if !chain.IsValidAddress(tokenAddress) {
-		return errors.NewInvalidAddressError(tokenAddress)
-	}
-
-	// Get wallet by address
-	wallet, err := s.repository.GetByAddress(ctx, chainType, walletAddress)
-	if err != nil {
-		return err
-	}
-
-	// Get token by address
-	token, err := s.tokenStore.GetToken(ctx, tokenAddress)
-	if err != nil {
-		return err
-	}
-
-	// Update the token balance
-	return s.repository.UpdateTokenBalance(ctx, wallet.ID, token.Address, balance)
+	return nil
 }
 
 // GetWalletBalances retrieves the native and token balances for a wallet
@@ -631,4 +678,175 @@ func (s *walletService) GetWalletBalancesByAddress(ctx context.Context, chainTyp
 	}
 
 	return s.GetWalletBalances(ctx, wallet.ID)
+}
+
+// StartTransactionMonitoring starts monitoring transactions for all wallets
+func (s *walletService) StartTransactionMonitoring(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Check if already monitoring
+	if s.monitorCtx != nil {
+		s.log.Info("Transaction monitoring is already active")
+		return nil
+	}
+
+	// Create a new context with cancel function for monitoring
+	s.monitorCtx, s.monitorCancel = context.WithCancel(context.Background())
+
+	// Start transaction event subscription if not already started
+	s.txService.SubscribeToTransactionEvents(s.monitorCtx)
+
+	// Get all active wallets
+	wallets, err := s.repository.List(ctx, 0, 0) // Get all wallets
+	if err != nil {
+		s.monitorCancel()
+		s.monitorCtx = nil
+		s.monitorCancel = nil
+		return err
+	}
+
+	// Monitor each wallet's address
+	for _, wallet := range wallets.Items {
+		if err := s.monitorAddress(ctx, wallet.ChainType, wallet.Address); err != nil {
+			s.log.Warn("Failed to monitor wallet address",
+				logger.String("address", wallet.Address),
+				logger.String("chain_type", string(wallet.ChainType)),
+				logger.Error(err))
+		}
+	}
+
+	// Start a goroutine to process transaction events
+	go s.processTransactionEvents(s.monitorCtx)
+
+	s.log.Info("Started transaction monitoring",
+		logger.Int("wallet_count", len(wallets.Items)))
+
+	return nil
+}
+
+// StopTransactionMonitoring stops monitoring transactions
+func (s *walletService) StopTransactionMonitoring() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.monitorCtx == nil {
+		return // Not monitoring
+	}
+
+	// Cancel the monitoring context to stop the goroutine
+	s.monitorCancel()
+
+	// Unsubscribe from transaction events
+	s.txService.UnsubscribeFromTransactionEvents()
+
+	// Reset context and cancel function
+	s.monitorCtx = nil
+	s.monitorCancel = nil
+
+	s.log.Info("Stopped transaction monitoring")
+}
+
+// monitorAddress registers a wallet address for transaction monitoring
+func (s *walletService) monitorAddress(ctx context.Context, chainType types.ChainType, address string) error {
+	// Register with transaction service
+	addr := &types.Address{
+		ChainType: chainType,
+		Address:   address,
+	}
+
+	if err := s.txService.MonitorAddress(ctx, addr); err != nil {
+		return err
+	}
+
+	s.log.Debug("Started monitoring address for transactions",
+		logger.String("address", address),
+		logger.String("chain_type", string(chainType)))
+
+	return nil
+}
+
+// unmonitorAddress stops monitoring a wallet address for transactions
+func (s *walletService) unmonitorAddress(ctx context.Context, chainType types.ChainType, address string) error {
+	// Unregister with transaction service
+	addr := &types.Address{
+		ChainType: chainType,
+		Address:   address,
+	}
+
+	if err := s.txService.UnmonitoredAddress(ctx, addr); err != nil {
+		return err
+	}
+
+	s.log.Debug("Stopped monitoring address for transactions",
+		logger.String("address", address),
+		logger.String("chain_type", string(chainType)))
+
+	return nil
+}
+
+// processTransactionEvents listens for transaction events and processes them
+func (s *walletService) processTransactionEvents(ctx context.Context) {
+	// Get the transaction events channel
+	txEventsChan := s.txService.TransactionEvents()
+
+	for {
+		select {
+		case <-ctx.Done():
+			// Context cancelled, stop processing
+			return
+
+		case tx, ok := <-txEventsChan:
+			if !ok {
+				// Channel closed, stop processing
+				s.log.Warn("Transaction events channel closed")
+				return
+			}
+
+			// Process the transaction
+			s.handleTransaction(ctx, tx)
+		}
+	}
+}
+
+// handleTransaction processes a single transaction
+func (s *walletService) handleTransaction(ctx context.Context, tx *types.Transaction) {
+	if tx == nil {
+		return
+	}
+
+	// Check if the transaction already exists by hash
+	existingTx, err := s.txService.GetTransaction(ctx, tx.Hash)
+
+	if err != nil || existingTx == nil {
+		// Transaction doesn't exist yet, log and update balances
+		s.log.Info("Processing new transaction",
+			logger.String("tx_hash", tx.Hash),
+			logger.String("chain", string(tx.Chain)),
+			logger.String("from", tx.From),
+			logger.String("to", tx.To),
+			logger.String("type", string(tx.Type)))
+
+		// Update wallet balances if the transaction was successful
+		if tx.Status == types.TransactionStatusSuccess {
+			// Handle different transaction types
+			if tx.Type == types.TransactionTypeNative {
+				if err := s.UpdateWalletBalance(ctx, tx); err != nil {
+					s.log.Error("Failed to update native balance from transaction",
+						logger.String("tx_hash", tx.Hash),
+						logger.Error(err))
+				}
+			} else if tx.Type == types.TransactionTypeERC20 {
+				if err := s.UpdateTokenBalance(ctx, tx); err != nil {
+					s.log.Error("Failed to update token balance from transaction",
+						logger.String("tx_hash", tx.Hash),
+						logger.String("token_address", tx.TokenAddress),
+						logger.Error(err))
+				}
+			}
+		}
+	} else {
+		s.log.Debug("Transaction already exists in database",
+			logger.String("tx_hash", tx.Hash))
+	}
 }

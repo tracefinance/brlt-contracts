@@ -43,6 +43,9 @@ func main() {
 	// Start token price update job
 	container.Services.TokenPriceService.StartPriceUpdateJob(ctx)
 
+	// Start transaction monitoring
+	container.Services.WalletService.StartTransactionMonitoring(ctx)
+
 	// Setup routes
 	container.Server.SetupRoutes()
 
@@ -77,6 +80,9 @@ func main() {
 
 	// Stop token price update job
 	container.Services.TokenPriceService.StopPriceUpdateJob()
+
+	// Stop transaction monitoring
+	container.Services.WalletService.StopTransactionMonitoring()
 
 	// Perform cleanup
 	container.Server.Shutdown()

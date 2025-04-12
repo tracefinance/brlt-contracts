@@ -7,9 +7,80 @@ import (
 	"time"
 
 	"vault0/internal/core/tokenstore"
+	"vault0/internal/errors"
 	"vault0/internal/logger"
 	"vault0/internal/types"
 )
+
+// MonitorAddress adds an address to the in-memory monitoring list
+func (s *transactionService) MonitorAddress(ctx context.Context, addr *types.Address) error {
+	if addr == nil {
+		return errors.NewInvalidInputError("Address cannot be nil", "address", nil)
+	}
+	if err := addr.Validate(); err != nil {
+		return err
+	}
+
+	normalizedAddr := strings.ToLower(addr.Address) // Normalize for consistent lookup
+
+	s.addressMutex.Lock()
+	defer s.addressMutex.Unlock()
+
+	if _, ok := s.monitoredAddresses[addr.ChainType]; !ok {
+		s.monitoredAddresses[addr.ChainType] = make(map[string]struct{})
+	}
+
+	if _, exists := s.monitoredAddresses[addr.ChainType][normalizedAddr]; !exists {
+		s.monitoredAddresses[addr.ChainType][normalizedAddr] = struct{}{}
+		s.log.Info("Added address to monitoring list",
+			logger.String("address", addr.Address),
+			logger.String("chain_type", string(addr.ChainType)))
+	} else {
+		s.log.Debug("Address already monitored",
+			logger.String("address", addr.Address),
+			logger.String("chain_type", string(addr.ChainType)))
+	}
+
+	return nil
+}
+
+// UnmonitoredAddress removes an address from the in-memory monitoring list
+func (s *transactionService) UnmonitoredAddress(ctx context.Context, addr *types.Address) error {
+	if addr == nil {
+		return errors.NewInvalidInputError("Address cannot be nil", "address", nil)
+	}
+	// We don't strictly need validation here, but it's good practice
+	if err := addr.Validate(); err != nil {
+		return err
+	}
+
+	normalizedAddr := strings.ToLower(addr.Address) // Normalize for consistent lookup
+
+	s.addressMutex.Lock()
+	defer s.addressMutex.Unlock()
+
+	if chainMap, ok := s.monitoredAddresses[addr.ChainType]; ok {
+		if _, exists := chainMap[normalizedAddr]; exists {
+			delete(chainMap, normalizedAddr)
+			s.log.Info("Removed address from monitoring list",
+				logger.String("address", addr.Address),
+				logger.String("chain_type", string(addr.ChainType)))
+			// Clean up the chain map if it becomes empty
+			if len(chainMap) == 0 {
+				delete(s.monitoredAddresses, addr.ChainType)
+			}
+		} else {
+			s.log.Debug("Address not found in monitoring list for removal",
+				logger.String("address", addr.Address),
+				logger.String("chain_type", string(addr.ChainType)))
+		}
+	} else {
+		s.log.Debug("Chain type not found in monitoring list for removal",
+			logger.String("chain_type", string(addr.ChainType)))
+	}
+
+	return nil
+}
 
 // SubscribeToTransactionEvents starts listening for new blocks and processing transactions
 func (s *transactionService) SubscribeToTransactionEvents(ctx context.Context) {
@@ -89,12 +160,21 @@ func (s *transactionService) processBlock(chainType types.ChainType, block *type
 
 	// Process each transaction in the block
 	for _, tx := range block.Transactions {
+		// Check if the transaction involves a monitored address
+		if !s.isAddressMonitored(chainType, []string{tx.From, tx.To}) {
+			s.log.Debug("Skipping transaction processing, neither address is monitored",
+				logger.String("tx_hash", tx.Hash),
+				logger.String("chain", string(chainType)),
+				logger.String("from_address", tx.From),
+				logger.String("to_address", tx.To))
+			return
+		}
+
 		// Set the timestamp to the block timestamp if not already set
 		if tx.Timestamp == 0 {
 			tx.Timestamp = block.Timestamp.Unix()
 		}
 
-		// Emit the raw transaction (filtered by monitored addresses inside emitTransactionEvent)
 		s.emitTransactionEvent(tx)
 	}
 }
@@ -119,7 +199,7 @@ func (s *transactionService) processERC20TransferLog(ctx context.Context, chain 
 			logger.Error(err))
 		return
 	}
-	fromAddr := strings.ToLower(fromAddrObj.Address)
+	fromAddr := fromAddrObj.ToChecksum()
 
 	// Extract and parse 'to' address using the address utilities
 	toTopicAddress := "0x" + log.Topics[2][len(log.Topics[2])-40:] // Last 40 hex chars (20 bytes)
@@ -131,7 +211,16 @@ func (s *transactionService) processERC20TransferLog(ctx context.Context, chain 
 			logger.Error(err))
 		return
 	}
-	toAddr := strings.ToLower(toAddrObj.Address)
+	toAddr := toAddrObj.ToChecksum()
+
+	// Check if either the 'from' or 'to' address is monitored before fetching details
+	if !s.isAddressMonitored(chain.Type, []string{fromAddr, toAddr}) {
+		s.log.Debug("Skipping ERC20 transfer processing, neither address is monitored",
+			logger.String("tx_hash", log.TransactionHash),
+			logger.String("from_address", fromAddr),
+			logger.String("to_address", toAddr))
+		return
+	}
 
 	// Get blockchain client to fetch transaction details and block information
 	client, err := s.blockchainRegistry.GetBlockchain(chain.Type)
@@ -186,7 +275,7 @@ func (s *transactionService) processERC20TransferLog(ctx context.Context, chain 
 			logger.Error(err))
 		return
 	}
-	tokenAddress := tokenAddrObj.Address
+	tokenAddress := tokenAddrObj.ToChecksum()
 
 	// Parse the transfer amount from log data
 	var value *big.Int
@@ -354,23 +443,9 @@ func (s *transactionService) subscribeToERC20Transfers(ctx context.Context, chai
 	}
 }
 
-// emitTransactionEvent sends a raw transaction to the transaction events channel
-// if the transaction involves a monitored address.
+// emitTransactionEvent sends a raw transaction to the transaction events channel.
 func (s *transactionService) emitTransactionEvent(tx *types.Transaction) {
-	s.addressMutex.RLock()
-	chainMap, chainExists := s.monitoredAddresses[tx.Chain]
-	fromMonitored := false
-	toMonitored := false
-	if chainExists {
-		_, fromMonitored = chainMap[strings.ToLower(tx.From)]
-		_, toMonitored = chainMap[strings.ToLower(tx.To)]
-	}
-	s.addressMutex.RUnlock()
-
-	// Only emit if from or to address is monitored
-	if !fromMonitored && !toMonitored {
-		return
-	}
+	// Check is now performed in processBlock and processERC20TransferLog
 
 	select {
 	case s.transactionEvents <- tx:
@@ -382,4 +457,25 @@ func (s *transactionService) emitTransactionEvent(tx *types.Transaction) {
 			logger.String("tx_hash", tx.Hash),
 			logger.String("chain", string(tx.Chain)))
 	}
+}
+
+// isAddressMonitored checks if any of the given addresses on a specific chain are in the
+// monitored addresses list. It acquires a read lock on the address mutex.
+func (s *transactionService) isAddressMonitored(chainType types.ChainType, addresses []string) bool {
+	s.addressMutex.RLock()
+	defer s.addressMutex.RUnlock()
+
+	chainMap, chainExists := s.monitoredAddresses[chainType]
+	if !chainExists {
+		return false
+	}
+
+	for _, addr := range addresses {
+		normalizedAddr := strings.ToLower(addr)
+		if _, monitored := chainMap[normalizedAddr]; monitored {
+			return true
+		}
+	}
+
+	return false
 }
