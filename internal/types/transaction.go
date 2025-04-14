@@ -1,7 +1,11 @@
 package types
 
 import (
+	"fmt"
 	"math/big"
+	"strings"
+
+	"vault0/internal/errors"
 )
 
 // TransactionType represents the type of transaction
@@ -99,10 +103,46 @@ type TransactionReceipt struct {
 
 // Log represents a log entry from a transaction
 type Log struct {
-	Address         string   // Contract address that emitted the log
-	Topics          []string // Indexed log topics
-	Data            []byte   // Log data
-	BlockNumber     *big.Int // Block number
-	TransactionHash string   // Transaction hash
-	LogIndex        uint     // Log index in the block
+	Address         string    // Contract address that emitted the log
+	ChainType       ChainType // The chain this log originated from
+	Topics          []string  // Indexed log topics
+	Data            []byte    // Log data
+	BlockNumber     *big.Int  // Block number
+	TransactionHash string    // Transaction hash
+	LogIndex        uint      // Log index in the block
+}
+
+// ParseAddressFromTopic extracts and validates an address from the topic at the given index.
+// Assumes the topic is a 32-byte hex string where the address is the last 20 bytes.
+// Uses the Log's ChainType for validation.
+// Returns an error on invalid index, topic format, or address.
+func (l *Log) ParseAddressFromTopic(topicIndex int) (*Address, error) {
+	if topicIndex < 0 || topicIndex >= len(l.Topics) {
+		// Use specific error for index out of bounds
+		return nil, errors.NewLogTopicIndexOutOfBoundsError(topicIndex, len(l.Topics))
+	}
+
+	topic := l.Topics[topicIndex]
+	// Remove potential "0x" prefix for length calculation
+	topicHex := strings.TrimPrefix(topic, "0x")
+
+	// Expecting 64 hex characters for a 32-byte topic
+	// We need at least the last 40 hex characters (20 bytes) for the address.
+	if len(topicHex) < 40 {
+		// Use specific error for invalid format (insufficient length)
+		reason := fmt.Sprintf("insufficient length (%d), expected at least 40 hex characters", len(topicHex))
+		return nil, errors.NewLogTopicInvalidFormatError(topicIndex, topic, reason)
+	}
+
+	// Extract the last 40 hex characters (20 bytes) and prepend "0x"
+	addressHex := "0x" + topicHex[len(topicHex)-40:]
+
+	// Use NewAddress for validation and creation, using the Log's ChainType
+	addr, err := NewAddress(addressHex, l.ChainType)
+	if err != nil {
+		// Propagate the error from NewAddress directly (it should be a Vault0Error)
+		return nil, err
+	}
+
+	return addr, nil
 }

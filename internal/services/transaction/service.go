@@ -15,6 +15,8 @@ import (
 
 // Service defines the transaction service interface
 type Service interface {
+	MonitorService
+
 	// GetTransaction retrieves a transaction by its hash
 	GetTransaction(ctx context.Context, hash string) (*Transaction, error)
 
@@ -26,41 +28,6 @@ type Service interface {
 
 	// FilterTransactions retrieves transactions based on the provided filter criteria
 	FilterTransactions(ctx context.Context, filter *Filter) (*types.Page[*Transaction], error)
-
-	// MonitorAddress adds an address to the list of addresses whose transactions should be emitted.
-	MonitorAddress(ctx context.Context, addr *types.Address) error
-
-	// UnmonitoredAddress removes an address from the monitoring list.
-	UnmonitoredAddress(ctx context.Context, addr *types.Address) error
-
-	// StartPendingTransactionPolling starts a background scheduler that periodically polls
-	// for pending or mined transactions to update their status.
-	//
-	// Parameters:
-	//   - ctx: Context for the operation, used to cancel the polling
-	StartPendingTransactionPolling(ctx context.Context)
-
-	// StopPendingTransactionPolling stops the pending transaction polling scheduler
-	StopPendingTransactionPolling()
-
-	// SubscribeToTransactionEvents starts listening for new blocks and processing transactions.
-	// This method:
-	// 1. Subscribes to new block headers for all supported chains
-	// 2. Processes transactions in those blocks against active wallets
-	// 3. Saves transactions in the database and emits transaction events
-	//
-	// Parameters:
-	//   - ctx: Context for the operation, used to cancel the subscription
-	SubscribeToTransactionEvents(ctx context.Context)
-
-	// UnsubscribeFromTransactionEvents stops listening for blockchain events.
-	// This should be called when shutting down the service.
-	UnsubscribeFromTransactionEvents()
-
-	// TransactionEvents returns a channel that emits raw blockchain transactions.
-	// These events include all transactions detected on monitored chains.
-	// The channel is closed when UnsubscribeFromTransactionEvents is called.
-	TransactionEvents() <-chan *types.Transaction
 }
 
 // transactionService implements the Service interface

@@ -441,6 +441,7 @@ func (c *EVMBlockchain) FilterContractLogs(ctx context.Context, addresses []stri
 
 		result[i] = types.Log{
 			Address:         log.Address.Hex(),
+			ChainType:       c.chain.Type,
 			Topics:          topics,
 			Data:            log.Data,
 			BlockNumber:     big.NewInt(int64(log.BlockNumber)),
@@ -524,6 +525,7 @@ func (c *EVMBlockchain) SubscribeContractLogs(ctx context.Context, addresses []s
 				// Create our log format
 				ourLog := types.Log{
 					Address:         log.Address.Hex(),
+					ChainType:       c.chain.Type,
 					Topics:          topics,
 					Data:            log.Data,
 					BlockNumber:     big.NewInt(int64(log.BlockNumber)),
@@ -820,6 +822,7 @@ func (c *EVMBlockchain) convertEthereumLogsToLogs(logs []*ethTypes.Log) []types.
 
 		result[i] = types.Log{
 			Address:         log.Address.Hex(),
+			ChainType:       c.chain.Type,
 			Topics:          topics,
 			Data:            log.Data,
 			BlockNumber:     big.NewInt(int64(log.BlockNumber)),

@@ -84,6 +84,10 @@ const (
 	ErrCodePriceFeedRequestFailed        = "price_feed_request_failed"
 	ErrCodeInvalidPriceFeedResponse      = "invalid_price_feed_response"
 	ErrCodePriceFeedProviderNotSupported = "price_feed_provider_not_supported"
+
+	// Log parsing errors
+	ErrCodeLogTopicIndexOutOfBounds = "log_topic_index_out_of_bounds"
+	ErrCodeLogTopicInvalidFormat    = "log_topic_invalid_format"
 )
 
 // NewConfigurationError creates an error for configuration issues.
@@ -627,5 +631,30 @@ func NewPriceFeedProviderNotSupported(provider string) *Vault0Error {
 		Code:    ErrCodePriceFeedProviderNotSupported,
 		Message: fmt.Sprintf("Price feed provider '%s' not supported", provider),
 		Err:     nil, // No underlying Go error
+	}
+}
+
+// NewLogTopicIndexOutOfBoundsError creates an error for when a topic index is out of bounds.
+func NewLogTopicIndexOutOfBoundsError(index, count int) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeLogTopicIndexOutOfBounds,
+		Message: fmt.Sprintf("Log topic index %d is out of bounds for %d topics", index, count),
+		Details: map[string]any{
+			"index": index,
+			"count": count,
+		},
+	}
+}
+
+// NewLogTopicInvalidFormatError creates an error for when a log topic has an invalid format.
+func NewLogTopicInvalidFormatError(index int, topicValue, reason string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeLogTopicInvalidFormat,
+		Message: fmt.Sprintf("Log topic[%d] has an invalid format: %s", index, reason),
+		Details: map[string]any{
+			"index":       index,
+			"topic_value": topicValue,
+			"reason":      reason,
+		},
 	}
 }
