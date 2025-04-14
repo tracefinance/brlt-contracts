@@ -6,7 +6,7 @@ migrations_path: ./migrations
 db_encryption_key: ${DB_ENCRYPTION_KEY}  # No default for security-sensitive values
 smart_contracts_path: ./contracts/artifacts
 key_store_type: db
-transaction_polling_interval: 30  # Time interval in seconds between transaction polling cycles (default: 30 seconds)
+transaction_synching_interval: 30  # Time interval in seconds between transaction synching cycles (default: 30 seconds)
 pending_transaction_polling_interval: 30  # Time interval in seconds between pending transaction polling cycles (default: 15 seconds)
 
 # Snowflake ID generation configuration

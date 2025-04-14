@@ -11,15 +11,12 @@ This document provides general guidelines for developing the Vault0 project, opt
 Vault0 is a full-stack web3 application combining blockchain technology with modern web development. It uses a layered architecture with clear separation of concerns.
 
 ## Core Development Principles
-- Write clean, maintainable, and well-documented code.
 - Follow DRY (Don't Repeat Yourself).
 - Implement comprehensive testing.
 - Prioritize security and performance.
 - Maintain consistent code style.
 - Focus on accessibility and user experience.
-- Use TypeScript where applicable.
-- Do not add unecessary comments to the code.
-- Only comment to add context for really complex code.
+- **Code Comment**: DO NOT ADD unecessary comments to the code.
 
 ## Project Structure
 ```

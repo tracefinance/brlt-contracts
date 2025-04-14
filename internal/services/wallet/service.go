@@ -6,6 +6,7 @@ import (
 
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
+	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/keystore"
 	"vault0/internal/core/tokenstore"
 	coreWallet "vault0/internal/core/wallet"
@@ -19,6 +20,7 @@ import (
 type Service interface {
 	BalanceService
 	MonitorService
+	HistoryService
 
 	// Create creates a new wallet with a key and derives its address.
 	// It performs the following steps:
@@ -54,19 +56,6 @@ type Service interface {
 	//   - *Wallet: The updated wallet information
 	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
 	Update(ctx context.Context, chainType types.ChainType, address, name string, tags map[string]string) (*Wallet, error)
-
-	// UpdateLastBlockNumber updates the last block number for a wallet.
-	// This method is used to track the last processed block from blockchain events.
-	//
-	// Parameters:
-	//   - ctx: Context for the operation
-	//   - chainType: The blockchain network type
-	//   - address: The wallet's blockchain address
-	//   - blockNumber: The new last block number
-	//
-	// Returns:
-	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
-	UpdateLastBlockNumber(ctx context.Context, chainType types.ChainType, address string, blockNumber int64) error
 
 	// Delete soft-deletes a wallet by chain type and address.
 	// The wallet is identified by its chain type and address.
@@ -137,19 +126,26 @@ type Service interface {
 
 // walletService implements the Service interface
 type walletService struct {
-	config             *config.Config
-	log                logger.Logger
-	repository         Repository
-	keystore           keystore.KeyStore
-	tokenStore         tokenstore.TokenStore
-	walletFactory      coreWallet.Factory
-	blockchainRegistry blockchain.Registry
-	chains             *types.Chains
-	txService          transaction.Service
-	mu                 sync.RWMutex
+	config               *config.Config
+	log                  logger.Logger
+	repository           Repository
+	keystore             keystore.KeyStore
+	tokenStore           tokenstore.TokenStore
+	walletFactory        coreWallet.Factory
+	blockchainRegistry   blockchain.Registry
+	chains               *types.Chains
+	txService            transaction.Service
+	txRepository         transaction.Repository
+	blockExplorerFactory blockexplorer.Factory
+	mu                   sync.RWMutex
+
 	// Transaction monitoring fields
 	monitorCtx    context.Context
 	monitorCancel context.CancelFunc
+
+	// Transaction history syncing fields
+	syncHistoryCtx    context.Context
+	syncHistoryCancel context.CancelFunc
 }
 
 // NewService creates a new wallet service
@@ -163,18 +159,22 @@ func NewService(
 	blockchainRegistry blockchain.Registry,
 	chains *types.Chains,
 	txService transaction.Service,
+	txRepository transaction.Repository,
+	blockExplorerFactory blockexplorer.Factory,
 ) Service {
 	return &walletService{
-		config:             config,
-		log:                log,
-		repository:         repository,
-		keystore:           keyStore,
-		tokenStore:         tokenStore,
-		walletFactory:      walletFactory,
-		blockchainRegistry: blockchainRegistry,
-		chains:             chains,
-		txService:          txService,
-		mu:                 sync.RWMutex{},
+		config:               config,
+		log:                  log,
+		repository:           repository,
+		keystore:             keyStore,
+		tokenStore:           tokenStore,
+		walletFactory:        walletFactory,
+		blockchainRegistry:   blockchainRegistry,
+		chains:               chains,
+		txService:            txService,
+		txRepository:         txRepository,
+		blockExplorerFactory: blockExplorerFactory,
+		mu:                   sync.RWMutex{},
 	}
 }
 
@@ -258,41 +258,6 @@ func (s *walletService) Update(ctx context.Context, chainType types.ChainType, a
 	}
 
 	return wallet, nil
-}
-
-// UpdateLastBlockNumber updates the last block number for a wallet
-func (s *walletService) UpdateLastBlockNumber(ctx context.Context, chainType types.ChainType, address string, blockNumber int64) error {
-	if chainType == "" {
-		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
-	}
-	if address == "" {
-		return errors.NewInvalidInputError("Address is required", "address", "")
-	}
-	if blockNumber < 0 {
-		return errors.NewInvalidInputError("Block number cannot be negative", "block_number", blockNumber)
-	}
-
-	chain, err := s.chains.Get(chainType)
-	if err != nil {
-		return err
-	}
-
-	if !chain.IsValidAddress(address) {
-		return errors.NewInvalidAddressError(address)
-	}
-
-	wallet, err := s.repository.GetByAddress(ctx, chainType, address)
-	if err != nil {
-		return err
-	}
-
-	wallet.LastBlockNumber = blockNumber
-
-	if err := s.repository.Update(ctx, wallet); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // Delete soft-deletes a wallet by chain type and address

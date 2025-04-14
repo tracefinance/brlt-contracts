@@ -175,10 +175,3 @@ func (s *transactionService) processTransaction(ctx context.Context, coreTx *typ
 	// Convert to service transaction model, WalletID is now 0 as it's not linked here
 	return FromCoreTransaction(coreTx, 0)
 }
-
-// TransactionEvents returns a channel that emits raw blockchain transactions.
-// These events include all transactions detected on monitored chains.
-// The channel is closed when UnsubscribeFromTransactionEvents is called.
-func (s *transactionService) TransactionEvents() <-chan *types.Transaction {
-	return s.transactionEvents
-}

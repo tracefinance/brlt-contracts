@@ -49,6 +49,13 @@ type MonitorService interface {
 	TransactionEvents() <-chan *types.Transaction
 }
 
+// TransactionEvents returns a channel that emits raw blockchain transactions.
+// These events include all transactions detected on monitored chains.
+// The channel is closed when UnsubscribeFromTransactionEvents is called.
+func (s *transactionService) TransactionEvents() <-chan *types.Transaction {
+	return s.transactionEvents
+}
+
 // MonitorAddress adds an address to the in-memory monitoring list
 func (s *transactionService) MonitorAddress(ctx context.Context, addr *types.Address) error {
 	if addr == nil {

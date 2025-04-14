@@ -46,6 +46,9 @@ func main() {
 	// Start transaction monitoring
 	container.Services.WalletService.StartTransactionMonitoring(ctx)
 
+	// Start wallet history syncing
+	container.Services.WalletService.StartWalletHistorySyncing(ctx)
+
 	// Setup routes
 	container.Server.SetupRoutes()
 
@@ -83,6 +86,9 @@ func main() {
 
 	// Stop transaction monitoring
 	container.Services.WalletService.StopTransactionMonitoring()
+
+	// Stop wallet history syncing
+	container.Services.WalletService.StopWalletHistorySyncing()
 
 	// Perform cleanup
 	container.Server.Shutdown()
