@@ -35,7 +35,7 @@ func (s *dbTokenStore) AddToken(ctx context.Context, token *types.Token) error {
 	}
 
 	// Parse and normalize address using the new Address struct
-	addr, err := types.NewAddress(token.Address, token.ChainType)
+	addr, err := types.NewAddress(token.ChainType, token.Address)
 	if err != nil {
 		return errors.NewInvalidTokenError("invalid address", err)
 	}
@@ -203,7 +203,7 @@ func (s *dbTokenStore) UpdateToken(ctx context.Context, token *types.Token) erro
 	}
 
 	// Parse and normalize address using the new Address struct
-	addr, err := types.NewAddress(token.Address, token.ChainType)
+	addr, err := types.NewAddress(token.ChainType, token.Address)
 	if err != nil {
 		return errors.NewInvalidTokenError("invalid address", err)
 	}

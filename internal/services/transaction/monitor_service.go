@@ -311,7 +311,7 @@ func (s *transactionService) processERC20TransferLog(ctx context.Context, chain 
 
 	// Create a new transaction directly from the log data
 	// Parse the token address using the address utilities
-	tokenAddrObj, err := types.NewAddress(log.Address, chain.Type)
+	tokenAddrObj, err := types.NewAddress(chain.Type, log.Address)
 	if err != nil {
 		s.log.Warn("Invalid token address in ERC20 transfer",
 			logger.String("tx_hash", log.TransactionHash),

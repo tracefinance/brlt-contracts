@@ -137,7 +137,7 @@ func (r *repository) Create(ctx context.Context, wallet *Wallet) error {
 
 	// Normalize wallet address using the new Address struct
 	if wallet.Address != "" {
-		addr, err := types.NewAddress(wallet.Address, wallet.ChainType)
+		addr, err := types.NewAddress(wallet.ChainType, wallet.Address)
 		if err != nil {
 			return err
 		}

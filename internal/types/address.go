@@ -24,7 +24,7 @@ type Address struct {
 
 // NewAddress creates a new Address instance and validates the address format
 // based on the specified chain type
-func NewAddress(address string, chainType ChainType) (*Address, error) {
+func NewAddress(chainType ChainType, address string) (*Address, error) {
 	// Normalize address format
 	normalizedAddress := normalizeAddress(address, chainType)
 

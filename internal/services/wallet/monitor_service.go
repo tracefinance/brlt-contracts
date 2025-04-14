@@ -95,7 +95,7 @@ func (s *walletService) StopTransactionMonitoring() {
 // monitorAddress registers a wallet address for transaction monitoring
 func (s *walletService) monitorAddress(ctx context.Context, chainType types.ChainType, address string) error {
 	// Register with transaction service
-	addr, err := types.NewAddress(address, chainType)
+	addr, err := types.NewAddress(chainType, address)
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func (s *walletService) monitorAddress(ctx context.Context, chainType types.Chai
 // unmonitorAddress stops monitoring a wallet address for transactions
 func (s *walletService) unmonitorAddress(ctx context.Context, chainType types.ChainType, address string) error {
 	// Unregister with transaction service
-	addr, err := types.NewAddress(address, chainType)
+	addr, err := types.NewAddress(chainType, address)
 	if err != nil {
 		return err
 	}

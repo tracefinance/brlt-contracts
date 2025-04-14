@@ -76,7 +76,7 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 
 	// Normalize addresses using the new Address struct
 	if tx.FromAddress != "" {
-		fromAddr, err := types.NewAddress(tx.FromAddress, tx.ChainType)
+		fromAddr, err := types.NewAddress(tx.ChainType, tx.FromAddress)
 		if err != nil {
 			return err
 		}
@@ -84,7 +84,7 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 	}
 
 	if tx.ToAddress != "" {
-		toAddr, err := types.NewAddress(tx.ToAddress, tx.ChainType)
+		toAddr, err := types.NewAddress(tx.ChainType, tx.ToAddress)
 		if err != nil {
 			return err
 		}
@@ -92,7 +92,7 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 	}
 
 	if tx.TokenAddress != "" {
-		tokenAddr, err := types.NewAddress(tx.TokenAddress, tx.ChainType)
+		tokenAddr, err := types.NewAddress(tx.ChainType, tx.TokenAddress)
 		if err != nil {
 			return err
 		}
@@ -310,7 +310,7 @@ func (r *repository) Update(ctx context.Context, tx *Transaction) error {
 
 	// Normalize addresses using the new Address struct
 	if tx.FromAddress != "" {
-		fromAddr, err := types.NewAddress(tx.FromAddress, tx.ChainType)
+		fromAddr, err := types.NewAddress(tx.ChainType, tx.FromAddress)
 		if err != nil {
 			return err
 		}
@@ -318,7 +318,7 @@ func (r *repository) Update(ctx context.Context, tx *Transaction) error {
 	}
 
 	if tx.ToAddress != "" {
-		toAddr, err := types.NewAddress(tx.ToAddress, tx.ChainType)
+		toAddr, err := types.NewAddress(tx.ChainType, tx.ToAddress)
 		if err != nil {
 			return err
 		}
@@ -326,7 +326,7 @@ func (r *repository) Update(ctx context.Context, tx *Transaction) error {
 	}
 
 	if tx.TokenAddress != "" {
-		tokenAddr, err := types.NewAddress(tx.TokenAddress, tx.ChainType)
+		tokenAddr, err := types.NewAddress(tx.ChainType, tx.TokenAddress)
 		if err != nil {
 			return err
 		}

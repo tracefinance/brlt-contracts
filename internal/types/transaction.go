@@ -139,7 +139,7 @@ func (l *Log) ParseAddressFromTopic(topicIndex int) (*Address, error) {
 	addressHex := "0x" + topicHex[len(topicHex)-40:]
 
 	// Use NewAddress for validation and creation, using the Log's ChainType
-	addr, err := NewAddress(addressHex, l.ChainType)
+	addr, err := NewAddress(l.ChainType, addressHex)
 	if err != nil {
 		// Propagate the error from NewAddress directly (it should be a Vault0Error)
 		return nil, err
