@@ -47,6 +47,9 @@ type Repository interface {
 
 	// GetTokenBalances retrieves all token balances for a wallet
 	GetTokenBalances(ctx context.Context, walletID int64) ([]*TokenBalance, error)
+
+	// UpdateBlockNumber updates only the last_block_number for a given wallet ID
+	UpdateBlockNumber(ctx context.Context, walletID int64, blockNumber int64) error
 }
 
 // repository implements Repository interface for SQLite
@@ -207,32 +210,19 @@ func (r *repository) GetByID(ctx context.Context, id int64) (*Wallet, error) {
 
 // Update updates a wallet's name, tags and last block number
 func (r *repository) Update(ctx context.Context, wallet *Wallet) error {
-	// Update timestamp
-	wallet.UpdatedAt = time.Now()
-
-	// Create a struct-based update builder
-	ub := r.walletStructMap.Update("wallets", wallet)
-	ub.Where(ub.Equal("id", wallet.ID))
-	ub.Where(ub.IsNull("deleted_at"))
-
-	// Build the SQL and args
-	sql, args := ub.Build()
-
-	// Execute the update
-	result, err := r.db.ExecuteStatementContext(ctx, sql, args...)
+	now := time.Now()
+	query := `UPDATE wallets SET name = ?, tags = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`
+	result, err := r.db.ExecuteStatementContext(ctx, query, wallet.Name, wallet.Tags, now, wallet.ID)
 	if err != nil {
 		return err
 	}
-
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return err
 	}
-
 	if rowsAffected == 0 {
 		return errors.NewWalletNotFoundError(strconv.FormatInt(wallet.ID, 10))
 	}
-
 	return nil
 }
 
@@ -439,4 +429,11 @@ func (r *repository) GetTokenBalances(ctx context.Context, walletID int64) ([]*T
 
 	// Execute the query
 	return r.executeTokenBalanceQuery(ctx, sql, args...)
+}
+
+// UpdateBlockNumber updates only the last_block_number for a given wallet ID
+func (r *repository) UpdateBlockNumber(ctx context.Context, walletID int64, blockNumber int64) error {
+	query := `UPDATE wallets SET last_block_number = ? WHERE id = ?`
+	_, err := r.db.ExecuteStatementContext(ctx, query, blockNumber, walletID)
+	return err
 }

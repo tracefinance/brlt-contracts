@@ -166,8 +166,7 @@ func (s *walletService) SyncWallet(ctx context.Context, walletID int64) (int, er
 
 	// Only update the last block number if we've synced transactions and found a higher block
 	if highestBlockNumber > wallet.LastBlockNumber {
-		wallet.LastBlockNumber = highestBlockNumber
-		if err := s.repository.Update(ctx, wallet); err != nil {
+		if err := s.repository.UpdateBlockNumber(ctx, wallet.ID, highestBlockNumber); err != nil {
 			s.log.Error("Failed to update wallet last block number",
 				logger.Int64("wallet_id", wallet.ID),
 				logger.Int64("last_block_number", highestBlockNumber),
