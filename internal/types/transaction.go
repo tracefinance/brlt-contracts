@@ -92,13 +92,14 @@ type TransactionOptions struct {
 
 // TransactionReceipt contains information about a transaction's execution
 type TransactionReceipt struct {
-	Hash              string   // Transaction hash
-	BlockNumber       *big.Int // Block number
-	Status            uint64   // 1 for success, 0 for failure
-	GasUsed           uint64   // Gas used by this transaction
-	CumulativeGasUsed uint64   // Cumulative gas used in the block
-	LogsBloom         []byte   // Bloom filter for logs
-	Logs              []Log    // Logs emitted by the transaction
+	Hash              string    // Transaction hash
+	ChainType         ChainType // The chain this receipt belongs to
+	BlockNumber       *big.Int  // Block number
+	Status            uint64    // 1 for success, 0 for failure
+	GasUsed           uint64    // Gas used by this transaction
+	CumulativeGasUsed uint64    // Cumulative gas used in the block
+	LogsBloom         []byte    // Bloom filter for logs
+	Logs              []Log     // Logs emitted by the transaction
 }
 
 // Log represents a log entry from a transaction

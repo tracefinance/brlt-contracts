@@ -296,6 +296,7 @@ func (c *EVMBlockchain) GetTransactionReceipt(ctx context.Context, hash string) 
 
 	return &types.TransactionReceipt{
 		Hash:              receipt.TxHash.Hex(),
+		ChainType:         c.chain.Type,
 		BlockNumber:       receipt.BlockNumber,
 		Status:            receipt.Status,
 		GasUsed:           receipt.GasUsed,
