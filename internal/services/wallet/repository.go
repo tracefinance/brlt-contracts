@@ -69,7 +69,7 @@ func NewRepository(db *db.DB) Repository {
 }
 
 // executeWalletQuery executes a query and scans the results into Wallet objects
-func (r *repository) executeWalletQuery(ctx context.Context, sql string, args ...interface{}) ([]*Wallet, error) {
+func (r *repository) executeWalletQuery(ctx context.Context, sql string, args ...any) ([]*Wallet, error) {
 	rows, err := r.db.ExecuteQueryContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -93,7 +93,7 @@ func (r *repository) executeWalletQuery(ctx context.Context, sql string, args ..
 }
 
 // executeTokenBalanceQuery executes a query and scans the results into TokenBalance objects
-func (r *repository) executeTokenBalanceQuery(ctx context.Context, sql string, args ...interface{}) ([]*TokenBalance, error) {
+func (r *repository) executeTokenBalanceQuery(ctx context.Context, sql string, args ...any) ([]*TokenBalance, error) {
 	rows, err := r.db.ExecuteQueryContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err

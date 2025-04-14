@@ -7,7 +7,6 @@ import (
 	"vault0/internal/core/blockexplorer"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
-	"vault0/internal/services/transaction"
 	"vault0/internal/types"
 )
 
@@ -117,9 +116,6 @@ func (s *walletService) SyncWallet(ctx context.Context, walletID int64) (int, er
 
 		// Process each transaction
 		for _, tx := range txPage.Items {
-			// Convert core transaction to service transaction model
-			serviceTransaction := transaction.FromCoreTransaction(tx, wallet.ID)
-
 			// Update the highest block number we've seen
 			if tx.BlockNumber != nil && tx.BlockNumber.Int64() > highestBlockNumber {
 				highestBlockNumber = tx.BlockNumber.Int64()
@@ -133,7 +129,7 @@ func (s *walletService) SyncWallet(ctx context.Context, walletID int64) (int, er
 			}
 
 			// Save the transaction to the database
-			err = s.txRepository.Create(ctx, serviceTransaction)
+			err = s.txService.CreateWalletTransaction(ctx, wallet.ID, tx)
 			if err != nil {
 				s.log.Error("Failed to save transaction",
 					logger.String("tx_hash", tx.Hash),
@@ -145,13 +141,14 @@ func (s *walletService) SyncWallet(ctx context.Context, walletID int64) (int, er
 
 			// If transaction was successful, update balances
 			if tx.Status == types.TransactionStatusSuccess {
-				if tx.Type == types.TransactionTypeNative {
+				switch tx.Type {
+				case types.TransactionTypeNative:
 					if err := s.UpdateWalletBalance(ctx, tx); err != nil {
 						s.log.Error("Failed to update native balance from transaction",
 							logger.String("tx_hash", tx.Hash),
 							logger.Error(err))
 					}
-				} else if tx.Type == types.TransactionTypeERC20 {
+				case types.TransactionTypeERC20:
 					if err := s.UpdateTokenBalance(ctx, tx); err != nil {
 						s.log.Error("Failed to update token balance from transaction",
 							logger.String("tx_hash", tx.Hash),

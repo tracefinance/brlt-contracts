@@ -37,6 +37,28 @@ type BalanceService interface {
 	GetWalletBalancesByAddress(ctx context.Context, chainType types.ChainType, address string) ([]*TokenBalanceData, error)
 }
 
+// isOutgoingTransaction returns (isOutgoingTransaction, error)
+// isOutgoingTransaction is true if the wallet is the sender (tx.From), false if receiver (tx.To)
+func (s *walletService) isOutgoingTransaction(ctx context.Context, tx *types.Transaction) (bool, error) {
+	exists, err := s.repository.Exists(ctx, tx.Chain, tx.From)
+	if err != nil {
+		return false, err
+	}
+	if exists {
+		return true, nil // Sender
+	}
+
+	exists, err = s.repository.Exists(ctx, tx.Chain, tx.To)
+	if err != nil {
+		return false, err
+	}
+	if exists {
+		return false, nil // Receiver
+	}
+
+	return false, errors.NewWalletNotFoundError(tx.From + " or " + tx.To)
+}
+
 // UpdateWalletBalance updates the native balance for a wallet based on a transaction
 func (s *walletService) UpdateWalletBalance(ctx context.Context, tx *types.Transaction) error {
 	if tx == nil {
@@ -44,44 +66,38 @@ func (s *walletService) UpdateWalletBalance(ctx context.Context, tx *types.Trans
 	}
 
 	if tx.Type != types.TransactionTypeNative {
-		// This method handles native balances, call UpdateTokenBalance for gas adjustments in token transfers
-		// If the transaction is incoming token transfer, we don't need to do anything here
 		return nil
 	}
 
-	isOutgoing := false
-
-	// Determine if the wallet is the sender or receiver
-	wallet, err := s.repository.GetByAddress(ctx, tx.Chain, tx.From)
-	if err == nil {
-		isOutgoing = true
-	} else {
-		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.To)
-		if err != nil {
-			// Wallet involved in the transaction not found in our DB
-			return errors.NewWalletNotFoundError(tx.From + " or " + tx.To)
-		}
-		// Wallet is the receiver, isFrom remains false
+	isOutgoing, err := s.isOutgoingTransaction(ctx, tx)
+	if err != nil {
+		return err
 	}
 
-	// Get the current balance
+	var wallet *Wallet
+	if isOutgoing {
+		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.From)
+	} else {
+		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.To)
+	}
+	if err != nil {
+		return err
+	}
+
 	currentBalance := wallet.Balance.ToBigInt()
 	var newBalance *big.Int
 
 	if isOutgoing {
-		// Outgoing native transaction: subtract amount + gas
 		gasUsed := new(big.Int).SetUint64(tx.GasUsed)
 		totalSpent := new(big.Int).Add(tx.Value, new(big.Int).Mul(tx.GasPrice, gasUsed))
 		newBalance = new(big.Int).Sub(currentBalance, totalSpent)
 		if newBalance.Sign() < 0 {
-			newBalance = big.NewInt(0) // Ensure balance doesn't go negative
+			newBalance = big.NewInt(0)
 		}
 	} else {
-		// Incoming native transaction: add amount
 		newBalance = new(big.Int).Add(currentBalance, tx.Value)
 	}
 
-	// Update the wallet balance in the repository
 	return s.repository.UpdateBalance(ctx, wallet.ID, newBalance)
 }
 
@@ -97,29 +113,26 @@ func (s *walletService) UpdateTokenBalance(ctx context.Context, tx *types.Transa
 		return errors.NewInvalidInputError("Token address is required for ERC20 transaction", "tx.TokenAddress", "")
 	}
 
-	isOutgoing := false
-
-	// Determine if the wallet is the sender or receiver
-	wallet, err := s.repository.GetByAddress(ctx, tx.Chain, tx.From)
-	if err == nil {
-		isOutgoing = true
-	} else {
-		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.To)
-		if err != nil {
-			// Wallet involved in the transaction not found in our DB
-			return errors.NewWalletNotFoundError(tx.From + " or " + tx.To)
-		}
-		// Wallet is the receiver, isFrom remains false
+	isOutgoing, err := s.isOutgoingTransaction(ctx, tx)
+	if err != nil {
+		return err
 	}
 
-	// --- Update Token Balance ---
-	// Get the current token balance
+	var wallet *Wallet
+	if isOutgoing {
+		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.From)
+	} else {
+		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.To)
+	}
+	if err != nil {
+		return err
+	}
+
 	tokenBalances, err := s.repository.GetTokenBalances(ctx, wallet.ID)
 	if err != nil {
 		return err
 	}
 
-	// Find the specific token balance
 	var currentTokenBalance *big.Int
 	found := false
 	for _, tb := range tokenBalances {
@@ -129,48 +142,33 @@ func (s *walletService) UpdateTokenBalance(ctx context.Context, tx *types.Transa
 			break
 		}
 	}
-
-	// If not found, start with zero balance
 	if !found {
 		currentTokenBalance = big.NewInt(0)
 	}
 
-	// Calculate new token balance based on transaction direction
 	var newTokenBalance *big.Int
 	if isOutgoing {
-		// Outgoing transaction: subtract amount
-		newTokenBalance = new(big.Int).Sub(currentTokenBalance, tx.Value) // ERC20 value is the token amount
+		newTokenBalance = new(big.Int).Sub(currentTokenBalance, tx.Value)
 		if newTokenBalance.Sign() < 0 {
-			newTokenBalance = big.NewInt(0) // Prevent negative balance
+			newTokenBalance = big.NewInt(0)
 		}
 	} else {
-		// Incoming transaction: add amount
 		newTokenBalance = new(big.Int).Add(currentTokenBalance, tx.Value)
 	}
 
-	// Update the token balance in the repository
 	if err := s.repository.UpdateTokenBalance(ctx, wallet.ID, tx.TokenAddress, newTokenBalance); err != nil {
-		return err // Return the error if token balance update fails
+		return err
 	}
 
-	// --- Update Native Balance for Gas (Sender Only) ---
 	if isOutgoing {
-		// Get the current native balance
 		currentNativeBalance := wallet.Balance.ToBigInt()
-
-		// Calculate gas cost
 		gasUsed := new(big.Int).SetUint64(tx.GasUsed)
 		gasCost := new(big.Int).Mul(tx.GasPrice, gasUsed)
-
-		// Calculate new native balance
 		newNativeBalance := new(big.Int).Sub(currentNativeBalance, gasCost)
 		if newNativeBalance.Sign() < 0 {
-			newNativeBalance = big.NewInt(0) // Ensure balance doesn't go negative
+			newNativeBalance = big.NewInt(0)
 		}
-
-		// Update the native balance in the repository
 		if err := s.repository.UpdateBalance(ctx, wallet.ID, newNativeBalance); err != nil {
-			// Log error, but don't necessarily fail the whole operation if token balance updated successfully
 			s.log.Error("Failed to update sender native balance for gas during token transfer",
 				logger.Int64("wallet_id", wallet.ID),
 				logger.String("tx_hash", tx.Hash),

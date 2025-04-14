@@ -161,37 +161,52 @@ func (s *walletService) handleTransaction(ctx context.Context, tx *types.Transac
 	}
 
 	// Check if the transaction already exists by hash
-	existingTx, err := s.txService.GetTransaction(ctx, tx.Hash)
-
-	if err != nil || existingTx == nil {
-		// Transaction doesn't exist yet, log and update balances
-		s.log.Info("Processing new transaction",
-			logger.String("tx_hash", tx.Hash),
-			logger.String("chain", string(tx.Chain)),
-			logger.String("from", tx.From),
-			logger.String("to", tx.To),
-			logger.String("type", string(tx.Type)))
-
-		// Update wallet balances if the transaction was successful
-		if tx.Status == types.TransactionStatusSuccess {
-			// Handle different transaction types
-			if tx.Type == types.TransactionTypeNative {
-				if err := s.UpdateWalletBalance(ctx, tx); err != nil {
-					s.log.Error("Failed to update native balance from transaction",
-						logger.String("tx_hash", tx.Hash),
-						logger.Error(err))
-				}
-			} else if tx.Type == types.TransactionTypeERC20 {
-				if err := s.UpdateTokenBalance(ctx, tx); err != nil {
-					s.log.Error("Failed to update token balance from transaction",
-						logger.String("tx_hash", tx.Hash),
-						logger.String("token_address", tx.TokenAddress),
-						logger.Error(err))
-				}
-			}
-		}
-	} else {
+	existingTx, _ := s.txService.GetTransaction(ctx, tx.Hash)
+	if existingTx != nil {
 		s.log.Debug("Transaction already exists in database",
 			logger.String("tx_hash", tx.Hash))
+		return
+	}
+
+	// Transaction doesn't exist yet, log and update balances
+	s.log.Info("Processing new transaction",
+		logger.String("tx_hash", tx.Hash),
+		logger.String("chain", string(tx.Chain)),
+		logger.String("from", tx.From),
+		logger.String("to", tx.To),
+		logger.String("type", string(tx.Type)))
+
+	// Find the wallet by chain and address (if possible)
+	wallet, err := s.repository.GetByAddress(ctx, tx.Chain, tx.To)
+	if err != nil || wallet == nil {
+		// Try sender address if recipient not found
+		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.From)
+	}
+	if err == nil && wallet != nil {
+		// Save the transaction using the service method
+		if err := s.txService.CreateWalletTransaction(ctx, wallet.ID, tx); err != nil {
+			s.log.Error("Failed to create wallet transaction from monitor event",
+				logger.String("tx_hash", tx.Hash),
+				logger.Error(err))
+		}
+	}
+
+	// Update wallet balances if the transaction was successful
+	if tx.Status == types.TransactionStatusSuccess {
+		switch tx.Type {
+		case types.TransactionTypeNative:
+			if err := s.UpdateWalletBalance(ctx, tx); err != nil {
+				s.log.Error("Failed to update native balance from transaction",
+					logger.String("tx_hash", tx.Hash),
+					logger.Error(err))
+			}
+		case types.TransactionTypeERC20:
+			if err := s.UpdateTokenBalance(ctx, tx); err != nil {
+				s.log.Error("Failed to update token balance from transaction",
+					logger.String("tx_hash", tx.Hash),
+					logger.String("token_address", tx.TokenAddress),
+					logger.Error(err))
+			}
+		}
 	}
 }

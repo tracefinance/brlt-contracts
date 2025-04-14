@@ -28,6 +28,9 @@ type Service interface {
 
 	// FilterTransactions retrieves transactions based on the provided filter criteria
 	FilterTransactions(ctx context.Context, filter *Filter) (*types.Page[*Transaction], error)
+
+	// CreateWalletTransaction creates and saves a transaction for a specific wallet
+	CreateWalletTransaction(ctx context.Context, walletID int64, tx *types.Transaction) error
 }
 
 // transactionService implements the Service interface
@@ -174,4 +177,59 @@ func (s *transactionService) processTransaction(ctx context.Context, coreTx *typ
 
 	// Convert to service transaction model, WalletID is now 0 as it's not linked here
 	return FromCoreTransaction(coreTx, 0)
+}
+
+// CreateWalletTransaction creates and saves a transaction for a specific wallet
+func (s *transactionService) CreateWalletTransaction(ctx context.Context, walletID int64, tx *types.Transaction) error {
+	if tx == nil {
+		return errors.NewInvalidInputError("Transaction is required", "transaction", nil)
+	}
+	if walletID <= 0 {
+		return errors.NewInvalidInputError("Wallet ID is required", "wallet_id", walletID)
+	}
+
+	// Resolve token symbol and decimals
+	switch tx.Type {
+	case types.TransactionTypeERC20:
+		if tx.TokenAddress == "" {
+			return errors.NewInvalidInputError("Token address is required for ERC20 transaction", "token_address", tx.TokenAddress)
+		}
+		token, err := s.tokenStore.GetToken(ctx, tx.TokenAddress)
+		if err != nil || token == nil {
+			s.log.Warn("ERC20 token not found in token store",
+				logger.String("chain", string(tx.Chain)),
+				logger.String("token_address", tx.TokenAddress),
+				logger.Error(err),
+			)
+		} else {
+			tx.TokenSymbol = token.Symbol
+		}
+	case types.TransactionTypeNative:
+		nativeToken, err := types.NewNativeToken(tx.Chain)
+		if err != nil {
+			s.log.Warn("Failed to resolve native token",
+				logger.String("chain", string(tx.Chain)),
+				logger.Error(err),
+			)
+			tx.TokenSymbol = "UNKNOWN"
+		} else {
+			tx.TokenSymbol = nativeToken.Symbol
+		}
+	}
+
+	// Convert types.Transaction to service-layer Transaction and associate walletID
+	serviceTx := FromCoreTransaction(tx, walletID)
+
+	// Save to database using repository
+	err := s.repository.Create(ctx, serviceTx)
+	if err != nil {
+		s.log.Error("Failed to create wallet transaction",
+			logger.Error(err),
+			logger.Int64("wallet_id", walletID),
+			logger.String("tx_hash", tx.Hash),
+		)
+		return errors.NewOperationFailedError("create wallet transaction", err)
+	}
+
+	return nil
 }
