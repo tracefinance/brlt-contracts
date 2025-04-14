@@ -119,7 +119,7 @@ func (s *walletService) unmonitorAddress(ctx context.Context, chainType types.Ch
 		return err
 	}
 
-	if err := s.txService.UnmonitoredAddress(ctx, addr); err != nil {
+	if err := s.txService.UnmonitorAddress(ctx, addr); err != nil {
 		return err
 	}
 

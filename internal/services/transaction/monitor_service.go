@@ -16,8 +16,8 @@ type MonitorService interface {
 	// MonitorAddress adds an address to the list of addresses whose transactions should be emitted.
 	MonitorAddress(ctx context.Context, addr *types.Address) error
 
-	// UnmonitoredAddress removes an address from the monitoring list.
-	UnmonitoredAddress(ctx context.Context, addr *types.Address) error
+	// UnmonitorAddress removes an address from the monitoring list.
+	UnmonitorAddress(ctx context.Context, addr *types.Address) error
 
 	// StartPendingTransactionPolling starts a background scheduler that periodically polls
 	// for pending or mined transactions to update their status.
@@ -88,8 +88,8 @@ func (s *transactionService) MonitorAddress(ctx context.Context, addr *types.Add
 	return nil
 }
 
-// UnmonitoredAddress removes an address from the in-memory monitoring list
-func (s *transactionService) UnmonitoredAddress(ctx context.Context, addr *types.Address) error {
+// UnmonitorAddress removes an address from the in-memory monitoring list
+func (s *transactionService) UnmonitorAddress(ctx context.Context, addr *types.Address) error {
 	if addr == nil {
 		return errors.NewInvalidInputError("Address cannot be nil", "address", nil)
 	}
