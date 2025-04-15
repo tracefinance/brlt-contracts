@@ -41,7 +41,7 @@ const copyAddress = async () => {
           <qrcode-vue :value="currentWallet.address" :size="128" level="H" />
         </div>
       </div>
-      <DialogFooter class="sm:justify-center items-center gap-2">
+      <DialogFooter class="sm:justify-center items-center gap-2 border border-gray rounded-md p-2">
         <p class="text-sm font-medium text-center break-all flex-1">
           {{ currentWallet.address }}
         </p>

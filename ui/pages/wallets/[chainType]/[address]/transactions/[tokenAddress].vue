@@ -142,7 +142,7 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
                 {{ formatDistanceToNow(new Date(tx.timestamp * 1000), { addSuffix: true }) }}
               </TableCell>
               <TableCell>
-                <Badge variant="outline" class="rounded-full px-2 py-1">
+                <Badge variant="outline" class="rounded-full px-2 py-1 capitalize">
                   <Icon 
                     v-if="tx.status?.toLowerCase() === 'success'" 
                     name="lucide:check-circle" 
