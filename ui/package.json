@@ -24,6 +24,7 @@
     "eslint": "^9.23.0",
     "lucide-vue-next": "^0.486.0",
     "nuxt": "^3.16.1",
+    "qrcode.vue": "^3.6.0",
     "reka-ui": "^2.2.0",
     "shadcn-nuxt": "^1.0.3",
     "tailwind-merge": "^3.1.0",

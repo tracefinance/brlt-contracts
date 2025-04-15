@@ -83,7 +83,7 @@ const isCurrentRoute = (href: string) => {
           <!-- Add Spacer and Button -->
           <div class="ml-auto flex items-center gap-2">
             <NuxtLink v-if="route.path == '/settings/wallets'" to="/settings/wallets/new">
-              <Button size="sm">Create Wallet</Button>
+              <Button>Create Wallet</Button>
             </NuxtLink>
           </div>
         </header>
