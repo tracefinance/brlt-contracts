@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { toast } from 'vue-sonner'
 import type { IToken, IWallet } from '~/types'
 
@@ -35,6 +35,24 @@ const { currentWallet, isLoading: isLoadingCurrentWallet } = useWalletDetails(ta
 
 // Use the wallet balances composable
 const { balances, isLoading: isLoadingBalances, refresh: refreshBalances } = useWalletBalances(targetChainType, targetAddress)
+
+// Set up auto-refresh interval for balances
+let balanceRefreshInterval: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  balanceRefreshInterval = setInterval(() => {
+    // Only refresh if we have a target wallet context
+    if (targetChainType.value && targetAddress.value) {
+      refreshBalances()
+    }
+  }, 3000) // Refresh every 3 seconds
+})
+
+onUnmounted(() => {
+  if (balanceRefreshInterval) {
+    clearInterval(balanceRefreshInterval)
+  }
+})
 
 // Use the wallet mutations composable
 const { error: tokenActivationError, activateToken } = useWalletMutations()
@@ -110,4 +128,4 @@ const handleTokenActivation = async (token: IToken) => {
       </SidebarInset>
     </SidebarProvider>
   </div>
-</template> 
+</template>

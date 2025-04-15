@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatDistanceToNow } from 'date-fns'
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { formatCurrency, shortenAddress } from '~/lib/utils'
 import { getTransactionExplorerUrl, getAddressExplorerUrl } from '~/lib/explorers'
@@ -27,8 +27,24 @@ const {
   transactions, 
   isLoading: isLoadingTransactions, 
   error: walletTransactionsError, 
-  hasMore 
+  hasMore,
+  refresh
 } = useWalletTransactions(chainType, address, tokenAddress, limit, offset)
+
+// Set up auto-refresh interval
+let refreshInterval: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  refreshInterval = setInterval(() => {
+    refresh()
+  }, 3000) // Refresh every 3 seconds
+})
+
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
+})
 
 // Use the useChains composable
 const { chains, isLoading: isLoadingChains, error: chainsError } = useChains()
@@ -166,4 +182,4 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
       </div>
     </div>
   </div>
-</template> 
+</template>
