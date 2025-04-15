@@ -294,8 +294,15 @@ func (c *EVMBlockchain) GetTransactionReceipt(ctx context.Context, hash string) 
 		return nil, errors.NewRPCError(err)
 	}
 
+	var contractAddressPtr *string
+	if receipt.ContractAddress != (common.Address{}) {
+		addr := receipt.ContractAddress.Hex()
+		contractAddressPtr = &addr
+	}
+
 	return &types.TransactionReceipt{
 		Hash:              receipt.TxHash.Hex(),
+		ContractAddress:   contractAddressPtr,
 		ChainType:         c.chain.Type,
 		BlockNumber:       receipt.BlockNumber,
 		Status:            receipt.Status,

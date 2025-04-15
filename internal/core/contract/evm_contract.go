@@ -210,10 +210,10 @@ func (c *EVMSmartContract) Deploy(
 		txOptions.Nonce = *options.Nonce
 	}
 
-	// Create transaction - using a zero address as "to" for contract creation
+	// Create transaction - using an empty string as "to" for contract creation
 	tx, err := c.wallet.CreateNativeTransaction(
 		ctx,
-		types.ZeroAddress, // Use zero address for contract deployment
+		"", // Use empty string for contract deployment
 		options.Value,
 		txOptions,
 	)
@@ -264,9 +264,15 @@ func (c *EVMSmartContract) GetDeployment(
 	// Calculate deployment cost
 	deploymentCost := new(big.Int).Mul(tx.GasPrice, big.NewInt(int64(receipt.GasUsed)))
 
+	// Use ContractAddress from receipt (if present)
+	contractAddress := ""
+	if receipt.ContractAddress != nil {
+		contractAddress = *receipt.ContractAddress
+	}
+
 	// Return deployment result
 	return &DeploymentResult{
-		ContractAddress: receipt.Logs[0].Address, // Contract address is usually in the first log
+		ContractAddress: contractAddress,
 		TransactionHash: transactionHash,
 		BlockNumber:     receipt.BlockNumber.Uint64(),
 		DeploymentCost:  deploymentCost,

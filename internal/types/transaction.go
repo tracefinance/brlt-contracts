@@ -93,6 +93,7 @@ type TransactionOptions struct {
 // TransactionReceipt contains information about a transaction's execution
 type TransactionReceipt struct {
 	Hash              string    // Transaction hash
+	ContractAddress   *string   // Address of deployed contract (nil if not contract creation)
 	ChainType         ChainType // The chain this receipt belongs to
 	BlockNumber       *big.Int  // Block number
 	Status            uint64    // 1 for success, 0 for failure
