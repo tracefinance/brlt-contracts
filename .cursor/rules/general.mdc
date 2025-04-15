@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Vault0 Project Guidelines
 
-This document provides general guidelines for developing the Vault0 project, optimized for AI assistant usage.
+This document provides general guidelines for developing the Vault0 project, optimized for AI assistant usage. **Use the code snippets as reference for best practices.**
 
 ## Project Overview
 Vault0 is a full-stack web3 application combining blockchain technology with modern web development. It uses a layered architecture with clear separation of concerns.
@@ -16,7 +16,7 @@ Vault0 is a full-stack web3 application combining blockchain technology with mod
 - Prioritize security and performance.
 - Maintain consistent code style.
 - Focus on accessibility and user experience.
-- **Code Comment**: DO NOT ADD unecessary comments to the code.
+- **Code Comment**: DO NOT ADD unnecessary comments to the code.
 
 ## Project Structure
 ```
@@ -37,11 +37,86 @@ vault0/
 
 ## General Code Style Guidelines
 - Use meaningful names for variables, functions, and files.
+  - **Bad:**
+    ```typescript
+    function d(a: number) {}
+    ```
+  - **Good:**
+    ```typescript
+    function calculateTotalPrice(amount: number) {}
+    ```
+  - **Go:**
+    ```go
+    // Bad
+    func f(x int) {}
+    // Good
+    func fetchUserByID(id int) {}
+    ```
+  - **Solidity:**
+    ```solidity
+    // Bad
+    function x(uint a) public {}
+    // Good
+    function deposit(uint256 amount) public {}
+    ```
 - Keep functions small and focused.
-- Document complex logic clearly.
+- Document complex logic clearly (but avoid unnecessary comments).
 - Handle errors appropriately in each layer.
 - Implement proper logging.
 - Follow consistent formatting.
+- **Avoid deep if nesting and adopt a fail-fast design pattern.**
+  - Handle errors and invalid states as early as possible, returning or exiting immediately to keep code flat and readable.
+  - **Bad**
+    ```go
+    // Bad: Deep nesting
+    func process(data *Data) error {
+        if data != nil {
+            if data.Valid {
+                // ...
+            } else {
+                return errors.New("invalid data")
+            }
+        } else {
+            return errors.New("nil data")
+        }
+        return nil
+    }
+    ```
+  - **Good**
+    ```go
+    // Good: Fail-fast
+    func process(data *Data) error {
+        if data == nil {
+            return errors.New("nil data")
+        }
+        if !data.Valid {
+            return errors.New("invalid data")
+        }
+        // ...
+        return nil
+    }
+    ```
+  - **Typescript:**:
+    ```typescript
+    // Bad
+    function getUser(user?: User) {
+      if (user) {
+        if (user.active) {
+          // ...
+        } else {
+          throw new Error('Inactive user');
+        }
+      } else {
+        throw new Error('No user');
+      }
+    }
+    // Good
+    function getUser(user?: User) {
+      if (!user) throw new Error('No user');
+      if (!user.active) throw new Error('Inactive user');
+      // ...
+    }
+    ```
 
 *Note: Refer to `frontend.md`, `backend.md`, and `solidity.md` (if available) for language/framework-specific style guidelines.*
 
@@ -66,10 +141,49 @@ vault0/
 - Maintain an up-to-date project `README.md`.
 - Document APIs, components, contract functions, configuration, and deployment procedures.
 - Keep inline code documentation current.
+- **Example (TypeScript JSDoc):**
+  ```typescript
+  /**
+   * Calculates the total price including tax.
+   * @param price Base price
+   * @param tax Tax rate
+   */
+  function calculateTotal(price: number, tax: number): number {
+    return price * (1 + tax);
+  }
+  ```
+- **Example (Go):**
+  ```go
+  // Add returns the sum of a and b.
+  func Add(a, b int) int {
+    return a + b
+  }
+  ```
+- **Example (Solidity NatSpec):**
+  ```solidity
+  /// @notice Transfers tokens to a recipient
+  /// @param recipient The address to transfer to
+  /// @param amount The amount to transfer
+  function transfer(address recipient, uint256 amount) public {}
+  ```
 
 ## General Security Guidelines
 - Implement proper authentication and authorization.
 - Validate all inputs.
+  - **TypeScript:**
+    ```typescript
+    if (typeof userId !== 'string') throw new Error('Invalid userId');
+    ```
+  - **Go:**
+    ```go
+    if len(username) == 0 {
+      return errors.New("username required")
+    }
+    ```
+  - **Solidity:**
+    ```solidity
+    require(amount > 0, "Amount must be positive");
+    ```
 - Protect against common vulnerabilities (e.g., OWASP Top 10).
 - Handle sensitive data securely.
 - Implement rate limiting where appropriate.
@@ -81,15 +195,45 @@ vault0/
 - Optimize frontend bundle sizes and smart contract gas usage.
 - Handle large datasets efficiently (e.g., pagination).
 
+
 ## General Error Handling
 - Use proper error types/codes.
 - Implement sensible error recovery where possible.
 - Log errors appropriately with context.
 - Return user-friendly error responses from APIs.
+- **TypeScript Example:**
+  ```typescript
+  try {
+    // ...
+  } catch (err) {
+    logger.error('Failed to process request', { err });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+  ```
+- **Go Example:**
+  ```go
+  if err != nil {
+    log.WithError(err).Error("Failed to process request")
+    http.Error(w, "Internal server error", http.StatusInternalServerError)
+    return
+  }
+  ```
+- **Solidity Example:**
+  ```solidity
+  require(balance[msg.sender] >= amount, "Insufficient balance");
+  ```
 
 ## Monitoring and Logging
 - Implement structured logging across the application.
 - Track errors and exceptions effectively.
+- **TypeScript Example:**
+  ```typescript
+  logger.info('User logged in', { userId });
+  ```
+- **Go Example:**
+  ```go
+  log.WithFields(log.Fields{"user": userID}).Info("User logged in")
+  ```
 
 ## Development Environment
 - Document setup procedures clearly.
@@ -98,4 +242,4 @@ vault0/
 
 ## Quality Assurance
 - Perform code reviews focusing on quality and adherence to guidelines.
-- Test for accessibility, cross-browser compatibility, responsive design, performance, and security. 
+- Test for accessibility, cross-browser compatibility, responsive design, performance, and security.
