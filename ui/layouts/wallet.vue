@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { toast } from 'vue-sonner'
 import type { IToken, IWallet } from '~/types'
 
 // Route handling
@@ -36,7 +37,7 @@ const { currentWallet, isLoading: isLoadingCurrentWallet } = useWalletDetails(ta
 const { balances, isLoading: isLoadingBalances, refresh: refreshBalances } = useWalletBalances(targetChainType, targetAddress)
 
 // Use the wallet mutations composable
-const { activateToken } = useWalletMutations()
+const { error: tokenActivationError, activateToken } = useWalletMutations()
 
 // Active token address from route for highlighting in sidebar
 const activeTokenAddress = computed(() => 
@@ -53,13 +54,25 @@ const handleWalletChange = (wallet: IWallet) => {
   navigateTo(`/wallets/${wallet.chainType}/${wallet.address}/transactions`)
 }
 
-const handleTokenActivation = (token: IToken) => {
-  if (targetChainType.value && targetAddress.value) {
-    activateToken(targetChainType.value, targetAddress.value, token.address)
-    setTimeout(() => {
-      refreshBalances()
-    }, 100) // Add a small delay
+// Handle token activation with notifications
+const handleTokenActivation = async (token: IToken) => {
+  if (!targetChainType.value || !targetAddress.value) {
+    toast.warning('Cannot activate token: Wallet context is missing.')
+    return
   }
+
+  await activateToken(targetChainType.value, targetAddress.value, token.address)
+
+  if (tokenActivationError.value) {
+    const errorMessage = tokenActivationError.value.message || 'An unknown error occurred'
+    toast.error(`Failed to activate token: ${errorMessage}`)
+    return
+  }
+
+  setTimeout(() => {
+    toast.success(`Token ${token.symbol || token.address} activated successfully!`)
+    refreshBalances()
+  }, 100)
 }
 </script>
 

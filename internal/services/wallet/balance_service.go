@@ -128,6 +128,13 @@ func (s *walletService) UpdateTokenBalance(ctx context.Context, tx *types.Transa
 		return err
 	}
 
+	// Normalize the token address
+	normalizedTokenAddr, err := types.NewAddress(wallet.ChainType, tx.TokenAddress)
+	if err != nil {
+		return err
+	}
+	normalizedTokenAddressStr := normalizedTokenAddr.ToChecksum()
+
 	tokenBalances, err := s.repository.GetTokenBalances(ctx, wallet.ID)
 	if err != nil {
 		return err
@@ -136,7 +143,7 @@ func (s *walletService) UpdateTokenBalance(ctx context.Context, tx *types.Transa
 	var currentTokenBalance *big.Int
 	found := false
 	for _, tb := range tokenBalances {
-		if tb.TokenAddress == tx.TokenAddress {
+		if tb.TokenAddress == normalizedTokenAddressStr {
 			currentTokenBalance = tb.Balance.ToBigInt()
 			found = true
 			break
@@ -156,7 +163,7 @@ func (s *walletService) UpdateTokenBalance(ctx context.Context, tx *types.Transa
 		newTokenBalance = new(big.Int).Add(currentTokenBalance, tx.Value)
 	}
 
-	if err := s.repository.UpdateTokenBalance(ctx, wallet, tx.TokenAddress, newTokenBalance); err != nil {
+	if err := s.repository.UpdateTokenBalance(ctx, wallet, normalizedTokenAddressStr, newTokenBalance); err != nil {
 		return err
 	}
 
@@ -249,16 +256,13 @@ func (s *walletService) GetWalletBalancesByAddress(ctx context.Context, chainTyp
 		return nil, errors.NewInvalidInputError("Address is required", "address", "")
 	}
 
-	chain, err := s.chains.Get(chainType)
+	normalizedAddr, err := types.NewAddress(chainType, address)
 	if err != nil {
 		return nil, err
 	}
+	normalizedAddressStr := normalizedAddr.ToChecksum()
 
-	if !chain.IsValidAddress(address) {
-		return nil, errors.NewInvalidAddressError(address)
-	}
-
-	wallet, err := s.repository.GetByAddress(ctx, chainType, address)
+	wallet, err := s.repository.GetByAddress(ctx, chainType, normalizedAddressStr)
 	if err != nil {
 		return nil, err
 	}
