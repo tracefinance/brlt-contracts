@@ -37,6 +37,9 @@ export const API_ENDPOINTS = {
   SIGNERS: {
     BASE: '/signers',
     BY_ID: (id: string) => `/signers/${id}`,
+    BY_USER_ID: (userId: string) => `/signers/user/${userId}`,
+    ADDRESSES: (signerId: string) => `/signers/${signerId}/addresses`,
+    ADDRESS_BY_ID: (signerId: string, addressId: string) => `/signers/${signerId}/addresses/${addressId}`,
   },
   
   // User endpoints
