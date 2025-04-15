@@ -396,25 +396,45 @@ func (s *walletService) ActivateToken(ctx context.Context, chainType types.Chain
 		return errors.NewInvalidInputError("Token address is required", "token_address", "")
 	}
 
-	chain, err := s.chains.Get(chainType)
+	// Validate and normalize wallet address
+	normalizedWalletAddr, err := types.NewAddress(chainType, walletAddress)
 	if err != nil {
 		return err
 	}
-	if !chain.IsValidAddress(walletAddress) {
-		return errors.NewInvalidAddressError(walletAddress)
+	normalizedWalletAddressStr := normalizedWalletAddr.ToChecksum()
+	// Validate and normalize token address
+	normalizedTokenAddr, err := types.NewAddress(chainType, tokenAddress)
+	if err != nil {
+		return err
 	}
-	if !chain.IsValidAddress(tokenAddress) {
-		return errors.NewInvalidAddressError(tokenAddress)
+	normalizedTokenAddressStr := normalizedTokenAddr.ToChecksum()
+
+	// Ensure wallet exists using the normalized wallet address
+	wallet, err := s.repository.GetByAddress(ctx, chainType, normalizedWalletAddressStr)
+	if err != nil {
+		return err
 	}
 
-	// Ensure wallet exists
-	wallet, err := s.repository.GetByAddress(ctx, chainType, walletAddress)
+	// If the token balance already exists, log and return successfully
+	exists, err := s.repository.TokenBalanceExists(ctx, wallet, normalizedTokenAddressStr)
 	if err != nil {
-		return err
+		return err // Propagate repository error
 	}
+
+	if exists {
+		s.log.Info("Token already active, skipping zero balance creation",
+			logger.Int64("wallet_id", wallet.ID),
+			logger.String("token_address", normalizedTokenAddressStr))
+		return nil
+	}
+
+	// If the balance does not exist, proceed to create it
+	s.log.Info("Activating token: creating zero balance entry",
+		logger.Int64("wallet_id", wallet.ID),
+		logger.String("token_address", normalizedTokenAddressStr))
 
 	// Create token balance with initial value zero
-	err = s.repository.UpdateTokenBalance(ctx, wallet.ID, tokenAddress, big.NewInt(0))
+	err = s.repository.UpdateTokenBalance(ctx, wallet, normalizedTokenAddressStr, big.NewInt(0))
 	if err != nil {
 		return err
 	}

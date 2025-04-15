@@ -40,16 +40,19 @@ type Repository interface {
 	Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error)
 
 	// UpdateBalance updates a wallet's native balance
-	UpdateBalance(ctx context.Context, id int64, balance *big.Int) error
+	UpdateBalance(ctx context.Context, wallet *Wallet, balance *big.Int) error
 
 	// UpdateTokenBalance updates or creates a token balance for a wallet
-	UpdateTokenBalance(ctx context.Context, walletID int64, tokenAddress string, balance *big.Int) error
+	UpdateTokenBalance(ctx context.Context, wallet *Wallet, tokenAddress string, balance *big.Int) error
 
 	// GetTokenBalances retrieves all token balances for a wallet
 	GetTokenBalances(ctx context.Context, walletID int64) ([]*TokenBalance, error)
 
 	// UpdateBlockNumber updates only the last_block_number for a given wallet ID
 	UpdateBlockNumber(ctx context.Context, walletID int64, blockNumber int64) error
+
+	// TokenBalanceExists checks if a token balance entry exists for a given wallet and token address
+	TokenBalanceExists(ctx context.Context, wallet *Wallet, tokenAddress string) (bool, error)
 }
 
 // repository implements Repository interface for SQLite
@@ -326,14 +329,8 @@ func (r *repository) Exists(ctx context.Context, chainType types.ChainType, addr
 }
 
 // UpdateBalance updates a wallet's native balance
-func (r *repository) UpdateBalance(ctx context.Context, id int64, balance *big.Int) error {
-	// Get the wallet to update
-	wallet, err := r.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	// Update the balance and timestamp
+func (r *repository) UpdateBalance(ctx context.Context, wallet *Wallet, balance *big.Int) error {
+	// Update the balance and timestamp directly on the passed wallet object
 	wallet.Balance = types.NewBigInt(balance)
 	wallet.UpdatedAt = time.Now()
 
@@ -357,23 +354,36 @@ func (r *repository) UpdateBalance(ctx context.Context, id int64, balance *big.I
 	}
 
 	if rowsAffected == 0 {
-		return errors.NewWalletNotFoundError(strconv.FormatInt(id, 10))
+		// Use wallet.ID for the error message
+		return errors.NewWalletNotFoundError(strconv.FormatInt(wallet.ID, 10))
 	}
 
 	return nil
 }
 
 // UpdateTokenBalance updates or creates a token balance for a wallet
-func (r *repository) UpdateTokenBalance(ctx context.Context, walletID int64, tokenAddress string, balance *big.Int) error {
-	// Check if token balance exists
-	sb := r.tokenBalanceStructMap.SelectFrom("wallet_balances")
-	sb.Where(sb.Equal("wallet_id", walletID))
-	sb.Where(sb.Equal("token_address", tokenAddress))
-	sql, args := sb.Build()
+func (r *repository) UpdateTokenBalance(ctx context.Context, wallet *Wallet, tokenAddress string, balance *big.Int) error {
+	// Use wallet's ChainType directly
+	chainType := wallet.ChainType
 
-	balances, err := r.executeTokenBalanceQuery(ctx, sql, args...)
+	// Normalize and validate the token address using the wallet's ChainType
+	normalizedAddr, err := types.NewAddress(chainType, tokenAddress)
 	if err != nil {
+		// If address creation fails, return the validation error
 		return err
+	}
+	normalizedTokenAddress := normalizedAddr.ToChecksum() // Use the normalized address string
+
+	// Check if token balance exists using the normalized address and wallet.ID
+	sb := r.tokenBalanceStructMap.SelectFrom("wallet_balances")
+	sb.Where(sb.Equal("wallet_id", wallet.ID)) // Use wallet.ID
+	sb.Where(sb.Equal("token_address", normalizedTokenAddress))
+	sqlQuery, args := sb.Build()
+
+	balances, err := r.executeTokenBalanceQuery(ctx, sqlQuery, args...)
+	if err != nil {
+		// Return a database error if the query fails
+		return errors.NewDatabaseError(err)
 	}
 
 	// Convert balance to BigInt
@@ -383,25 +393,31 @@ func (r *repository) UpdateTokenBalance(ctx context.Context, walletID int64, tok
 	if len(balances) > 0 {
 		// Update existing token balance
 		tokenBalance := balances[0]
+		// Ensure the existing balance uses the normalized address for comparison/update key
+		tokenBalance.TokenAddress = normalizedTokenAddress
 		tokenBalance.Balance = bigIntBalance
 		tokenBalance.UpdatedAt = now
 
 		// Create update builder
 		ub := r.tokenBalanceStructMap.Update("wallet_balances", tokenBalance)
-		ub.Where(ub.Equal("wallet_id", tokenBalance.WalletID))
-		ub.Where(ub.Equal("token_address", tokenBalance.TokenAddress))
+		ub.Where(ub.Equal("wallet_id", wallet.ID)) // Use wallet.ID
+		ub.Where(ub.Equal("token_address", normalizedTokenAddress))
 
 		// Build the SQL and args
-		sql, args := ub.Build()
+		updateSQL, updateArgs := ub.Build()
 
 		// Execute the update
-		_, err := r.db.ExecuteStatementContext(ctx, sql, args...)
-		return err
+		_, err = r.db.ExecuteStatementContext(ctx, updateSQL, updateArgs...)
+		if err != nil {
+			// Return a database error if the update fails
+			return errors.NewDatabaseError(err)
+		}
+		return nil // Return nil on successful update
 	} else {
-		// Create new token balance
+		// Create new token balance using the normalized address and wallet.ID
 		tokenBalance := &TokenBalance{
-			WalletID:     walletID,
-			TokenAddress: tokenAddress,
+			WalletID:     wallet.ID, // Use wallet.ID
+			TokenAddress: normalizedTokenAddress,
 			Balance:      bigIntBalance,
 			UpdatedAt:    now,
 		}
@@ -410,11 +426,15 @@ func (r *repository) UpdateTokenBalance(ctx context.Context, walletID int64, tok
 		ib := r.tokenBalanceStructMap.InsertInto("wallet_balances", tokenBalance)
 
 		// Build the SQL and args
-		sql, args := ib.Build()
+		insertSQL, insertArgs := ib.Build()
 
 		// Execute the insert
-		_, err := r.db.ExecuteStatementContext(ctx, sql, args...)
-		return err
+		_, err = r.db.ExecuteStatementContext(ctx, insertSQL, insertArgs...)
+		if err != nil {
+			// Return a database error if the insert fails
+			return errors.NewDatabaseError(err)
+		}
+		return nil // Return nil on successful insert
 	}
 }
 
@@ -436,4 +456,43 @@ func (r *repository) UpdateBlockNumber(ctx context.Context, walletID int64, bloc
 	query := `UPDATE wallets SET last_block_number = ? WHERE id = ?`
 	_, err := r.db.ExecuteStatementContext(ctx, query, blockNumber, walletID)
 	return err
+}
+
+// TokenBalanceExists checks if a token balance entry exists for a given wallet and token address
+func (r *repository) TokenBalanceExists(ctx context.Context, wallet *Wallet, tokenAddress string) (bool, error) {
+	// Normalize and validate the token address using the wallet's ChainType
+	normalizedAddr, err := types.NewAddress(wallet.ChainType, tokenAddress)
+	if err != nil {
+		// If address creation fails, return the validation error
+		return false, err
+	}
+	normalizedTokenAddress := normalizedAddr.ToChecksum()
+
+	// Create a select builder to check for existence
+	sb := sqlbuilder.NewSelectBuilder()
+	sb.Select("1")
+	sb.From("wallet_balances")
+	sb.Where(sb.Equal("wallet_id", wallet.ID))
+	sb.Where(sb.Equal("token_address", normalizedTokenAddress))
+	sb.Limit(1)
+
+	// Build the SQL and args
+	sql, args := sb.Build()
+
+	// Execute the query
+	rows, err := r.db.ExecuteQueryContext(ctx, sql, args...)
+	if err != nil {
+		return false, errors.NewDatabaseError(err) // Wrap DB error
+	}
+	defer rows.Close()
+
+	// rows.Next() returns true if a row was found, false otherwise
+	exists := rows.Next()
+
+	// Check for any errors during row iteration
+	if err := rows.Err(); err != nil {
+		return false, errors.NewDatabaseError(err) // Wrap DB error
+	}
+
+	return exists, nil
 }

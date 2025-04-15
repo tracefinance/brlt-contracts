@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { IWallet } from '~/types'
+import type { IToken, IWallet } from '~/types'
 
 // Route handling
 const route = useRoute()
@@ -33,7 +33,10 @@ const targetAddress = computed(() => {
 const { currentWallet, isLoading: isLoadingCurrentWallet } = useWalletDetails(targetChainType, targetAddress)
 
 // Use the wallet balances composable
-const { balances, isLoading: isLoadingBalances } = useWalletBalances(targetChainType, targetAddress)
+const { balances, isLoading: isLoadingBalances, refresh: refreshBalances } = useWalletBalances(targetChainType, targetAddress)
+
+// Use the wallet mutations composable
+const { activateToken } = useWalletMutations()
 
 // Active token address from route for highlighting in sidebar
 const activeTokenAddress = computed(() => 
@@ -49,6 +52,15 @@ const isLoading = computed(() =>
 const handleWalletChange = (wallet: IWallet) => {
   navigateTo(`/wallets/${wallet.chainType}/${wallet.address}/transactions`)
 }
+
+const handleTokenActivation = (token: IToken) => {
+  if (targetChainType.value && targetAddress.value) {
+    activateToken(targetChainType.value, targetAddress.value, token.address)
+    setTimeout(() => {
+      refreshBalances()
+    }, 100) // Add a small delay
+  }
+}
 </script>
 
 <template>
@@ -63,6 +75,7 @@ const handleWalletChange = (wallet: IWallet) => {
         :balances="balances"
         :active-token-address="activeTokenAddress"
         :is-loading="isLoading" 
+        :on-token-activation="handleTokenActivation"
       />
       
       <SidebarInset>

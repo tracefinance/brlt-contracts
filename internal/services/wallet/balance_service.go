@@ -98,7 +98,7 @@ func (s *walletService) UpdateWalletBalance(ctx context.Context, tx *types.Trans
 		newBalance = new(big.Int).Add(currentBalance, tx.Value)
 	}
 
-	return s.repository.UpdateBalance(ctx, wallet.ID, newBalance)
+	return s.repository.UpdateBalance(ctx, wallet, newBalance)
 }
 
 // UpdateTokenBalance updates the token balance for a wallet based on a transaction
@@ -156,7 +156,7 @@ func (s *walletService) UpdateTokenBalance(ctx context.Context, tx *types.Transa
 		newTokenBalance = new(big.Int).Add(currentTokenBalance, tx.Value)
 	}
 
-	if err := s.repository.UpdateTokenBalance(ctx, wallet.ID, tx.TokenAddress, newTokenBalance); err != nil {
+	if err := s.repository.UpdateTokenBalance(ctx, wallet, tx.TokenAddress, newTokenBalance); err != nil {
 		return err
 	}
 
@@ -168,7 +168,7 @@ func (s *walletService) UpdateTokenBalance(ctx context.Context, tx *types.Transa
 		if newNativeBalance.Sign() < 0 {
 			newNativeBalance = big.NewInt(0)
 		}
-		if err := s.repository.UpdateBalance(ctx, wallet.ID, newNativeBalance); err != nil {
+		if err := s.repository.UpdateBalance(ctx, wallet, newNativeBalance); err != nil {
 			s.log.Error("Failed to update sender native balance for gas during token transfer",
 				logger.Int64("wallet_id", wallet.ID),
 				logger.String("tx_hash", tx.Hash),

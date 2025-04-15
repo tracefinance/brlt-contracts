@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ZERO_ADDRESS, formatCurrency } from '~/lib/utils'
-import type { IWallet, ITokenBalanceResponse } from '~/types'
+import type { IWallet, ITokenBalanceResponse, IToken } from '~/types'
 
 // Define props
 interface Props {
   wallets: IWallet[]
   selectedWallet: IWallet
-  onWalletChange: (wallet: IWallet) => void
   balances: ITokenBalanceResponse[]
-  activeTokenAddress?: string
+  activeTokenAddress: string | undefined
+  onWalletChange: (wallet: IWallet) => void
+  onTokenActivation: (token: IToken) => void  
 }
 
 // Default props
@@ -24,8 +25,8 @@ const comparisonAddress = computed(() => props.activeTokenAddress?.toLowerCase()
 </script>
 
 <template>
-  <Sidebar class="mt-16">
-    <SidebarHeader>
+  <Sidebar>
+    <SidebarHeader class="mt-16">
       <WalletSelect
         :wallets="wallets" 
         :selected-wallet="selectedWallet" 
@@ -56,5 +57,10 @@ const comparisonAddress = computed(() => props.activeTokenAddress?.toLowerCase()
         </SidebarMenu>
       </SidebarGroup>
     </SidebarContent>
+    <SidebarFooter>
+      <SidebarMenu>
+        <WalletActivateToken :selected-wallet="selectedWallet" :on-token-activation="onTokenActivation" />
+      </SidebarMenu>
+    </SidebarFooter>
   </Sidebar>
 </template> 
