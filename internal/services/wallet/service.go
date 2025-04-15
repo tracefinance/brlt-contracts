@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"context"
+	"math/big"
 	"sync"
 
 	"vault0/internal/config"
@@ -122,6 +123,16 @@ type Service interface {
 	//   - bool: true if the wallet exists and is not deleted
 	//   - error: ErrInvalidInput for invalid parameters
 	Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error)
+
+	// ActivateToken creates a token balance for a wallet and token address.
+	// Parameters:
+	//   - ctx: Context for the operation
+	//   - chainType: The blockchain network type
+	//   - walletAddress: The wallet's blockchain address
+	//   - tokenAddress: The token's contract address
+	// Returns:
+	//   - error: ErrInvalidInput for invalid parameters, or any error from the token store
+	ActivateToken(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string) error
 }
 
 // walletService implements the Service interface
@@ -371,4 +382,42 @@ func (s *walletService) GetByID(ctx context.Context, id int64) (*Wallet, error) 
 	}
 
 	return wallet, nil
+}
+
+// ActivateToken creates a token balance for a wallet and token address.
+func (s *walletService) ActivateToken(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string) error {
+	if chainType == "" {
+		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
+	}
+	if walletAddress == "" {
+		return errors.NewInvalidInputError("Wallet address is required", "wallet_address", "")
+	}
+	if tokenAddress == "" {
+		return errors.NewInvalidInputError("Token address is required", "token_address", "")
+	}
+
+	chain, err := s.chains.Get(chainType)
+	if err != nil {
+		return err
+	}
+	if !chain.IsValidAddress(walletAddress) {
+		return errors.NewInvalidAddressError(walletAddress)
+	}
+	if !chain.IsValidAddress(tokenAddress) {
+		return errors.NewInvalidAddressError(tokenAddress)
+	}
+
+	// Ensure wallet exists
+	wallet, err := s.repository.GetByAddress(ctx, chainType, walletAddress)
+	if err != nil {
+		return err
+	}
+
+	// Create token balance with initial value zero
+	err = s.repository.UpdateTokenBalance(ctx, wallet.ID, tokenAddress, big.NewInt(0))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

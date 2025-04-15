@@ -8,6 +8,7 @@ export const API_ENDPOINTS = {
     BASE: '/wallets',
     BY_ADDRESS: (chainType: string, address: string) => `/wallets/${chainType}/${address}`,
     BALANCE: (chainType: string, address: string) => `/wallets/${chainType}/${address}/balance`,
+    ACTIVATE_TOKEN: (chainType: string, address: string) => `/wallets/${chainType}/${address}/activate-token`,
   },
   
   // Auth endpoints

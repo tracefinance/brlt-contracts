@@ -26,6 +26,12 @@ func NewHandler(walletService walletService.Service, tokenService token.Service)
 	}
 }
 
+// ActivateTokenRequest represents the request body for activating a token for a wallet
+// swagger:model ActivateTokenRequest
+type ActivateTokenRequest struct {
+	TokenAddress string `json:"token_address" binding:"required"`
+}
+
 func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	// Create error handler middleware
 	errorHandler := middleares.NewErrorHandler(nil)
@@ -41,6 +47,7 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	walletRoutes.PUT("/:chain_type/:address", h.UpdateWallet)
 	walletRoutes.DELETE("/:chain_type/:address", h.DeleteWallet)
 	walletRoutes.GET("/:chain_type/:address/balance", h.GetWalletBalance)
+	walletRoutes.POST("/:chain_type/:address/activate-token", h.ActivateToken)
 }
 
 // CreateWallet handles wallet creation
@@ -236,4 +243,37 @@ func (h *Handler) GetWalletBalance(c *gin.Context) {
 
 	// Write response
 	c.JSON(http.StatusOK, response)
+}
+
+// ActivateToken handles activating a token for a wallet
+// @Summary Activate a token for a wallet
+// @Description Create a token balance for a wallet and token address
+// @Tags wallets
+// @Accept json
+// @Produce json
+// @Param chain_type path string true "Blockchain network type (e.g., ethereum, bitcoin)"
+// @Param address path string true "Wallet address on the blockchain"
+// @Param body body ActivateTokenRequest true "Token address to activate"
+// @Success 204 "Token activated successfully"
+// @Failure 400 {object} errors.Vault0Error "Invalid request data"
+// @Failure 404 {object} errors.Vault0Error "Wallet not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /wallets/{chain_type}/{address}/activate-token [post]
+func (h *Handler) ActivateToken(c *gin.Context) {
+	chainType := types.ChainType(c.Param("chain_type"))
+	address := c.Param("address")
+
+	var req ActivateTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.Error(err)
+		return
+	}
+
+	err := h.walletService.ActivateToken(c.Request.Context(), chainType, address, req.TokenAddress)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }

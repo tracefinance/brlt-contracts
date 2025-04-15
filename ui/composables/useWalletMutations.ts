@@ -14,6 +14,7 @@ export default function () {
   const isCreating = ref(false)
   const isUpdating = ref(false)
   const isDeleting = ref(false)
+  const isActivating = ref(false)
   // Single error ref for simplicity. The consuming component can inspect this.
   const error = ref<Error | null>(null)
 
@@ -66,13 +67,31 @@ export default function () {
     }
   }
 
+  // --- Activate Token ---
+  const activateToken = async (chainType: string, address: string, tokenAddress: string): Promise<boolean> => {
+    isActivating.value = true
+    error.value = null
+    try {
+      await $api.wallet.activateToken(chainType, address, tokenAddress)
+      return true
+    } catch (err: any) {
+      console.error('Error activating token:', err)
+      error.value = err
+      return false
+    } finally {
+      isActivating.value = false
+    }
+  }
+
   return {
     isCreating,
     isUpdating,
     isDeleting,
+    isActivating,
     error,
     createWallet,
     updateWallet,
     deleteWallet,
+    activateToken,
   }
 } 

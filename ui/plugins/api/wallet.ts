@@ -106,4 +106,15 @@ export class WalletClient {
     const data = await this.client.get<any[]>(endpoint);
     return data.map(item => TokenBalanceResponse.fromJson(item));
   }
+  
+  /**
+   * Activates a token for a wallet (creates a token balance entry)
+   * @param chainType Blockchain network type
+   * @param address Wallet address
+   * @param tokenAddress Token contract address
+   */
+  async activateToken(chainType: string, address: string, tokenAddress: string): Promise<void> {
+    const endpoint = API_ENDPOINTS.WALLETS.ACTIVATE_TOKEN(chainType, address);
+    await this.client.post<void>(endpoint, { tokenAddress });
+  }
 } 
