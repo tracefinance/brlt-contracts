@@ -5,6 +5,7 @@ import { TokenClient } from './token';
 import { TransactionClient } from './transaction';
 import { ReferenceClient } from './reference';
 import { SignerClient } from './signer';
+import { UserClient } from './user';
 
 /**
  * API service that provides access to all API clients
@@ -16,6 +17,7 @@ export class ApiService {
   transaction: TransactionClient;
   reference: ReferenceClient;
   signer: SignerClient;
+  user: UserClient;
 
   constructor(baseUrl: string) {
     this.client = new ApiClient();
@@ -25,6 +27,7 @@ export class ApiService {
     this.transaction = new TransactionClient(this.client);
     this.reference = new ReferenceClient(this.client);
     this.signer = new SignerClient(this.client);
+    this.user = new UserClient(this.client);
   }
 
   /**
@@ -50,6 +53,7 @@ export default defineNuxtPlugin((nuxtApp) => {
   const transactionClient = new TransactionClient(apiClient);
   const referenceClient = new ReferenceClient(apiClient);
   const signerClient = new SignerClient(apiClient);
+  const userClient = new UserClient(apiClient);
   
   return {
     provide: {
@@ -58,7 +62,8 @@ export default defineNuxtPlugin((nuxtApp) => {
         token: tokenClient,
         transaction: transactionClient,
         reference: referenceClient,
-        signer: signerClient
+        signer: signerClient,
+        user: userClient
       }
     }
   };

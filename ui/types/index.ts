@@ -5,3 +5,4 @@ export * from './wallet';
 export * from './transaction';
 export * from './chain';
 export * from './signer';
+export * from './user';
