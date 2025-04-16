@@ -19,7 +19,8 @@ const route = useRoute()
 
 // TODO: Define navigation items based on settings sections
 const navigationItems = [
-  { name: 'Wallets', href: '/settings/wallets', icon: 'lucide:wallet' } 
+  { name: 'Wallets', href: '/settings/wallets', icon: 'lucide:wallet' },
+  { name: 'Signers', href: '/settings/signers', icon: 'lucide:key' }
   // Add other settings sections here
 ]
 
@@ -77,6 +78,19 @@ const isCurrentRoute = (href: string) => {
                  <BreadcrumbSeparator/>
                  <BreadcrumbItem>New</BreadcrumbItem>
                </template>
+               <!-- Add Breadcrumbs for Signers section -->
+               <template v-if="route.path.startsWith('/settings/signers')">
+                 <BreadcrumbSeparator/>
+                 <BreadcrumbItem>
+                   <NuxtLink v-if="route.path !== '/settings/signers'" to="/settings/signers">Signers</NuxtLink>
+                   <span v-else>Signers</span>
+                 </BreadcrumbItem>
+               </template>
+               <!-- Add Breadcrumb for New Signer page -->
+               <template v-if="route.path === '/settings/signers/new'">
+                 <BreadcrumbSeparator/>
+                 <BreadcrumbItem>New</BreadcrumbItem>
+               </template>
                <!-- Add logic for other settings sections -->
             </BreadcrumbList>
           </Breadcrumb>
@@ -84,6 +98,9 @@ const isCurrentRoute = (href: string) => {
           <div class="ml-auto flex items-center gap-2">
             <NuxtLink v-if="route.path == '/settings/wallets'" to="/settings/wallets/new">
               <Button>Create Wallet</Button>
+            </NuxtLink>
+            <NuxtLink v-if="route.path == '/settings/signers'" to="/settings/signers/new">
+              <Button>Create Signer</Button>
             </NuxtLink>
           </div>
         </header>
