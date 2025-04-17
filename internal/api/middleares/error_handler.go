@@ -1,6 +1,8 @@
 package middleares
 
 import (
+	"regexp"
+	"strings"
 	"vault0/internal/errors"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +26,16 @@ func NewErrorHandler(mapper ErrorMapper) *ErrorHandler {
 	}
 }
 
+// toSnakeCase converts a camelCase or PascalCase string to snake_case
+func toSnakeCase(s string) string {
+	var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
+	var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
+
+	snake := matchFirstCap.ReplaceAllString(s, "${1}_${2}")
+	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
+	return strings.ToLower(snake)
+}
+
 // Middleware returns a Gin middleware function that handles errors
 func (h *ErrorHandler) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -39,18 +51,18 @@ func (h *ErrorHandler) Middleware() gin.HandlerFunc {
 					Message: "Invalid request format",
 					Err:     bindErr,
 				}
-				// Handle validation errors from c.ShouldBindJSON
 			} else if validationErrors, ok := err.(validator.ValidationErrors); ok {
 				details := make(map[string]any)
 				for _, verr := range validationErrors {
-					details[verr.Field()] = verr.Tag()
+					// Convert field name to snake_case
+					fieldName := toSnakeCase(verr.Field())
+					details[fieldName] = verr.Tag()
 				}
 				err = &errors.Vault0Error{
 					Code:    errors.ErrCodeValidationError,
 					Message: "Invalid request format",
 					Details: details,
 				}
-				return
 			}
 			// Try the custom mapper if provided
 			if h.mapper != nil {
