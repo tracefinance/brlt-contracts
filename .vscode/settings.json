@@ -1,0 +1,7 @@
+{
+    "svg.preview.background": "custom",
+    "window.autoDetectColorScheme": true,
+    "workbench.preferredLightColorTheme": "Default Light Modern",
+    "workbench.preferredDarkColorTheme": "Material Theme Darker High Contrast",
+    "workbench.colorTheme": "Material Theme Darker High Contrast"
+}
