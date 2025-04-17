@@ -35,7 +35,7 @@ CONTRACTS_DIR = ./contracts
 # Package name
 PACKAGE = vault0
 
-.PHONY: all build clean server-build server-test server-test-coverage server-deps server-build-debug genkey-build genkey-install server server-clean git-reset git-status git-pull git-push ui-build ui-deps ui ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests git-diff-setup verify-tokens verify-tokens-build swag-install server-docs delve-install wire-install wire server-install
+.PHONY: all build clean server-build server-test server-test-coverage server-deps server-build-debug genkey-build genkey-install server server-clean git-reset git-status git-pull git-push ui-build ui-deps ui ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests git-diff-setup verify-tokens verify-tokens-build swag-install server-docs delve-install wire-install wire server-install deps
 
 # Count lines of code in the project
 count-lines:
@@ -91,6 +91,10 @@ server-test-coverage:
 server-deps:
 	$(GOMOD) download
 	$(GOMOD) tidy
+
+# Install all project dependencies
+deps: server-deps contracts-deps ui-deps
+	@echo "All project dependencies installed."
 
 # Install all server development tools
 server-install: wire-install delve-install swag-install

@@ -1,0 +1,36 @@
+{
+  "name": "Vault0 Development",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": "true",
+      "configureZshAsDefaultShell": "true",
+      "upgradePackages": "true"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    }
+  },
+  "appPort": [3000],
+  "forwardPorts": [8080, 3000, 4000],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-typescript-next",
+        "Nuxtr.nuxt-vscode-extentions"
+      ],
+      "settings": {
+        "go.toolsManagement.checkForUpdates": "local",
+        "go.useLanguageServer": true,
+        "go.gopath": "/go"
+      }
+    }
+  },
+  "remoteUser": "vscode",
+  "postCreateCommand": "go install golang.org/x/tools/gopls@latest && make deps"
+} 
