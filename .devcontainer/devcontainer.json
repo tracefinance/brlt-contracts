@@ -11,7 +11,8 @@
     },
     "ghcr.io/devcontainers/features/node:1": {
       "version": "lts"
-    }
+    },
+    "ghcr.io/devcontainers/features/git:1": {}
   },
   "appPort": [3000],
   "forwardPorts": [8080, 3000, 4000],
@@ -32,5 +33,9 @@
     }
   },
   "remoteUser": "vscode",
-  "postCreateCommand": "go install golang.org/x/tools/gopls@latest && make deps"
+  "postCreateCommand": "go install golang.org/x/tools/gopls@latest && make deps",
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly",
+    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,readonly"
+  ]
 } 
