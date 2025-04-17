@@ -1,7 +1,9 @@
 {
-    "svg.preview.background": "custom",
     "window.autoDetectColorScheme": true,
-    "workbench.preferredLightColorTheme": "Default Light Modern",
-    "workbench.preferredDarkColorTheme": "Material Theme Darker High Contrast",
-    "workbench.colorTheme": "Material Theme Darker High Contrast"
+    "editor.fontSize": 13,
+    "editor.fontWeight": "normal",
+    "editor.fontFamily": "Fira Code",
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false
 }
