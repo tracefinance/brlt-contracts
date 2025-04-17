@@ -64,7 +64,18 @@ func (h *Handler) CreateSigner(c *gin.Context) {
 		return
 	}
 
-	createdSigner, err := h.signerService.Create(c.Request.Context(), req.Name, req.Type, req.UserID)
+	// Convert UserID from json.Number to *int64
+	var userID *int64
+	if req.UserID != "" {
+		id, err := req.UserID.Int64()
+		if err != nil {
+			c.Error(errors.NewInvalidInputError("Invalid user ID format", "user_id", req.UserID))
+			return
+		}
+		userID = &id
+	}
+
+	createdSigner, err := h.signerService.Create(c.Request.Context(), req.Name, req.Type, userID)
 	if err != nil {
 		c.Error(err)
 		return
@@ -100,7 +111,18 @@ func (h *Handler) UpdateSigner(c *gin.Context) {
 		return
 	}
 
-	updatedSigner, err := h.signerService.Update(c.Request.Context(), id, req.Name, req.Type, req.UserID)
+	// Convert UserID from json.Number to *int64
+	var userID *int64
+	if req.UserID != "" {
+		userId, err := req.UserID.Int64()
+		if err != nil {
+			c.Error(errors.NewInvalidInputError("Invalid user ID format", "user_id", req.UserID))
+			return
+		}
+		userID = &userId
+	}
+
+	updatedSigner, err := h.signerService.Update(c.Request.Context(), id, req.Name, req.Type, userID)
 	if err != nil {
 		c.Error(err)
 		return

@@ -1,6 +1,7 @@
 package signer
 
 import (
+	"encoding/json"
 	"strconv"
 	"time"
 	"vault0/internal/services/signer"
@@ -11,14 +12,14 @@ import (
 type CreateSignerRequest struct {
 	Name   string            `json:"name" binding:"required"`
 	Type   signer.SignerType `json:"type" binding:"required,oneof=internal external"`
-	UserID *int64            `json:"user_id,omitempty"`
+	UserID json.Number       `json:"user_id,omitempty"`
 }
 
 // UpdateSignerRequest represents data for updating a signer
 type UpdateSignerRequest struct {
 	Name   string            `json:"name" binding:"required"`
 	Type   signer.SignerType `json:"type" binding:"required,oneof=internal external"`
-	UserID *int64            `json:"user_id,omitempty"`
+	UserID json.Number       `json:"user_id,omitempty"`
 }
 
 // AddAddressRequest represents data for adding an address to a signer
