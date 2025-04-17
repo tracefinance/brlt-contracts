@@ -100,7 +100,7 @@ get_percentage() {
     echo "0.0"
     return
   fi
-  echo "scale=1; $count * 100 / $total" | bc
+  echo "$count $total" | awk '{printf "%.1f", $1 * 100 / $2}'
 }
 
 # Variables to store line counts
