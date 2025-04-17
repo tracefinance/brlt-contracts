@@ -13,27 +13,24 @@ const router = useRouter()
 
 const { limit, offset, setLimit, previousPage, nextPage } = usePagination(10)
 
-const { 
-  wallets, 
-  isLoading: isLoadingWallets, 
-  error: walletsError,       
-  hasMore, 
+const {
+  wallets,
+  error: walletsError,
+  hasMore,
   refresh: refreshWallets
 } = useWalletsList(limit, offset)
 
-const { 
-  chains, 
+const {
+  chains,
   isLoading: isLoadingChains,
-  error: chainsError 
+  error: chainsError
 } = useChains()
 
-const { 
+const {
   deleteWallet,
   isDeleting,
   error: walletMutationsError
 } = useWalletMutations()
-
-const isLoading = computed(() => isLoadingWallets.value || isLoadingChains.value)
 
 const error = computed(() => walletsError.value || chainsError.value)
 
@@ -60,14 +57,14 @@ const handleDeleteConfirm = async () => {
   }
 
   const { chainType, address, name } = walletToDelete.value
-  
+
   const success = await deleteWallet(chainType, address)
 
   if (success) {
-    toast.success(`Wallet \"${name}\" deleted successfully.`)
+    toast.success(`Wallet "${name}" deleted successfully.`)
     await refreshWallets()
   } else {
-    toast.error(`Failed to delete wallet \"${name}\"`, {
+    toast.error(`Failed to delete wallet "${name}"`, {
       description: walletMutationsError.value?.message || 'Unknown error'
     })
   }
@@ -91,115 +88,120 @@ const goToEditWallet = (wallet: IWallet) => {
 </script>
 
 <template>
-  <div v-if="error">
-    <Alert variant="destructive">
-      <Icon name="lucide:alert-triangle" class="w-4 h-4" />
-      <AlertTitle>Error Loading Wallets</AlertTitle>
-      <AlertDescription>
-        {{ error.message || 'Failed to load wallets or chains' }}
-      </AlertDescription>
-    </Alert>
-  </div>
-
-  <div v-else-if="wallets.length === 0">
-    <Alert>
-      <Icon name="lucide:inbox" class="w-4 h-4" />
-      <AlertTitle>No Wallets Found</AlertTitle>
-      <AlertDescription>
-        You haven't added any wallets yet. Create or import one!
-      </AlertDescription>
-    </Alert>
-  </div>
-
-  <div v-else>
-    <div class="border rounded-lg overflow-hidden">
-      <Table>
-        <TableHeader class="bg-muted">
-          <TableRow>
-            <TableHead class="w-[15%]">Name</TableHead>
-            <TableHead class="w-[15%]">Chain</TableHead>
-            <TableHead class="w-[30%]">Address</TableHead>
-            <TableHead class="w-[15%]">Last Sync Block</TableHead>
-            <TableHead class="w-[20%]">Tags</TableHead>
-            <TableHead class="w-[5%] text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableRow v-for="wallet in wallets" :key="wallet.id || `${wallet.chainType}-${wallet.address}`">
-            <TableCell class="font-medium">{{ wallet.name }}</TableCell>
-            <TableCell>
-              <div class="flex items-center gap-2">
-                <Web3Icon :symbol="wallet.chainType" class="size-5" variant="branded" />
-                <span class="capitalize">{{ wallet.chainType }}</span>
-              </div>
-            </TableCell>
-            <TableCell>
-              <a :href="getAddressExplorerUrl(getWalletExplorerBaseUrl(wallet), wallet.address)" target="_blank"
-                rel="noopener noreferrer" class="hover:underline"
-                v-if="wallet.address && getWalletExplorerBaseUrl(wallet)">
-                {{ wallet.address }}
-              </a>
-              <span v-else-if="wallet.address">{{ wallet.address }}</span>
-              <span v-else class="text-muted-foreground">N/A</span>
-            </TableCell>
-            <TableCell>{{ wallet.lastBlockNumber || 'N/A' }}</TableCell>
-            <TableCell>
-              <div v-if="wallet.tags && Object.keys(wallet.tags).length > 0" class="flex flex-wrap gap-1">
-                <Badge v-for="(value, key) in wallet.tags" :key="key" variant="secondary" class="whitespace-nowrap">
-                  {{ key }}: {{ value }}
-                </Badge>
-              </div>
-              <span v-else class="text-xs text-muted-foreground">No tags</span>
-            </TableCell>
-            <TableCell class="text-right">
-              <DropdownMenu>
-                <DropdownMenuTrigger as-child>
-                  <Button variant="ghost" class="h-8 w-8 p-0">
-                    <span class="sr-only">Open menu</span>
-                    <Icon name="lucide:more-horizontal" class="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem @click="goToEditWallet(wallet)" :disabled="!wallet.chainType || !wallet.address">
-                    <Icon name="lucide:pencil" class="mr-2 size-4" />
-                    <span>Edit</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem @click="openDeleteDialog(wallet)"
-                    class="text-destructive focus:text-destructive focus:bg-destructive/10">
-                    <Icon name="lucide:trash-2" class="mr-2 size-4" />
-                    <span>Delete</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
+  <div>
+    <div v-if="error">
+      <Alert variant="destructive">
+        <Icon name="lucide:alert-triangle" class="w-4 h-4" />
+        <AlertTitle>Error Loading Wallets</AlertTitle>
+        <AlertDescription>
+          {{ error.message || 'Failed to load wallets or chains' }}
+        </AlertDescription>
+      </Alert>
     </div>
-    <div class="flex items-center gap-2 mt-2">
-      <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
-      <PaginationControls :offset="offset" :limit="limit" :has-more="hasMore" @previous="previousPage"
-        @next="nextPage" />
-    </div>
-  </div>
 
-  <AlertDialog :open="isDeleteDialogOpen" @update:open="isDeleteDialogOpen = $event">
-    <AlertDialogContent>
-      <AlertDialogHeader>
-        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-        <AlertDialogDescription>
-          This action cannot be undone. This will permanently delete the wallet
-          "{{ walletToDelete?.name }}" ({{ walletToDelete?.address?.substring(0, 6) }}...).
-          Associated transaction data might also be affected depending on system configuration.
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel :disabled="isDeleting" @click="isDeleteDialogOpen = false">Cancel</AlertDialogCancel>
-        <AlertDialogAction @click="handleDeleteConfirm" variant="destructive" :disabled="isDeleting">
-          <span v-if="isDeleting">Deleting...</span>
-          <span v-else>Delete Wallet</span>
-        </AlertDialogAction>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>
+    <div v-else-if="wallets.length === 0">
+      <Alert>
+        <Icon name="lucide:inbox" class="w-4 h-4" />
+        <AlertTitle>No Wallets Found</AlertTitle>
+        <AlertDescription>
+          You haven't added any wallets yet. Create or import one!
+        </AlertDescription>
+      </Alert>
+    </div>
+
+    <div v-else>
+      <div class="border rounded-lg overflow-hidden">
+        <Table>
+          <TableHeader class="bg-muted">
+            <TableRow>
+              <TableHead class="w-[15%]">Name</TableHead>
+              <TableHead class="w-[15%]">Chain</TableHead>
+              <TableHead class="w-[30%]">Address</TableHead>
+              <TableHead class="w-[15%]">Last Sync Block</TableHead>
+              <TableHead class="w-[20%]">Tags</TableHead>
+              <TableHead class="w-[5%] text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="wallet in wallets" :key="wallet.id || `${wallet.chainType}-${wallet.address}`">
+              <TableCell class="font-medium">{{ wallet.name }}</TableCell>
+              <TableCell>
+                <div class="flex items-center gap-2">
+                  <Web3Icon :symbol="wallet.chainType" class="size-5" variant="branded" />
+                  <span class="capitalize">{{ wallet.chainType }}</span>
+                </div>
+              </TableCell>
+              <TableCell>
+                <a
+                  v-if="wallet.address && getWalletExplorerBaseUrl(wallet)"
+                  :href="getAddressExplorerUrl(getWalletExplorerBaseUrl(wallet), wallet.address)"
+                  target="_blank" rel="noopener noreferrer" class="hover:underline">
+                  {{ wallet.address }}
+                </a>
+                <span v-else-if="wallet.address">{{ wallet.address }}</span>
+                <span v-else class="text-muted-foreground">N/A</span>
+              </TableCell>
+              <TableCell>{{ wallet.lastBlockNumber || 'N/A' }}</TableCell>
+              <TableCell>
+                <div v-if="wallet.tags && Object.keys(wallet.tags).length > 0" class="flex flex-wrap gap-1">
+                  <Badge v-for="(value, key) in wallet.tags" :key="key" variant="secondary" class="whitespace-nowrap">
+                    {{ key }}: {{ value }}
+                  </Badge>
+                </div>
+                <span v-else class="text-xs text-muted-foreground">No tags</span>
+              </TableCell>
+              <TableCell class="text-right">
+                <DropdownMenu>
+                  <DropdownMenuTrigger as-child>
+                    <Button variant="ghost" class="h-8 w-8 p-0">
+                      <span class="sr-only">Open menu</span>
+                      <Icon name="lucide:more-horizontal" class="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem :disabled="!wallet.chainType || !wallet.address" @click="goToEditWallet(wallet)">
+                      <Icon name="lucide:pencil" class="mr-2 size-4" />
+                      <span>Edit</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      class="text-destructive focus:text-destructive focus:bg-destructive/10"
+                      @click="openDeleteDialog(wallet)">
+                      <Icon name="lucide:trash-2" class="mr-2 size-4" />
+                      <span>Delete</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+      <div class="flex items-center gap-2 mt-2">
+        <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
+        <PaginationControls 
+          :offset="offset" :limit="limit" :has-more="hasMore" @previous="previousPage"
+          @next="nextPage" />
+      </div>
+    </div>
+
+    <AlertDialog :open="isDeleteDialogOpen" @update:open="isDeleteDialogOpen = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the wallet
+            "{{ walletToDelete?.name }}" ({{ walletToDelete?.address?.substring(0, 6) }}...).
+            Associated transaction data might also be affected depending on system configuration.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="isDeleting" @click="isDeleteDialogOpen = false">Cancel</AlertDialogCancel>
+          <AlertDialogAction :disabled="isDeleting" variant="destructive" @click="handleDeleteConfirm">
+            <span v-if="isDeleting">Deleting...</span>
+            <span v-else>Delete Wallet</span>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </div>
 </template>

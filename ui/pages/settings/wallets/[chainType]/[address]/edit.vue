@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { IUpdateWalletRequest } from '~/types'
 import { toast } from 'vue-sonner'
+import { getErrorMessage } from '~/lib/utils'
 
 definePageMeta({
   layout: 'settings'
@@ -66,11 +67,7 @@ watch(wallet, (newWallet) => {
 
 watch(mutationError, (newError) => {
   if (newError) {
-    // Attempt to extract a meaningful message, defaulting to a generic one
-    const errorMessage = (newError as any)?.message
-                      || (typeof newError === 'string' ? newError : null) // Handle string errors directly
-                      || 'An unknown error occurred while saving.';
-    toast.error(errorMessage);
+    toast.error(getErrorMessage(newError, 'An unknown error occurred while saving.'))
   }
 })
 

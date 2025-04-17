@@ -3,6 +3,7 @@ import { ref, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ICreateWalletRequest } from '~/types'
 import { toast } from 'vue-sonner'
+import { getErrorMessage } from '~/lib/utils'
 
 definePageMeta({
   layout: 'settings'
@@ -38,17 +39,7 @@ const removeTag = (index: number) => {
 // Watch for errors from the mutation composable
 watch(mutationError, (newError) => {
   if (newError) {
-    let errorMessage = 'An unknown error occurred while creating the wallet.'
-    const errorValue = newError
-    const errorAsAny = errorValue as any
-    if (errorAsAny?.data?.message) {
-      errorMessage = String(errorAsAny.data.message)
-    } else if (errorAsAny?.message) {
-      errorMessage = String(errorAsAny.message)
-    } else if (typeof errorValue === 'string') {
-      errorMessage = errorValue
-    }
-    toast.error(errorMessage)
+    toast.error(getErrorMessage(newError, 'An unknown error occurred while creating the wallet.'))
   }
 })
 
@@ -92,7 +83,7 @@ const handleSubmit = async () => {
         <CardTitle>Create New Wallet</CardTitle>
       </CardHeader>
       <CardContent>
-        <form @submit.prevent="handleSubmit" class="space-y-6">
+        <form class="space-y-6" @submit.prevent="handleSubmit">
           <!-- Wallet Name -->
           <div class="space-y-2">
             <Label for="name">Wallet Name</Label>
@@ -110,7 +101,7 @@ const handleSubmit = async () => {
             <!-- Error State -->
             <div v-else-if="chainsError" class="text-red-500 text-sm">
               <span>Error loading chains: {{ chainsError.message }}.</span>
-              <Button variant="link" size="sm" @click="refreshChains" class="p-0 h-auto ml-1">Retry</Button>
+              <Button variant="link" size="sm" class="p-0 h-auto ml-1" @click="refreshChains">Retry</Button>
             </div>
             <!-- Select Input -->
             <Select v-else v-model="formData.chainType" required>
@@ -119,14 +110,9 @@ const handleSubmit = async () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem v-for="chain in chains" :key="chain.type" :value="chain.type">
-                  <div class="flex items-center gap-2"> 
-                    <Web3Icon :symbol="chain.type" size="16px" /> 
-                    <span>{{ chain.name }}</span>
-                  </div>
-                </SelectItem>
-                <div v-if="chains.length === 0" class="p-2 text-center text-sm text-muted-foreground">
-                   No chains available.
-                </div>
+                  <Web3Icon :symbol="chain.type" variant="branded" class="size-5 mr-2 inline-block align-middle"/> 
+                  <span class="capitalize font-mono">{{ chain.name }}</span>
+                </SelectItem>                
               </SelectContent>
             </Select>
           </div>
@@ -137,7 +123,7 @@ const handleSubmit = async () => {
             <div v-for="(tag, index) in tagsList" :key="index" class="flex items-center gap-2">
               <Input v-model="tag.key" placeholder="Key" class="flex-1" />
               <Input v-model="tag.value" placeholder="Value" class="flex-1" />
-              <Button type="button" variant="outline" size="icon" @click="removeTag(index)" :disabled="tagsList.length <= 1">
+              <Button type="button" variant="outline" size="icon" :disabled="tagsList.length <= 1" @click="removeTag(index)">
                 <Icon name="lucide:trash-2" class="h-4 w-4" />
               </Button>
             </div>
@@ -152,7 +138,7 @@ const handleSubmit = async () => {
          <NuxtLink to="/settings/wallets">
             <Button variant="outline">Cancel</Button>
           </NuxtLink>
-        <Button type="submit" @click="handleSubmit" :disabled="isCreating">
+        <Button type="submit" :disabled="isCreating" @click="handleSubmit">
           <Icon v-if="isCreating" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-2" />
           {{ isCreating ? 'Creating...' : 'Create Wallet' }}
         </Button>

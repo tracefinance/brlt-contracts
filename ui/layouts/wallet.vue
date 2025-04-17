@@ -90,49 +90,45 @@ const handleTokenActivation = async (token: IToken) => {
   setTimeout(() => {
     toast.success(`Token ${token.symbol || token.address} activated successfully!`)
     refreshBalances()
-   }, 100)
- }
+  }, 100)
+}
 
- // copyAddress function removed
- </script>
+// copyAddress function removed
+</script>
 
- <template>
-  <AppHeader />
-  <div class="flex mt-16">
-    <SidebarProvider>
-      <WalletTokenSidebar
-        v-if="currentWallet"
-        :wallets="wallets"
-        :selected-wallet="currentWallet"
-        :on-wallet-change="handleWalletChange"
-        :balances="balances"
-        :active-token-address="activeTokenAddress"
-        :is-loading="isLoading"
-        :on-token-activation="handleTokenActivation"
-      />
+<template>
+  <div>
+    <AppHeader />
+    <div class="flex mt-16">
+      <SidebarProvider>
+        <WalletTokenSidebar 
+          v-if="currentWallet" :wallets="wallets" :selected-wallet="currentWallet"
+          :on-wallet-change="handleWalletChange" :balances="balances" :active-token-address="activeTokenAddress"
+          :is-loading="isLoading" :on-token-activation="handleTokenActivation" />
 
-      <SidebarInset>
-        <header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-           <SidebarTrigger class="size-10 -ml-2" />
-           <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                {{ currentWallet?.name || 'Wallet' }}
-              </BreadcrumbItem>
-              <BreadcrumbSeparator/>
-              <BreadcrumbItem>Transactions</BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <!-- Add Spacer and Receive Button -->
-          <div class="ml-auto flex items-center gap-2">
-             <!-- Use the new WalletReceiveModal component -->
-             <WalletReceiveModal :current-wallet="currentWallet" />
+        <SidebarInset>
+          <header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+            <SidebarTrigger class="size-10 -ml-2" />
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  {{ currentWallet?.name || 'Wallet' }}
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>Transactions</BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+            <!-- Add Spacer and Receive Button -->
+            <div class="ml-auto flex items-center gap-2">
+              <!-- Use the new WalletReceiveModal component -->
+              <WalletReceiveModal :current-wallet="currentWallet" />
+            </div>
+          </header>
+          <div class="flex flex-1 flex-col gap-4 p-4">
+            <slot />
           </div>
-        </header>
-        <div class="flex flex-1 flex-col gap-4 p-4">
-          <slot />
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
+    </div>
   </div>
 </template>

@@ -7,6 +7,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function valueUpdater<T extends Updater<any>>(updaterOrValue: T, ref: Ref) {
   ref.value
     = typeof updaterOrValue === 'function'
@@ -47,4 +48,22 @@ export function shortenAddress(address: string, prefixLength = 6, suffixLength =
   if (!address) return ''
   if (address.length < (prefixLength + suffixLength + 3)) return address
   return `${address.slice(0, prefixLength)}...${address.slice(-suffixLength)}`
+}
+
+/**
+ * Extract a readable error message from various error formats
+ * @param error The error object or string
+ * @param defaultMessage Default message to show if no specific error message is found
+ * @returns A formatted error message string
+ */
+export function getErrorMessage(error: unknown, defaultMessage = 'An unknown error occurred'): string {
+  if (!error) return defaultMessage
+  
+  if (typeof error === 'string') {
+    return error
+  } else if (error instanceof Error || (error && typeof error === 'object' && 'message' in error)) {
+    return String(error.message)
+  }
+  
+  return defaultMessage
 }

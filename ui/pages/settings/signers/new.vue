@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import type { ICreateSignerRequest } from '~/types'
+import { getErrorMessage } from '~/lib/utils'
 
 // Define page metadata
 definePageMeta({
@@ -27,17 +28,7 @@ const formData = reactive<ICreateSignerRequest>({
 // Watch for errors from the mutation composable
 watch(mutationError, (newError) => {
   if (newError) {
-    let errorMessage = 'An unknown error occurred while creating the signer.'
-    const errorValue = newError
-    const errorAsAny = errorValue as any
-    if (errorAsAny?.data?.message) {
-      errorMessage = String(errorAsAny.data.message)
-    } else if (errorAsAny?.message) {
-      errorMessage = String(errorAsAny.message)
-    } else if (typeof errorValue === 'string') {
-      errorMessage = errorValue
-    }
-    toast.error(errorMessage)
+    toast.error(getErrorMessage(newError, 'An unknown error occurred while creating the signer.'))
   }
 })
 

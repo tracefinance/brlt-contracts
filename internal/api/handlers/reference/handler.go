@@ -2,6 +2,7 @@ package reference
 
 import (
 	"net/http"
+	"sort"
 
 	"github.com/gin-gonic/gin"
 
@@ -47,6 +48,11 @@ func (h *Handler) ListChains(c *gin.Context) {
 			ExplorerURL: chain.ExplorerUrl,
 		})
 	}
+
+	// Sort the response by ID for consistent ordering
+	sort.Slice(response, func(i, j int) bool {
+		return response[i].ID < response[j].ID
+	})
 
 	c.JSON(http.StatusOK, response)
 }

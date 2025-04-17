@@ -49,7 +49,7 @@ function handleActivateToken() {
             :key="token.address"
             :value="token.address"
           >
-            <Web3Icon :symbol="token.symbol" variant="branded" class="size-4 mr-2 inline-block align-middle" />
+            <Web3Icon :symbol="token.symbol" variant="branded" class="size-5 mr-2 inline-block align-middle" />
             <span class="font-mono">{{ token.symbol }}</span>
           </SelectItem>
         </SelectContent>

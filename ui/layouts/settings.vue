@@ -1,18 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import AppHeader from '~/components/AppHeader.vue'
-// Import Sidebar components
-import {
-  Sidebar,
-  SidebarHeader,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton
-} from '~/components/ui/sidebar' // Assuming path, adjust if needed
-import { Button } from '~/components/ui/button' // Import Button
 
 // Route handling
 const route = useRoute()
@@ -29,15 +16,14 @@ const isCurrentRoute = (href: string) => {
 }
 </script>
 
-<template>
-  <AppHeader />
+<template>  
   <div>
+    <AppHeader />
     <SidebarProvider>
       <!-- Refactored Sidebar using custom components -->
-      <Sidebar class="mt-16">       
-        <SidebarContent>
+      <Sidebar>       
+        <SidebarContent class="mt-16">
           <SidebarGroup>
-             <SidebarGroupLabel>General</SidebarGroupLabel>
             <SidebarMenu>
               <SidebarMenuItem v-for="item in navigationItems" :key="item.name">
                 <SidebarMenuButton 
@@ -52,9 +38,17 @@ const isCurrentRoute = (href: string) => {
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroup>
-          <!-- Add more SidebarGroups for other setting categories if needed -->
         </SidebarContent>
-        <!-- Optional: Add SidebarFooter if needed -->
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton>
+                <Icon name="lucide:log-out" class="h-4 w-4" />
+                <span>Logout</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
       </Sidebar>
       
       <SidebarInset>
