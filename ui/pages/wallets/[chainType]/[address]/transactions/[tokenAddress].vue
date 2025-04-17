@@ -25,7 +25,6 @@ const { limit, offset, setLimit, previousPage, nextPage } = usePagination(10)
 // Use composables for data fetching
 const { 
   transactions, 
-  isLoading: isLoadingTransactions, 
   error: walletTransactionsError, 
   hasMore,
   refresh
@@ -61,7 +60,6 @@ const explorerBaseUrl = computed(() => {
 })
 
 // Combine loading and error states
-const isLoading = computed(() => isLoadingTransactions.value || isLoadingChains.value)
 const error = computed(() => walletTransactionsError.value || chainsError.value)
 </script>
 
@@ -138,7 +136,7 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
                 </div>
               </TableCell>
               <TableCell class="text-right">{{ formatCurrency(tx.value) }}</TableCell>
-              <TableCell :title="new Date(tx.timestamp * 1000).toLocaleString()">
+              <TableCell>
                 {{ formatDistanceToNow(new Date(tx.timestamp * 1000), { addSuffix: true }) }}
               </TableCell>
               <TableCell>
