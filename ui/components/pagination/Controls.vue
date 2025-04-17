@@ -11,8 +11,7 @@ const props = defineProps<PageControlsProps>();
 
 // Define the events emitted by this component
 const emit = defineEmits<{ 
-  (e: 'previous'): void 
-  (e: 'next'): void 
+  (e: 'previous' | 'next'): void 
 }>();
 
 const isFirstPage = computed(() => props.offset === 0);

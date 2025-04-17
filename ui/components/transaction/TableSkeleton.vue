@@ -1,7 +1,4 @@
 <script setup lang="ts">
-import { Skeleton } from '~/components/ui/skeleton'
-
-// Define props for controlling the number of skeleton rows
 defineProps({
   rows: {
     type: Number,

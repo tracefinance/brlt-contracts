@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { Skeleton } from '~/components/ui/skeleton'
 
-// Allow customizing the number of token skeletons
+
 defineProps({
   tokenCount: {
     type: Number,
@@ -13,7 +12,6 @@ defineProps({
 <template>
   <Sidebar class="mt-16">
     <SidebarHeader>
-      <!-- Wallet selector skeleton -->
       <div class="p-2">
         <Skeleton class="h-10 w-full rounded-md" />
       </div>

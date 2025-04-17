@@ -9,7 +9,6 @@ definePageMeta({
   layout: 'settings'
 })
 
-// Composables
 const router = useRouter()
 const { 
   createWallet: mutateCreateWallet,
@@ -18,32 +17,27 @@ const {
 } = useWalletMutations()
 const { chains, isLoading: isLoadingChains, error: chainsError, refresh: refreshChains } = useChains()
 
-// Form state
 const formData = reactive<ICreateWalletRequest>({
   name: '',
-  chainType: '', // Initialize as empty, will be set by Select
+  chainType: '',
   tags: {}
 })
 const tagsList = ref([{ key: '', value: '' }])
 
-// Add a new tag input row
 const addTag = () => {
   tagsList.value.push({ key: '', value: '' })
 }
 
-// Remove a tag input row
 const removeTag = (index: number) => {
   tagsList.value.splice(index, 1)
 }
 
-// Watch for errors from the mutation composable
 watch(mutationError, (newError) => {
   if (newError) {
     toast.error(getErrorMessage(newError, 'An unknown error occurred while creating the wallet.'))
   }
 })
 
-// Handle form submission
 const handleSubmit = async () => {
   mutationError.value = null
 
@@ -84,26 +78,21 @@ const handleSubmit = async () => {
       </CardHeader>
       <CardContent>
         <form class="space-y-6" @submit.prevent="handleSubmit">
-          <!-- Wallet Name -->
           <div class="space-y-2">
             <Label for="name">Wallet Name</Label>
             <Input id="name" v-model="formData.name" required placeholder="My Ethereum Wallet" />
           </div>
 
-          <!-- Chain Type -->
           <div class="space-y-2">
             <Label for="chainType">Chain Type</Label>
-            <!-- Loading State -->
             <div v-if="isLoadingChains" class="flex items-center space-x-2 text-muted-foreground">
               <Icon name="svg-spinners:180-ring-with-bg" class="h-4 w-4" />
               <span>Loading supported chains...</span>
             </div>
-            <!-- Error State -->
             <div v-else-if="chainsError" class="text-red-500 text-sm">
               <span>Error loading chains: {{ chainsError.message }}.</span>
               <Button variant="link" size="sm" class="p-0 h-auto ml-1" @click="refreshChains">Retry</Button>
             </div>
-            <!-- Select Input -->
             <Select v-else v-model="formData.chainType" required>
               <SelectTrigger id="chainType">
                 <SelectValue placeholder="Select chain type..." />
@@ -117,7 +106,6 @@ const handleSubmit = async () => {
             </Select>
           </div>
 
-          <!-- Tags -->
           <div class="space-y-4">
             <Label>Tags (Optional)</Label>
             <div v-for="(tag, index) in tagsList" :key="index" class="flex items-center gap-2">
@@ -146,7 +134,3 @@ const handleSubmit = async () => {
     </Card>
   </div>
 </template>
-
-<style scoped>
-/* Add any specific styles if needed */
-</style> 

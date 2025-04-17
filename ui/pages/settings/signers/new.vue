@@ -5,12 +5,10 @@ import { toast } from 'vue-sonner'
 import type { ICreateSignerRequest } from '~/types'
 import { getErrorMessage } from '~/lib/utils'
 
-// Define page metadata
 definePageMeta({
   layout: 'settings'
 })
 
-// Composables
 const router = useRouter()
 const { 
   createSigner,
@@ -18,21 +16,18 @@ const {
   error: mutationError 
 } = useSignerMutations()
 
-// Form state
 const formData = reactive<ICreateSignerRequest>({
   name: '',
   type: 'internal',
   userId: undefined
 })
 
-// Watch for errors from the mutation composable
 watch(mutationError, (newError) => {
   if (newError) {
     toast.error(getErrorMessage(newError, 'An unknown error occurred while creating the signer.'))
   }
 })
 
-// Form submission handler
 const handleSubmit = async () => {
   mutationError.value = null
 
@@ -58,8 +53,7 @@ const handleSubmit = async () => {
         <CardTitle>Create New Signer</CardTitle>
       </CardHeader>
       <CardContent>
-        <form @submit.prevent="handleSubmit" class="space-y-6">
-          <!-- Signer Name -->
+        <form class="space-y-6" @submit.prevent="handleSubmit">
           <div class="space-y-2">
             <Label for="name">Signer Name</Label>
             <Input 
@@ -70,7 +64,6 @@ const handleSubmit = async () => {
             />
           </div>
 
-          <!-- Signer Type -->
           <div class="space-y-2">
             <Label for="type">Signer Type</Label>
             <Select v-model="formData.type" required>
@@ -97,7 +90,6 @@ const handleSubmit = async () => {
             </p>
           </div>
 
-          <!-- User ID (optional) -->
           <div class="space-y-2">
             <Label for="userId">User ID (Optional)</Label>
             <Input 
@@ -116,7 +108,7 @@ const handleSubmit = async () => {
         <NuxtLink to="/settings/signers">
           <Button variant="outline">Cancel</Button>
         </NuxtLink>
-        <Button type="submit" @click="handleSubmit" :disabled="isCreating">
+        <Button type="submit" :disabled="isCreating" @click="handleSubmit">
           <Icon v-if="isCreating" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-2" />
           {{ isCreating ? 'Creating...' : 'Create Signer' }}
         </Button>

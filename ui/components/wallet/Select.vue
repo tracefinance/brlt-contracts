@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Wallet } from '~/types/wallet'
-import { useSidebar } from "@/components/ui/sidebar";
+import type { IWallet } from '~/types';
+import { useSidebar } from '~/components/ui/sidebar';
 
 interface Props {
-  selectedWallet?: Wallet
-  wallets?: Wallet[]
-  onWalletChange?: (wallet: Wallet) => void
+  selectedWallet?: IWallet
+  wallets?: IWallet[]
+  onWalletChange?: (wallet: IWallet) => void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -24,7 +24,7 @@ const displayChainType = computed(() => props.selectedWallet?.chainType || 'ethe
 const displayName = computed(() => props.selectedWallet?.name || 'Select Wallet')
 
 // Handle wallet selection
-const handleWalletSelect = (wallet: Wallet) => {
+const handleWalletSelect = (wallet: IWallet) => {
   props.onWalletChange(wallet)
 }
 </script>

@@ -3,24 +3,21 @@ import { computed } from 'vue'
 import { ZERO_ADDRESS, formatCurrency } from '~/lib/utils'
 import type { IWallet, ITokenBalanceResponse, IToken } from '~/types'
 
-// Define props
 interface Props {
-  wallets: IWallet[]
+  wallets?: IWallet[]
   selectedWallet: IWallet
-  balances: ITokenBalanceResponse[]
-  activeTokenAddress: string | undefined
+  balances?: ITokenBalanceResponse[]
+  activeTokenAddress?: string
   onWalletChange: (wallet: IWallet) => void
   onTokenActivation: (token: IToken) => void  
 }
 
-// Default props
 const props = withDefaults(defineProps<Props>(), {
   wallets: () => [],
   balances: () => [],
   activeTokenAddress: undefined
 })
 
-// Computed address for comparison
 const comparisonAddress = computed(() => props.activeTokenAddress?.toLowerCase())
 </script>
 
@@ -48,7 +45,7 @@ const comparisonAddress = computed(() => props.activeTokenAddress?.toLowerCase()
               >
                 <Web3Icon :symbol="balance.token?.symbol || 'N/A'" variant="branded" class="size-6"/>
                 <span>{{ balance.token?.symbol || 'N/A' }}</span>
-                <span class="ml-auto text-sm text-gray-500">
+                <span class="ml-auto text-sm text-gray-500 font-mono">
                   {{ formatCurrency(balance.balance) }}
                 </span>
               </NuxtLink>

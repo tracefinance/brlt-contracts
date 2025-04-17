@@ -110,13 +110,7 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
                 </a>
               </TableCell>
               <TableCell>
-                <Badge variant="outline" class="rounded-full px-2 py-1">
-                  <Icon 
-                    :name="tx.fromAddress.toLowerCase() === address.toLowerCase() ? 'lucide:arrow-up-right' : 'lucide:arrow-down-left'" 
-                    class="mr-1 h-4 w-4" 
-                  />
-                  {{ tx.fromAddress.toLowerCase() === address.toLowerCase() ? 'Send' : 'Receive' }}
-                </Badge>
+                <TransactionTypeBadge :wallet-address="address" :from-address="tx.fromAddress" />
               </TableCell>
               <TableCell>
                 <a :href="getAddressExplorerUrl(explorerBaseUrl, tx.fromAddress)" target="_blank" rel="noopener noreferrer" class="hover:underline">
@@ -135,34 +129,12 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
                   {{ tx.tokenSymbol || 'N/A' }}
                 </div>
               </TableCell>
-              <TableCell class="text-right">{{ formatCurrency(tx.value) }}</TableCell>
+              <TableCell class="text-right font-mono">{{ formatCurrency(tx.value) }}</TableCell>
               <TableCell>
                 {{ formatDistanceToNow(new Date(tx.timestamp * 1000), { addSuffix: true }) }}
               </TableCell>
               <TableCell>
-                <Badge variant="outline" class="rounded-full px-2 py-1 capitalize">
-                  <Icon 
-                    v-if="tx.status?.toLowerCase() === 'success'" 
-                    name="lucide:check-circle" 
-                    class="mr-1 h-4 w-4 text-green-600" 
-                  />
-                  <Icon 
-                    v-else-if="tx.status?.toLowerCase() === 'pending'" 
-                    name="lucide:loader" 
-                    class="mr-1 h-4 w-4 animate-spin text-muted-foreground" 
-                  />
-                  <Icon 
-                    v-else-if="tx.status?.toLowerCase() === 'failed'" 
-                    name="lucide:x-circle" 
-                    class="mr-1 h-4 w-4 text-destructive" 
-                  />
-                  <Icon 
-                    v-else 
-                    name="lucide:help-circle" 
-                    class="mr-1 h-4 w-4 text-muted-foreground" 
-                  />
-                  {{ tx.status || 'Unknown' }}
-                </Badge>
+                <TransactionStatusBadge :status="tx.status" />
               </TableCell>
             </TableRow>
           </TableBody>

@@ -1,37 +1,31 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { toast } from 'vue-sonner'
-import type { IAddAddressRequest, IAddress, ISigner } from '~/types'
+import type { IAddAddressRequest, ISigner } from '~/types'
 
-// Define page metadata
 definePageMeta({
   layout: 'settings'
 })
 
-// Get route params
 const route = useRoute()
 const signerId = route.params.id as string
 
-// Use Nuxt data fetching
 const { $api } = useNuxtApp()
 const { data: signer, refresh: refreshSigner, error: signerError, pending: isLoading } =
   useAsyncData<ISigner>(`signer-${signerId}`, () => $api.signer.getSigner(signerId))
 
-// Get mutations
 const {
   addAddress, isAddingAddress,
   deleteAddress, isDeletingAddress,
   error: mutationError
 } = useSignerMutations()
 
-// State for address form
 const showAddAddressForm = ref(false)
 const newAddress = ref<IAddAddressRequest>({
   chainType: '',
   address: ''
 })
 
-// Handle adding a new address
 const handleAddAddress = async () => {
   if (!newAddress.value.chainType || !newAddress.value.address) {
     toast.error('Please enter both chain type and address.')
@@ -40,7 +34,6 @@ const handleAddAddress = async () => {
 
   const result = await addAddress(signerId, newAddress.value)
   if (result) {
-    // Reset form and refresh data
     toast.success('Address added successfully.')
     newAddress.value = { chainType: '', address: '' }
     showAddAddressForm.value = false
@@ -52,7 +45,6 @@ const handleAddAddress = async () => {
   }
 }
 
-// Delete confirmation dialog
 const isDeleteDialogOpen = ref(false)
 const addressToDelete = ref<{ id: string, address: string } | null>(null)
 
@@ -86,7 +78,6 @@ const handleDeleteConfirm = async () => {
   addressToDelete.value = null
 }
 
-// Format date helper
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleString()
 }
@@ -95,12 +86,10 @@ const formatDate = (dateString: string) => {
 <template>
   <div>
     <div>
-      <!-- Loading state -->
       <div v-if="isLoading" class="flex justify-center p-6">
         <Spinner class="h-6 w-6" />
       </div>
 
-      <!-- Error state -->
       <div v-else-if="signerError || !signer">
         <Alert variant="destructive">
           <Icon name="lucide:alert-triangle" class="w-4 h-4" />
@@ -111,13 +100,11 @@ const formatDate = (dateString: string) => {
         </Alert>
       </div>
 
-      <!-- Signer details -->
       <div v-else>
         <div class="flex justify-between items-center mb-6">
           <h1 class="text-2xl font-bold">{{ signer.name }}</h1>
         </div>
 
-        <!-- Signer info card -->
         <Card class="mb-8">
           <CardHeader>
             <CardTitle>Signer Information</CardTitle>
@@ -149,7 +136,6 @@ const formatDate = (dateString: string) => {
           </CardContent>
         </Card>
 
-        <!-- Addresses section -->
         <div class="mb-8">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-semibold">Addresses</h2>
@@ -159,7 +145,6 @@ const formatDate = (dateString: string) => {
             </Button>
           </div>
 
-          <!-- Add Address Form -->
           <Card v-if="showAddAddressForm" class="mb-4">
             <CardHeader>
               <CardTitle>Add New Address</CardTitle>
@@ -190,7 +175,6 @@ const formatDate = (dateString: string) => {
             </CardContent>
           </Card>
 
-          <!-- Addresses table -->
           <div v-if="signer.addresses && signer.addresses.length > 0" class="border rounded-lg overflow-hidden">
             <Table>
               <TableHeader class="bg-muted">
@@ -217,8 +201,9 @@ const formatDate = (dateString: string) => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem @click="openDeleteDialog(address.id.toString(), address.address)"
-                          class="text-destructive focus:text-destructive focus:bg-destructive/10">
+                        <DropdownMenuItem 
+                        class="text-destructive focus:text-destructive focus:bg-destructive/10"
+                        @click="openDeleteDialog(address.id.toString(), address.address)">
                           <Icon name="lucide:trash-2" class="mr-2 size-4" />
                           <span>Delete</span>
                         </DropdownMenuItem>
@@ -230,7 +215,6 @@ const formatDate = (dateString: string) => {
             </Table>
           </div>
 
-          <!-- No addresses -->
           <Alert v-else>
             <Icon name="lucide:inbox" class="w-4 h-4" />
             <AlertTitle>No Addresses</AlertTitle>
@@ -254,7 +238,7 @@ const formatDate = (dateString: string) => {
         <AlertDialogFooter>
           <AlertDialogCancel :disabled="isDeletingAddress" @click="isDeleteDialogOpen = false">Cancel
           </AlertDialogCancel>
-          <AlertDialogAction @click="handleDeleteConfirm" variant="destructive" :disabled="isDeletingAddress">
+          <AlertDialogAction :disabled="isDeletingAddress" variant="destructive" @click="handleDeleteConfirm">
             <span v-if="isDeletingAddress">Deleting...</span>
             <span v-else>Delete Address</span>
           </AlertDialogAction>

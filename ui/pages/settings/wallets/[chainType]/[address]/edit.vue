@@ -140,13 +140,12 @@ const handleCancel = () => {
           <AlertTitle>Error Loading Wallet</AlertTitle>
           <AlertDescription>
             {{ fetchError.message || 'Failed to load wallet details.' }}
-             <Button variant="link" size="sm" @click="refreshWallet" class="p-0 h-auto mt-1">Retry</Button>
+             <Button variant="link" size="sm" class="p-0 h-auto mt-1" @click="refreshWallet">Retry</Button>
           </AlertDescription>
         </Alert>
       </div>
       
-      <form v-else-if="wallet" @submit.prevent="handleSaveChanges" class="space-y-6">
-        <!-- Name Input -->
+      <form v-else-if="wallet" class="space-y-6" @submit.prevent="handleSaveChanges">
         <div class="space-y-2">
           <Label for="wallet-name">Wallet Name</Label>
           <Input 
@@ -157,7 +156,6 @@ const handleCancel = () => {
           />
         </div>
         
-        <!-- Tags Input (similar to new.vue) -->
         <div class="space-y-4">
           <Label>Tags (Optional)</Label>
           <div v-for="(tag, index) in tagsList" :key="index" class="flex items-center gap-2">
@@ -167,9 +165,9 @@ const handleCancel = () => {
               type="button" 
               variant="outline" 
               size="icon" 
+              :disabled="tagsList.length === 1 && (!tag.key && !tag.value)"
+              aria-label="Remove Tag" 
               @click="removeTag(index)"
-              :disabled="tagsList.length === 1 && (!tag.key && !tag.value)" 
-              aria-label="Remove Tag"
             >
               <Icon name="lucide:trash-2" class="h-4 w-4" />
             </Button>
@@ -178,22 +176,7 @@ const handleCancel = () => {
             <Icon name="lucide:plus" class="h-4 w-4 mr-1" />
             Add Tag
           </Button>
-        </div>
-
-        <!-- Submission Error -->
-        <!-- Use mutationError from the composable if needed, but toast is primary -->
-        <!-- 
-        <div v-if="mutationError" class="my-4">
-          <Alert variant="destructive">
-            <Icon name="lucide:alert-triangle" class="w-4 h-4" />
-            <AlertTitle>Save Failed</AlertTitle>
-            <AlertDescription>
-              {{ (mutationError as any)?.data?.message || mutationError.message || 'An error occurred.' }}
-            </AlertDescription>
-          </Alert>
-        </div> 
-        -->
-        
+        </div>        
       </form>
       
       <div v-else-if="!isLoadingWallet && !fetchError">
@@ -203,13 +186,13 @@ const handleCancel = () => {
     </CardContent>
     
     <CardFooter v-if="!isLoadingWallet && !fetchError && wallet" class="flex justify-end space-x-2">
-      <Button variant="outline" @click="handleCancel" :disabled="isUpdating">
+      <Button variant="outline" :disabled="isUpdating" @click="handleCancel">
         Cancel
       </Button>
       <Button
         type="submit"
-        @click="handleSaveChanges"
         :disabled="isUpdating || !walletName.trim()"
+        @click="handleSaveChanges"
       >
         <Icon v-if="isUpdating" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-2" />
         {{ isUpdating ? 'Saving...' : 'Save Changes' }}
@@ -217,7 +200,3 @@ const handleCancel = () => {
     </CardFooter>
   </Card>
 </template>
-
-<style scoped>
-/* Add specific styles if needed */
-</style> 

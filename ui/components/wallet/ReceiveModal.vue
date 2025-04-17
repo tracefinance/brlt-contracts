@@ -45,7 +45,7 @@ const copyAddress = async () => {
         <p class="text-sm font-medium text-center break-all flex-1">
           {{ currentWallet.address }}
         </p>
-        <Button variant="ghost" size="icon" @click="copyAddress" class="shrink-0">
+        <Button variant="ghost" size="icon" class="shrink-0" @click="copyAddress">
           <Icon name="lucide:copy" class="h-4 w-4" />
           <span class="sr-only">Copy Address</span>
         </Button>

@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { Wallet, Vault, Repeat, Shuffle, Settings, MoonStar, Sun } from 'lucide-vue-next'
-const colorMode = useColorMode()
 const route = useRoute()
 
 // Function to check if a route is active
 const isActive = (path: string) => {
   return route.path.startsWith(path)
 }
+
+const navLinks = [
+  { path: '/wallets', icon: 'lucide:wallet', label: 'Wallets' },
+  { path: '/vaults', icon: 'lucide:vault', label: 'Vaults' },
+  { path: '/swaps', icon: 'lucide:repeat', label: 'Swap' },
+  { path: '/bridges', icon: 'lucide:shuffle', label: 'Bridge' },
+  { path: '/settings', icon: 'lucide:settings', label: 'Settings' },
+];
 </script>
 
 <template>
@@ -14,50 +20,18 @@ const isActive = (path: string) => {
       <div class="flex w-full h-full items-center gap-4">
         <Logo class="h-10"/>
 
-        <nav class="flex items-center space-x-6 text-sm font-medium ml-4">
-          <NuxtLink to="/wallets" :class="{
-            'flex items-center gap-2': true,
-            'text-primary font-semibold': isActive('/wallets'),
-            'text-muted-foreground hover:text-foreground': !isActive('/wallets')
-          }">
-            <Wallet class="h-[1.2rem] w-[1.2rem]" stroke-width="1.5" />
-            <span>Wallets</span>
-          </NuxtLink>
-
-          <NuxtLink to="/" :class="{
-            'flex items-center gap-2': true,
-            'text-primary font-semibold': isActive('/vaults'),
-            'text-muted-foreground hover:text-foreground': !isActive('/vaults')
-          }">
-            <Vault class="h-[1.2rem] w-[1.2rem]" stroke-width="1.5" />
-            <span>Vaults</span>
-          </NuxtLink>
-          
-          <NuxtLink to="/" :class="{
-            'flex items-center gap-2': true,
-            'text-primary font-semibold': isActive('/swaps'),
-            'text-muted-foreground hover:text-foreground': !isActive('/swaps')
-          }">
-            <Repeat class="h-[1.2rem] w-[1.2rem]" stroke-width="1.5" />
-            <span>Swap</span>
-          </NuxtLink>
-
-          <NuxtLink to="/" :class="{
-            'flex items-center gap-2': true,
-            'text-primary font-semibold': isActive('/bridges'),
-            'text-muted-foreground hover:text-foreground': !isActive('/bridges')
-          }">
-            <Shuffle class="h-[1.2rem] w-[1.2rem]" stroke-width="1.5" />
-            <span>Bridge</span>
-          </NuxtLink>
-
-          <NuxtLink to="/settings" :class="{
-            'flex items-center gap-2': true,
-            'text-primary font-semibold': isActive('/settings'),
-            'text-muted-foreground hover:text-foreground': !isActive('/settings')
-          }">
-            <Settings class="h-[1.2rem] w-[1.2rem]" stroke-width="1.5" />
-            <span>Settings</span>
+        <nav class="flex items-center text-sm font-medium ml-4">
+          <NuxtLink 
+            v-for="link in navLinks" 
+            :key="link.path"
+            :to="link.path" 
+            :class="{
+              'flex items-center gap-2 px-2 py-2': true,
+              'text-primary font-semibold bg-muted rounded-md': isActive(link.path),
+              'text-muted-foreground hover:text-foreground': !isActive(link.path)
+            }">
+            <Icon :name="link.icon" class="size-5 flex-shrink-0" />
+            <span class="w-16">{{ link.label }}</span>
           </NuxtLink>
         </nav>        
       </div>      
