@@ -10,47 +10,52 @@ func DefaultErrorMapper(err error) (int, any) {
 	if appErr, ok := err.(*errors.Vault0Error); ok {
 		switch appErr.Code {
 		// Input validation errors - 400 Bad Request
-		case errors.ErrCodeInvalidInput:
-		case errors.ErrCodeValidationError:
-		case errors.ErrCodeInvalidRequest:
-		case errors.ErrCodeMissingParameter:
-		case errors.ErrCodeInvalidParameter:
-		case errors.ErrCodeInvalidWallet:
-		case errors.ErrCodeInvalidWalletConfig:
-		case errors.ErrCodeInvalidKey:
-		case errors.ErrCodeInvalidKeyType:
-		case errors.ErrCodeInvalidCurve:
-		case errors.ErrCodeInvalidSignature:
-		case errors.ErrCodeInvalidAddress:
-		case errors.ErrCodeInvalidTransaction:
-		case errors.ErrCodeInvalidNonce:
-		case errors.ErrCodeInvalidGasPrice:
-		case errors.ErrCodeInvalidGasLimit:
-		case errors.ErrCodeInvalidContractCall:
-		case errors.ErrCodeInvalidAmount:
-		case errors.ErrCodeInvalidContract:
-		case errors.ErrCodeInvalidBlockchainConfig:
-		case errors.ErrCodeInvalidAPIKey:
-		case errors.ErrCodeInvalidExplorerResponse:
-		case errors.ErrCodeInvalidEncryptionKey:
-		case errors.ErrCodeInvalidKeystore:
-		case errors.ErrCodeInvalidToken:
-		case errors.ErrCodeMissingKeyID:
-		case errors.ErrCodeMissingWalletAddress:
-		case errors.ErrCodeMissingAPIKey:
-		// OAuth2 validation errors
-		case errors.ErrCodeInvalidScope:
-		case errors.ErrCodeUnsupportedGrantType:
+		case errors.ErrCodeInvalidInput,
+			errors.ErrCodeValidationError,
+			errors.ErrCodeInvalidRequest,
+			errors.ErrCodeMissingParameter,
+			errors.ErrCodeInvalidParameter,
+			errors.ErrCodeInvalidWallet,
+			errors.ErrCodeInvalidWalletConfig,
+			errors.ErrCodeInvalidKey,
+			errors.ErrCodeInvalidKeyType,
+			errors.ErrCodeInvalidCurve,
+			errors.ErrCodeInvalidSignature,
+			errors.ErrCodeInvalidAddress,
+			errors.ErrCodeInvalidTransaction,
+			errors.ErrCodeInvalidNonce,
+			errors.ErrCodeInvalidGasPrice,
+			errors.ErrCodeInvalidGasLimit,
+			errors.ErrCodeInvalidContractCall,
+			errors.ErrCodeInvalidAmount,
+			errors.ErrCodeInvalidContract,
+			errors.ErrCodeInvalidBlockchainConfig,
+			errors.ErrCodeInvalidAPIKey,
+			errors.ErrCodeInvalidExplorerResponse,
+			errors.ErrCodeInvalidEncryptionKey,
+			errors.ErrCodeInvalidKeystore,
+			errors.ErrCodeInvalidToken,
+			errors.ErrCodeMissingKeyID,
+			errors.ErrCodeMissingWalletAddress,
+			errors.ErrCodeMissingAPIKey,
+			// OAuth2 validation errors
+			errors.ErrCodeInvalidScope,
+			errors.ErrCodeUnsupportedGrantType,
+			// New Validation Errors
+			errors.ErrCodeInvalidBlockIdentifier,
+			errors.ErrCodeInvalidEventSignature,
+			errors.ErrCodeInvalidEventArgs,
+			errors.ErrCodeUnsupportedEventArgType:
 			return http.StatusBadRequest, appErr
 
 		// Authentication errors - 401 Unauthorized
-		case errors.ErrCodeUnauthorized:
-		case errors.ErrCodeInvalidAccessToken:
-		case errors.ErrCodeAccessTokenExpired:
-		case errors.ErrCodeInvalidCredentials:
-		// OAuth2 authentication errors
-		case errors.ErrCodeInvalidClient:
-		case errors.ErrCodeInvalidGrant:
+		case errors.ErrCodeUnauthorized,
+			errors.ErrCodeInvalidAccessToken,
+			errors.ErrCodeAccessTokenExpired,
+			errors.ErrCodeInvalidCredentials,
+			// OAuth2 authentication errors
+			errors.ErrCodeInvalidClient,
+			errors.ErrCodeInvalidGrant:
 			return http.StatusUnauthorized, appErr
 
 		// Permission errors - 403 Forbidden
@@ -58,31 +63,34 @@ func DefaultErrorMapper(err error) (int, any) {
 			return http.StatusForbidden, appErr
 
 		// Resource not found errors - 404 Not Found
-		case errors.ErrCodeNotFound:
-		case errors.ErrCodeResourceNotFound:
-		case errors.ErrCodeDatabaseNotFound:
-		case errors.ErrCodeWalletNotFound:
-		case errors.ErrCodeUserNotFound:
-		case errors.ErrCodeKeyNotFound:
-		case errors.ErrCodeTransactionNotFound:
-		case errors.ErrCodeContractNotFound:
-		case errors.ErrCodeSignerNotFound:
-		case errors.ErrCodeSignerAddressNotFound:
+		case errors.ErrCodeNotFound,
+			errors.ErrCodeResourceNotFound,
+			errors.ErrCodeDatabaseNotFound,
+			errors.ErrCodeWalletNotFound,
+			errors.ErrCodeUserNotFound,
+			errors.ErrCodeKeyNotFound,
+			errors.ErrCodeTransactionNotFound,
+			errors.ErrCodeContractNotFound,
+			errors.ErrCodeSignerNotFound,
+			errors.ErrCodeSignerAddressNotFound,
+			// New Not Found Errors
+			errors.ErrCodeTokenPriceNotFound,
+			errors.ErrCodeBlockNotFound:
 			return http.StatusNotFound, appErr
 
 		// Resource already exists errors - 409 Conflict
-		case errors.ErrCodeAlreadyExists:
-		case errors.ErrCodeResourceExists:
-		case errors.ErrCodeWalletExists:
-		case errors.ErrCodeUserExists:
-		case errors.ErrCodeEmailExists:
-		case errors.ErrCodeKeyExists:
-		case errors.ErrCodeInsufficientFunds:
+		case errors.ErrCodeAlreadyExists,
+			errors.ErrCodeResourceExists,
+			errors.ErrCodeWalletExists,
+			errors.ErrCodeUserExists,
+			errors.ErrCodeEmailExists,
+			errors.ErrCodeKeyExists,
+			errors.ErrCodeInsufficientFunds:
 			return http.StatusConflict, appErr
 
 		// Precondition failures - 412 Precondition Failed
-		case errors.ErrCodeAddressMismatch:
-		case errors.ErrCodeSignatureRecovery:
+		case errors.ErrCodeAddressMismatch,
+			errors.ErrCodeSignatureRecovery:
 			return http.StatusPreconditionFailed, appErr
 
 		// Rate limit errors - 429 Too Many Requests
@@ -94,26 +102,38 @@ func DefaultErrorMapper(err error) (int, any) {
 			return http.StatusRequestTimeout, appErr
 
 		// Other application errors - 500 Internal Server Error
-		case errors.ErrCodeInternalError:
-		case errors.ErrCodeDatabaseError:
-		case errors.ErrCodeBlockchainError:
-		case errors.ErrCodeKeystoreError:
-		case errors.ErrCodeWalletError:
-		case errors.ErrCodeCryptoError:
-		case errors.ErrCodeEncryptionError:
-		case errors.ErrCodeDecryptionError:
-		case errors.ErrCodeExplorerError:
-		case errors.ErrCodeSigningError:
-		case errors.ErrCodeTransactionFailed:
-		case errors.ErrCodeRPCError:
-		case errors.ErrCodeWalletOperationFailed:
-		case errors.ErrCodeOperationFailed:
-		case errors.ErrCodeTransactionSyncFailed:
-		case errors.ErrCodeChainNotSupported:
-		case errors.ErrCodeServiceUnavailable:
-		case errors.ErrCodeExplorerRequestFailed:
-		// OAuth2 server errors
-		case errors.ErrCodeServerOAuth2Error:
+		case errors.ErrCodeInternalError,
+			errors.ErrCodeDatabaseError,
+			errors.ErrCodeBlockchainError,
+			errors.ErrCodeKeystoreError,
+			errors.ErrCodeWalletError,
+			errors.ErrCodeCryptoError,
+			errors.ErrCodeEncryptionError,
+			errors.ErrCodeDecryptionError,
+			errors.ErrCodeExplorerError,
+			errors.ErrCodeSigningError,
+			errors.ErrCodeTransactionFailed,
+			errors.ErrCodeRPCError,
+			errors.ErrCodeWalletOperationFailed,
+			errors.ErrCodeOperationFailed,
+			errors.ErrCodeTransactionSyncFailed,
+			errors.ErrCodeChainNotSupported,
+			errors.ErrCodeServiceUnavailable,
+			errors.ErrCodeExplorerRequestFailed,
+			// OAuth2 server errors
+			errors.ErrCodeServerOAuth2Error,
+			// New Internal/Server Errors
+			errors.ErrCodePriceFeedUpdateFailed,
+			errors.ErrCodeDataConversionFailed,
+			errors.ErrCodeConfiguration,
+			errors.ErrCodeInvalidTokenBalance,
+			errors.ErrCodePriceFeedRequestFailed,
+			errors.ErrCodeInvalidPriceFeedResponse,
+			errors.ErrCodePriceFeedProviderNotSupported,
+			errors.ErrCodeLogTopicIndexOutOfBounds,
+			errors.ErrCodeLogTopicInvalidFormat:
+			return http.StatusInternalServerError, appErr
+
 		default:
 			return http.StatusInternalServerError, appErr
 		}

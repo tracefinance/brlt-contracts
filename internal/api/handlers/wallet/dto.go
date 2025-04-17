@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"strconv"
 	"time"
 
 	"vault0/internal/services/wallet"
@@ -22,7 +23,7 @@ type UpdateWalletRequest struct {
 
 // @Description Response model containing wallet details
 type WalletResponse struct {
-	ID              int64             `json:"id" example:"1"`
+	ID              string            `json:"id" example:"1"`
 	KeyID           string            `json:"key_id" example:"wallet_key_e8a1b8f7"`
 	ChainType       types.ChainType   `json:"chain_type" example:"ethereum"`
 	Address         string            `json:"address" example:"0x71C7656EC7ab88b098defB751B7401B5f6d8976F"`
@@ -67,7 +68,7 @@ func ToResponse(wallet *wallet.Wallet) *WalletResponse {
 	balanceFloat := nativeToken.ToBigFloat(wallet.Balance.ToBigInt())
 
 	return &WalletResponse{
-		ID:              wallet.ID,
+		ID:              strconv.FormatInt(wallet.ID, 10),
 		KeyID:           wallet.KeyID,
 		ChainType:       wallet.ChainType,
 		Address:         wallet.Address,

@@ -1,6 +1,7 @@
 package transaction
 
 import (
+	"strconv"
 	"time"
 
 	"vault0/internal/services/transaction"
@@ -9,8 +10,8 @@ import (
 
 // TransactionResponse represents a transaction in API responses
 type TransactionResponse struct {
-	ID           int64     `json:"id"`
-	WalletID     int64     `json:"wallet_id,omitempty"`
+	ID           string    `json:"id"`
+	WalletID     string    `json:"wallet_id,omitempty"`
 	ChainType    string    `json:"chain_type"`
 	Hash         string    `json:"hash"`
 	FromAddress  string    `json:"from_address"`
@@ -69,8 +70,8 @@ func FromServiceTransaction(tx *transaction.Transaction, token *types.Token) Tra
 	}
 
 	return TransactionResponse{
-		ID:           tx.ID,
-		WalletID:     tx.WalletID,
+		ID:           strconv.FormatInt(tx.ID, 10),
+		WalletID:     strconv.FormatInt(tx.WalletID, 10),
 		ChainType:    string(tx.ChainType),
 		Hash:         tx.Hash,
 		FromAddress:  tx.FromAddress,

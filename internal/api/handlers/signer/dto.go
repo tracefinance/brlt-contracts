@@ -1,6 +1,7 @@
 package signer
 
 import (
+	"strconv"
 	"time"
 	"vault0/internal/services/signer"
 	"vault0/internal/types"
@@ -28,10 +29,10 @@ type AddAddressRequest struct {
 
 // SignerResponse represents a signer response
 type SignerResponse struct {
-	ID        int64              `json:"id"`
+	ID        string             `json:"id"`
 	Name      string             `json:"name"`
 	Type      string             `json:"type"`
-	UserID    *int64             `json:"user_id,omitempty"`
+	UserID    *string            `json:"user_id,omitempty"`
 	Addresses []*AddressResponse `json:"addresses,omitempty"`
 	CreatedAt time.Time          `json:"created_at"`
 	UpdatedAt time.Time          `json:"updated_at"`
@@ -39,8 +40,8 @@ type SignerResponse struct {
 
 // AddressResponse represents an address response
 type AddressResponse struct {
-	ID        int64     `json:"id"`
-	SignerID  int64     `json:"signer_id"`
+	ID        string    `json:"id"`
+	SignerID  string    `json:"signer_id"`
 	ChainType string    `json:"chain_type"`
 	Address   string    `json:"address"`
 	CreatedAt time.Time `json:"created_at"`
@@ -58,8 +59,8 @@ type PagedSignersResponse struct {
 // ToAddressResponse converts an address model to a response
 func ToAddressResponse(address *signer.Address) *AddressResponse {
 	return &AddressResponse{
-		ID:        address.ID,
-		SignerID:  address.SignerID,
+		ID:        strconv.FormatInt(address.ID, 10),
+		SignerID:  strconv.FormatInt(address.SignerID, 10),
 		ChainType: address.ChainType,
 		Address:   address.Address,
 		CreatedAt: address.CreatedAt,
@@ -78,11 +79,17 @@ func ToAddressResponseList(addresses []*signer.Address) []*AddressResponse {
 
 // ToSignerResponse converts a signer model to a response
 func ToSignerResponse(signer *signer.Signer) *SignerResponse {
+	var userIDStr *string
+	if signer.UserID != nil {
+		uid := strconv.FormatInt(*signer.UserID, 10)
+		userIDStr = &uid
+	}
+
 	return &SignerResponse{
-		ID:        signer.ID,
+		ID:        strconv.FormatInt(signer.ID, 10),
 		Name:      signer.Name,
 		Type:      string(signer.Type),
-		UserID:    signer.UserID,
+		UserID:    userIDStr,
 		Addresses: ToAddressResponseList(signer.Addresses),
 		CreatedAt: signer.CreatedAt,
 		UpdatedAt: signer.UpdatedAt,

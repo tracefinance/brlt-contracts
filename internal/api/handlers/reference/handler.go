@@ -3,6 +3,7 @@ package reference
 import (
 	"net/http"
 	"sort"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -40,7 +41,7 @@ func (h *Handler) ListChains(c *gin.Context) {
 
 	for _, chain := range chainList {
 		response = append(response, ChainResponse{
-			ID:          chain.ID,
+			ID:          strconv.FormatInt(chain.ID, 10),
 			Type:        chain.Type,
 			Layer:       chain.Layer,
 			Name:        chain.Name,

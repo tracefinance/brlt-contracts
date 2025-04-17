@@ -54,7 +54,7 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 func (h *Handler) CreateUser(c *gin.Context) {
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(errors.NewInvalidRequestError("Invalid request body"))
+		c.Error(err)
 		return
 	}
 

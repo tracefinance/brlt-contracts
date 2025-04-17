@@ -1,6 +1,7 @@
 package user
 
 import (
+	"strconv"
 	"time"
 	"vault0/internal/services/user"
 	"vault0/internal/types"
@@ -20,7 +21,7 @@ type UpdateUserRequest struct {
 
 // UserResponse represents a user response
 type UserResponse struct {
-	ID        int64     `json:"id"`
+	ID        string    `json:"id"`
 	Email     string    `json:"email"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -37,7 +38,7 @@ type PagedUsersResponse struct {
 // ToResponse converts a user model to a user response
 func ToResponse(user *user.User) *UserResponse {
 	return &UserResponse{
-		ID:        user.ID,
+		ID:        strconv.FormatInt(user.ID, 10),
 		Email:     user.Email,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,

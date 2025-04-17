@@ -8,8 +8,8 @@ import (
 // swagger:model ChainResponse
 type ChainResponse struct {
 	// The unique identifier for the blockchain network.
-	// example: 1
-	ID int64 `json:"id"`
+	// example: "1"
+	ID string `json:"id"`
 	// The type of the blockchain (e.g., ethereum, polygon).
 	// example: ethereum
 	Type types.ChainType `json:"type"`
