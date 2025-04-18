@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { reactive, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { IUpdateUserRequest } from '~/types'
 import { toast } from 'vue-sonner'
@@ -10,7 +10,7 @@ definePageMeta({
 
 const router = useRouter()
 const route = useRoute()
-const userId = route.params.id as string
+const userId = computed(() => route.params.id as string)
 
 const {
   user,
@@ -61,7 +61,7 @@ const handleSubmit = async () => {
     return
   }
 
-  const updatedUser = await updateUser(userId, payload)
+  const updatedUser = await updateUser(userId.value, payload)
 
   if (updatedUser) {
     toast.success('User updated successfully!')
@@ -113,9 +113,7 @@ const handleSubmit = async () => {
         </CardContent>
         
         <CardFooter class="flex justify-end gap-2">
-          <NuxtLink to="/settings/users">
-            <Button variant="outline">Cancel</Button>
-          </NuxtLink>
+          <Button variant="outline" @click="router.back()">Cancel</Button>
           <Button type="submit" :disabled="isUpdating" @click="handleSubmit">
             <Icon v-if="isUpdating" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-2" />
             {{ isUpdating ? 'Updating...' : 'Update User' }}

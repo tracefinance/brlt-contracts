@@ -107,11 +107,17 @@ const handleDeleteConfirm = async () => {
                   <SignerTypeBadge :type="signer.type" />
                 </TableCell>
                 <TableCell>
-                  <span v-if="signer.userId">{{ signer.userId }}</span>
+                  <NuxtLink 
+                    v-if="signer.userId" 
+                    :to="`/settings/users/${signer.userId}/view`" 
+                    class="hover:underline"
+                  >
+                    {{ signer.userId }}
+                  </NuxtLink>
                   <span v-else class="text-xs text-muted-foreground">Not assigned</span>
                 </TableCell>                
                 <TableCell>
-                  <Badge v-if="signer.addresses?.length" variant="outline">
+                  <Badge v-if="signer.addresses?.length" variant="secondary" class="px-2 py-1">
                     {{ signer.addresses.length }}
                   </Badge>
                   <span v-else class="text-xs text-muted-foreground">None</span>
@@ -127,7 +133,7 @@ const handleDeleteConfirm = async () => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem @click="editSigner(signer)">
-                        <Icon name="lucide:pencil" class="mr-2 size-4" />
+                        <Icon name="lucide:edit" class="mr-2 size-4" />
                         <span>Edit</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem 

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import type { IUser } from '~/types'
+import { formatDateTime } from '~/lib/utils'
 
 definePageMeta({
   layout: 'settings'
@@ -106,9 +107,13 @@ const goToEditUser = (user: IUser) => {
           </TableHeader>
           <TableBody>
             <TableRow v-for="user in users" :key="user.id">
-              <TableCell class="font-medium">{{ user.id }}</TableCell>
+              <TableCell class="font-medium">
+                <NuxtLink :to="`/settings/users/${user.id}/view`" class="hover:underline">
+                  {{ user.id }}
+                </NuxtLink>
+              </TableCell>
               <TableCell>{{ user.email }}</TableCell>
-              <TableCell>{{ new Date(user.createdAt).toLocaleString() }}</TableCell>
+              <TableCell>{{ formatDateTime(user.createdAt) }}</TableCell>
               <TableCell class="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger as-child>
@@ -119,7 +124,7 @@ const goToEditUser = (user: IUser) => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem :disabled="!user.id" @click="goToEditUser(user)">
-                      <Icon name="lucide:pencil" class="mr-2 size-4" />
+                      <Icon name="lucide:edit" class="mr-2 size-4" />
                       <span>Edit</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
