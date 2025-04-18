@@ -115,10 +115,10 @@ const goToEditWallet = (wallet: IWallet) => {
         <Table>
           <TableHeader class="bg-muted">
             <TableRow>
-              <TableHead class="w-[15%]">ID</TableHead>
-              <TableHead class="w-[20%]">Name</TableHead>
-              <TableHead class="w-[15%]">Chain</TableHead>
-              <TableHead class="w-[25%]">Address</TableHead>
+              <TableHead class="w-[10%]">ID</TableHead>
+              <TableHead class="w-auto">Name</TableHead>
+              <TableHead class="w-[10%]">Chain</TableHead>
+              <TableHead class="w-[25%] truncate">Address</TableHead>
               <TableHead class="w-[15%]">Created</TableHead>
               <TableHead class="w-[10%] text-right">Actions</TableHead>
             </TableRow>
@@ -142,9 +142,9 @@ const goToEditWallet = (wallet: IWallet) => {
                   v-if="wallet.address && getWalletExplorerBaseUrl(wallet)"
                   :href="getAddressExplorerUrl(getWalletExplorerBaseUrl(wallet), wallet.address)"
                   target="_blank" rel="noopener noreferrer" class="hover:underline">
-                  {{ wallet.address }}
+                  {{ shortenAddress(wallet.address, 6, 4) }}
                 </a>
-                <span v-else-if="wallet.address">{{ wallet.address }}</span>
+                <span v-else-if="wallet.address">{{ shortenAddress(wallet.address, 4, 4) }}</span>
                 <span v-else class="text-muted-foreground">N/A</span>
               </TableCell>
               <TableCell>{{ wallet.createdAt ? formatDateTime(wallet.createdAt) : 'N/A' }}</TableCell>

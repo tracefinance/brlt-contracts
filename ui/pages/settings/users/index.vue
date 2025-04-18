@@ -99,10 +99,10 @@ const goToEditUser = (user: IUser) => {
         <Table>
           <TableHeader class="bg-muted">
             <TableRow>
-              <TableHead class="w-[15%]">ID</TableHead>
-              <TableHead class="w-[40%]">Email</TableHead>
-              <TableHead class="w-[30%]">Created</TableHead>
-              <TableHead class="w-[15%] text-right">Actions</TableHead>
+              <TableHead class="w-[10%]">ID</TableHead>
+              <TableHead class="w-auto">Email</TableHead>
+              <TableHead class="w-[15%]">Created</TableHead>
+              <TableHead class="w-[10%] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

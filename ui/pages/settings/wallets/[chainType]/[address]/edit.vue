@@ -105,12 +105,8 @@ const handleSaveChanges = async () => {
 
   if (updatedWallet) {
     toast.success('Wallet updated successfully!')
-    router.push('/settings/wallets')
+    router.back()
   }  
-}
-
-const handleCancel = () => {
-  router.push('/settings/wallets')
 }
 
 </script>
@@ -187,7 +183,7 @@ const handleCancel = () => {
       </CardContent>
       
       <CardFooter v-if="!isLoadingWallet && !fetchError && wallet" class="flex justify-end space-x-2">
-        <Button variant="outline" :disabled="isUpdating" @click="handleCancel">
+        <Button variant="outline" :disabled="isUpdating" @click="router.back()">
           Cancel
         </Button>
         <Button

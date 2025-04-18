@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive, watch, computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import type { IUpdateSignerRequest, IAddress } from '~/types'
 import { getErrorMessage } from '~/lib/utils'
@@ -9,6 +10,7 @@ definePageMeta({
 })
 
 const route = useRoute()
+const router = useRouter()
 const signerId = ref(route.params.id as string)
 
 // Use the new composable to fetch signer details
@@ -91,8 +93,8 @@ const handleSubmit = async () => {
   if (updatedSigner) {
     // Display success toast
     toast.success(`Signer "${updatedSigner.name}" updated successfully!`)
-    // Refresh the signer data
-    await refreshSigner()
+    // Redirect to the signers list page instead of refreshing
+    router.push('/settings/signers')
   }
 }
 
@@ -173,9 +175,7 @@ const openRemoveAddressDialog = (address: IAddress) => {
             </div>
 
             <div class="flex justify-end gap-2 pt-4 border-t">
-              <NuxtLink to="/settings/signers">
-                <Button type="button" variant="outline">Cancel</Button> 
-              </NuxtLink>
+              <Button type="button" variant="outline" @click="router.back()">Cancel</Button> 
               <Button type="submit" :disabled="isUpdating">
                 <Icon v-if="isUpdating" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-2" />
                 {{ isUpdating ? 'Saving...' : 'Save Changes' }} 

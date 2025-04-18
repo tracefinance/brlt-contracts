@@ -93,18 +93,18 @@ const handleDeleteConfirm = async () => {
             <TableHeader class="bg-muted">
               <TableRow>
                 <TableHead class="w-[10%]">ID</TableHead> 
-                <TableHead class="w-[20%]">Name</TableHead>
+                <TableHead class="w-auto">Name</TableHead>
                 <TableHead class="w-[10%]">Type</TableHead>
-                <TableHead class="w-[15%]">User ID</TableHead>
-                <TableHead class="w-[15%]">Addresses</TableHead>
-                <TableHead class="w-[20%]">Created</TableHead> 
-                <TableHead class="w-[10%] text-right">Actions</TableHead>
+                <TableHead class="w-[10%]">User ID</TableHead>
+                <TableHead class="w-[10%]">Addresses</TableHead>
+                <TableHead class="w-[15%]">Created</TableHead> 
+                <TableHead class="w-[5%] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               <TableRow v-for="signer in signers" :key="signer.id">
                 <TableCell>
-                  <NuxtLink :to="`/settings/signers/${signer.id}/edit`" class="hover:underline">
+                  <NuxtLink :to="`/settings/signers/${signer.id}/view`" class="hover:underline">
                     {{ shortenAddress(signer.id, 4, 4) }}
                   </NuxtLink>
                 </TableCell>

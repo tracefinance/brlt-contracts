@@ -116,7 +116,7 @@ const handleSubmit = async () => {
           <Button variant="outline" @click="router.back()">Cancel</Button>
           <Button type="submit" :disabled="isUpdating" @click="handleSubmit">
             <Icon v-if="isUpdating" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-2" />
-            {{ isUpdating ? 'Updating...' : 'Update User' }}
+            {{ isUpdating ? 'Saving...' : 'Save Changes' }}
           </Button>
         </CardFooter>
       </template>
