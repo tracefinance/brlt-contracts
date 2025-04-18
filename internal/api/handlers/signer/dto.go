@@ -12,14 +12,14 @@ import (
 type CreateSignerRequest struct {
 	Name   string            `json:"name" binding:"required"`
 	Type   signer.SignerType `json:"type" binding:"required,oneof=internal external"`
-	UserID json.Number       `json:"user_id,omitempty"`
+	UserID json.Number       `json:"user_id,omitempty" swaggertype:"string"`
 }
 
 // UpdateSignerRequest represents data for updating a signer
 type UpdateSignerRequest struct {
 	Name   string            `json:"name" binding:"required"`
 	Type   signer.SignerType `json:"type" binding:"required,oneof=internal external"`
-	UserID json.Number       `json:"user_id,omitempty"`
+	UserID json.Number       `json:"user_id,omitempty" swaggertype:"string"`
 }
 
 // AddAddressRequest represents data for adding an address to a signer
