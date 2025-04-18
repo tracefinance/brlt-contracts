@@ -26,9 +26,9 @@ export default function () {
       // Assuming $api.wallet.createWallet returns the created wallet object
       const newWallet = await $api.wallet.createWallet(payload)
       return newWallet
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error creating wallet:', err)
-      error.value = err
+      error.value = err as Error
       return null
     } finally {
       isCreating.value = false
@@ -42,9 +42,9 @@ export default function () {
     try {      
       const updatedWallet = await $api.wallet.updateWallet(chainType, address, payload)
       return updatedWallet
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error updating wallet:', err)
-      error.value = err
+      error.value = err as Error
       return null
     } finally {
       isUpdating.value = false
@@ -58,9 +58,9 @@ export default function () {
     try {
       await $api.wallet.deleteWallet(chainType, address)
       return true
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error deleting wallet:', err)
-      error.value = err 
+      error.value = err as Error 
       return false
     } finally {
       isDeleting.value = false
@@ -74,9 +74,9 @@ export default function () {
     try {
       await $api.wallet.activateToken(chainType, address, tokenAddress)
       return true
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error activating token:', err)
-      error.value = err
+      error.value = err as Error
       return false
     } finally {
       isActivating.value = false

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { reactive, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import type { ICreateSignerRequest } from '~/types'
@@ -16,10 +16,33 @@ const {
   error: mutationError 
 } = useSignerMutations()
 
+// Initialize user pagination
+const limit = ref(100) // Get a larger list for the dropdown
+const offset = ref(0)
+
+// Fetch users for the dropdown
+const { users } = useUsersList(limit, offset)
+
 const formData = reactive<ICreateSignerRequest>({
   name: '',
   type: 'internal',
   userId: undefined
+})
+
+// Selected user ID for the dropdown
+const selectedUserId = ref<number | null>(null)
+
+// Update formData when selectedUserId changes
+watch(selectedUserId, (newUserId) => {
+  formData.userId = newUserId === null ? undefined : newUserId
+})
+
+// Format user options for select
+const userOptions = computed(() => {
+  return users.value.map(user => ({
+    label: `${user.email} (ID: ${user.id})`,
+    value: user.id
+  }))
 })
 
 watch(mutationError, (newError) => {
@@ -91,13 +114,18 @@ const handleSubmit = async () => {
           </div>
 
           <div class="space-y-2">
-            <Label for="userId">User ID (Optional)</Label>
-            <Input 
-              id="userId" 
-              v-model="formData.userId"
-              type="number"
-              placeholder="Enter user ID if applicable"
-            />
+            <Label for="userId">Associated User (Optional)</Label>
+            <Select v-model="selectedUserId">
+              <SelectTrigger id="userId">
+                <SelectValue placeholder="Select a user" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="null">None</SelectItem>
+                <SelectItem v-for="option in userOptions" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
             <p class="text-sm text-muted-foreground">
               Associate this signer with a specific user
             </p>

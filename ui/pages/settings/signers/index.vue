@@ -27,6 +27,11 @@ const openDeleteDialog = (signer: ISigner) => {
   isDeleteDialogOpen.value = true
 }
 
+// Navigate to edit signer page
+const editSigner = (signer: ISigner) => {
+  router.push(`/settings/signers/${signer.id}/edit`)
+}
+
 const handleDeleteConfirm = async () => {
   if (!signerToDelete.value || !signerToDelete.value.id) {
     toast.error('Cannot delete signer: Invalid data provided.')
@@ -91,10 +96,10 @@ const formatDate = (dateString: string) => {
             <TableHeader class="bg-muted">
               <TableRow>
                 <TableHead class="w-[25%]">Name</TableHead>
-                <TableHead class="w-[15%]">Type</TableHead>
-                <TableHead class="w-[20%]">Created</TableHead>
+                <TableHead class="w-[15%]">Type</TableHead>                
                 <TableHead class="w-[15%]">Addresses</TableHead>
                 <TableHead class="w-[20%]">User ID</TableHead>
+                <TableHead class="w-[20%]">Created</TableHead>
                 <TableHead class="w-[5%] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -102,11 +107,10 @@ const formatDate = (dateString: string) => {
               <TableRow v-for="signer in signers" :key="signer.id">
                 <TableCell class="font-medium">{{ signer.name }}</TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{{ signer.type }}</Badge>
-                </TableCell>
-                <TableCell>{{ formatDate(signer.createdAt) }}</TableCell>
+                  <SignerTypeBadge :type="signer.type" />
+                </TableCell>                
                 <TableCell>
-                  <Badge variant="outline" v-if="signer.addresses?.length">
+                  <Badge v-if="signer.addresses?.length" variant="outline">
                     {{ signer.addresses.length }}
                   </Badge>
                   <span v-else class="text-xs text-muted-foreground">None</span>
@@ -115,22 +119,24 @@ const formatDate = (dateString: string) => {
                   <span v-if="signer.userId">{{ signer.userId }}</span>
                   <span v-else class="text-xs text-muted-foreground">Not assigned</span>
                 </TableCell>
+                <TableCell>{{ formatDate(signer.createdAt) }}</TableCell>
                 <TableCell class="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger as-child>
                       <Button variant="ghost" class="h-8 w-8 p-0">
                         <span class="sr-only">Open menu</span>
-                        <Icon name="lucide:more-horizontal" class="size-4" />
+                        <Icon name="lucide:more-horizontal" class="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem @click="router.push(`/settings/signers/${signer.id}`)">
-                        <Icon name="lucide:eye" class="mr-2 size-4" />
-                        <span>View</span>
+                      <DropdownMenuItem @click="editSigner(signer)">
+                        <Icon name="lucide:pencil" class="mr-2 size-4" />
+                        <span>Edit</span>
                       </DropdownMenuItem>
-                      <DropdownMenuItem @click="openDeleteDialog(signer)"
-                        class="text-destructive focus:text-destructive focus:bg-destructive/10">
-                        <Icon name="lucide:trash-2" class="mr-2 size-4" />
+                      <DropdownMenuItem 
+                        class="text-destructive focus:text-destructive focus:bg-destructive/10"
+                        @click="openDeleteDialog(signer)">
+                        <Icon name="lucide:trash-2" class="mr-2 h-4 w-4" />
                         <span>Delete</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -142,7 +148,8 @@ const formatDate = (dateString: string) => {
         </div>
         <div class="flex items-center gap-2 mt-2">
           <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
-          <PaginationControls :offset="offset" :limit="limit" :has-more="hasMore" @previous="previousPage"
+          <PaginationControls
+          :offset="offset" :limit="limit" :has-more="hasMore" @previous="previousPage"
             @next="nextPage" />
         </div>
       </div>
@@ -159,7 +166,7 @@ const formatDate = (dateString: string) => {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel :disabled="isDeleting" @click="isDeleteDialogOpen = false">Cancel</AlertDialogCancel>
-          <AlertDialogAction @click="handleDeleteConfirm" variant="destructive" :disabled="isDeleting">
+          <AlertDialogAction variant="destructive" :disabled="isDeleting" @click="handleDeleteConfirm">
             <span v-if="isDeleting">Deleting...</span>
             <span v-else>Delete Signer</span>
           </AlertDialogAction>

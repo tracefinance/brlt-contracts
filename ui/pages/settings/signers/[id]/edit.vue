@@ -1,0 +1,357 @@
+<script setup lang="ts">
+import { reactive, watch, computed, ref } from 'vue'
+import { toast } from 'vue-sonner'
+import type { IUpdateSignerRequest, IAddress } from '~/types'
+import { getErrorMessage } from '~/lib/utils'
+
+definePageMeta({
+  layout: 'settings'
+})
+
+const route = useRoute()
+const signerId = ref(route.params.id as string)
+
+// Use the new composable to fetch signer details
+const { signer, isLoading: isLoadingSigner, error: signerError, refresh: refreshSigner } = useSignerDetails(signerId)
+
+// Fetch user data if userId exists
+const userId = computed(() => signer.value?.userId)
+const userIdRef = ref<string | undefined>(undefined)
+
+// Update userIdRef when userId computed property changes
+watch(userId, (newUserId) => {
+  userIdRef.value = newUserId ? newUserId.toString() : undefined
+}, { immediate: true })
+
+// Use the composable for fetching user details
+const { 
+  user: associatedUser, 
+  isLoading: isLoadingUser, 
+  error: userError 
+} = useUserDetails(userIdRef)
+
+// Use signer mutations for update functionality
+const { 
+  updateSigner,
+  isUpdating,
+  error: mutationError,
+  // Add address mutation functions
+  addAddress,
+  isAddingAddress,
+  deleteAddress,
+  isDeletingAddress
+} = useSignerMutations()
+
+// Create reactive form data - only need name now
+const formData = reactive<IUpdateSignerRequest>({
+  name: '',
+  // Initialize with a valid type value
+  type: 'internal',
+  userId: undefined
+})
+
+// State for address dialog
+const isAddressDialogOpen = ref(false)
+const newAddress = ref('')
+// Initialize with an empty string for ChainSelect component
+const newAddressChain = ref<string>('')
+
+// State for remove address confirmation dialog
+const isRemoveAddressDialogOpen = ref(false)
+const addressToRemove = ref<IAddress | null>(null)
+
+// Initialize form data when signer is loaded
+watch(signer, (newSigner) => {
+  if (newSigner) {
+    formData.name = newSigner.name
+    // Still need to set these values for a valid request object
+    formData.type = newSigner.type
+    formData.userId = newSigner.userId
+  }
+}, { immediate: true })
+
+// Watch for mutation errors
+watch(mutationError, (newError) => {
+  if (newError) {
+    toast.error(getErrorMessage(newError, 'An unknown error occurred while updating the signer.'))
+  }
+})
+
+// Handle form submission
+const handleSubmit = async () => {
+  mutationError.value = null
+
+  // Basic validation
+  if (!formData.name) {
+    toast.error('Signer Name is required.')
+    return
+  }
+
+  // Use the available updateSigner function
+  const updatedSigner = await updateSigner(signerId.value, {
+    // Only send the name to be updated
+    name: formData.name,
+    type: formData.type,
+    userId: formData.userId
+  })
+  
+  if (updatedSigner) {
+    // Display success toast
+    toast.success(`Signer "${updatedSigner.name}" updated successfully!`)
+    // Refresh the signer data
+    await refreshSigner()
+  }
+}
+
+// Helper to display user info
+const userDisplay = computed(() => {
+  if (isLoadingUser.value) return 'Loading user info...'
+  if (userError.value) return 'Error loading user'
+  if (associatedUser.value) return `${associatedUser.value.email} (ID: ${associatedUser.value.id})`
+  return 'None'
+})
+
+// Add new address
+const addNewAddress = async () => {
+  if (!newAddress.value.trim()) {
+    toast.error('Please enter a valid address.')
+    return
+  }
+  
+  try {
+    await addAddress(signerId.value, {
+      address: newAddress.value.trim(),
+      chainType: newAddressChain.value
+    })
+    
+    // Reset form after successful addition
+    newAddress.value = ''
+    isAddressDialogOpen.value = false
+    
+    // Refresh signer data to show the new address
+    await refreshSigner()
+    
+    toast.success('Address added successfully!')
+  } catch (err) {
+    toast.error(getErrorMessage(err, 'Failed to add address'))
+  }
+}
+
+// Function to open the remove confirmation dialog
+const openRemoveAddressDialog = (address: IAddress) => {
+  addressToRemove.value = address
+  isRemoveAddressDialogOpen.value = true
+}
+
+// Handle confirmation of address removal
+const handleRemoveAddressConfirm = async () => {
+  if (!addressToRemove.value) return
+
+  try {
+    await deleteAddress(signerId.value, addressToRemove.value.id.toString())
+    
+    // Refresh signer data to update the address list
+    await refreshSigner()
+    
+    toast.success(`Address ${addressToRemove.value.address} removed successfully!`)
+  } catch (err) {
+    toast.error(getErrorMessage(err, 'Failed to remove address'))
+  } finally {
+    // Close the dialog and clear the state
+    isRemoveAddressDialogOpen.value = false
+    addressToRemove.value = null
+  }
+}
+</script>
+
+<template>
+  <div>
+    <div v-if="isLoadingSigner" class="flex justify-center p-6">
+      <Spinner class="h-6 w-6" />
+    </div>
+
+    <div v-else-if="signerError || !signer">
+      <Alert variant="destructive">
+        <Icon name="lucide:alert-triangle" class="w-4 h-4" />
+        <AlertTitle>Error Loading Signer</AlertTitle>
+        <AlertDescription>
+          {{ getErrorMessage(signerError, 'Signer not found') }}
+        </AlertDescription>
+      </Alert>
+    </div>
+
+    <div v-else class="flex flex-col justify-center space-y-6">
+      <!-- Signer Information Card -->
+      <Card class="w-full max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle>Edit Signer</CardTitle>
+          <CardDescription>ID: {{ signer.id }}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form class="space-y-6" @submit.prevent="handleSubmit">
+            <div class="space-y-2">
+              <Label for="name">Name</Label>
+              <Input 
+                id="name" 
+                v-model="formData.name"
+                placeholder="Enter signer name"
+                required
+              />
+            </div>
+
+            <div class="space-y-2">
+              <Label>Signer Type</Label>
+              <div>
+                <SignerTypeBadge :type="signer.type" /> 
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <Label>Associated User</Label>
+              <p class="text-sm text-muted-foreground rounded-md p-2 bg-muted">
+                {{ userDisplay }} 
+              </p>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t">
+              <NuxtLink to="/settings/signers">
+                <Button type="button" variant="outline">Cancel</Button> 
+              </NuxtLink>
+              <Button type="submit" :disabled="isUpdating">
+                <Icon v-if="isUpdating" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-2" />
+                {{ isUpdating ? 'Saving...' : 'Save Changes' }} 
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+      
+      <!-- Addresses Card -->
+      <Card class="w-full max-w-2xl mx-auto">
+        <CardHeader class="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Addresses</CardTitle>
+            <CardDescription>Manage blockchain addresses for this signer</CardDescription>
+          </div>
+          <Button 
+            type="button" 
+            variant="outline" 
+            @click="isAddressDialogOpen = true"
+          >
+            <Icon name="lucide:plus" class="h-4 w-4 mr-1" />
+            Add Address
+          </Button>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <!-- Address List -->
+          <div v-if="signer.addresses && signer.addresses.length > 0" class="space-y-3">
+            <div 
+              v-for="address in signer.addresses" 
+              :key="address.id"
+              class="flex items-center justify-between p-4 bg-card border rounded-lg"
+            >
+              <div class="space-y-2">
+                <p class="flex items-center capitalize font-medium text-sm text-muted-foreground">
+                  <Web3Icon :symbol="address.chainType" variant="branded" class="size-5 mr-1"/> 
+                  <span>{{ address.chainType }}</span>
+                </p>
+                <p class="font-mono text-sm break-all">{{ address.address }}</p>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                class="text-muted-foreground hover:text-destructive"
+                :disabled="isDeletingAddress"
+                @click="openRemoveAddressDialog(address)"
+              >
+                <Icon name="lucide:trash-2" class="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+          
+          <!-- No Addresses Message -->
+          <div v-else-if="!isAddressDialogOpen">
+            <Alert>
+              <Icon name="lucide:notebook" class="w-4 h-4" />
+              <AlertTitle>No Addresses Found</AlertTitle>
+              <AlertDescription>
+                No blockchain addresses have been added to this signer yet.
+              </AlertDescription>
+            </Alert>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+
+    <!-- Add Address Dialog -->
+    <Dialog :open="isAddressDialogOpen" @update:open="isAddressDialogOpen = $event">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add New Address</DialogTitle>
+          <DialogDescription>
+            Add a blockchain address to this signer.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div class="space-y-6 py-4">
+          <div class="space-y-2">
+            <Label for="newAddressChain" class="text-base">Blockchain</Label>
+            <!-- Use the new ChainSelect component -->
+            <ChainSelect id="newAddressChain" v-model="newAddressChain" />
+          </div>
+          
+          <div class="space-y-2">
+            <Label for="newAddress" class="text-base">Address</Label>
+            <Input
+              id="newAddress"
+              v-model="newAddress"
+              placeholder="Enter blockchain address"
+              class="font-mono bg-background"
+            />
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button 
+            type="button" 
+            variant="outline" 
+            @click="isAddressDialogOpen = false"
+          >
+            Cancel
+          </Button>
+          <Button 
+            type="button" 
+            variant="default"
+            :disabled="isAddingAddress || !newAddress"
+            @click="addNewAddress"
+          >
+            <Icon v-if="isAddingAddress" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-1" />
+            {{ isAddingAddress ? 'Adding...' : 'Add' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Remove Address Confirmation Dialog -->
+    <AlertDialog :open="isRemoveAddressDialogOpen" @update:open="isRemoveAddressDialogOpen = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently remove the address:
+            <br />
+            <span class="font-mono text-sm break-all">{{ addressToRemove?.address }}</span>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="isDeletingAddress" @click="isRemoveAddressDialogOpen = false">Cancel</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" :disabled="isDeletingAddress" @click="handleRemoveAddressConfirm">
+            <Icon v-if="isDeletingAddress" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-1" />
+            <span v-if="isDeletingAddress">Removing...</span>
+            <span v-else>Remove Address</span>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </div>
+</template> 

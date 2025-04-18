@@ -25,9 +25,9 @@ export default function () {
     try {
       const newSigner = await $api.signer.createSigner(payload)
       return newSigner
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error creating signer:', err)
-      error.value = err
+      error.value = err as Error
       return null
     } finally {
       isCreating.value = false
@@ -41,9 +41,9 @@ export default function () {
     try {      
       const updatedSigner = await $api.signer.updateSigner(id, payload)
       return updatedSigner
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error updating signer:', err)
-      error.value = err
+      error.value = err as Error
       return null
     } finally {
       isUpdating.value = false
@@ -57,9 +57,9 @@ export default function () {
     try {
       await $api.signer.deleteSigner(id)
       return true
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error deleting signer:', err)
-      error.value = err 
+      error.value = err as Error
       return false
     } finally {
       isDeleting.value = false
@@ -73,9 +73,9 @@ export default function () {
     try {
       const address = await $api.signer.addAddress(signerId, payload)
       return address
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error adding address:', err)
-      error.value = err
+      error.value = err as Error
       return null
     } finally {
       isAddingAddress.value = false
@@ -89,9 +89,9 @@ export default function () {
     try {
       await $api.signer.deleteAddress(signerId, addressId)
       return true
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error deleting address:', err)
-      error.value = err
+      error.value = err as Error
       return false
     } finally {
       isDeletingAddress.value = false

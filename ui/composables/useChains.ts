@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { useNuxtApp, useAsyncData } from '#app';
 import type { IChain } from '~/types';
 
