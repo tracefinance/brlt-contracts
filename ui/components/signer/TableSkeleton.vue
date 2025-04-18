@@ -25,9 +25,9 @@ defineProps({
         <TableRow v-for="i in rows" :key="i">
           <TableCell><Skeleton class="h-4 w-20" /></TableCell>
           <TableCell><Skeleton class="h-4 w-32" /></TableCell>
-          <TableCell><Skeleton class="h-6 w-24 rounded-full" /></TableCell>
+          <TableCell><Skeleton class="h-6 w-20 rounded-full" /></TableCell>
           <TableCell><Skeleton class="h-4 w-20" /></TableCell>
-          <TableCell><Skeleton class="h-6 w-10 rounded-full" /></TableCell>
+          <TableCell><Skeleton class="h-6 w-6 rounded-md" /></TableCell>
           <TableCell><Skeleton class="h-4 w-24" /></TableCell>
           <TableCell class="text-right">
             <Skeleton class="ml-auto size-8 rounded" />

@@ -30,7 +30,7 @@ defineProps({
           <TableCell>
             <div class="flex items-center gap-2">
               <Skeleton class="size-5 rounded-full" />
-              <Skeleton class="h-4 w-10" />
+              <Skeleton class="h-4 w-16" />
             </div>
           </TableCell>
           <TableCell><Skeleton class="h-4 w-24" /></TableCell>
