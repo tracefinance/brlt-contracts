@@ -16,6 +16,7 @@ const { limit, offset, setLimit, previousPage, nextPage } = usePagination(10)
 
 const {
   wallets,
+  isLoading,
   error: walletsError,
   hasMore,
   refresh: refreshWallets
@@ -96,7 +97,8 @@ const goToEditWallet = (wallet: IWallet) => {
 
 <template>
   <div>
-    <div v-if="error">
+    <WalletTableSkeleton v-if="isLoading" />
+    <div v-else-if="error">
       <Alert variant="destructive">
         <Icon name="lucide:alert-triangle" class="w-4 h-4" />
         <AlertTitle>Error Loading Wallets</AlertTitle>
@@ -148,10 +150,10 @@ const goToEditWallet = (wallet: IWallet) => {
                 <a
                   v-if="wallet.address && getWalletExplorerBaseUrl(wallet)"
                   :href="getAddressExplorerUrl(getWalletExplorerBaseUrl(wallet), wallet.address)"
-                  target="_blank" rel="noopener noreferrer" class="hover:underline truncate">
+                  target="_blank" rel="noopener noreferrer" class="hover:underline">
                   {{ shortenAddress(wallet.address, 6, 4) }}
                 </a>
-                <span v-else-if="wallet.address" class="truncate">{{ shortenAddress(wallet.address, 4, 4) }}</span>
+                <span v-else-if="wallet.address">{{ shortenAddress(wallet.address, 6, 4) }}</span>
                 <span v-else class="text-muted-foreground">N/A</span>
               </TableCell>
               <TableCell class="text-right">

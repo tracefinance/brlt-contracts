@@ -117,7 +117,7 @@ const openRemoveAddressDialog = (address: IAddress) => {
 <template>
   <div>
     <div v-if="isLoadingSigner" class="flex justify-center p-6">
-      <Spinner class="h-6 w-6" />
+      <Icon name="svg-spinners:3-dots-fade" class="size-4 text-muted-foreground" />
     </div>
 
     <div v-else-if="signerError || !signer">
@@ -163,13 +163,15 @@ const openRemoveAddressDialog = (address: IAddress) => {
               </p>
             </div>
 
-            <div class="flex justify-end gap-2 pt-4 border-t">
-              <Button type="button" variant="outline" @click="router.back()">Cancel</Button> 
+            <CardFooter class="flex justify-end gap-2 mt-4">
+              <Button type="button" variant="outline" @click="router.back()">Cancel</Button>
               <Button type="submit" :disabled="isUpdating">
-                <Icon v-if="isUpdating" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-2" />
-                {{ isUpdating ? 'Saving...' : 'Save Changes' }} 
+                <span v-if="isUpdating">
+                  <Icon name="svg-spinners:3-dots-fade" class="size-4 text-muted-foreground" />
+                </span>
+                <span v-else>Save Changes</span>
               </Button>
-            </div>
+            </CardFooter>
           </form>
         </CardContent>
       </Card>

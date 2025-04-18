@@ -25,25 +25,12 @@ const { limit, offset, setLimit, previousPage, nextPage } = usePagination(10)
 // Use composables for data fetching
 const { 
   transactions, 
+  isLoading, 
+  hasInitiallyLoaded,
   error: walletTransactionsError, 
   hasMore,
   refresh
 } = useWalletTransactions(chainType, address, tokenAddress, limit, offset)
-
-// Set up auto-refresh interval
-let refreshInterval: ReturnType<typeof setInterval> | null = null
-
-onMounted(() => {
-  refreshInterval = setInterval(() => {
-    refresh()
-  }, 3000) // Refresh every 3 seconds
-})
-
-onUnmounted(() => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-  }
-})
 
 // Use the useChains composable
 const { chains, isLoading: isLoadingChains, error: chainsError } = useChains()
@@ -61,11 +48,28 @@ const explorerBaseUrl = computed(() => {
 
 // Combine loading and error states
 const error = computed(() => walletTransactionsError.value || chainsError.value)
+
+// Set up auto-refresh interval
+let refreshInterval: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  refreshInterval = setInterval(() => {
+    refresh()
+  }, 3000) // Refresh every 3 seconds
+})
+
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
+})
 </script>
 
 <template>
+  <!-- Show loading state only before the first load completes -->
+  <TransactionTableSkeleton v-if="isLoading && !hasInitiallyLoaded" />
   <!-- Show error state -->
-  <div v-if="error">
+  <div v-else-if="error">
     <Alert variant="destructive">
       <Icon name="lucide:alert-triangle" class="w-4 h-4" />
       <AlertTitle>Error</AlertTitle>
@@ -75,8 +79,9 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
     </Alert>
   </div>
 
-  <!-- Show content when loaded and no errors -->
-  <div v-else-if="currentChain">                   
+  <!-- Show content only after initial load attempt -->
+  <div v-else-if="hasInitiallyLoaded && currentChain">                   
+    <!-- Show empty state only *after* initial load and if no transactions -->
     <div v-if="transactions.length === 0">
       <Alert>
         <Icon name="lucide:inbox" class="w-4 h-4" />
@@ -86,7 +91,8 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
           </AlertDescription>
       </Alert>
     </div>
-
+    
+    <!-- Show table if transactions exist -->
     <div v-else>                      
       <div class="overflow-auto rounded-lg border">
         <Table>

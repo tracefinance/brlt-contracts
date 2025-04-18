@@ -15,6 +15,7 @@ const { limit, offset, setLimit, previousPage, nextPage } = usePagination(10)
 
 const {
   users,
+  isLoading,
   error: usersError,
   hasMore,
   refresh: refreshUsers
@@ -74,7 +75,8 @@ const goToEditUser = (user: IUser) => {
 
 <template>
   <div>
-    <div v-if="error">
+    <UserTableSkeleton v-if="isLoading" />
+    <div v-else-if="error">
       <Alert variant="destructive">
         <Icon name="lucide:alert-triangle" class="w-4 h-4" />
         <AlertTitle>Error Loading Users</AlertTitle>

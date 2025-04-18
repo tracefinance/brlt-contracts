@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import type { IPagedResponse, ITransaction } from '~/types'
 
@@ -10,7 +10,7 @@ import type { IPagedResponse, ITransaction } from '~/types'
  * @param limit - Reactive ref for the number of transactions per page.
  * @param offset - Reactive ref for the starting offset.
  * @param tokenAddress - Reactive ref for the token address (optional).
- * @returns Reactive state including transactions, pagination info, loading status, errors, and refresh function.
+ * @returns Reactive state including transactions, pagination info, loading status, errors, refresh function, and initial load status.
  */
 export default function (
   chainType: Ref<string | undefined>,
@@ -54,11 +54,23 @@ export default function (
   const hasMore = computed<boolean>(() => transactionsData.value?.hasMore || false)
   const isLoading = computed<boolean>(() => status.value === 'pending')
 
+  // --- Track Initial Load State ---
+  const hasInitiallyLoaded = ref(false)
+  watch(status, (currentStatus, prevStatus) => {
+    // Check if the status transitioned from pending to something else for the first time
+    if (prevStatus === 'pending' && currentStatus !== 'pending' && !hasInitiallyLoaded.value) {
+      hasInitiallyLoaded.value = true
+    }
+    // Consider resetting if inputs change causing a new load? For now, keep it simple.
+  }, { immediate: true }) // Use immediate to check initial status
+  // --- End Track Initial Load State ---
+
   return {
     transactions,
     hasMore,
     isLoading,
     error,
     refresh,
+    hasInitiallyLoaded,
   }
 } 

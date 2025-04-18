@@ -63,8 +63,9 @@ const handleDeleteConfirm = async () => {
 <template>
   <div>
     <div>
-      <!-- Loading/Error/Empty States -->
-      <div v-if="error">
+      <SignerTableSkeleton v-if="isLoading"/>
+      <!-- Error States -->
+      <div v-else-if="error">
         <Alert variant="destructive">
           <Icon name="lucide:alert-triangle" class="w-4 h-4" />
           <AlertTitle>Error Loading Signers</AlertTitle>
@@ -72,10 +73,8 @@ const handleDeleteConfirm = async () => {
             {{ error.message || 'Failed to load signers' }}
           </AlertDescription>
         </Alert>
-      </div>
-      <div v-else-if="isLoading" class="flex justify-center p-6">
-        <Spinner class="h-6 w-6" />
-      </div>
+      </div>      
+      <!-- Empty States -->
       <div v-else-if="signers.length === 0">
         <Alert>
           <Icon name="lucide:inbox" class="w-4 h-4" />
@@ -85,7 +84,6 @@ const handleDeleteConfirm = async () => {
           </AlertDescription>
         </Alert>
       </div>
-
       <!-- Signers Table -->
       <div v-else>
         <div class="border rounded-lg overflow-hidden">

@@ -2,7 +2,7 @@
 defineProps({
   rows: {
     type: Number,
-    default: 5
+    default: 3
   }
 })
 </script>
@@ -13,13 +13,13 @@ defineProps({
       <TableHeader>
         <TableRow class="bg-muted hover:bg-muted">
           <TableHead class="w-auto">Hash</TableHead>
-            <TableHead class="w-[10%]">Type</TableHead>
-            <TableHead class="w-[10%]">From</TableHead>
-            <TableHead class="w-[10%]">To</TableHead>
-            <TableHead class="w-[8%]">Token</TableHead>
-            <TableHead class="w-[10%] text-right">Value</TableHead>
-            <TableHead class="w-[15%]">Age</TableHead>
-            <TableHead class="w-[10%] text-right">Status</TableHead>
+          <TableHead class="w-[10%]">Type</TableHead>
+          <TableHead class="w-[10%]">From</TableHead>
+          <TableHead class="w-[10%]">To</TableHead>
+          <TableHead class="w-[8%]">Token</TableHead>
+          <TableHead class="w-[10%] text-right">Value</TableHead>
+          <TableHead class="w-[15%]">Age</TableHead>
+          <TableHead class="w-[110px]">Status</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>

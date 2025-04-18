@@ -56,7 +56,7 @@ const comparisonAddress = computed(() => props.activeTokenAddress?.toLowerCase()
     </SidebarContent>
     <SidebarFooter>
       <SidebarMenu>
-        <WalletActivateToken :selected-wallet="selectedWallet" :on-token-activation="onTokenActivation" />
+        <WalletActivateTokenPopover :selected-wallet="selectedWallet" :on-token-activation="onTokenActivation" />
       </SidebarMenu>
     </SidebarFooter>
   </Sidebar>
