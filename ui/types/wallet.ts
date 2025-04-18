@@ -12,6 +12,7 @@ export interface IWallet {
   address: string;
   name: string;
   tags?: Record<string, string>;
+  balance?: string;
   lastBlockNumber?: number;
   createdAt: string;
   updatedAt: string;

@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import { getAddressExplorerUrl } from '~/lib/explorers'
 import type { IWallet } from '~/types'
-import { formatDateTime, shortenAddress } from '~/lib/utils'
+import { formatDateTime, shortenAddress, formatCurrency } from '~/lib/utils'
 
 definePageMeta({
   layout: 'settings'
@@ -39,6 +39,12 @@ const getWalletExplorerBaseUrl = (wallet: IWallet): string | undefined => {
   if (isLoadingChains.value || chainsError.value) return undefined
   const chain = chains.value.find(c => c.type?.toLowerCase() === wallet.chainType?.toLowerCase())
   return chain?.explorerUrl
+}
+
+const getNativeTokenSymbol = (wallet: IWallet): string => {
+  if (isLoadingChains.value || chainsError.value) return ''
+  const chain = chains.value.find(c => c.type?.toLowerCase() === wallet.chainType?.toLowerCase())
+  return chain?.symbol || ''
 }
 
 const isDeleteDialogOpen = ref(false)
@@ -118,7 +124,8 @@ const goToEditWallet = (wallet: IWallet) => {
               <TableHead class="w-[10%]">ID</TableHead>
               <TableHead class="w-auto">Name</TableHead>
               <TableHead class="w-[10%]">Chain</TableHead>
-              <TableHead class="w-[25%] truncate">Address</TableHead>
+              <TableHead class="w-[10%]">Address</TableHead>
+              <TableHead class="w-[10%] text-right">Balance</TableHead>
               <TableHead class="w-[15%]">Created</TableHead>
               <TableHead class="w-[10%] text-right">Actions</TableHead>
             </TableRow>
@@ -141,10 +148,19 @@ const goToEditWallet = (wallet: IWallet) => {
                 <a
                   v-if="wallet.address && getWalletExplorerBaseUrl(wallet)"
                   :href="getAddressExplorerUrl(getWalletExplorerBaseUrl(wallet), wallet.address)"
-                  target="_blank" rel="noopener noreferrer" class="hover:underline">
+                  target="_blank" rel="noopener noreferrer" class="hover:underline truncate">
                   {{ shortenAddress(wallet.address, 6, 4) }}
                 </a>
-                <span v-else-if="wallet.address">{{ shortenAddress(wallet.address, 4, 4) }}</span>
+                <span v-else-if="wallet.address" class="truncate">{{ shortenAddress(wallet.address, 4, 4) }}</span>
+                <span v-else class="text-muted-foreground">N/A</span>
+              </TableCell>
+              <TableCell class="text-right">
+                <span v-if="wallet.balance !== undefined && wallet.balance !== null" class="font-mono">
+                  {{ formatCurrency(wallet.balance) }} {{ getNativeTokenSymbol(wallet) }}
+                </span>
+                <span v-else-if="isLoadingChains">
+                  <Icon name="svg-spinners:3-dots-fade" class="size-4 text-muted-foreground" />
+                </span>
                 <span v-else class="text-muted-foreground">N/A</span>
               </TableCell>
               <TableCell>{{ wallet.createdAt ? formatDateTime(wallet.createdAt) : 'N/A' }}</TableCell>

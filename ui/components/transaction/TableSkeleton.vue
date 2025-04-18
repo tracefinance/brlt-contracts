@@ -12,14 +12,14 @@ defineProps({
     <Table>
       <TableHeader>
         <TableRow class="bg-muted hover:bg-muted">
-          <TableHead class="w-[15%]">Hash</TableHead>
-          <TableHead class="w-[10%]">Type</TableHead>
-          <TableHead class="w-[15%]">From</TableHead>
-          <TableHead class="w-[15%]">To</TableHead>
-          <TableHead class="w-[11%]">Token</TableHead>
-          <TableHead class="w-[12%] text-right">Value</TableHead>
-          <TableHead class="w-[12%]">Age</TableHead>
-          <TableHead class="w-[10%]">Status</TableHead>
+          <TableHead class="w-auto">Hash</TableHead>
+            <TableHead class="w-[10%]">Type</TableHead>
+            <TableHead class="w-[10%]">From</TableHead>
+            <TableHead class="w-[10%]">To</TableHead>
+            <TableHead class="w-[8%]">Token</TableHead>
+            <TableHead class="w-[10%] text-right">Value</TableHead>
+            <TableHead class="w-[15%]">Age</TableHead>
+            <TableHead class="w-[10%] text-right">Status</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
