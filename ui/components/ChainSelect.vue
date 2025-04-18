@@ -41,10 +41,7 @@ const selectedChain = computed({
 
 <template>
   <div>
-    <div v-if="isLoadingChains" class="flex items-center space-x-2 text-muted-foreground">
-      <Icon name="svg-spinners:180-ring-with-bg" class="h-4 w-4" />
-      <span>Loading supported chains...</span>
-    </div>
+    <Skeleton v-if="isLoadingChains" class="h-9 w-full rounded-md" />
     <div v-else-if="chainsError" class="text-red-500 text-sm">
       <span>Error loading chains: {{ chainsError.message }}.</span>
       <Button variant="link" size="sm" class="p-0 h-auto ml-1" @click="refreshChains">Retry</Button>

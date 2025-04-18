@@ -15,7 +15,6 @@ const {
   isCreating, 
   error: mutationError 
 } = useWalletMutations()
-const { chains, isLoading: isLoadingChains, error: chainsError, refresh: refreshChains } = useChains()
 
 const formData = reactive<ICreateWalletRequest>({
   name: '',
@@ -85,25 +84,11 @@ const handleSubmit = async () => {
 
           <div class="space-y-2">
             <Label for="chainType">Chain Type</Label>
-            <div v-if="isLoadingChains" class="flex items-center space-x-2 text-muted-foreground">
-              <Icon name="svg-spinners:180-ring-with-bg" class="h-4 w-4" />
-              <span>Loading supported chains...</span>
-            </div>
-            <div v-else-if="chainsError" class="text-red-500 text-sm">
-              <span>Error loading chains: {{ chainsError.message }}.</span>
-              <Button variant="link" size="sm" class="p-0 h-auto ml-1" @click="refreshChains">Retry</Button>
-            </div>
-            <Select v-else v-model="formData.chainType" required>
-              <SelectTrigger id="chainType">
-                <SelectValue placeholder="Select chain type..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="chain in chains" :key="chain.type" :value="chain.type">
-                  <Web3Icon :symbol="chain.type" variant="branded" class="size-5 mr-2 inline-block align-middle"/> 
-                  <span class="capitalize font-mono">{{ chain.name }}</span>
-                </SelectItem>                
-              </SelectContent>
-            </Select>
+            <ChainSelect 
+              id="chainType" 
+              v-model="formData.chainType" 
+              required 
+            />
           </div>
 
           <div class="space-y-4">

@@ -16,6 +16,13 @@ const selectedToken = ref<string | null>(null)
 
 const { tokens, isLoading, error, refresh } = useTokensList(chainType, limit, offset)
 
+// Computed property to find the symbol of the selected token
+const selectedTokenSymbol = computed(() => {
+  if (!selectedToken.value || !tokens.value) return null
+  const token = tokens.value.find(t => t.address === selectedToken.value)
+  return token?.symbol ?? null
+})
+
 watch(chainType, () => {
   selectedToken.value = null
   refresh()
@@ -41,7 +48,14 @@ function handleActivateToken() {
     <PopoverContent class="w-60 flex flex-col gap-4">
       <Select v-model="selectedToken" class="w-full">
         <SelectTrigger>
-          <SelectValue placeholder="Choose a token" />
+          <div class="flex items-center gap-1">
+            <Web3Icon 
+              v-if="selectedTokenSymbol" 
+              :symbol="selectedTokenSymbol" 
+              variant="branded" 
+              class="size-5"/> 
+            <SelectValue placeholder="Choose a token" />
+          </div>
         </SelectTrigger>
         <SelectContent>
           <SelectItem
