@@ -160,7 +160,7 @@ const goToEditWallet = (wallet: IWallet) => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem :disabled="!wallet.chainType || !wallet.address" @click="goToEditWallet(wallet)">
-                      <Icon name="lucide:pencil" class="mr-2 size-4" />
+                      <Icon name="lucide:edit" class="mr-2 size-4" />
                       <span>Edit</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem

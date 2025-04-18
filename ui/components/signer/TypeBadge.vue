@@ -11,9 +11,9 @@ defineProps({
 </script>
 
 <template>
-  <Badge variant="outline" class="rounded-full capitalize py-1 px-2">
-    <Icon v-if="type === 'internal'" name="lucide:shield" class="h-3 w-3 mr-1" />
-    <Icon v-else-if="type === 'external'" name="lucide:key" class="h-3 w-3 mr-1" />
+  <Badge variant="outline" class="rounded-full capitalize py-1 px-2 gap-1">
+    <Icon v-if="type === 'internal'" name="lucide:shield" class="size-4" />
+    <Icon v-else-if="type === 'external'" name="lucide:key" class="size-4" />
     {{ type }}
   </Badge>
 </template> 
