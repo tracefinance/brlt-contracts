@@ -25,6 +25,7 @@ const isCurrentRoute = (href: string) => {
       <Sidebar>       
         <SidebarContent class="mt-16">
           <SidebarGroup>
+            <SidebarGroupLabel>General</SidebarGroupLabel>
             <SidebarMenu>
               <SidebarMenuItem v-for="item in navigationItems" :key="item.name">
                 <SidebarMenuButton 

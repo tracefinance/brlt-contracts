@@ -116,87 +116,89 @@ const handleCancel = () => {
 </script>
 
 <template>
-  <Card>
-    <CardHeader>
-      <CardTitle>Edit Wallet</CardTitle>
-      <CardDescription v-if="wallet" class="flex items-center gap-2 pt-1">
-        <Web3Icon :symbol="wallet.chainType" class="size-5" variant="branded" />
-        <span class="font-medium capitalize">{{ wallet.chainType }} - {{ wallet.address }}</span>
-      </CardDescription>
-      <CardDescription v-else-if="isLoadingWallet">Loading wallet details...</CardDescription>
-      <CardDescription v-else-if="fetchError">Error loading wallet.</CardDescription>
-      <CardDescription v-else>Wallet details unavailable.</CardDescription>
-    </CardHeader>
-    
-    <CardContent>
-      <div v-if="isLoadingWallet" class="flex items-center justify-center p-8">
-        <Icon name="svg-spinners:pulse-3" class="w-6 h-6 mr-2" />
-        <span>Loading wallet details...</span>
-      </div>
-
-      <div v-else-if="fetchError" class="my-4">
-        <Alert variant="destructive">
-          <Icon name="lucide:alert-triangle" class="w-4 h-4" />
-          <AlertTitle>Error Loading Wallet</AlertTitle>
-          <AlertDescription>
-            {{ fetchError.message || 'Failed to load wallet details.' }}
-             <Button variant="link" size="sm" class="p-0 h-auto mt-1" @click="refreshWallet">Retry</Button>
-          </AlertDescription>
-        </Alert>
-      </div>
+  <div class="flex flex-col justify-center space-y-6">
+    <Card class="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>Edit Wallet</CardTitle>
+        <CardDescription v-if="wallet" class="flex items-center gap-2 pt-1">
+          <Web3Icon :symbol="wallet.chainType" class="size-5" variant="branded" />
+          <span class="font-medium capitalize">{{ wallet.chainType }} - {{ wallet.address }}</span>
+        </CardDescription>
+        <CardDescription v-else-if="isLoadingWallet">Loading wallet details...</CardDescription>
+        <CardDescription v-else-if="fetchError">Error loading wallet.</CardDescription>
+        <CardDescription v-else>Wallet details unavailable.</CardDescription>
+      </CardHeader>
       
-      <form v-else-if="wallet" class="space-y-6" @submit.prevent="handleSaveChanges">
-        <div class="space-y-2">
-          <Label for="wallet-name">Wallet Name</Label>
-          <Input 
-            id="wallet-name" 
-            v-model="walletName" 
-            placeholder="e.g. My Ethereum Hot Wallet"
-            required 
-          />
+      <CardContent>
+        <div v-if="isLoadingWallet" class="flex items-center justify-center p-8">
+          <Icon name="svg-spinners:pulse-3" class="w-6 h-6 mr-2" />
+          <span>Loading wallet details...</span>
+        </div>
+
+        <div v-else-if="fetchError" class="my-4">
+          <Alert variant="destructive">
+            <Icon name="lucide:alert-triangle" class="w-4 h-4" />
+            <AlertTitle>Error Loading Wallet</AlertTitle>
+            <AlertDescription>
+              {{ fetchError.message || 'Failed to load wallet details.' }}
+               <Button variant="link" size="sm" class="p-0 h-auto mt-1" @click="refreshWallet">Retry</Button>
+            </AlertDescription>
+          </Alert>
         </div>
         
-        <div class="space-y-4">
-          <Label>Tags (Optional)</Label>
-          <div v-for="(tag, index) in tagsList" :key="index" class="flex items-center gap-2">
-            <Input v-model="tag.key" placeholder="Key (e.g. environment)" class="flex-1" />
-            <Input v-model="tag.value" placeholder="Value (e.g. production)" class="flex-1" />
-            <Button 
-              type="button" 
-              variant="outline" 
-              size="icon" 
-              :disabled="tagsList.length === 1 && (!tag.key && !tag.value)"
-              aria-label="Remove Tag" 
-              @click="removeTag(index)"
-            >
-              <Icon name="lucide:trash-2" class="h-4 w-4" />
-            </Button>
+        <form v-else-if="wallet" class="space-y-6" @submit.prevent="handleSaveChanges">
+          <div class="space-y-2">
+            <Label for="wallet-name">Wallet Name</Label>
+            <Input 
+              id="wallet-name" 
+              v-model="walletName" 
+              placeholder="e.g. My Ethereum Hot Wallet"
+              required 
+            />
           </div>
-          <Button type="button" variant="outline" size="sm" @click="addTag">
-            <Icon name="lucide:plus" class="h-4 w-4 mr-1" />
-            Add Tag
-          </Button>
-        </div>        
-      </form>
-      
-      <div v-else-if="!isLoadingWallet && !fetchError">
-         <p class="text-muted-foreground">Could not load wallet data for the specified chain and address.</p>
-      </div>
+          
+          <div class="space-y-4">
+            <Label>Tags (Optional)</Label>
+            <div v-for="(tag, index) in tagsList" :key="index" class="flex items-center gap-2">
+              <Input v-model="tag.key" placeholder="Key (e.g. environment)" class="flex-1" />
+              <Input v-model="tag.value" placeholder="Value (e.g. production)" class="flex-1" />
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="icon" 
+                :disabled="tagsList.length === 1 && (!tag.key && !tag.value)"
+                aria-label="Remove Tag" 
+                @click="removeTag(index)"
+              >
+                <Icon name="lucide:trash-2" class="h-4 w-4" />
+              </Button>
+            </div>
+            <Button type="button" variant="outline" size="sm" @click="addTag">
+              <Icon name="lucide:plus" class="h-4 w-4 mr-1" />
+              Add Tag
+            </Button>
+          </div>        
+        </form>
+        
+        <div v-else-if="!isLoadingWallet && !fetchError">
+           <p class="text-muted-foreground">Could not load wallet data for the specified chain and address.</p>
+        </div>
 
-    </CardContent>
-    
-    <CardFooter v-if="!isLoadingWallet && !fetchError && wallet" class="flex justify-end space-x-2">
-      <Button variant="outline" :disabled="isUpdating" @click="handleCancel">
-        Cancel
-      </Button>
-      <Button
-        type="submit"
-        :disabled="isUpdating || !walletName.trim()"
-        @click="handleSaveChanges"
-      >
-        <Icon v-if="isUpdating" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-2" />
-        {{ isUpdating ? 'Saving...' : 'Save Changes' }}
-      </Button>
-    </CardFooter>
-  </Card>
+      </CardContent>
+      
+      <CardFooter v-if="!isLoadingWallet && !fetchError && wallet" class="flex justify-end space-x-2">
+        <Button variant="outline" :disabled="isUpdating" @click="handleCancel">
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          :disabled="isUpdating || !walletName.trim()"
+          @click="handleSaveChanges"
+        >
+          <Icon v-if="isUpdating" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-2" />
+          {{ isUpdating ? 'Saving...' : 'Save Changes' }}
+        </Button>
+      </CardFooter>
+    </Card>
+  </div>
 </template>
