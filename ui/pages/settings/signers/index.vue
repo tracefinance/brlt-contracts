@@ -98,7 +98,7 @@ const handleDeleteConfirm = async () => {
                 <TableHead class="w-[10%]">User ID</TableHead>
                 <TableHead class="w-[10%]">Addresses</TableHead>
                 <TableHead class="w-[15%]">Created</TableHead> 
-                <TableHead class="w-[5%] text-right">Actions</TableHead>
+                <TableHead class="w-[80px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -108,7 +108,7 @@ const handleDeleteConfirm = async () => {
                     {{ shortenAddress(signer.id, 4, 4) }}
                   </NuxtLink>
                 </TableCell>
-                <TableCell class="font-medium">{{ signer.name }}</TableCell>
+                <TableCell>{{ signer.name }}</TableCell>
                 <TableCell>
                   <SignerTypeBadge :type="signer.type" />
                 </TableCell>

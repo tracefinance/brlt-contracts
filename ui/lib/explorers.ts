@@ -46,4 +46,31 @@ export function getAddressExplorerUrl(
 
   // Fallback: Assume address can be appended directly
   return `${baseUrl}/address/${address}`;
+}
+
+/**
+ * Generates a block explorer URL based on the base URL and block number.
+ * Handles common patterns for Etherscan/Polygonscan-like explorers.
+ * 
+ * @param explorerBaseUrl - The base URL of the blockchain explorer.
+ * @param blockNumber - The block number.
+ * @returns The full block explorer URL or undefined if inputs are invalid.
+ */
+export function getBlockExplorerUrl(
+  explorerBaseUrl: string | undefined | null, 
+  blockNumber: number | string | undefined | null
+): string | undefined {
+  if (!explorerBaseUrl || blockNumber === undefined || blockNumber === null) return undefined;
+
+  const baseUrl = explorerBaseUrl.replace(/\/$/, ''); // Remove trailing slash
+  const blockNumStr = typeof blockNumber === 'number' ? blockNumber.toString() : blockNumber;
+
+  // Common patterns
+  if (baseUrl.includes('etherscan') || baseUrl.includes('polygonscan')) {
+    return `${baseUrl}/block/${blockNumStr}`;
+  }
+
+  // Fallback: Assume block number can be appended directly
+  // This might need adjustment based on other explorers
+  return `${baseUrl}/block/${blockNumStr}`;
 } 

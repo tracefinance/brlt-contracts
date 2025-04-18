@@ -39,11 +39,10 @@ const {
   error: mutationError, // Keep for name update errors
 } = useSignerMutations()
 
-// Create reactive form data - only need name now
+// Need full type for the request
 const formData = reactive<IUpdateSignerRequest>({
   name: '',
-  // Initialize with a valid type value (still needed for the PUT request even if not editable)
-  type: 'internal',
+  type: 'internal', // Initialize required fields even if not editable here
   userId: undefined
 })
 
@@ -56,50 +55,40 @@ const addressToRemove = ref<IAddress | null>(null)
 watch(signer, (newSigner) => {
   if (newSigner) {
     formData.name = newSigner.name
-    // Still need to set these values for a valid request object
-    formData.type = newSigner.type
-    formData.userId = newSigner.userId
+    formData.type = newSigner.type // Keep initializing non-editable fields
+    formData.userId = newSigner.userId // Keep initializing non-editable fields
   }
 }, { immediate: true })
 
-// Watch for name update mutation errors
+// Watch for mutation errors
 watch(mutationError, (newError) => {
   if (newError) {
-    // Check if the dialog is open to avoid showing unrelated errors from the dialog component
     if (!isAddressDialogOpen.value && !isRemoveAddressDialogOpen.value) {
       toast.error(getErrorMessage(newError, 'An unknown error occurred while updating the signer.'))
     }
   }
 })
 
-// Handle form submission (for name update)
+// Handle form submission
 const handleSubmit = async () => {
   mutationError.value = null
 
-  // Basic validation
   if (!formData.name) {
     toast.error('Signer Name is required.')
     return
   }
 
-  // Use the available updateSigner function
-  const updatedSigner = await updateSigner(signerId.value, {
-    // Only send the name to be updated
-    name: formData.name,
-    type: formData.type,
-    userId: formData.userId
-  })
+  // Send the full formData object which matches IUpdateSignerRequest
+  const updatedSigner = await updateSigner(signerId.value, formData)
   
   if (updatedSigner) {
-    // Display success toast
     toast.success(`Signer "${updatedSigner.name}" updated successfully!`)
-    // Redirect to the signers list page instead of refreshing
-    router.push('/settings/signers')
+    router.back()
   }
 }
 
-// Helper to display user info
-const userDisplay = computed(() => {
+// Function to display associated user (still used in template)
+const userDisplayText = computed(() => {
   if (isLoadingUser.value) return 'Loading user info...'
   if (userError.value) return 'Error loading user'
   if (associatedUser.value) return `${associatedUser.value.email} (ID: ${associatedUser.value.id})`
@@ -170,7 +159,7 @@ const openRemoveAddressDialog = (address: IAddress) => {
             <div class="space-y-2">
               <Label>Associated User</Label>
               <p class="text-sm text-muted-foreground rounded-md p-2 bg-muted">
-                {{ userDisplay }} 
+                {{ userDisplayText }} 
               </p>
             </div>
 

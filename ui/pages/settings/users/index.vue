@@ -102,12 +102,12 @@ const goToEditUser = (user: IUser) => {
               <TableHead class="w-[10%]">ID</TableHead>
               <TableHead class="w-auto">Email</TableHead>
               <TableHead class="w-[15%]">Created</TableHead>
-              <TableHead class="w-[10%] text-right">Actions</TableHead>
+              <TableHead class="w-[80px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             <TableRow v-for="user in users" :key="user.id">
-              <TableCell class="font-medium">
+              <TableCell>
                 <NuxtLink :to="`/settings/users/${user.id}/view`" class="hover:underline">
                   {{ shortenAddress(user.id, 4, 4) }}
                 </NuxtLink>

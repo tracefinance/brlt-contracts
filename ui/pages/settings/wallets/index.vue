@@ -127,7 +127,7 @@ const goToEditWallet = (wallet: IWallet) => {
               <TableHead class="w-[10%]">Address</TableHead>
               <TableHead class="w-[10%] text-right">Balance</TableHead>
               <TableHead class="w-[15%]">Created</TableHead>
-              <TableHead class="w-[10%] text-right">Actions</TableHead>
+              <TableHead class="w-[80px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -137,7 +137,7 @@ const goToEditWallet = (wallet: IWallet) => {
                   {{ shortenAddress(wallet.id, 4, 4) }}
                 </NuxtLink>
               </TableCell>
-              <TableCell class="font-medium">{{ wallet.name }}</TableCell>
+              <TableCell>{{ wallet.name }}</TableCell>
               <TableCell>
                 <div class="flex items-center gap-2">
                   <Web3Icon :symbol="wallet.chainType" class="size-5" variant="branded" />

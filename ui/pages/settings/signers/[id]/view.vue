@@ -49,14 +49,6 @@ const refresh = () => {
   refreshSigner()
   // Potentially refresh user if needed, but useUserDetails might handle it via watch
 }
-
-// Helper to display user info
-const userDisplay = computed(() => {
-  if (isLoadingUser.value) return 'Loading user info...'
-  if (userError.value) return 'Error loading user'
-  if (associatedUser.value) return `${associatedUser.value.email} (ID: ${associatedUser.value.id})`
-  return 'None'
-})
 </script>
 
 <template>
@@ -102,9 +94,18 @@ const userDisplay = computed(() => {
             </div>
             <div class="space-y-1">
               <Label>Associated User</Label>
-              <p class="text-sm text-muted-foreground rounded-md p-2 bg-muted">
-                {{ userDisplay }} 
-              </p>
+              <div class="text-sm">
+                <span v-if="isLoadingUser">Loading user info...</span>
+                <span v-else-if="userError" class="text-destructive">Error loading user</span>
+                <NuxtLink 
+                  v-else-if="associatedUser" 
+                  :to="`/settings/users/${associatedUser.id}/view`" 
+                  class="hover:underline"
+                >
+                  {{ associatedUser.email }}
+                </NuxtLink>
+                <span v-else class="text-muted-foreground">None</span>
+              </div>
             </div>
             <div class="space-y-1">
               <Label>Created At</Label>

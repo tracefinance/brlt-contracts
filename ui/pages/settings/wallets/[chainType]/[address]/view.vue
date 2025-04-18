@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { formatDateTime } from '~/lib/utils' // Import utilities
-import { getAddressExplorerUrl } from '~/lib/explorers' // Import explorer utility
+import { getAddressExplorerUrl, getBlockExplorerUrl } from '~/lib/explorers' // Import explorer utility
 import { toast } from 'vue-sonner'
 definePageMeta({
   layout: 'settings'
@@ -29,12 +29,22 @@ const {
   error: chainsError
 } = useChains()
 
+// Find the chain object (helper computed property)
+const currentChain = computed(() => {
+  if (isLoadingChains.value || chainsError.value) return undefined
+  return chains.value.find(c => c.type?.toLowerCase() === currentWallet.value?.chainType?.toLowerCase())
+})
+
 // Compute the explorer URL for the wallet's address
 const explorerAddressUrl = computed(() => {
-  if (isLoadingChains.value || chainsError.value || !currentWallet.value?.address) return undefined
-  const chain = chains.value.find(c => c.type?.toLowerCase() === currentWallet.value?.chainType?.toLowerCase())
-  if (!chain?.explorerUrl) return undefined
-  return getAddressExplorerUrl(chain.explorerUrl, currentWallet.value.address)
+  if (!currentChain.value?.explorerUrl || !currentWallet.value?.address) return undefined
+  return getAddressExplorerUrl(currentChain.value.explorerUrl, currentWallet.value.address)
+})
+
+// Compute the explorer URL for the wallet's last block
+const explorerBlockUrl = computed(() => {
+  if (!currentChain.value?.explorerUrl || currentWallet.value?.lastBlockNumber === undefined || currentWallet.value?.lastBlockNumber === null) return undefined
+  return getBlockExplorerUrl(currentChain.value.explorerUrl, currentWallet.value.lastBlockNumber)
 })
 
 // Function to navigate to the edit page
@@ -85,25 +95,25 @@ const copyAddress = () => {
           </div>
            <div class="space-y-1">
             <Label>Name</Label>
-            <p class="text-sm font-medium">{{ currentWallet.name }}</p>
+            <p class="text-sm">{{ currentWallet.name }}</p>
           </div>
            <div class="space-y-1">
             <Label>Chain Type</Label>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1 text-sm">
                 <Web3Icon :symbol="currentWallet.chainType" class="size-5" variant="branded" />
                 <span class="capitalize">{{ currentWallet.chainType }}</span>
             </div>
           </div>
           <div class="space-y-1">
             <Label>Address</Label>
-            <div class="flex items-center gap-2">
-            <a v-if="explorerAddressUrl" :href="explorerAddressUrl" target="_blank" rel="noopener noreferrer" class="text-sm font-mono hover:underline block truncate">
-              {{ currentWallet.address }}
-            </a>
-            <p v-else class="text-sm font-mono truncate">{{ currentWallet.address }}</p>
-            <Button variant="ghost" size="icon" @click="copyAddress">
-              <Icon name="lucide:copy" class="size-4" />
-            </Button>
+            <div class="flex items-center gap-2 text-sm">
+              <a v-if="explorerAddressUrl" :href="explorerAddressUrl" target="_blank" rel="noopener noreferrer" class="hover:underline block truncate">
+                {{ currentWallet.address }}
+              </a>
+              <p v-else>{{ currentWallet.address }}</p>
+              <Button variant="ghost" size="icon" @click="copyAddress">
+                <Icon name="lucide:copy" class="size-4"/>
+              </Button>
             </div>
           </div>
            <div class="space-y-1">
@@ -121,7 +131,20 @@ const copyAddress = () => {
           </div>
            <div class="space-y-1">
             <Label>Last Synced Block</Label>
-            <p class="text-sm font-medium">{{ currentWallet.lastBlockNumber ?? 'N/A' }}</p>
+            <div class="text-sm">
+              <a 
+                v-if="explorerBlockUrl"
+                :href="explorerBlockUrl" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                class="hover:underline"
+              >
+                {{ currentWallet.lastBlockNumber }}
+              </a>
+              <p v-else>
+                {{ currentWallet.lastBlockNumber ?? 'N/A' }}
+              </p>
+            </div>
           </div>
           <div class="space-y-1">
             <Label>Created At</Label>

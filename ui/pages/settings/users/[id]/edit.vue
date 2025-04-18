@@ -66,7 +66,7 @@ const handleSubmit = async () => {
   if (updatedUser) {
     toast.success('User updated successfully!')
     await refresh()
-    router.push('/settings/users')
+    router.back()
   } else if (mutationError.value) {
     toast.error('Failed to update user', {
       description: mutationError.value.message || 'Unknown error'

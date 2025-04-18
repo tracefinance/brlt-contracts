@@ -99,7 +99,7 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
               <TableHead class="w-[8%]">Token</TableHead>
               <TableHead class="w-[10%] text-right">Value</TableHead>
               <TableHead class="w-[15%]">Age</TableHead>
-              <TableHead class="w-[10%] text-right">Status</TableHead>
+              <TableHead class="w-[110px]">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -133,7 +133,7 @@ const error = computed(() => walletTransactionsError.value || chainsError.value)
               <TableCell>
                 {{ formatDistanceToNow(new Date(tx.timestamp * 1000), { addSuffix: true }) }}
               </TableCell>
-              <TableCell class="text-right">
+              <TableCell>
                 <TransactionStatusBadge :status="tx.status" />
               </TableCell>
             </TableRow>
