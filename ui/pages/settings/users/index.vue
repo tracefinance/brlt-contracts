@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import type { IUser } from '~/types'
-import { formatDateTime } from '~/lib/utils'
+import { formatDateTime, shortenAddress } from '~/lib/utils'
 
 definePageMeta({
   layout: 'settings'
@@ -109,7 +109,7 @@ const goToEditUser = (user: IUser) => {
             <TableRow v-for="user in users" :key="user.id">
               <TableCell class="font-medium">
                 <NuxtLink :to="`/settings/users/${user.id}/view`" class="hover:underline">
-                  {{ user.id }}
+                  {{ shortenAddress(user.id, 4, 4) }}
                 </NuxtLink>
               </TableCell>
               <TableCell>{{ user.email }}</TableCell>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { fromJson, fromJsonArray, toJson } from './model';
 
 /**

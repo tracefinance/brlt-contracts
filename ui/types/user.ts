@@ -1,10 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { fromJson, fromJsonArray } from './model';
 
 /**
  * Interface representing a user
  */
 export interface IUser {
-  id: number;
+  id: string;
   email: string;
   createdAt: string;
   updatedAt: string;

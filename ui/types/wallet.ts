@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { fromJson, fromJsonArray } from './model';
 import type { IToken } from './token';
 
@@ -5,7 +6,7 @@ import type { IToken } from './token';
  * Interface representing a wallet
  */
 export interface IWallet {
-  id: number;
+  id: string;
   keyId: string;
   chainType: string;
   address: string;

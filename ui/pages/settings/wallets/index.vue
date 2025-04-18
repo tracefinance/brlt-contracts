@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import { getAddressExplorerUrl } from '~/lib/explorers'
 import type { IWallet } from '~/types'
+import { formatDateTime, shortenAddress } from '~/lib/utils'
 
 definePageMeta({
   layout: 'settings'
@@ -114,16 +115,21 @@ const goToEditWallet = (wallet: IWallet) => {
         <Table>
           <TableHeader class="bg-muted">
             <TableRow>
-              <TableHead class="w-[15%]">Name</TableHead>
+              <TableHead class="w-[15%]">ID</TableHead>
+              <TableHead class="w-[20%]">Name</TableHead>
               <TableHead class="w-[15%]">Chain</TableHead>
-              <TableHead class="w-[30%]">Address</TableHead>
-              <TableHead class="w-[15%]">Last Sync Block</TableHead>
-              <TableHead class="w-[20%]">Tags</TableHead>
-              <TableHead class="w-[5%] text-right">Actions</TableHead>
+              <TableHead class="w-[25%]">Address</TableHead>
+              <TableHead class="w-[15%]">Created</TableHead>
+              <TableHead class="w-[10%] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-for="wallet in wallets" :key="wallet.id || `${wallet.chainType}-${wallet.address}`">
+            <TableRow v-for="wallet in wallets" :key="wallet.id">
+              <TableCell>
+                <NuxtLink :to="`/settings/wallets/${wallet.chainType}/${wallet.address}/view`" class="hover:underline">
+                  {{ shortenAddress(wallet.id, 4, 4) }}
+                </NuxtLink>
+              </TableCell>
               <TableCell class="font-medium">{{ wallet.name }}</TableCell>
               <TableCell>
                 <div class="flex items-center gap-2">
@@ -141,15 +147,7 @@ const goToEditWallet = (wallet: IWallet) => {
                 <span v-else-if="wallet.address">{{ wallet.address }}</span>
                 <span v-else class="text-muted-foreground">N/A</span>
               </TableCell>
-              <TableCell>{{ wallet.lastBlockNumber || 'N/A' }}</TableCell>
-              <TableCell>
-                <div v-if="wallet.tags && Object.keys(wallet.tags).length > 0" class="flex flex-wrap gap-1">
-                  <Badge v-for="(value, key) in wallet.tags" :key="key" variant="secondary" class="whitespace-nowrap">
-                    {{ key }}: {{ value }}
-                  </Badge>
-                </div>
-                <span v-else class="text-xs text-muted-foreground">No tags</span>
-              </TableCell>
+              <TableCell>{{ wallet.createdAt ? formatDateTime(wallet.createdAt) : 'N/A' }}</TableCell>
               <TableCell class="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger as-child>

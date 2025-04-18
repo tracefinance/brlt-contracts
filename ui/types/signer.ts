@@ -1,5 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { fromJson, fromJsonArray, toJson } from './model';
-import type { IPagedResponse } from './model'; // Re-add IPagedResponse import as it's needed implicitly
 
 /**
  * Defines the possible types for a signer.
@@ -10,8 +10,8 @@ export type ISignerType = 'internal' | 'external';
  * Interface representing a signer address.
  */
 export interface IAddress {
-  id: number;
-  signerId: number;
+  id: string;
+  signerId: string;
   chainType: string;
   address: string;
   createdAt: string;
@@ -42,10 +42,10 @@ export const Address = {
  * Interface representing a signer.
  */
 export interface ISigner {
-  id: number;
+  id: string;
   name: string;
   type: ISignerType;
-  userId?: number;
+  userId?: string;
   addresses?: IAddress[];
   createdAt: string;
   updatedAt: string;
@@ -83,11 +83,11 @@ export const CreateSignerRequest = {
 export interface IUpdateSignerRequest {
   name: string;
   type: ISignerType;
-  userId?: number;
+  userId?: string;
 }
 
 export const UpdateSignerRequest = {
-  create(name: string, type: ISignerType, userId?: number): IUpdateSignerRequest {
+  create(name: string, type: ISignerType, userId?: string): IUpdateSignerRequest {
     return { name, type, userId };
   },
   toJson(request: IUpdateSignerRequest): any {

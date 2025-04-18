@@ -3,8 +3,8 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import type { ISigner } from '~/types'
-// Import the new date formatting utility
-import { formatDateTime } from '~/lib/utils'
+// Import the new date formatting utility and shortenAddress
+import { formatDateTime, shortenAddress } from '~/lib/utils'
 
 // Define page metadata
 definePageMeta({
@@ -92,16 +92,22 @@ const handleDeleteConfirm = async () => {
           <Table>
             <TableHeader class="bg-muted">
               <TableRow>
-                <TableHead class="w-[25%]">Name</TableHead>
+                <TableHead class="w-[10%]">ID</TableHead> 
+                <TableHead class="w-[20%]">Name</TableHead>
                 <TableHead class="w-[10%]">Type</TableHead>
                 <TableHead class="w-[15%]">User ID</TableHead>
                 <TableHead class="w-[15%]">Addresses</TableHead>
-                <TableHead class="w-[25%]">Created</TableHead> 
+                <TableHead class="w-[20%]">Created</TableHead> 
                 <TableHead class="w-[10%] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               <TableRow v-for="signer in signers" :key="signer.id">
+                <TableCell>
+                  <NuxtLink :to="`/settings/signers/${signer.id}/edit`" class="hover:underline">
+                    {{ shortenAddress(signer.id, 4, 4) }}
+                  </NuxtLink>
+                </TableCell>
                 <TableCell class="font-medium">{{ signer.name }}</TableCell>
                 <TableCell>
                   <SignerTypeBadge :type="signer.type" />
@@ -112,7 +118,7 @@ const handleDeleteConfirm = async () => {
                     :to="`/settings/users/${signer.userId}/view`" 
                     class="hover:underline"
                   >
-                    {{ signer.userId }}
+                    {{ shortenAddress(signer.userId, 4, 4) }}
                   </NuxtLink>
                   <span v-else class="text-xs text-muted-foreground">Not assigned</span>
                 </TableCell>                
