@@ -67,3 +67,36 @@ export function getErrorMessage(error: unknown, defaultMessage = 'An unknown err
   
   return defaultMessage
 }
+
+/**
+ * Format a date string or Date object into a readable date and time format.
+ * Example: "April 15, 2025 04:08:28 PM"
+ * @param dateInput The date string or Date object to format.
+ * @param locale Optional locale string (defaults to 'en-US').
+ * @returns Formatted date string or an empty string if the input is invalid.
+ */
+export function formatDateTime(dateInput: string | Date, locale: string = 'en-US'): string {
+  try {
+    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      return 'Invalid Date';
+    }
+    
+    const options: Intl.DateTimeFormatOptions = {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    };
+    
+    return date.toLocaleString(locale, options);
+  } catch (e) {
+    console.error("Error formatting date:", e);
+    return 'Invalid Date'; // Return a default string or empty string on error
+  }
+}

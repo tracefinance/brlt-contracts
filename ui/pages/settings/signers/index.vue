@@ -3,6 +3,8 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import type { ISigner } from '~/types'
+// Import the new date formatting utility
+import { formatDateTime } from '~/lib/utils'
 
 // Define page metadata
 definePageMeta({
@@ -56,11 +58,6 @@ const handleDeleteConfirm = async () => {
   isDeleteDialogOpen.value = false
   signerToDelete.value = null
 }
-
-// Format date helper
-const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleString()
-}
 </script>
 
 <template>
@@ -96,11 +93,11 @@ const formatDate = (dateString: string) => {
             <TableHeader class="bg-muted">
               <TableRow>
                 <TableHead class="w-[25%]">Name</TableHead>
-                <TableHead class="w-[15%]">Type</TableHead>                
+                <TableHead class="w-[10%]">Type</TableHead>
+                <TableHead class="w-[15%]">User ID</TableHead>
                 <TableHead class="w-[15%]">Addresses</TableHead>
-                <TableHead class="w-[20%]">User ID</TableHead>
-                <TableHead class="w-[20%]">Created</TableHead>
-                <TableHead class="w-[5%] text-right">Actions</TableHead>
+                <TableHead class="w-[25%]">Created</TableHead> 
+                <TableHead class="w-[10%] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -108,6 +105,10 @@ const formatDate = (dateString: string) => {
                 <TableCell class="font-medium">{{ signer.name }}</TableCell>
                 <TableCell>
                   <SignerTypeBadge :type="signer.type" />
+                </TableCell>
+                <TableCell>
+                  <span v-if="signer.userId">{{ signer.userId }}</span>
+                  <span v-else class="text-xs text-muted-foreground">Not assigned</span>
                 </TableCell>                
                 <TableCell>
                   <Badge v-if="signer.addresses?.length" variant="outline">
@@ -115,11 +116,7 @@ const formatDate = (dateString: string) => {
                   </Badge>
                   <span v-else class="text-xs text-muted-foreground">None</span>
                 </TableCell>
-                <TableCell>
-                  <span v-if="signer.userId">{{ signer.userId }}</span>
-                  <span v-else class="text-xs text-muted-foreground">Not assigned</span>
-                </TableCell>
-                <TableCell>{{ formatDate(signer.createdAt) }}</TableCell>
+                <TableCell>{{ formatDateTime(signer.createdAt) }}</TableCell>
                 <TableCell class="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger as-child>
