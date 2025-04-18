@@ -118,7 +118,7 @@ const handleSaveChanges = async () => {
         <CardTitle>Edit Wallet</CardTitle>
         <CardDescription v-if="wallet" class="flex items-center gap-2 pt-1">
           <Web3Icon :symbol="wallet.chainType" class="size-5" variant="branded" />
-          <span class="font-medium capitalize">{{ wallet.chainType }} - {{ wallet.address }}</span>
+          <span class="font-medium capitalize">{{ wallet.address }}</span>
         </CardDescription>
         <CardDescription v-else-if="isLoadingWallet">Loading wallet details...</CardDescription>
         <CardDescription v-else-if="fetchError">Error loading wallet.</CardDescription>

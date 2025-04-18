@@ -80,6 +80,7 @@ const handleSubmit = async () => {
     <Card class="w-full max-w-2xl">
       <CardHeader>
         <CardTitle>Edit User</CardTitle>
+        <CardDescription>ID: {{ userId }}</CardDescription>
       </CardHeader>
       
       <div v-if="isLoading" class="flex justify-center p-6">

@@ -138,7 +138,7 @@ const openRemoveAddressDialog = (address: IAddress) => {
           <CardDescription>ID: {{ signer.id }}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form class="space-y-6" @submit.prevent="handleSubmit">
+          <form id="signer-edit-form" class="space-y-6" @submit.prevent="handleSubmit">
             <div class="space-y-2">
               <Label for="name">Name</Label>
               <Input 
@@ -162,18 +162,17 @@ const openRemoveAddressDialog = (address: IAddress) => {
                 {{ userDisplayText }} 
               </p>
             </div>
-
-            <CardFooter class="flex justify-end gap-2 mt-4">
-              <Button type="button" variant="outline" @click="router.back()">Cancel</Button>
-              <Button type="submit" :disabled="isUpdating">
-                <span v-if="isUpdating">
-                  <Icon name="svg-spinners:3-dots-fade" class="size-4 text-muted-foreground" />
-                </span>
-                <span v-else>Save Changes</span>
-              </Button>
-            </CardFooter>
           </form>
         </CardContent>
+        <CardFooter class="flex justify-end gap-2">
+          <Button type="button" variant="outline" @click="router.back()">Cancel</Button>
+          <Button type="submit" form="signer-edit-form" :disabled="isUpdating">
+            <span v-if="isUpdating">
+              <Icon name="svg-spinners:3-dots-fade" class="size-4 text-muted-foreground" />
+            </span>
+            <span v-else>Save Changes</span>
+          </Button>
+        </CardFooter>
       </Card>
       
       <!-- Addresses Card -->
