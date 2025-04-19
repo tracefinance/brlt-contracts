@@ -1,0 +1,7 @@
+[
+  {
+    "key": "shift+alt+cmd+k",
+    "command": "workbench.debug.panel.action.clearReplAction",
+    "when": "focusedView == 'workbench.panel.repl.view'"
+  }
+]
