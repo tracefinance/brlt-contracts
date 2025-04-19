@@ -3,6 +3,7 @@ package wire
 import (
 	"github.com/google/wire"
 
+	"vault0/internal/services/keystore"
 	"vault0/internal/services/signer"
 	"vault0/internal/services/token"
 	"vault0/internal/services/tokenprice"
@@ -19,6 +20,7 @@ type Services struct {
 	TokenService       token.Service
 	SignerService      signer.Service
 	TokenPriceService  tokenprice.Service
+	KeystoreService    keystore.Service
 }
 
 // Define Wire provider sets for each service
@@ -28,6 +30,7 @@ var TransactionServiceSet = wire.NewSet(transaction.NewRepository, transaction.N
 var TokenServiceSet = wire.NewSet(token.NewService)
 var SignerServiceSet = wire.NewSet(signer.NewRepository, signer.NewService)
 var TokenPriceServiceSet = wire.NewSet(tokenprice.NewRepository, tokenprice.NewService)
+var KeystoreServiceSet = wire.NewSet(keystore.NewService)
 
 // Define the set for all services
 var ServicesSet = wire.NewSet(
@@ -37,6 +40,7 @@ var ServicesSet = wire.NewSet(
 	TokenServiceSet,
 	SignerServiceSet,
 	TokenPriceServiceSet,
+	KeystoreServiceSet,
 	NewServices,
 )
 
@@ -48,6 +52,7 @@ func NewServices(
 	tokenSvc token.Service,
 	signerSvc signer.Service,
 	tokenPriceSvc tokenprice.Service,
+	keystoreSvc keystore.Service,
 ) *Services {
 	return &Services{
 		WalletService:      walletSvc,
@@ -56,5 +61,6 @@ func NewServices(
 		TokenService:       tokenSvc,
 		SignerService:      signerSvc,
 		TokenPriceService:  tokenPriceSvc,
+		KeystoreService:    keystoreSvc,
 	}
 }

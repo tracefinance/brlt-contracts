@@ -11,6 +11,7 @@ import (
 
 	// Import generated docs
 	_ "vault0/internal/api/docs"
+	"vault0/internal/api/handlers/keystore"
 	"vault0/internal/api/handlers/reference"
 	"vault0/internal/api/handlers/signer"
 	"vault0/internal/api/handlers/token"
@@ -34,6 +35,7 @@ type Server struct {
 	signerHandler      *signer.Handler
 	tokenPriceHandler  *tokenprice.Handler
 	referenceHandler   *reference.Handler
+	keystoreHandler    *keystore.Handler
 }
 
 // NewServer creates a new API server
@@ -47,6 +49,7 @@ func NewServer(
 	signerHandler *signer.Handler,
 	tokenPriceHandler *tokenprice.Handler,
 	referenceHandler *reference.Handler,
+	keystoreHandler *keystore.Handler,
 ) *Server {
 	router := gin.Default()
 	router.Use(cors.Default())
@@ -62,6 +65,7 @@ func NewServer(
 		signerHandler:      signerHandler,
 		tokenPriceHandler:  tokenPriceHandler,
 		referenceHandler:   referenceHandler,
+		keystoreHandler:    keystoreHandler,
 	}
 }
 
@@ -78,6 +82,7 @@ func (s *Server) SetupRoutes() {
 	s.signerHandler.SetupRoutes(api)
 	s.tokenPriceHandler.RegisterRoutes(api)
 	s.referenceHandler.SetupRoutes(api)
+	s.keystoreHandler.SetupRoutes(api)
 
 	// Health check endpoint
 	api.GET("/health", s.healthHandler)
