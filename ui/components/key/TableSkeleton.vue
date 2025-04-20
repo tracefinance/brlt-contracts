@@ -13,15 +13,19 @@ const props = defineProps({
       <TableHeader>
         <TableRow class="bg-muted hover:bg-muted">
           <TableHead class="w-[10%]">ID</TableHead>
-          <TableHead class="w-auto">Email</TableHead>
+          <TableHead class="w-auto">Name</TableHead>
+          <TableHead class="w-[10%]">Type</TableHead>
+          <TableHead class="w-[15%]">Curve</TableHead>
           <TableHead class="w-[15%]">Created</TableHead>
           <TableHead class="w-[80px] text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         <TableRow v-for="n in props.rows" :key="n">
+          <TableCell><Skeleton class="h-4 w-16" /></TableCell>
+          <TableCell><Skeleton class="h-4 w-32" /></TableCell>
+          <TableCell><Skeleton class="h-4 w-12" /></TableCell>
           <TableCell><Skeleton class="h-4 w-20" /></TableCell>
-          <TableCell><Skeleton class="h-4 w-40" /></TableCell>
           <TableCell><Skeleton class="h-4 w-24" /></TableCell>
           <TableCell class="text-right">
             <Skeleton class="ml-auto size-8 rounded" />
@@ -30,9 +34,10 @@ const props = defineProps({
       </TableBody>
     </Table>              
   </div>
+  <!-- Skeleton for pagination controls -->
   <div class="flex items-center gap-2 mt-2">
-    <Skeleton class="h-9 w-24" />
-    <Skeleton class="size-9" />
-    <Skeleton class="size-9" />
+    <Skeleton class="h-9 w-24" /> 
+    <Skeleton class="size-9" /> 
+    <Skeleton class="size-9" /> 
   </div>
 </template> 

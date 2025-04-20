@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { formatDateTime, getErrorMessage } from '~/lib/utils'
+import { formatDateTime, getErrorMessage, shortenAddress } from '~/lib/utils'
+import { toast } from 'vue-sonner'
 
 definePageMeta({
   layout: 'settings'
@@ -42,6 +43,43 @@ const goToEditPage = () => {
   if (signerId.value) {
     router.push(`/settings/signers/${signerId.value}/edit`)
   }
+}
+
+// Signer Mutations (for delete)
+const {
+  deleteSigner,
+  isDeleting,
+  error: deleteError
+} = useSignerMutations()
+
+// Dialog state
+const isDeleteDialogOpen = ref(false)
+
+// Functions for delete dialog
+const openDeleteDialog = () => {
+  isDeleteDialogOpen.value = true
+}
+
+const handleDeleteConfirm = async () => {
+  if (!signer.value) {
+    toast.error('Cannot delete signer: Signer data not available.')
+    isDeleteDialogOpen.value = false
+    return
+  }
+
+  const { id, name } = signer.value
+  const success = await deleteSigner(id)
+
+  if (success) {
+    toast.success(`Signer "${name}" (ID: ${shortenAddress(id)}) deleted successfully.`)
+    router.push('/settings/signers')
+  } else {
+    toast.error(`Failed to delete signer "${name}"`, {
+      description: deleteError.value?.message || 'Unknown error'
+    })
+  }
+
+  isDeleteDialogOpen.value = false
 }
 
 // Combined refresh function
@@ -117,12 +155,18 @@ const refresh = () => {
             </div>
           </CardContent>
           
-          <CardFooter class="flex justify-end gap-2">
-            <Button variant="outline" @click="router.back()">Back</Button>
-            <Button @click="goToEditPage">
-              <Icon name="lucide:edit" class="w-4 h-4 mr-2" />
-              Edit
+          <CardFooter class="flex justify-between">
+            <Button variant="destructive" @click="openDeleteDialog">
+              <Icon name="lucide:trash-2" class="w-4 h-4 mr-2" />
+              Delete Signer
             </Button>
+            <div class="flex gap-2">
+              <Button variant="outline" @click="router.back()">Back</Button>
+              <Button @click="goToEditPage">
+                <Icon name="lucide:edit" class="w-4 h-4 mr-2" />
+                Edit
+              </Button>
+            </div>
           </CardFooter>
         </template>
         
@@ -172,5 +216,28 @@ const refresh = () => {
         </CardContent>
       </Card>
     </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <AlertDialog :open="isDeleteDialogOpen" @update:open="isDeleteDialogOpen = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the signer
+            "{{ signer?.name }}" (ID: {{ shortenAddress(signer?.id || '') }}).
+            Any associated addresses will no longer be manageable through this signer.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="isDeleting" @click="isDeleteDialogOpen = false">Cancel</AlertDialogCancel>
+          <AlertDialogAction :disabled="isDeleting" variant="destructive" @click="handleDeleteConfirm">
+            <Icon v-if="isDeleting" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-2" />
+            <span v-if="isDeleting">Deleting...</span>
+            <span v-else>Delete Signer</span>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
   </div>
 </template> 

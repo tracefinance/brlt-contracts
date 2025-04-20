@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { formatDateTime } from '~/lib/utils' // Import utilities
+import { formatDateTime, shortenAddress } from '~/lib/utils' // Import utilities, added shortenAddress
 import { getAddressExplorerUrl, getBlockExplorerUrl } from '~/lib/explorers' // Import explorer utility
 import { toast } from 'vue-sonner'
+
 definePageMeta({
   layout: 'settings'
 })
@@ -46,6 +47,43 @@ const explorerBlockUrl = computed(() => {
   if (!currentChain.value?.explorerUrl || currentWallet.value?.lastBlockNumber === undefined || currentWallet.value?.lastBlockNumber === null) return undefined
   return getBlockExplorerUrl(currentChain.value.explorerUrl, currentWallet.value.lastBlockNumber)
 })
+
+// Wallet Mutations (for delete) - Added
+const {
+  deleteWallet,
+  isDeleting,
+  error: deleteError // Renamed from 'error' to avoid conflict
+} = useWalletMutations()
+
+// Dialog state - Added
+const isDeleteDialogOpen = ref(false)
+
+// Functions for delete dialog - Added
+const openDeleteDialog = () => {
+  isDeleteDialogOpen.value = true
+}
+
+const handleDeleteConfirm = async () => {
+  if (!currentWallet.value) {
+    toast.error('Cannot delete wallet: Wallet data not available.')
+    isDeleteDialogOpen.value = false
+    return
+  }
+
+  const { chainType, address: walletAddress, name } = currentWallet.value
+  const success = await deleteWallet(chainType, walletAddress) // Use deleteWallet
+
+  if (success) {
+    toast.success(`Wallet "${name}" (${shortenAddress(walletAddress)}) deleted successfully.`)
+    router.push('/settings/wallets') // Redirect to wallet list after delete
+  } else {
+    toast.error(`Failed to delete wallet "${name}"`, {
+      description: deleteError.value?.message || 'Unknown error'
+    })
+  }
+
+  isDeleteDialogOpen.value = false
+}
 
 // Function to navigate to the edit page
 const goToEditPage = () => {
@@ -156,12 +194,18 @@ const copyAddress = () => {
           </div>
         </CardContent>
 
-        <CardFooter class="flex justify-end gap-2">
-          <Button variant="outline" @click="router.back()">Back</Button>
-          <Button @click="goToEditPage">
-            <Icon name="lucide:edit" class="w-4 h-4 mr-2" />
-            Edit
+        <CardFooter class="flex justify-between">
+          <Button variant="destructive" @click="openDeleteDialog">
+            <Icon name="lucide:trash-2" class="w-4 h-4 mr-2" />
+            Delete Wallet
           </Button>
+          <div class="flex gap-2">
+            <Button variant="outline" @click="router.back()">Back</Button>
+            <Button @click="goToEditPage">
+              <Icon name="lucide:edit" class="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          </div>
         </CardFooter>
       </template>
 
@@ -175,5 +219,27 @@ const copyAddress = () => {
         </Alert>
       </div>
     </Card>
+
+    <AlertDialog :open="isDeleteDialogOpen" @update:open="isDeleteDialogOpen = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the wallet
+            "{{ currentWallet?.name }}" ({{ shortenAddress(currentWallet?.address || '') }}).
+            All associated tokens and transaction history for this wallet might be affected.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="isDeleting" @click="isDeleteDialogOpen = false">Cancel</AlertDialogCancel>
+          <AlertDialogAction :disabled="isDeleting" variant="destructive" @click="handleDeleteConfirm">
+            <Icon v-if="isDeleting" name="svg-spinners:3-dots-fade" class="w-4 h-4 mr-2" />
+            <span v-if="isDeleting">Deleting...</span>
+            <span v-else>Delete Wallet</span>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
   </div>
 </template>

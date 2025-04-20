@@ -84,7 +84,7 @@ watch(nextPageToken, (newToken) => {
 <template>
   <div>
     <!-- Skeleton Loader -->
-    <TableSkeleton v-if="isLoading" :columns="['ID', 'Name', 'Type', 'Curve', 'Created', 'Actions']" />
+    <KeyTableSkeleton v-if="isLoading" />
 
     <!-- Error Alert -->
     <div v-else-if="keysError">
@@ -103,7 +103,7 @@ watch(nextPageToken, (newToken) => {
         <Table>
           <TableHeader class="bg-muted">
             <TableRow>
-              <TableHead class="w-[15%]">ID</TableHead>
+              <TableHead class="w-[10%]">ID</TableHead>
               <TableHead class="w-auto">Name</TableHead>
               <TableHead class="w-[10%]">Type</TableHead>
               <TableHead class="w-[15%]">Curve</TableHead>

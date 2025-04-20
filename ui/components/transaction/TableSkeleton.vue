@@ -1,5 +1,10 @@
 <script setup lang="ts">
-// No props needed anymore
+const props = defineProps({
+  rows: {
+    type: Number,
+    default: 1
+  }
+})
 </script>
 
 <template>
@@ -18,7 +23,7 @@
         </TableRow>
       </TableHeader>
       <TableBody>
-        <TableRow>
+        <TableRow v-for="n in props.rows" :key="n">
           <TableCell><Skeleton class="h-4 w-24" /></TableCell>
           <TableCell><Skeleton class="h-[1.6rem] w-20 rounded-full" /></TableCell>
           <TableCell><Skeleton class="h-4 w-20" /></TableCell>
