@@ -34,6 +34,117 @@ vault0/
 └── pkg/             # Public packages (if any)
 ```
 
+## Token-Based Pagination System
+
+The project uses token-based pagination implemented in `internal/types/page.go` with the following components:
+
+```go
+// NextPageToken represents pagination state for cursor-based pagination
+type NextPageToken struct {
+    Column string `json:"c"` // Database column used for cursor
+    Value any `json:"v"`     // Value to compare against
+}
+
+// Page represents a paginated response for any type
+type Page[T any] struct {
+    Items []T    `json:"items"`                // Items on current page
+    NextToken string `json:"next_token,omitempty"` // Token for next page
+    Limit int     `json:"limit"`               // Maximum items per page
+}
+```
+
+Key functions:
+- `EncodeNextPageToken`: Converts a token to base64 string
+- `DecodeNextPageToken`: Parses a base64 string into a token
+- `NewPage`: Creates a paginated response with token generation
+
+### Repository Pagination Pattern
+
+```go
+// List retrieves items with token-based pagination
+func (r *repository) List(ctx context.Context, limit int, nextToken string) (*types.Page[*Item], error) {
+    // Default pagination column 
+    paginationColumn := "id"
+    
+    // Decode token and apply criteria
+    token, err := types.DecodeNextPageToken(nextToken, paginationColumn)
+    if err != nil {
+        return nil, err
+    }
+
+    // Build query with token condition
+    sb := r.structMap.SelectFrom("items")
+    sb.Where(sb.IsNull("deleted_at"))
+    
+    if token != nil {
+        sb.Where(sb.GreaterThan(paginationColumn, token.Value))
+    }
+    
+    // Order and limit
+    sb.OrderBy(paginationColumn + " ASC")
+    if limit > 0 {
+        sb.Limit(limit + 1) // Fetch +1 to check if more pages exist
+    }
+    
+    // Execute query
+    items, err := r.executeQuery(ctx, sql, args...)
+    if err != nil {
+        return nil, err
+    }
+    
+    // Generate token function
+    generateToken := func(item *Item) *types.NextPageToken {
+        return &types.NextPageToken{
+            Column: paginationColumn,
+            Value: item.ID,
+        }
+    }
+    
+    return types.NewPage(items, limit, generateToken), nil
+}
+```
+
+### Service Pagination Pattern
+
+```go
+func (s *service) List(ctx context.Context, limit int, nextToken string) (*types.Page[*Item], error) {
+    // Apply default limit for negative values
+    if limit < 0 {
+        limit = 10
+    }
+    
+    return s.repository.List(ctx, limit, nextToken)
+}
+```
+
+### Handler Pagination Pattern
+
+```go
+func (h *Handler) List(c *gin.Context) {
+    var req ListRequest
+    if err := c.ShouldBindQuery(&req); err != nil {
+        c.Error(err)
+        return
+    }
+    
+    // Set default limit if not provided
+    limit := 10
+    if req.Limit != nil {
+        limit = *req.Limit
+    }
+    
+    // Get paginated items
+    page, err := h.service.List(c.Request.Context(), limit, req.NextToken)
+    if err != nil {
+        c.Error(err)
+        return
+    }
+    
+    // Transform to response format
+    c.JSON(http.StatusOK, utils.NewPagedResponse(page, ToResponse))
+}
+```
+
 ## Implementation Patterns
 
 ### Service Layer Pattern
@@ -264,6 +375,58 @@ func NewServices(walletSvc wallet.Service, userSvc user.Service /*... other serv
 ```
 *Remember to run `go generate ./...` in `internal/wire` to generate `wire_gen.go`.*
 
+### Wire Setup Pattern for New Service
+
+When adding a new service (like a Notification service), follow this pattern:
+
+1. Update `internal/wire/services.go`:
+```go
+// Add import
+import "vault0/internal/services/notification"
+
+// Update Services struct
+type Services struct {
+    // Existing services...
+    NotificationService notification.Service
+}
+
+// Define provider set
+var NotificationServiceSet = wire.NewSet(
+    notification.NewRepository,
+    notification.NewService,
+)
+
+// Add to ServicesSet
+var ServicesSet = wire.NewSet(
+    // Existing service sets...
+    NotificationServiceSet,
+    NewServices,
+)
+
+// Update NewServices function parameters and return struct
+func NewServices(
+    // Existing parameters...
+    notificationSvc notification.Service,
+) *Services {
+    return &Services{
+        // Existing assignments...
+        NotificationService: notificationSvc,
+    }
+}
+```
+
+2. Update `internal/wire/server.go`:
+```go
+// Add import
+import "vault0/internal/api/handlers/notification"
+
+var ServerSet = wire.NewSet(
+    // Existing handlers...
+    notification.NewHandler,
+    api.NewServer,
+)
+```
+
 ## Error Handling System (`internal/errors`)
 
 Uses a custom `Vault0Error` struct with `Code`, `Message`, `Details`, and underlying `Err`.
@@ -395,3 +558,87 @@ requestLogger.Info("Handling incoming request")
 5.  **NEVER** log sensitive data (passwords, raw keys, PII unless masked/absolutely necessary).
 6.  Use appropriate levels (`Debug`, `Info`, `Warn`, `Error`, `Fatal`).
 7.  Log errors with `logger.Error(err)` field.
+
+## Git Commit Format
+
+All commits must follow the Angular Conventional Commit format:
+
+```
+<type>([optional scope]): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+Where:
+- **type**: Describes the kind of change:
+  - `feat`: A new feature
+  - `fix`: A bug fix
+  - `docs`: Documentation only changes
+  - `style`: Changes that do not affect code meaning (formatting, etc)
+  - `refactor`: Code change that neither fixes a bug nor adds a feature
+  - `perf`: Code change that improves performance
+  - `test`: Adding or correcting tests
+  - `chore`: Changes to build process or auxiliary tools
+  - `ci`: Changes to CI configuration
+
+- **scope**: Optional component affected (e.g., `wallet`, `user`, `api`)
+
+- **description**: 
+  - Use imperative, present tense ("add" not "added" or "adds")
+  - Don't capitalize first letter
+  - No period at the end
+  - Keep under 72 characters
+  - Be clear and descriptive
+
+Examples:
+```
+feat(notification): add user notification system
+fix(wallet): correct balance calculation for token transfers
+docs(readme): update setup instructions
+refactor(transaction): simplify validation process
+test(api): add tests for wallet creation endpoint
+chore(deps): update dependencies
+```
+
+### Commit Rules
+
+1. Keep commits focused on a single change or related set of changes.
+2. Write descriptive messages that explain WHY, not just WHAT.
+3. Reference issue numbers when applicable: `fix(user): correct login validation (fixes #123)`.
+4. Use additional `-m` parameters for longer descriptions, not multi-line commit messages.
+5. Ensure code passes all tests before committing.
+6. Follow the team's branching strategy.
+7. Never commit directly to main branches.
+8. When in doubt, prefer multiple smaller commits over one large commit.
+
+## New Feature Implementation Guide
+
+When implementing a new feature, follow this sequence:
+
+1. **Start with the data model**
+   - Define the entity/struct in `internal/services/[domain]/model.go`
+   - Include proper db tags and validation logic
+
+2. **Define the repository interface and implementation**
+   - Create `internal/services/[domain]/repository.go`
+   - Implement CRUD operations and pagination following the standard pattern
+
+3. **Define and implement the service interface**
+   - Create `internal/services/[domain]/service.go`
+   - Implement business logic with proper error handling and validation
+
+4. **Add API DTOs and handlers**
+   - Define request/response models in `internal/api/handlers/[domain]/dto.go`
+   - Implement handler methods in `internal/api/handlers/[domain]/handler.go`
+
+5. **Wire up dependency injection**
+   - Add service to `internal/wire/services.go`
+   - Add handler to `internal/wire/server.go`
+
+6. **Add database migrations**
+   - Create migration files in `migrations/`
+
+7. **Implement unit and integration tests**
+   - Create `_test.go` files for repository, service, and handler
