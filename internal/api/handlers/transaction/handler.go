@@ -5,8 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	_ "vault0/internal/api/docs" // Required for Swagger documentation
 	"vault0/internal/api/middleares"
 	"vault0/internal/api/utils"
+	_ "vault0/internal/errors" // Required for Swagger documentation
 	"vault0/internal/services/token"
 	"vault0/internal/services/transaction"
 	"vault0/internal/types"
@@ -53,7 +55,7 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 // @Param chain_type path string true "Chain type (required only for wallet-scoped route)"
 // @Param address path string true "Wallet address (required only for wallet-scoped route)"
 // @Param hash path string true "Transaction hash"
-// @Success 200 {object} TransactionResponse
+// @Success 200 {object} docs.TransactionPagedResponse
 // @Failure 404 {object} errors.Vault0Error "Transaction not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /transactions/{hash} [get]
@@ -87,7 +89,7 @@ func (h *Handler) GetTransaction(c *gin.Context) {
 // @Param limit query int false "Number of items to return (default: 10)" default(10)
 // @Param next_token query string false "Token for fetching the next page"
 // @Param token_address query string false "Filter transactions by token address (use 'native' for native transactions)"
-// @Success 200 {object} utils.PagedResponse[TransactionResponse]
+// @Success 200 {object} docs.TransactionPagedResponse
 // @Failure 400 {object} errors.Vault0Error "Invalid request"
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
@@ -175,7 +177,7 @@ func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 // @Param status query string false "Filter by transaction status"
 // @Param limit query int false "Number of items to return (default: 10)" default(10)
 // @Param next_token query string false "Token for fetching the next page"
-// @Success 200 {object} utils.PagedResponse[TransactionResponse]
+// @Success 200 {object} docs.TransactionPagedResponse
 // @Failure 400 {object} errors.Vault0Error "Invalid request"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /transactions [get]

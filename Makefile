@@ -135,7 +135,7 @@ swag-install:
 # Generate server-docs documentation
 server-docs: 
 	@echo "Generating server-docs OpenAPI documentation..."
-	$$($(GOCMD) env GOPATH)/bin/swag init -g internal/api/docs.go -o internal/api/docs
+	$$($(GOCMD) env GOPATH)/bin/swag init -g cmd/server/main.go -o internal/api/docs --parseDependency --parseInternal
 
 # Combined clean target
 clean: server-clean ui-clean

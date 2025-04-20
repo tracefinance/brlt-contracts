@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	_ "vault0/internal/api/docs" // Required for Swagger documentation
 	"vault0/internal/api/middleares"
 	"vault0/internal/api/utils"
 	"vault0/internal/errors"
@@ -194,7 +195,7 @@ func (h *Handler) GetSigner(c *gin.Context) {
 // @Produce json
 // @Param limit query int false "Number of items to return (default: 10, max: 100)" default(10)
 // @Param next_token query string false "Token for fetching the next page"
-// @Success 200 {object} utils.PagedResponse[*SignerResponse]
+// @Success 200 {object} docs.SignerPagedResponse
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /signers [get]
 func (h *Handler) ListSigners(c *gin.Context) {

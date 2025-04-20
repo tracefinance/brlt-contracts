@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	_ "vault0/internal/api/docs" // Required for Swagger documentation
 	"vault0/internal/api/utils"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
@@ -44,7 +45,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 // @Param limit query int false "Maximum number of items to return (0 for all)" default(50) minimum(1) maximum(100)
 // @Param next_token query string false "Token for fetching the next page"
 // @Param symbol query string false "Token symbol to filter by (can be used multiple times, e.g., ?symbol=BTC&symbol=ETH)"
-// @Success 200 {object} utils.PagedResponse[TokenPriceResponse] "Paginated list of token prices"
+// @Success 200 {object} docs.TokenPricePagedResponse "Paginated list of token prices"
 // @Failure 400 {object} errors.Vault0Error "Invalid query parameters"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /token-prices [get]

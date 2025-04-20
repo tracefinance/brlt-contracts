@@ -5,8 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	_ "vault0/internal/api/docs" // Required for Swagger documentation
 	"vault0/internal/api/middleares"
 	"vault0/internal/api/utils"
+	_ "vault0/internal/errors" // Required for Swagger documentation
 	"vault0/internal/services/token"
 	walletService "vault0/internal/services/wallet"
 	"vault0/internal/types"
@@ -181,7 +183,7 @@ func (h *Handler) DeleteWallet(c *gin.Context) {
 // @Produce json
 // @Param limit query int false "Maximum number of wallets to return (default: 10, 0 for all)" default(10)
 // @Param next_token query string false "Token for retrieving the next page of results"
-// @Success 200 {object} utils.PagedResponse[*WalletResponse] "Paginated list of wallets with navigation metadata"
+// @Success 200 {object} docs.WalletPagedResponse "Paginated list of wallets with navigation metadata"
 // @Failure 400 {object} errors.Vault0Error "Invalid pagination token"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /wallets [get]

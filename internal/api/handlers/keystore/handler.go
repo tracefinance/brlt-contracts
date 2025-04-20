@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	_ "vault0/internal/api/docs" // Required for Swagger documentation
 	"vault0/internal/api/middleares"
 	"vault0/internal/api/utils"
 	"vault0/internal/errors"
@@ -47,7 +48,7 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 // @Param tag query string false "Filter by tag (in format key=value, can specify multiple)"
 // @Param limit query int false "Maximum number of keys to return (default 50)"
 // @Param next_token query string false "Token for pagination (empty for first page)"
-// @Success 200 {object} utils.PagedResponse[KeyResponse]
+// @Success 200 {object} docs.KeyPagedResponse
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /keys [get]
 func (h *Handler) listKeys(c *gin.Context) {
