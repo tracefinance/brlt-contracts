@@ -18,22 +18,35 @@ Vault0 is a full-stack web3 application combining blockchain technology with mod
 - Focus on accessibility and user experience.
 - **Code Comment**: DO NOT ADD unnecessary comments to the code.
 
+## Development Environment
+- The project runs in a dev-container environment.
+- **ALWAYS run `pwd` to check the project's root directory before executing commands**.
+
 ## Project Structure
 ```
 vault0/
-├── ui/              # Frontend Remix application
+├── ui/              # Frontend Nuxt 3 application
 ├── contracts/       # Smart contracts
 ├── cmd/             # Command-line applications
 ├── internal/        # Backend application code
+│   ├── api/         # Layer 3: Communication (handlers, middleware, server setup)
+│   ├── core/        # Layer 1: Core/Infrastructure (blockchain, contract, crypto, etc.)
+│   ├── services/    # Layer 2: Service (user, wallet, auth, blockchain domains)
+│   ├── config/      # Configuration management
+│   ├── db/          # Database access
+│   ├── errors/      # Error types and handling
+│   ├── logger/      # Logging utilities
+│   ├── types/       # Shared type definitions
+│   └── wire/        # Dependency injection (Google Wire)
 └── migrations/      # Database migrations
 ```
-*Note: Refer to `frontend.md` and `backend.md` for detailed structures of `ui/` and `internal/` respectively.* 
+*Note: Refer to `frontend.mdc` and `backend.mdc` for detailed structures of `ui/` and `internal/` respectively.* 
 
 ## Technology Stack Overview
-- **Frontend**: Remix, TypeScript, TailwindCSS
+- **Frontend**: Nuxt 3, TypeScript, TailwindCSS with shadcn/ui components
 - **Backend**: Go, SQLite, Gin
 - **Blockchain**: Solidity, Hardhat
-- **Testing**: Jest, Go testing, Hardhat test
+- **Testing**: Vitest, Go testing, Hardhat test
 
 ## General Code Style Guidelines
 - Use meaningful names for variables, functions, and files.
@@ -118,7 +131,29 @@ vault0/
     }
     ```
 
-*Note: Refer to `frontend.md`, `backend.md`, and `solidity.md` (if available) for language/framework-specific style guidelines.*
+*Note: Refer to `frontend.mdc`, `backend.mdc`, and `solidity.mdc` (if available) for language/framework-specific style guidelines.*
+
+## Token-Based Pagination
+
+Both frontend and backend implement token-based pagination for efficient data fetching:
+
+### Frontend (Nuxt 3)
+```typescript
+export interface IPagedResponse<T> {
+  items: T[];
+  limit: number;
+  nextToken?: string;
+}
+```
+
+### Backend (Go)
+```go
+type Page[T any] struct {
+  Items    []T    `json:"items"`                 
+  NextToken string `json:"next_token,omitempty"` 
+  Limit    int    `json:"limit"`                
+}
+```
 
 ## Git Workflow
 - **NEVER COMMIT THE CODE UNLESS YOU'RE ASKED TO DO IT.**
@@ -249,33 +284,50 @@ chore(deps): update dependencies
 - Optimize frontend bundle sizes and smart contract gas usage.
 - Handle large datasets efficiently (e.g., pagination).
 
-
 ## General Error Handling
-- Use proper error types/codes.
-- Implement sensible error recovery where possible.
-- Log errors appropriately with context.
-- Return user-friendly error responses from APIs.
-- **TypeScript Example:**
+
+### Frontend (Nuxt 3)
+- Use consistent error handling in API client:
   ```typescript
   try {
-    // ...
-  } catch (err) {
-    logger.error('Failed to process request', { err });
-    res.status(500).json({ error: 'Internal server error' });
+    const response = await fetch(/* ... */)
+    if (!response.ok) {
+      throw new ApiError(errorData.message || 'Request failed')
+    }
+    return await response.json()
+  } catch (error) {
+    // Re-throw with better context
+    throw new ApiError('Network error', { cause: error })
   }
   ```
-- **Go Example:**
+- Add error handling in composables:
+  ```typescript
+  const createItem = async () => {
+    error.value = null
+    try {
+      // API call
+    } catch (err) {
+      error.value = err as Error
+      return null
+    }
+  }
+  ```
+- Use toast system for user notifications.
+
+### Backend (Go)
+- Use custom error types (`Vault0Error`) with `Code`, `Message`, and `Details`.
+- Use predefined constructors like `errors.NewUserNotFoundError()`.
+- Map low-level errors to domain-specific errors:
   ```go
   if err != nil {
-    log.WithError(err).Error("Failed to process request")
-    http.Error(w, "Internal server error", http.StatusInternalServerError)
-    return
+    logger.Error("Failed to find user", logger.Error(err))
+    if errors.Is(err, errors.ErrCodeDatabaseNotFound) {
+      return nil, errors.NewUserNotFoundError()
+    }
+    return nil, errors.NewOperationFailedError("get user", err)
   }
   ```
-- **Solidity Example:**
-  ```solidity
-  require(balance[msg.sender] >= amount, "Insufficient balance");
-  ```
+- In handlers, use `c.Error(err)` to let middleware handle errors.
 
 ## Monitoring and Logging
 - Implement structured logging across the application.
@@ -297,3 +349,4 @@ chore(deps): update dependencies
 ## Quality Assurance
 - Perform code reviews focusing on quality and adherence to guidelines.
 - Test for accessibility, cross-browser compatibility, responsive design, performance, and security.
+
