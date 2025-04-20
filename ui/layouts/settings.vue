@@ -9,7 +9,8 @@ const navigationItems = [
   { name: 'Wallets', href: '/settings/wallets', icon: 'lucide:wallet' },
   { name: 'Signers', href: '/settings/signers', icon: 'lucide:key' },
   { name: 'Users', href: '/settings/users', icon: 'lucide:users' },
-  { name: 'Keys', href: '/settings/keys', icon: 'lucide:lock' }
+  { name: 'Keys', href: '/settings/keys', icon: 'lucide:lock' },
+  { name: 'Tokens', href: '/admin/tokens', icon: 'lucide:coins' }
   // Add other settings sections here
 ]
 

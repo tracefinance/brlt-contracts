@@ -1,107 +1,115 @@
 import type {
   IAddTokenRequest,
-  IPagedResponse,
   IToken,
-} from '~/types';
-import {
-  Token,
-  fromJsonArray
-} from '~/types';
-import type {
-  ApiClient
-} from './client';
-import { API_ENDPOINTS } from './endpoints';
+  IListTokensRequestParams,
+  ChainType,
+  IPagedResponse,
+} from '~/types'
+import { Token } from '~/types'
+import type { ApiClient } from './client'
+import { API_ENDPOINTS } from './endpoints'
 
 /**
  * Client for interacting with token-related API endpoints
  */
 export class TokenClient {
-  private client: ApiClient;
+  private client: ApiClient
   
   /**
    * Creates a new token client
    * @param client API client instance
    */
   constructor(client: ApiClient) {
-    this.client = client;
+    this.client = client
   }
   
   /**
-   * Lists all tokens with optional filtering and token-based pagination
-   * @param chainType Optional chain type to filter by
-   * @param tokenType Optional token type to filter by
-   * @param limit Maximum number of tokens to return (default: 10)
-   * @param nextToken Token for retrieving the next page of results (default: undefined)
-   * @returns Paginated list of tokens
+   * Fetch a paginated list of tokens, optionally filtered.
+   * @param params - Filtering, pagination, and limit parameters.
+   * @returns A paged response of tokens.
    */
   async listTokens(
-    chainType?: string,
-    tokenType?: string,
-    limit: number = 10,
-    nextToken?: string
+    params: IListTokensRequestParams = {},
   ): Promise<IPagedResponse<IToken>> {
-    const params: Record<string, any> = { limit };
-    
-    if (nextToken) {
-      params.next_token = nextToken;
+    // Convert camelCase params to snake_case for the backend API
+    const snakeCaseParams: Record<string, any> = {}
+    if (params.limit !== undefined) {
+      snakeCaseParams.limit = params.limit
     }
-    
-    if (chainType) {
-      params.chain_type = chainType;
+    if (params.nextToken !== undefined) {
+      snakeCaseParams.next_token = params.nextToken
     }
-    
-    if (tokenType) {
-      params.token_type = tokenType;
+    if (params.chainType !== undefined) {
+      snakeCaseParams.chain_type = params.chainType
     }
-    
-    const data = await this.client.get<any>(API_ENDPOINTS.TOKENS.BASE, params);
+    if (params.tokenType !== undefined) {
+      snakeCaseParams.token_type = params.tokenType
+    }
+
+    const data = await this.client.get<any>(
+      API_ENDPOINTS.TOKENS.BASE,
+      snakeCaseParams,
+    )
+
+    // Use Token factory
     return {
-      items: fromJsonArray<IToken>(data.items || []),
+      items: Token.fromJsonArray(data.items || []),
       limit: data.limit,
-      nextToken: data.nextToken
-    };
+      nextToken: data.next_token, // Use snake_case from response
+    }
   }
   
   /**
-   * Adds a new token
-   * @param request Token creation request
-   * @returns Created token
+   * Add a new token to the system.
+   * @param request - The token details to add.
+   * @returns The newly created token details.
    */
   async addToken(request: IAddTokenRequest): Promise<IToken> {
-    const data = await this.client.post<any>(API_ENDPOINTS.TOKENS.BASE, request);
-    return Token.fromJson(data);
+    // Base client handles toJson conversion from camelCase request to snake_case body
+    const data = await this.client.post<any>(
+      API_ENDPOINTS.TOKENS.BASE,
+      request,
+    )
+    return Token.fromJson(data)
   }
   
   /**
-   * Verifies a token by its address and chain type
-   * @param address Token address
-   * @returns Token details
+   * Verify a token by its address.
+   * This likely involves checking on-chain data or a verification source.
+   * @param address - The address of the token to verify.
+   * @returns The verified token details.
    */
   async verifyToken(address: string): Promise<IToken> {
-    const endpoint = API_ENDPOINTS.TOKENS.VERIFY(address);
-    const data = await this.client.get<any>(endpoint);
-    return Token.fromJson(data);
+    const endpoint = API_ENDPOINTS.TOKENS.VERIFY(address)
+    const data = await this.client.get<any>(endpoint)
+    return Token.fromJson(data)
   }
   
   /**
-   * Gets a token by its address and chain type
-   * @param chainType Blockchain network type
-   * @param address Token address
-   * @returns Token details
+   * Get a specific token by its chain type and address.
+   * @param chainType - The chain type of the token.
+   * @param address - The address of the token.
+   * @returns The token details.
    */
-  async getToken(chainType: string, address: string): Promise<IToken> {
-    const endpoint = API_ENDPOINTS.TOKENS.BY_ADDRESS(chainType, address);
-    const data = await this.client.get<any>(endpoint);
-    return Token.fromJson(data);
+  async getToken(
+    chainType: ChainType,
+    address: string,
+  ): Promise<IToken> {
+    // Assuming BY_ADDRESS endpoint needs chainType and address
+    const endpoint = API_ENDPOINTS.TOKENS.BY_ADDRESS(chainType, address)
+    const data = await this.client.get<any>(endpoint)
+    return Token.fromJson(data)
   }
   
   /**
-   * Deletes a token
-   * @param address Token address
-   * @param chainType Blockchain network type
+   * Delete a token by its address and chain type.
+   * @param chainType - The chain type of the token.
+   * @param address - The address of the token to delete.
    */
-  async deleteToken(address: string): Promise<void> {
-    const endpoint = API_ENDPOINTS.TOKENS.DELETE(address);
-    await this.client.delete(endpoint);
+  async deleteToken(chainType: ChainType, address: string): Promise<void> {
+    // Assuming BY_ADDRESS endpoint needs chainType and address
+    const endpoint = API_ENDPOINTS.TOKENS.BY_ADDRESS(chainType, address)
+    // Use generic delete which doesn't expect a specific return type
+    await this.client.delete(endpoint)
   }
 } 
