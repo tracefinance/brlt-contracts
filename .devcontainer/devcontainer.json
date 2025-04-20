@@ -9,9 +9,6 @@
       "configureZshAsDefaultShell": "true",
       "upgradePackages": "true"
     },
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "lts"
-    },
     "ghcr.io/devcontainers/features/git:1": {}
   },
   "appPort": [3000],
@@ -33,7 +30,7 @@
     }
   },
   "remoteUser": "vscode",
-  "postCreateCommand": "npm install -g task-master-ai && go install golang.org/x/tools/gopls@latest && make deps",
+  "postCreateCommand": "./.devcontainer/post-create.sh",
   "mounts": [
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly",
     "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,readonly"

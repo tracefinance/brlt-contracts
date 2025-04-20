@@ -93,7 +93,7 @@ server-deps:
 	$(GOMOD) tidy
 
 # Install all project dependencies
-deps: server-deps contracts-deps ui-deps
+deps: contracts-deps ui-deps server-deps
 	@echo "All project dependencies installed."
 
 # Install all server development tools
