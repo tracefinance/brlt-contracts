@@ -8,7 +8,8 @@ const route = useRoute()
 const navigationItems = [
   { name: 'Wallets', href: '/settings/wallets', icon: 'lucide:wallet' },
   { name: 'Signers', href: '/settings/signers', icon: 'lucide:key' },
-  { name: 'Users', href: '/settings/users', icon: 'lucide:users' }
+  { name: 'Users', href: '/settings/users', icon: 'lucide:users' },
+  { name: 'Keys', href: '/settings/keys', icon: 'lucide:lock' }
   // Add other settings sections here
 ]
 
@@ -100,6 +101,19 @@ const isCurrentRoute = (href: string) => {
                  <BreadcrumbSeparator/>
                  <BreadcrumbItem>New</BreadcrumbItem>
                </template>
+               <!-- Add Breadcrumbs for Keys section -->
+               <template v-if="route.path.startsWith('/settings/keys')">
+                 <BreadcrumbSeparator/>
+                 <BreadcrumbItem>
+                   <NuxtLink v-if="route.path !== '/settings/keys'" to="/settings/keys">Key Management</NuxtLink>
+                   <span v-else>Key Management</span>
+                 </BreadcrumbItem>
+               </template>
+               <!-- Add Breadcrumb for New Key page -->
+               <template v-if="route.path === '/settings/keys/create'">
+                 <BreadcrumbSeparator/>
+                 <BreadcrumbItem>Create</BreadcrumbItem>
+               </template>
                <!-- Add logic for other settings sections -->
             </BreadcrumbList>
           </Breadcrumb>
@@ -113,6 +127,9 @@ const isCurrentRoute = (href: string) => {
             </NuxtLink>
             <NuxtLink v-if="route.path == '/settings/users'" to="/settings/users/new">
               <Button>Create User</Button>
+            </NuxtLink>
+            <NuxtLink v-if="route.path == '/settings/keys'" to="/settings/keys/create">
+              <Button>Create Key</Button>
             </NuxtLink>
           </div>
         </header>

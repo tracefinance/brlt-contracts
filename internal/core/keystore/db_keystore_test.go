@@ -38,7 +38,7 @@ func TestDBKeyStore_Create(t *testing.T) {
 		assert.Equal(t, tags, key.Tags)
 		assert.NotNil(t, key.PublicKey)
 		assert.NotEmpty(t, key.PublicKey)
-		assert.True(t, key.CreatedAt > 0)
+		assert.False(t, key.CreatedAt.IsZero())
 		assert.Equal(t, curve, key.Curve)
 	})
 
@@ -60,7 +60,7 @@ func TestDBKeyStore_Create(t *testing.T) {
 		assert.Equal(t, tags, key.Tags)
 		assert.NotNil(t, key.PublicKey)
 		assert.NotEmpty(t, key.PublicKey)
-		assert.True(t, key.CreatedAt > 0)
+		assert.False(t, key.CreatedAt.IsZero())
 		assert.Equal(t, curve, key.Curve)
 	})
 
@@ -82,7 +82,7 @@ func TestDBKeyStore_Create(t *testing.T) {
 		assert.Equal(t, tags, key.Tags)
 		assert.NotNil(t, key.PublicKey)
 		assert.NotEmpty(t, key.PublicKey)
-		assert.True(t, key.CreatedAt > 0)
+		assert.False(t, key.CreatedAt.IsZero())
 	})
 
 	t.Run("Create_Valid_RSA_Key", func(t *testing.T) {
@@ -102,6 +102,7 @@ func TestDBKeyStore_Create(t *testing.T) {
 		assert.Equal(t, tags, key.Tags)
 		assert.NotNil(t, key.PublicKey)
 		assert.NotEmpty(t, key.PublicKey)
+		assert.False(t, key.CreatedAt.IsZero())
 	})
 
 	t.Run("Create_Valid_Ed25519_Key", func(t *testing.T) {
@@ -121,6 +122,7 @@ func TestDBKeyStore_Create(t *testing.T) {
 		assert.Equal(t, tags, key.Tags)
 		assert.NotNil(t, key.PublicKey)
 		assert.NotEmpty(t, key.PublicKey)
+		assert.False(t, key.CreatedAt.IsZero())
 	})
 
 	t.Run("Create_Valid_Symmetric_Key", func(t *testing.T) {
@@ -139,6 +141,7 @@ func TestDBKeyStore_Create(t *testing.T) {
 		assert.Equal(t, keyType, key.Type)
 		assert.Equal(t, tags, key.Tags)
 		assert.Nil(t, key.PublicKey)
+		assert.False(t, key.CreatedAt.IsZero())
 	})
 
 	t.Run("Create_DuplicateName", func(t *testing.T) {
@@ -174,6 +177,7 @@ func TestDBKeyStore_Create(t *testing.T) {
 		assert.NotEmpty(t, key.ID)
 		assert.NotNil(t, key)
 		assert.Equal(t, elliptic.P256(), key.Curve) // Should default to P-256
+		assert.False(t, key.CreatedAt.IsZero())
 	})
 }
 
@@ -206,6 +210,7 @@ func TestDBKeyStore_GetPublicKey(t *testing.T) {
 		assert.Equal(t, originalKey.PublicKey, retrievedKey.PublicKey)
 		assert.Equal(t, curve, retrievedKey.Curve)
 		assert.Nil(t, retrievedKey.PrivateKey)
+		assert.False(t, retrievedKey.CreatedAt.IsZero())
 	})
 
 	t.Run("GetPublicKey_ECDSA_Secp256k1", func(t *testing.T) {
@@ -231,6 +236,7 @@ func TestDBKeyStore_GetPublicKey(t *testing.T) {
 		assert.Equal(t, originalKey.PublicKey, retrievedKey.PublicKey)
 		assert.Equal(t, curve, retrievedKey.Curve)
 		assert.Nil(t, retrievedKey.PrivateKey)
+		assert.False(t, retrievedKey.CreatedAt.IsZero())
 	})
 
 	t.Run("GetPublicKey_ExistingKey", func(t *testing.T) {
@@ -256,6 +262,7 @@ func TestDBKeyStore_GetPublicKey(t *testing.T) {
 		assert.Equal(t, originalKey.PublicKey, retrievedKey.PublicKey)
 		// Private key should never be exposed by GetPublicKey
 		assert.Nil(t, retrievedKey.PrivateKey)
+		assert.False(t, retrievedKey.CreatedAt.IsZero())
 	})
 
 	t.Run("GetPublicKey_NonExistentKey", func(t *testing.T) {

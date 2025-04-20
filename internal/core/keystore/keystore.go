@@ -15,6 +15,7 @@ package keystore
 import (
 	"context"
 	"crypto/elliptic"
+	"time"
 
 	"vault0/internal/config"
 	"vault0/internal/db"
@@ -75,7 +76,7 @@ type Key struct {
 	Tags map[string]string
 
 	// CreatedAt is the Unix timestamp when the key was created
-	CreatedAt int64
+	CreatedAt time.Time
 
 	// PrivateKey contains the encrypted private key material
 	// This field is only populated during key creation and import operations

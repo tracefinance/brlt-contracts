@@ -92,7 +92,7 @@ func (h *Handler) listKeys(c *gin.Context) {
 	}
 
 	// Use the generic PagedResponse utility
-	response := utils.NewPagedResponse(keysPage, newKeyResponse)
+	response := utils.NewPagedResponse(keysPage, toResponse)
 
 	c.JSON(http.StatusOK, response)
 }
@@ -115,15 +115,21 @@ func (h *Handler) createKey(c *gin.Context) {
 		return
 	}
 
+	// Handle optional curve
+	curveName := ""
+	if req.Curve != nil {
+		curveName = *req.Curve
+	}
+
 	// Create the key
-	key, err := h.service.CreateKey(c.Request.Context(), req.Name, req.Type, req.Curve, req.Tags)
+	key, err := h.service.CreateKey(c.Request.Context(), req.Name, req.Type, curveName, req.Tags)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
 	// Build response
-	response := newKeyResponse(key)
+	response := toResponse(key)
 	c.JSON(http.StatusCreated, response)
 }
 
@@ -153,23 +159,31 @@ func (h *Handler) importKey(c *gin.Context) {
 	}
 
 	var publicKey []byte
-	if req.PublicKey != "" {
-		publicKey, err = utils.DecodeBytes(req.PublicKey)
+	// Check if PublicKey is provided and not nil before decoding
+	if req.PublicKey != nil && *req.PublicKey != "" {
+		var err error
+		publicKey, err = utils.DecodeBytes(*req.PublicKey) // Dereference the pointer
 		if err != nil {
 			c.Error(errors.NewInvalidParameterError("public_key", "must be valid base64 encoded data"))
 			return
 		}
 	}
 
+	// Handle optional curve
+	curveName := ""
+	if req.Curve != nil {
+		curveName = *req.Curve
+	}
+
 	// Import the key
-	key, err := h.service.ImportKey(c.Request.Context(), req.Name, req.Type, req.Curve, privateKey, publicKey, req.Tags)
+	key, err := h.service.ImportKey(c.Request.Context(), req.Name, req.Type, curveName, privateKey, publicKey, req.Tags)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
 	// Build response
-	response := newKeyResponse(key)
+	response := toResponse(key)
 	c.JSON(http.StatusCreated, response)
 }
 
@@ -197,7 +211,7 @@ func (h *Handler) getKey(c *gin.Context) {
 	}
 
 	// Build response
-	response := newKeyResponse(key)
+	response := toResponse(key)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -227,7 +241,7 @@ func (h *Handler) updateKey(c *gin.Context) {
 		return
 	}
 
-	// Update the key
+	// Update the key using the required name from the request
 	key, err := h.service.UpdateKey(c.Request.Context(), id, req.Name, req.Tags)
 	if err != nil {
 		c.Error(err)
@@ -235,7 +249,7 @@ func (h *Handler) updateKey(c *gin.Context) {
 	}
 
 	// Build response
-	response := newKeyResponse(key)
+	response := toResponse(key)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -296,8 +310,14 @@ func (h *Handler) signData(c *gin.Context) {
 		return
 	}
 
+	// Handle optional raw_data flag (default to false)
+	rawData := false
+	if req.RawData != nil {
+		rawData = *req.RawData
+	}
+
 	// Sign the data
-	signature, err := h.service.SignData(c.Request.Context(), id, data, req.RawData)
+	signature, err := h.service.SignData(c.Request.Context(), id, data, rawData)
 	if err != nil {
 		c.Error(err)
 		return

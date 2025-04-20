@@ -53,4 +53,12 @@ export const API_ENDPOINTS = {
   REFERENCES: {
     CHAINS: '/references/chains',
   },
+  
+  // Keystore endpoints
+  KEYS: {
+    BASE: '/keys',
+    BY_ID: (id: string) => `/keys/${id}`,
+    IMPORT: '/keys/import',
+    SIGN: (id: string) => `/keys/${id}/sign`,
+  },
 };

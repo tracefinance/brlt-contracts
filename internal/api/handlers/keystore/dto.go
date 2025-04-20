@@ -1,7 +1,9 @@
 package keystore
 
 import (
-	"vault0/internal/api/utils"
+	"fmt"
+	"time"
+
 	"vault0/internal/core/keystore"
 	"vault0/internal/types"
 )
@@ -11,16 +13,17 @@ type KeyResponse struct {
 	ID        string            `json:"id"`
 	Name      string            `json:"name"`
 	Type      types.KeyType     `json:"type"`
+	Curve     *string           `json:"curve,omitempty"`
 	Tags      map[string]string `json:"tags,omitempty"`
-	PublicKey string            `json:"public_key,omitempty"`
-	CreatedAt int64             `json:"created_at"`
+	PublicKey *string           `json:"public_key,omitempty"`
+	CreatedAt time.Time         `json:"created_at"`
 }
 
 // CreateKeyRequest represents a request to create a new key
 type CreateKeyRequest struct {
 	Name  string            `json:"name" binding:"required"`
 	Type  types.KeyType     `json:"type" binding:"required"`
-	Curve string            `json:"curve"`
+	Curve *string           `json:"curve,omitempty"`
 	Tags  map[string]string `json:"tags"`
 }
 
@@ -28,16 +31,16 @@ type CreateKeyRequest struct {
 type ImportKeyRequest struct {
 	Name       string            `json:"name" binding:"required"`
 	Type       types.KeyType     `json:"type" binding:"required"`
-	Curve      string            `json:"curve"`
+	Curve      *string           `json:"curve,omitempty"`
 	PrivateKey string            `json:"private_key" binding:"required"`
-	PublicKey  string            `json:"public_key"`
+	PublicKey  *string           `json:"public_key,omitempty"`
 	Tags       map[string]string `json:"tags"`
 }
 
 // SignDataRequest represents a request to sign data with a key
 type SignDataRequest struct {
 	Data    string `json:"data" binding:"required"`
-	RawData bool   `json:"raw_data"`
+	RawData *bool  `json:"raw_data,omitempty"`
 }
 
 // SignDataResponse represents the response to a sign data request
@@ -47,8 +50,8 @@ type SignDataResponse struct {
 
 // UpdateKeyRequest represents a request to update a key's metadata
 type UpdateKeyRequest struct {
-	Name string            `json:"name"`
-	Tags map[string]string `json:"tags"`
+	Name string            `json:"name" binding:"required"`
+	Tags map[string]string `json:"tags,omitempty"`
 }
 
 // ListKeysRequest defines the query parameters for listing keys
@@ -60,16 +63,23 @@ type ListKeysRequest struct {
 }
 
 // Convert a keystore.Key to a KeyResponse
-func newKeyResponse(key *keystore.Key) KeyResponse {
-	var publicKeyStr string
+func toResponse(key *keystore.Key) KeyResponse {
+	var publicKeyStr *string
 	if key.PublicKey != nil {
-		publicKeyStr = utils.EncodeBytes(key.PublicKey)
+		str := fmt.Sprintf("%x", key.PublicKey)
+		publicKeyStr = &str
+	}
+
+	var curveName *string
+	if key.Curve != nil {
+		curveName = &key.Curve.Params().Name
 	}
 
 	return KeyResponse{
 		ID:        key.ID,
 		Name:      key.Name,
 		Type:      key.Type,
+		Curve:     curveName,
 		Tags:      key.Tags,
 		PublicKey: publicKeyStr,
 		CreatedAt: key.CreatedAt,

@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS keys (
     key_type TEXT NOT NULL,
     curve TEXT, -- Curve type for ECDSA keys (e.g., P256, P384, P521, secp256k1)
     tags TEXT, -- JSON encoded map of tags
-    created_at INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     private_key BLOB, -- Encrypted private key material
     public_key BLOB -- Public key material (if applicable)
 );

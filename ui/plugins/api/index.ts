@@ -6,6 +6,7 @@ import { TransactionClient } from './transaction';
 import { ReferenceClient } from './reference';
 import { SignerClient } from './signer';
 import { UserClient } from './user';
+import { KeyClient } from './key';
 
 /**
  * API service that provides access to all API clients
@@ -18,6 +19,7 @@ export class ApiService {
   reference: ReferenceClient;
   signer: SignerClient;
   user: UserClient;
+  key: KeyClient;
 
   constructor(baseUrl: string) {
     this.client = new ApiClient();
@@ -28,6 +30,7 @@ export class ApiService {
     this.reference = new ReferenceClient(this.client);
     this.signer = new SignerClient(this.client);
     this.user = new UserClient(this.client);
+    this.key = new KeyClient(this.client);
   }
 
   /**
@@ -54,6 +57,7 @@ export default defineNuxtPlugin(() => {
   const referenceClient = new ReferenceClient(apiClient);
   const signerClient = new SignerClient(apiClient);
   const userClient = new UserClient(apiClient);
+  const keyClient = new KeyClient(apiClient);
   
   return {
     provide: {
@@ -61,9 +65,10 @@ export default defineNuxtPlugin(() => {
         wallet: walletClient,
         token: tokenClient,
         transaction: transactionClient,
-        reference: referenceClient,
+        user: userClient,
         signer: signerClient,
-        user: userClient
+        reference: referenceClient,
+        key: keyClient
       }
     }
   };

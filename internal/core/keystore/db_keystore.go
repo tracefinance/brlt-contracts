@@ -99,7 +99,7 @@ func (ks *DBKeyStore) Create(ctx context.Context, name string, keyType types.Key
 		Name:      name,
 		Type:      keyType,
 		Tags:      tags,
-		CreatedAt: time.Now().Unix(),
+		CreatedAt: time.Now(),
 		Curve:     curve,
 	}
 
@@ -134,7 +134,7 @@ func (ks *DBKeyStore) Create(ctx context.Context, name string, keyType types.Key
 		string(key.Type),
 		curveName,
 		string(tagsJSON),
-		key.CreatedAt,
+		key.CreatedAt.Unix(),
 		key.PrivateKey,
 		key.PublicKey,
 	)
@@ -183,7 +183,7 @@ func (ks *DBKeyStore) Import(ctx context.Context, name string, keyType types.Key
 		Name:       name,
 		Type:       keyType,
 		Tags:       tags,
-		CreatedAt:  time.Now().Unix(),
+		CreatedAt:  time.Now(),
 		PrivateKey: encryptedPrivateKey,
 		PublicKey:  publicKey,
 		Curve:      curve,
@@ -198,7 +198,7 @@ func (ks *DBKeyStore) Import(ctx context.Context, name string, keyType types.Key
 		string(key.Type),
 		curveName,
 		string(tagsJSON),
-		key.CreatedAt,
+		key.CreatedAt.Unix(),
 		key.PrivateKey,
 		key.PublicKey,
 	)

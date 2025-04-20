@@ -54,7 +54,7 @@ func (ks *MockKeyStore) Create(ctx context.Context, name string, keyType types.K
 		Type:      keyType,
 		Curve:     curve,
 		Tags:      tags,
-		CreatedAt: time.Now().Unix(),
+		CreatedAt: time.Now(),
 	}
 
 	// Generate key material
@@ -93,7 +93,7 @@ func (ks *MockKeyStore) Import(ctx context.Context, name string, keyType types.K
 		Type:       keyType,
 		Curve:      curve,
 		Tags:       tags,
-		CreatedAt:  time.Now().Unix(),
+		CreatedAt:  time.Now(),
 		PrivateKey: privateKey, // In mock we store unencrypted
 		PublicKey:  publicKey,
 	}
