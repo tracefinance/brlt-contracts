@@ -121,16 +121,6 @@ watch(nextPageToken, (newToken) => {
       </Alert>
     </div>
 
-    <div v-else-if="wallets.length === 0">
-      <Alert>
-        <Icon name="lucide:inbox" class="w-4 h-4" />
-        <AlertTitle>No Wallets Found</AlertTitle>
-        <AlertDescription>
-          You haven't added any wallets yet. Create or import one!
-        </AlertDescription>
-      </Alert>
-    </div>
-
     <div v-else>
       <div class="border rounded-lg overflow-hidden">
         <Table>
@@ -145,7 +135,17 @@ watch(nextPageToken, (newToken) => {
               <TableHead class="w-[80px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody v-if="wallets.length === 0">
+            <TableRow>
+              <TableCell colSpan="7" class="text-center pt-3 pb-4">
+                <div class="flex items-center justify-center gap-1.5">
+                  <Icon name="lucide:inbox" class="size-5 text-primary" />
+                  <span>No wallets found. Create one to get started!</span>
+                </div>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+          <TableBody v-else>
             <TableRow v-for="wallet in wallets" :key="wallet.id">
               <TableCell>
                 <NuxtLink :to="`/settings/wallets/${wallet.chainType}/${wallet.address}/view`" class="hover:underline">

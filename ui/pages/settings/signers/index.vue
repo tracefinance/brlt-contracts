@@ -80,17 +80,7 @@ const handleDeleteConfirm = async () => {
           </AlertDescription>
         </Alert>      
       </div>      
-      <!-- Empty States -->
-      <div v-else-if="signers.length === 0">
-        <Alert>
-          <Icon name="lucide:inbox" class="w-4 h-4" />
-          <AlertTitle>No Signers Found</AlertTitle>
-          <AlertDescription>
-            You haven't added any signers yet. Create one to get started!
-          </AlertDescription>
-        </Alert>
-      </div>
-      <!-- Signers Table -->
+      <!-- Table (both empty and populated states) -->
       <div v-else>
         <div class="border rounded-lg overflow-hidden">
           <Table>
@@ -105,7 +95,19 @@ const handleDeleteConfirm = async () => {
                 <TableHead class="w-[80px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <!-- Empty State Table Body -->
+            <TableBody v-if="signers.length === 0">
+              <TableRow>
+                <TableCell colSpan="7" class="text-center pt-3 pb-4">
+                  <div class="flex items-center justify-center gap-1.5">
+                    <Icon name="lucide:inbox" class="size-5 text-primary" />
+                    <span >No signers found. Create one to get started!</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+            <!-- Populated Table Body -->
+            <TableBody v-else>
               <TableRow v-for="signer in signers" :key="signer.id">
                 <TableCell>
                   <NuxtLink :to="`/settings/signers/${signer.id}/view`" class="hover:underline">

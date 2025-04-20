@@ -1,12 +1,5 @@
 <script setup lang="ts">
-
-// Define props for controlling the number of skeleton rows
-defineProps({
-  rows: {
-    type: Number,
-    default: 3
-  }
-})
+// No props needed anymore
 </script>
 
 <template>
@@ -24,7 +17,7 @@ defineProps({
         </TableRow>
       </TableHeader>
       <TableBody>
-        <TableRow v-for="i in rows" :key="i">
+        <TableRow>
           <TableCell><Skeleton class="h-4 w-20" /></TableCell>
           <TableCell><Skeleton class="h-4 w-24" /></TableCell>
           <TableCell>
