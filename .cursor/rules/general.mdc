@@ -18,10 +18,6 @@ Vault0 is a full-stack web3 application combining blockchain technology with mod
 - Focus on accessibility and user experience.
 - **Code Comment**: DO NOT ADD unnecessary comments to the code.
 
-## Development Environment
-- The project runs in a dev-container environment.
-- **ALWAYS run `pwd` to check the project's root directory before executing commands**.
-
 ## Project Structure
 ```
 vault0/

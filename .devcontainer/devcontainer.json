@@ -33,7 +33,7 @@
     }
   },
   "remoteUser": "vscode",
-  "postCreateCommand": "go install golang.org/x/tools/gopls@latest && make deps",
+  "postCreateCommand": "npm install -g task-master-ai && go install golang.org/x/tools/gopls@latest && make deps",
   "mounts": [
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly",
     "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,readonly"
