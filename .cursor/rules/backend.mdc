@@ -559,60 +559,6 @@ requestLogger.Info("Handling incoming request")
 6.  Use appropriate levels (`Debug`, `Info`, `Warn`, `Error`, `Fatal`).
 7.  Log errors with `logger.Error(err)` field.
 
-## Git Commit Format
-
-All commits must follow the Angular Conventional Commit format:
-
-```
-<type>([optional scope]): <description>
-
-[optional body]
-
-[optional footer]
-```
-
-Where:
-- **type**: Describes the kind of change:
-  - `feat`: A new feature
-  - `fix`: A bug fix
-  - `docs`: Documentation only changes
-  - `style`: Changes that do not affect code meaning (formatting, etc)
-  - `refactor`: Code change that neither fixes a bug nor adds a feature
-  - `perf`: Code change that improves performance
-  - `test`: Adding or correcting tests
-  - `chore`: Changes to build process or auxiliary tools
-  - `ci`: Changes to CI configuration
-
-- **scope**: Optional component affected (e.g., `wallet`, `user`, `api`)
-
-- **description**: 
-  - Use imperative, present tense ("add" not "added" or "adds")
-  - Don't capitalize first letter
-  - No period at the end
-  - Keep under 72 characters
-  - Be clear and descriptive
-
-Examples:
-```
-feat(notification): add user notification system
-fix(wallet): correct balance calculation for token transfers
-docs(readme): update setup instructions
-refactor(transaction): simplify validation process
-test(api): add tests for wallet creation endpoint
-chore(deps): update dependencies
-```
-
-### Commit Rules
-
-1. Keep commits focused on a single change or related set of changes.
-2. Write descriptive messages that explain WHY, not just WHAT.
-3. Reference issue numbers when applicable: `fix(user): correct login validation (fixes #123)`.
-4. Use additional `-m` parameters for longer descriptions, not multi-line commit messages.
-5. Ensure code passes all tests before committing.
-6. Follow the team's branching strategy.
-7. Never commit directly to main branches.
-8. When in doubt, prefer multiple smaller commits over one large commit.
-
 ## New Feature Implementation Guide
 
 When implementing a new feature, follow this sequence:
