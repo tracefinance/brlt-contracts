@@ -8,16 +8,43 @@ The Vault0 system consists of:
 
 1. **Smart Contracts**: Solidity-based multi-signature wallet implementation
 2. **Backend API**: Go-based server providing wallet management features
-3. **Frontend UI**: Next.js with React 19 web interface for user interactions
+3. **Frontend UI**: Nuxt 3 web interface for user interactions
 
 ## Key Features
 
-- **Dual-Signature Security**: Requires both manager and client signatures to authorize withdrawals
-- **Recovery Mechanism**: 72-hour timelock recovery process to recover funds if needed
-- **Token Support**: Configurable token support with whitelisting functionality
-- **Gas Optimization**: Optimized for efficient gas usage on Ethereum-compatible chains
-- **Cross-Chain Compatibility**: Supports Base and Polygon zkEVM networks
-- **Secure Key Management**: Built-in key management service with encrypted storage
+- **Wallets, keys, users and signers management**: Comprehensive management of crypto assets and access control
+- **Vaults with multi-sig smart contracts**:
+  * Recovery mechanism with 72-hour timelock process
+  * Token whitelisting and management
+- **EVM compatible**: Supports Ethereum, Base, Arbitrum, Binance Chain, and Tron networks
+- **Realtime transaction monitoring**: Track and verify transactions as they happen
+- **Full dashboard with web3 support for signatures**: Complete UI for managing wallets and signing transactions
+
+## Progress
+
+- [x] Backend structure in golang with three-layer architecture:
+  * Layer 1 (Core): Key management, signing, blockchain integration, price feed, database access, cryptography utilities
+  * Layer 2 (Services): User service, wallet service, blockchain service, transaction processing
+  * Layer 3 (API): RESTful endpoints, middleware, request/response handling
+- [x] Solidity smart contract with:
+  * Multi-signature support requiring dual authorization
+  * 72-hour timelock recovery mechanism
+  * Native coin and ERC20 token support
+  * Token whitelisting functionality
+  * Gas-optimized operations
+- [ ] Full featured dashboard with web3 signing
+  - [x] Wallet interface with balances and real-time transactions
+  - [x] User, wallet, signer, key and token management
+  - [ ] Vault management
+  - [ ] Vault interface with balances and real-time transactions
+  - [ ] Withdraw interface with signing support
+- [ ] Authentication
+
+## Future Roadmap
+
+- [ ] Bridge support (create one vault and send/receive from any supported blockchain)
+- [ ] Swap support
+- [ ] Public API
 
 ## Technical Architecture
 
@@ -71,24 +98,34 @@ The backend also provides:
 - Modular architecture for multiple key storage mechanisms
 - OAuth2 support for secure authentication
 
-### Frontend (React/Next.js)
+### Frontend (Nuxt 3)
 
 The UI is built with:
 
-- Next.js 15.2 with React 19
-- TailwindCSS for styling
+- Nuxt 3 (Vue.js framework)
+- TailwindCSS with shadcn/ui components
 - TypeScript for type safety
+- Token-based pagination
 
 ## Supported Networks
 
-Vault0 is designed to work on:
+Vault0 is designed to work on EVM-compatible networks including:
 
+- **Ethereum**: 
+  - Mainnet
+  - Testnets (Sepolia, Goerli)
 - **Base**: 
   - Mainnet (Chain ID: 8453)
   - Testnet (Chain ID: 84531)
-- **Polygon zkEVM**: 
-  - Mainnet (Chain ID: 1101)
-  - Testnet (Chain ID: 1442)
+- **Arbitrum**: 
+  - Mainnet
+  - Testnet
+- **Binance Smart Chain**: 
+  - Mainnet
+  - Testnet
+- **Tron**: 
+  - Mainnet
+  - Testnet
 
 ## Technical Stack
 
@@ -101,16 +138,19 @@ Vault0 is designed to work on:
 ### Backend
 - **Language**: Go
 - **Database**: SQLite
-- **API**: RESTful API
+- **Web Framework**: Gin
+- **API**: RESTful API with token-based pagination
 - **Configuration**: Environment-based configuration
 - **Encryption**: AES-GCM for key encryption
 - **Key Management**: Module-based architecture supporting multiple implementations
 
 ### Frontend
-- **Framework**: Next.js 15.2
-- **UI Library**: React 19
-- **Styling**: TailwindCSS 4
+- **Framework**: Nuxt 3
+- **UI Library**: Vue.js with Composition API
+- **Components**: shadcn/ui components (located in `~/components/ui/`)
+- **Styling**: TailwindCSS
 - **Language**: TypeScript
+- **API Integration**: Nuxt plugin with dedicated client modules
 
 ## Security Features
 
@@ -127,12 +167,15 @@ Vault0 is designed to work on:
 
 ```
 vault0/
-├── ui/              # Frontend NextJS application
-│   ├── components/  # React components
-│   ├── hooks/       # Custom React hooks
-│   ├── lib/         # Utility functions and constants
-│   ├── pages/       # Next.js pages
-│   ├── styles/      # Global styles and Tailwind config
+├── ui/              # Frontend Nuxt application
+│   ├── components/  # Vue components (auto-imported)
+│   │   └── ui/      # shadcn/ui components
+│   ├── composables/ # Vue composables (auto-imported)
+│   ├── lib/         # Utility functions
+│   ├── pages/       # Nuxt pages
+│   ├── plugins/     # Nuxt plugins (including API client)
+│   ├── public/      # Static assets
+│   ├── server/      # Server-side code
 │   └── types/       # TypeScript type definitions
 ├── contracts/       # Smart contracts
 │   ├── solidity/    # Contract source files
@@ -150,23 +193,34 @@ vault0/
 
 ### Prerequisites
 
-- Node.js ≥ 14.0.0
-- npm ≥ 6.0.0
-- Go ≥ 1.16
-- Solidity ^0.8.28
-- Hardhat
+- Visual Studio Code with Dev Containers plugin or Cursor Code Editor
+- Docker and Docker Compose
+- Git
 
-### Quick Start
+### Development Container Setup
+
+This project uses dev containers for consistent development environments across all team members.
+
+1. Install Visual Studio Code or Cursor Code Editor with the Dev Containers extension
+2. Clone the repository
+3. Open the project in your editor
+4. When prompted, click "Reopen in Container" or use the command palette to select "Dev Containers: Reopen in Container"
+5. Wait for the container to build (this may take a few minutes the first time)
+
+### Key Development Commands
 
 ```bash
 # Install all dependencies
-make server-deps ui-deps contracts-deps
+make deps
 
-# Build all components
-make build
+# Build and run the backend server
+make server
 
-# Clean all artifacts
-make clean
+# Build and start the frontend UI
+make ui
+
+# Compile and test smart contracts
+make contracts
 ```
 
 ### Smart Contract Development
@@ -217,7 +271,10 @@ make server-test
 ### Frontend Development
 
 ```bash
-# Install dependencies
+# Install dependencies (always run from ui/ directory)
+cd ui && npm install
+
+# Or use the make command
 make ui-deps
 
 # Start development server
@@ -260,10 +317,6 @@ make contracts-deploy-polygon
 # Reset to last commit (caution: removes all untracked files)
 make git-reset
 ```
-
-## License
-
-ISC
 
 ## Contributors
 
