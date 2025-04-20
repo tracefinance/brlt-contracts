@@ -20,14 +20,8 @@ type Service interface {
 	// GetTransaction retrieves a transaction by its hash
 	GetTransaction(ctx context.Context, hash string) (*Transaction, error)
 
-	// GetTransactionsByWallet retrieves transactions for a specific wallet
-	GetTransactionsByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error)
-
-	// GetTransactionsByAddress retrieves transactions for a specific blockchain address
-	GetTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
-
 	// FilterTransactions retrieves transactions based on the provided filter criteria
-	FilterTransactions(ctx context.Context, filter *Filter) (*types.Page[*Transaction], error)
+	FilterTransactions(ctx context.Context, filter *Filter, limit int, nextToken string) (*types.Page[*Transaction], error)
 
 	// CreateWalletTransaction creates and saves a transaction for a specific wallet
 	CreateWalletTransaction(ctx context.Context, walletID int64, tx *types.Transaction) error
@@ -87,64 +81,15 @@ func (s *transactionService) GetTransaction(ctx context.Context, hash string) (*
 	return s.repository.GetByTxHash(ctx, hash)
 }
 
-// GetTransactionsByWallet retrieves transactions for a specific wallet
-func (s *transactionService) GetTransactionsByWallet(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error) {
-	// Validate input
-	if walletID <= 0 {
-		return nil, errors.NewInvalidInputError("Wallet ID is required", "wallet_id", "")
-	}
-
-	// Set default values
-	if limit <= 0 {
-		limit = 10
-	}
-	if offset < 0 {
-		offset = 0
-	}
-
-	// Get transactions from database
-	return s.repository.ListByWalletID(ctx, walletID, limit, offset)
-}
-
-// GetTransactionsByAddress retrieves transactions for a specific blockchain address
-func (s *transactionService) GetTransactionsByAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error) {
-	// Validate input
-	if chainType == "" {
-		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
-	}
-	if address == "" {
-		return nil, errors.NewInvalidInputError("Address is required", "address", "")
-	}
-
-	// Set default values
-	if limit <= 0 {
-		limit = 10
-	}
-	if offset < 0 {
-		offset = 0
-	}
-
-	// Get transactions from database
-	return s.repository.ListByWalletAddress(ctx, chainType, address, limit, offset)
-}
-
 // FilterTransactions retrieves transactions based on the provided filter criteria
-func (s *transactionService) FilterTransactions(ctx context.Context, filter *Filter) (*types.Page[*Transaction], error) {
-	// Validate filter
-	if filter == nil {
-		filter = NewFilter()
-	}
-
-	// Set default values for pagination if not provided
-	if filter.Limit <= 0 {
-		filter.Limit = 10
-	}
-	if filter.Offset < 0 {
-		filter.Offset = 0
+func (s *transactionService) FilterTransactions(ctx context.Context, filter *Filter, limit int, nextToken string) (*types.Page[*Transaction], error) {
+	// Set default limit
+	if limit <= 0 {
+		limit = 10
 	}
 
 	// Use the repository to filter transactions
-	return s.repository.List(ctx, filter)
+	return s.repository.List(ctx, filter, limit, nextToken)
 }
 
 // processTransaction resolves the token symbol and creates a Transaction model

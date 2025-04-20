@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"time"
 	"vault0/internal/services/signer"
-	"vault0/internal/types"
 )
 
 // CreateSignerRequest represents data needed to create a signer
@@ -28,6 +27,12 @@ type AddAddressRequest struct {
 	Address   string `json:"address" binding:"required"`
 }
 
+// ListSignersRequest defines the query parameters for listing signers
+type ListSignersRequest struct {
+	NextToken string `form:"next_token"`
+	Limit     *int   `form:"limit" binding:"omitempty,min=1"`
+}
+
 // SignerResponse represents a signer response
 type SignerResponse struct {
 	ID        string             `json:"id"`
@@ -47,14 +52,6 @@ type AddressResponse struct {
 	Address   string    `json:"address"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-}
-
-// PagedSignersResponse represents a paginated list of signers
-type PagedSignersResponse struct {
-	Items   []*SignerResponse `json:"items"`
-	Limit   int               `json:"limit"`
-	Offset  int               `json:"offset"`
-	HasMore bool              `json:"has_more"`
 }
 
 // ToAddressResponse converts an address model to a response
@@ -104,14 +101,4 @@ func ToSignerResponseList(signers []*signer.Signer) []*SignerResponse {
 		responses[i] = ToSignerResponse(signer)
 	}
 	return responses
-}
-
-// ToPagedResponse converts a Page of signer models to a PagedSignersResponse
-func ToPagedResponse(page *types.Page[*signer.Signer]) *PagedSignersResponse {
-	return &PagedSignersResponse{
-		Items:   ToSignerResponseList(page.Items),
-		Limit:   page.Limit,
-		Offset:  page.Offset,
-		HasMore: page.HasMore,
-	}
 }

@@ -29,13 +29,18 @@ type Service interface {
 	//   - Other errors propagated from the repository.
 	GetTokenPriceBySymbol(ctx context.Context, symbol string) (*TokenPrice, error)
 
-	// ListTokenPrices retrieves a paginated list of stored token prices.
-	// If symbols is provided and not empty, filters results to only include those symbols.
+	// ListTokenPrices retrieves a paginated list of token prices, optionally filtered
+	//
+	// Parameters:
+	//   - ctx: The context for the operation
+	//   - filter: Optional filtering criteria
+	//   - limit: Maximum number of items to return (0 for all items)
+	//   - nextToken: Token for pagination (empty string for first page)
 	//
 	// Returns:
-	//   - A Page containing the list of TokenPrice and pagination info.
-	//   - Errors propagated from the repository.
-	ListTokenPrices(ctx context.Context, limit int, offset int, symbols []string) (*types.Page[*TokenPrice], error)
+	//   - A page of token prices with pagination information
+	//   - An error if the database operation fails
+	ListTokenPrices(ctx context.Context, filter *TokenPriceFilter, limit int, nextToken string) (*types.Page[*TokenPrice], error)
 
 	// StartPriceUpdateJob starts a background scheduler that periodically refreshes
 	// token prices at an interval specified in the configuration.
@@ -129,60 +134,30 @@ func (s *service) GetTokenPriceBySymbol(ctx context.Context, symbol string) (*To
 	return price, nil
 }
 
-// ListTokenPrices implements the Service interface.
-func (s *service) ListTokenPrices(ctx context.Context, limit int, offset int, symbols []string) (*types.Page[*TokenPrice], error) {
-	s.log.Debug("Listing token prices",
-		logger.Int("limit", limit),
-		logger.Int("offset", offset),
-		logger.Int("symbols_count", len(symbols)),
-	)
-
+// ListTokenPrices retrieves a paginated list of token prices, optionally filtered
+//
+// Parameters:
+//   - ctx: The context for the operation
+//   - filter: Optional filtering criteria
+//   - limit: Maximum number of items to return (0 for all items)
+//   - nextToken: Token for pagination (empty string for first page)
+//
+// Returns:
+//   - A page of token prices with pagination information
+//   - An error if the database operation fails
+func (s *service) ListTokenPrices(ctx context.Context, filter *TokenPriceFilter, limit int, nextToken string) (*types.Page[*TokenPrice], error) {
+	// Set default limit if not provided
 	if limit <= 0 {
-		limit = 50
+		limit = 10
 	}
 
-	if offset < 0 {
-		offset = 0
-	}
-
-	// If symbols are provided, use ListBySymbols instead of List
-	if len(symbols) > 0 {
-		// Get prices by symbols
-		pricesMap, err := s.repository.ListBySymbols(ctx, symbols)
-		if err != nil {
-			s.log.Error("Failed to list token prices by symbols",
-				logger.Int("symbols_count", len(symbols)),
-				logger.Error(err))
-			return nil, err
-		}
-
-		// Convert map to slice
-		prices := make([]*TokenPrice, 0, len(pricesMap))
-		for _, price := range pricesMap {
-			prices = append(prices, price)
-		}
-
-		// Apply pagination (manual since repository doesn't support it for ListBySymbols)
-		end := min(offset+limit, len(prices))
-
-		// Handle case where offset is beyond available results
-		var paginatedPrices []*TokenPrice
-		if offset < len(prices) {
-			paginatedPrices = prices[offset:end]
-		} else {
-			paginatedPrices = []*TokenPrice{}
-		}
-
-		return types.NewPage(paginatedPrices, offset, limit), nil
-	}
-
-	// If no symbols provided, use the regular List method
-	pricesPage, err := s.repository.List(ctx, offset, limit)
+	// Use the repository's List method with the filter
+	page, err := s.repository.List(ctx, filter, limit, nextToken)
 	if err != nil {
-		s.log.Error("Failed to list token prices", logger.Error(err))
 		return nil, err
 	}
-	return pricesPage, nil
+
+	return page, nil
 }
 
 // convertProviderDataToTokenPrice converts the data structure from the price feed provider

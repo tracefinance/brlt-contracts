@@ -53,8 +53,13 @@ func (m *MockKeyStore) GetPublicKey(ctx context.Context, id string) (*keystore.K
 	return &keystore.Key{ID: id}, nil
 }
 
-func (m *MockKeyStore) List(ctx context.Context) ([]*keystore.Key, error) {
-	return nil, nil
+func (m *MockKeyStore) List(ctx context.Context, limit int, nextToken string) (*types.Page[*keystore.Key], error) {
+	// For mock implementation, ignore pagination and just return an empty page
+	return &types.Page[*keystore.Key]{
+		Items:     []*keystore.Key{},
+		NextToken: "",
+		Limit:     limit,
+	}, nil
 }
 
 func (m *MockKeyStore) Update(ctx context.Context, id string, name string, tags map[string]string) (*keystore.Key, error) {

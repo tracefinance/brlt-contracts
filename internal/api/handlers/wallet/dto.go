@@ -21,6 +21,12 @@ type UpdateWalletRequest struct {
 	Tags map[string]string `json:"tags,omitempty" example:"{\"purpose\":\"defi\",\"environment\":\"production\"}"`
 }
 
+// ListWalletsRequest defines the query parameters for listing wallets
+type ListWalletsRequest struct {
+	NextToken string `form:"next_token"`
+	Limit     *int   `form:"limit" binding:"omitempty,min=0"`
+}
+
 // @Description Response model containing wallet details
 type WalletResponse struct {
 	ID              string            `json:"id" example:"1"`
@@ -51,14 +57,6 @@ type TokenResponse struct {
 	Type      string          `json:"type" example:"erc20"`
 }
 
-// @Description Paginated response model containing a list of wallets
-type PagedWalletsResponse struct {
-	Items   []*WalletResponse `json:"items"`
-	Limit   int               `json:"limit" example:"10"`
-	Offset  int               `json:"offset" example:"0"`
-	HasMore bool              `json:"has_more" example:"true"`
-}
-
 func ToResponse(wallet *wallet.Wallet) *WalletResponse {
 	nativeToken, err := wallet.GetToken()
 	if err != nil {
@@ -78,23 +76,6 @@ func ToResponse(wallet *wallet.Wallet) *WalletResponse {
 		LastBlockNumber: wallet.LastBlockNumber,
 		CreatedAt:       wallet.CreatedAt,
 		UpdatedAt:       wallet.UpdatedAt,
-	}
-}
-
-func ToResponseList(wallets []*wallet.Wallet) []*WalletResponse {
-	responses := make([]*WalletResponse, len(wallets))
-	for i, w := range wallets {
-		responses[i] = ToResponse(w)
-	}
-	return responses
-}
-
-func ToPagedResponse(page *types.Page[*wallet.Wallet]) *PagedWalletsResponse {
-	return &PagedWalletsResponse{
-		Items:   ToResponseList(page.Items),
-		Limit:   page.Limit,
-		Offset:  page.Offset,
-		HasMore: page.HasMore,
 	}
 }
 

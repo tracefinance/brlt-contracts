@@ -31,7 +31,8 @@ type Repository interface {
 
 	// List retrieves a paginated collection of signers
 	// When limit=0, returns all signers without pagination
-	List(ctx context.Context, limit, offset int) (*types.Page[*Signer], error)
+	// nextToken is used for token-based pagination
+	List(ctx context.Context, limit int, nextToken string) (*types.Page[*Signer], error)
 
 	// AddAddress creates a new address for a signer
 	AddAddress(ctx context.Context, address *Address) error
@@ -301,20 +302,29 @@ func (r *repository) GetByUserID(ctx context.Context, userID int64) ([]*Signer, 
 }
 
 // List retrieves a paginated collection of signers
-func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*Signer], error) {
-	// Apply default offset if negative
-	if offset < 0 {
-		offset = 0
-	}
-
+func (r *repository) List(ctx context.Context, limit int, nextToken string) (*types.Page[*Signer], error) {
 	// Create a struct-based select builder
 	sb := r.signerStructMap.SelectFrom("signers")
-	sb.OrderBy("created_at DESC")
 
-	// Add pagination if limit > 0
+	// Default sort by id
+	paginationColumn := "id"
+
+	// If nextToken is provided, decode it to get the starting point
+	token, err := types.DecodeNextPageToken(nextToken, paginationColumn)
+	if err != nil {
+		return nil, err
+	}
+
+	if token != nil {
+		sb.Where(sb.GreaterThan(paginationColumn, token.Value))
+	}
+
+	// Ensure consistent ordering
+	sb.OrderBy(paginationColumn + " ASC")
+
+	// Add pagination (fetch one extra to determine if more exist)
 	if limit > 0 {
-		sb.Limit(limit + 1) // Fetch one extra item
-		sb.Offset(offset)
+		sb.Limit(limit + 1)
 	}
 
 	// Build the SQL and args
@@ -335,34 +345,15 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 		signer.Addresses = addresses
 	}
 
-	// Get total count to determine if there are more results
-	countBuilder := sqlbuilder.Select("COUNT(*)").From("signers")
-	countSql, countArgs := countBuilder.Build()
-
-	countRows, err := r.db.ExecuteQueryContext(ctx, countSql, countArgs...)
-	if err != nil {
-		return nil, err
-	}
-	defer countRows.Close()
-
-	var count int
-	if !countRows.Next() {
-		return nil, err
+	// Generate the token function
+	generateToken := func(signer *Signer) *types.NextPageToken {
+		return &types.NextPageToken{
+			Column: paginationColumn,
+			Value:  signer.ID,
+		}
 	}
 
-	if err = countRows.Scan(&count); err != nil {
-		return nil, err
-	}
-
-	// Create pagination result
-	hasMore := limit > 0 && (offset+limit) < count
-
-	return &types.Page[*Signer]{
-		Items:   signers,
-		Limit:   limit,
-		Offset:  offset,
-		HasMore: hasMore,
-	}, nil
+	return types.NewPage(signers, limit, generateToken), nil
 }
 
 // AddAddress creates a new address for a signer

@@ -13,20 +13,12 @@ type TokenPriceResponse struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
-// PagedTokenPriceResponse represents a paginated response of token prices
-type PagedTokenPriceResponse struct {
-	Items   []TokenPriceResponse `json:"items"`
-	Offset  int                  `json:"offset"`
-	Limit   int                  `json:"limit"`
-	HasMore bool                 `json:"has_more"`
-}
-
 // ListTokenPricesRequest defines query parameters for the list endpoint.
 // We use pointers to distinguish between default values and not provided.
 type ListTokenPricesRequest struct {
-	Limit  *int     `form:"limit" binding:"omitempty,min=1,max=100"`
-	Offset *int     `form:"offset" binding:"omitempty,min=0"`
-	Symbol []string `form:"symbol" binding:"omitempty"`
+	Limit     *int     `form:"limit" binding:"omitempty,min=1,max=100"`
+	NextToken string   `form:"next_token"`
+	Symbol    []string `form:"symbol" binding:"omitempty"`
 }
 
 // GetTokenPriceRequest defines path parameters for getting a single token.

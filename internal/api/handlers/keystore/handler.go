@@ -40,31 +40,41 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 
 // listKeys handles GET /keys
 // @Summary List keys
-// @Description Get a list of cryptographic keys with optional filtering
+// @Description Get a list of cryptographic keys with optional filtering and pagination
 // @Tags keys
 // @Produce json
 // @Param key_type query string false "Filter by key type (ECDSA, RSA, Ed25519, Symmetric)"
 // @Param tag query string false "Filter by tag (in format key=value, can specify multiple)"
-// @Success 200 {object} KeyListResponse
+// @Param limit query int false "Maximum number of keys to return (default 50)"
+// @Param next_token query string false "Token for pagination (empty for first page)"
+// @Success 200 {object} utils.PagedResponse[KeyResponse]
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /keys [get]
 func (h *Handler) listKeys(c *gin.Context) {
-	// Parse query parameters
-	keyTypeStr := c.Query("key_type")
-	tagQueries := c.QueryArray("tag")
+	var req ListKeysRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.Error(errors.NewInvalidParameterError("query", "invalid query parameters format or value"))
+		return
+	}
+
+	// Set default limit if not provided
+	limit := 10 // Default limit
+	if req.Limit != nil {
+		limit = *req.Limit
+	}
 
 	// Build filter
 	filter := keystoreSvc.KeyFilter{}
 
-	if keyTypeStr != "" {
-		keyType := types.KeyType(keyTypeStr)
+	if req.KeyType != "" {
+		keyType := types.KeyType(req.KeyType)
 		filter.KeyType = &keyType
 	}
 
 	// Parse tag queries (format: key=value)
-	if len(tagQueries) > 0 {
+	if len(req.Tags) > 0 {
 		filter.Tags = make(map[string]string)
-		for _, tagQuery := range tagQueries {
+		for _, tagQuery := range req.Tags {
 			// Parse the key=value format
 			parts := strings.SplitN(tagQuery, "=", 2)
 			if len(parts) == 2 && parts[0] != "" {
@@ -73,21 +83,15 @@ func (h *Handler) listKeys(c *gin.Context) {
 		}
 	}
 
-	// Get keys with filtering
-	keys, err := h.service.ListKeys(c.Request.Context(), filter)
+	// Get keys with filtering and pagination
+	keysPage, err := h.service.ListKeys(c.Request.Context(), filter, limit, req.NextToken)
 	if err != nil {
-		c.Error(errors.NewOperationFailedError("list keys", err))
+		c.Error(err)
 		return
 	}
 
-	// Build response
-	response := KeyListResponse{
-		Items: make([]KeyResponse, len(keys)),
-	}
-
-	for i, key := range keys {
-		response.Items[i] = newKeyResponse(key)
-	}
+	// Use the generic PagedResponse utility
+	response := utils.NewPagedResponse(keysPage, newKeyResponse)
 
 	c.JSON(http.StatusOK, response)
 }

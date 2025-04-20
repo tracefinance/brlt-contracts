@@ -425,7 +425,7 @@ func (s *transactionService) subscribeToERC20Transfers(ctx context.Context, chai
 	}
 
 	// Get tokens from the token store for this chain
-	tokenPage, err := s.tokenStore.ListTokensByChain(ctx, chain.Type, 0, 0)
+	tokenPage, err := s.tokenStore.ListTokensByChain(ctx, chain.Type, 0, "")
 	if err != nil {
 		s.log.Error("Failed to get tokens for ERC20 subscription",
 			logger.String("chain_type", string(chain.Type)),
@@ -613,11 +613,12 @@ func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context)
 		}
 
 		// Get transactions with the specified status across all chains
-		filter := NewFilter().
-			WithStatus(status).
-			WithPagination(0, 0) // No pagination limit
+		statusValue := status // Create a copy to use its address
+		filter := &Filter{
+			Status: &statusValue,
+		}
 
-		page, err := s.repository.List(ctx, filter)
+		page, err := s.repository.List(ctx, filter, 0, "") // 0 limit means no pagination
 		if err != nil {
 			s.log.Error("Failed to get transactions by status",
 				logger.String("status", status),

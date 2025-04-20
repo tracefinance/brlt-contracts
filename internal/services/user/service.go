@@ -29,8 +29,9 @@ type Service interface {
 	Get(ctx context.Context, id int64) (*User, error)
 
 	// List returns a paginated collection of users
-	// Default limit is 10 if limit < 1, offset is 0 if negative
-	List(ctx context.Context, limit, offset int) (*types.Page[*User], error)
+	// Default limit is 10 if limit < 1
+	// nextToken is used for token-based pagination (empty string for first page)
+	List(ctx context.Context, limit int, nextToken string) (*types.Page[*User], error)
 }
 
 // service implements the Service interface
@@ -135,13 +136,12 @@ func (s *service) Get(ctx context.Context, id int64) (*User, error) {
 }
 
 // List retrieves a paginated list of users
-func (s *service) List(ctx context.Context, limit, offset int) (*types.Page[*User], error) {
+func (s *service) List(ctx context.Context, limit int, nextToken string) (*types.Page[*User], error) {
+	// Set default limit
 	if limit <= 0 {
 		limit = 10
 	}
-	if offset < 0 {
-		offset = 0
-	}
 
-	return s.repository.List(ctx, limit, offset)
+	// Retrieve users with token-based pagination
+	return s.repository.List(ctx, limit, nextToken)
 }

@@ -104,12 +104,12 @@ type Service interface {
 	// Parameters:
 	//   - ctx: Context for the operation
 	//   - limit: Maximum number of wallets to return (default: 10 if <= 0)
-	//   - offset: Number of wallets to skip (default: 0 if < 0)
+	//   - nextToken: Token for fetching the next page of results (empty string for first page)
 	//
 	// Returns:
-	//   - *types.Page[*Wallet]: Paginated list of wallets
+	//   - *types.Page[*Wallet]: Paginated list of wallets with nextToken
 	//   - error: Any error that occurred during the operation
-	List(ctx context.Context, limit, offset int) (*types.Page[*Wallet], error)
+	List(ctx context.Context, limit int, nextToken string) (*types.Page[*Wallet], error)
 
 	// Exists checks if a non-deleted wallet exists.
 	// This is a lightweight operation that doesn't return the wallet's data.
@@ -333,20 +333,13 @@ func (s *walletService) GetByAddress(ctx context.Context, chainType types.ChainT
 }
 
 // List retrieves a paginated list of non-deleted wallets
-func (s *walletService) List(ctx context.Context, limit, offset int) (*types.Page[*Wallet], error) {
-	if limit <= 0 {
+func (s *walletService) List(ctx context.Context, limit int, nextToken string) (*types.Page[*Wallet], error) {
+	// Only apply default limit for negative values, pass limit=0 to get all items
+	if limit < 0 {
 		limit = 10
 	}
-	if offset < 0 {
-		offset = 0
-	}
 
-	wallets, err := s.repository.List(ctx, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-
-	return wallets, nil
+	return s.repository.List(ctx, limit, nextToken)
 }
 
 // Exists checks if a wallet exists by its chain type and address

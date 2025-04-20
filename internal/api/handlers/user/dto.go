@@ -3,8 +3,8 @@ package user
 import (
 	"strconv"
 	"time"
+
 	"vault0/internal/services/user"
-	"vault0/internal/types"
 )
 
 // CreateUserRequest represents data needed to create a user
@@ -19,20 +19,18 @@ type UpdateUserRequest struct {
 	Password string `json:"password,omitempty" binding:"omitempty,min=8"`
 }
 
+// ListUsersRequest defines the query parameters for listing users
+type ListUsersRequest struct {
+	NextToken string `form:"next_token"`
+	Limit     *int   `form:"limit" binding:"omitempty,min=1"`
+}
+
 // UserResponse represents a user response
 type UserResponse struct {
 	ID        string    `json:"id"`
 	Email     string    `json:"email"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-}
-
-// PagedUsersResponse represents a paginated list of users
-type PagedUsersResponse struct {
-	Items   []*UserResponse `json:"items"`
-	Limit   int             `json:"limit"`
-	Offset  int             `json:"offset"`
-	HasMore bool            `json:"has_more"`
 }
 
 // ToResponse converts a user model to a user response
@@ -52,14 +50,4 @@ func ToResponseList(users []*user.User) []*UserResponse {
 		responses[i] = ToResponse(user)
 	}
 	return responses
-}
-
-// ToPagedResponse converts a Page of user models to a PagedUserResponse
-func ToPagedResponse(page *types.Page[*user.User]) *PagedUsersResponse {
-	return &PagedUsersResponse{
-		Items:   ToResponseList(page.Items),
-		Limit:   page.Limit,
-		Offset:  page.Offset,
-		HasMore: page.HasMore,
-	}
 }

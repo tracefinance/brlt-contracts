@@ -195,7 +195,7 @@ func (ks *MockKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, erro
 }
 
 // List lists all keys
-func (ks *MockKeyStore) List(ctx context.Context) ([]*Key, error) {
+func (ks *MockKeyStore) List(ctx context.Context, limit int, nextToken string) (*types.Page[*Key], error) {
 	ks.mutex.RLock()
 	defer ks.mutex.RUnlock()
 
@@ -213,7 +213,12 @@ func (ks *MockKeyStore) List(ctx context.Context) ([]*Key, error) {
 		})
 	}
 
-	return keys, nil
+	// For tests, we ignore pagination and just return all keys
+	return &types.Page[*Key]{
+		Items:     keys,
+		NextToken: "",
+		Limit:     limit,
+	}, nil
 }
 
 // Update updates a key's metadata

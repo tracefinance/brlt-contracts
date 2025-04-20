@@ -1,6 +1,8 @@
 package token
 
-import "vault0/internal/types"
+import (
+	"vault0/internal/types"
+)
 
 // TokenResponse is the token data returned in responses
 type TokenResponse struct {
@@ -20,8 +22,21 @@ type AddTokenRequest struct {
 	Type      types.TokenType `json:"type" binding:"required"`
 }
 
-// TokenListResponse is the paginated response for token listing
-type TokenListResponse struct {
-	Items []TokenResponse `json:"items"`
-	Total int64           `json:"total"`
+// ListTokensRequest defines the query parameters for listing tokens
+type ListTokensRequest struct {
+	ChainType string `form:"chain_type"`
+	TokenType string `form:"token_type"`
+	NextToken string `form:"next_token"`
+	Limit     *int   `form:"limit" binding:"omitempty,min=1"`
+}
+
+// TokenToResponse converts a token to a token response
+func TokenToResponse(token types.Token) TokenResponse {
+	return TokenResponse{
+		Address:   token.Address,
+		ChainType: token.ChainType,
+		Symbol:    token.Symbol,
+		Decimals:  token.Decimals,
+		Type:      token.Type,
+	}
 }

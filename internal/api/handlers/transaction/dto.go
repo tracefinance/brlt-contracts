@@ -30,12 +30,21 @@ type TransactionResponse struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
-// PagedTransactionsResponse represents a paginated list of transactions
-type PagedTransactionsResponse struct {
-	Items   []TransactionResponse `json:"items"`
-	Limit   int                   `json:"limit"`
-	Offset  int                   `json:"offset"`
-	HasMore bool                  `json:"has_more"`
+// ListTransactionsRequest defines the query parameters for listing transactions
+type ListTransactionsRequest struct {
+	NextToken    string `form:"next_token"`
+	Limit        *int   `form:"limit" binding:"omitempty,min=1"`
+	ChainType    string `form:"chain_type"`
+	Address      string `form:"address"`
+	TokenAddress string `form:"token_address"`
+	Status       string `form:"status"`
+}
+
+// ListTransactionsByAddressRequest defines query parameters for listing transactions by address
+type ListTransactionsByAddressRequest struct {
+	NextToken    string `form:"next_token"`
+	Limit        *int   `form:"limit" binding:"omitempty,min=1"`
+	TokenAddress string `form:"token_address"`
 }
 
 // SyncTransactionsResponse represents the response for a transaction sync operation
@@ -43,8 +52,8 @@ type SyncTransactionsResponse struct {
 	Count int `json:"count"`
 }
 
-// FromServiceTransaction converts a service transaction to a response transaction
-func FromServiceTransaction(tx *transaction.Transaction, token *types.Token) TransactionResponse {
+// ToResponse converts a service transaction to a response transaction
+func ToResponse(tx *transaction.Transaction, token *types.Token) TransactionResponse {
 	// Get the native token for the chain to format gas price
 	nativeToken, err := types.NewNativeToken(tx.ChainType)
 	if err != nil {
@@ -88,30 +97,5 @@ func FromServiceTransaction(tx *transaction.Transaction, token *types.Token) Tra
 		Timestamp:    tx.Timestamp,
 		CreatedAt:    tx.CreatedAt,
 		UpdatedAt:    tx.UpdatedAt,
-	}
-}
-
-// ToResponseList converts a slice of service transactions to a slice of response transactions
-func ToResponseList(txs []*transaction.Transaction, tokensMap map[string]*types.Token) []TransactionResponse {
-	responses := make([]TransactionResponse, len(txs))
-	for i, tx := range txs {
-		// Get native token for this chain
-		token, ok := tokensMap[tx.TokenAddress]
-		if !ok {
-			// Fallback to direct conversion if token not found
-			token = &types.Token{Decimals: 18} // Default to 18 decimals
-		}
-		responses[i] = FromServiceTransaction(tx, token)
-	}
-	return responses
-}
-
-// ToPagedResponse converts a Page of service transactions to a TransactionListResponse
-func ToPagedResponse(page *types.Page[*transaction.Transaction], tokensMap map[string]*types.Token) *PagedTransactionsResponse {
-	return &PagedTransactionsResponse{
-		Items:   ToResponseList(page.Items, tokensMap),
-		Limit:   page.Limit,
-		Offset:  page.Offset,
-		HasMore: page.HasMore,
 	}
 }

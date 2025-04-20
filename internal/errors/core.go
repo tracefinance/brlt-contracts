@@ -88,6 +88,11 @@ const (
 	// Log parsing errors
 	ErrCodeLogTopicIndexOutOfBounds = "log_topic_index_out_of_bounds"
 	ErrCodeLogTopicInvalidFormat    = "log_topic_invalid_format"
+
+	// Pagination errors
+	ErrCodeInvalidPaginationToken = "invalid_pagination_token"
+	ErrCodeTokenEncodingFailed    = "token_encoding_failed"
+	ErrCodeTokenDecodingFailed    = "token_decoding_failed"
 )
 
 // NewConfigurationError creates an error for configuration issues.
@@ -655,6 +660,39 @@ func NewLogTopicInvalidFormatError(index int, topicValue, reason string) *Vault0
 			"index":       index,
 			"topic_value": topicValue,
 			"reason":      reason,
+		},
+	}
+}
+
+// NewInvalidPaginationTokenError creates an error for invalid pagination tokens
+func NewInvalidPaginationTokenError(token string, err error) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeInvalidPaginationToken,
+		Message: "Invalid pagination token format",
+		Err:     err,
+		Details: map[string]any{
+			"token": token,
+		},
+	}
+}
+
+// NewTokenEncodingFailedError creates an error for token encoding failures
+func NewTokenEncodingFailedError(err error) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeTokenEncodingFailed,
+		Message: "Failed to encode pagination token",
+		Err:     err,
+	}
+}
+
+// NewTokenDecodingFailedError creates an error for token decoding failures
+func NewTokenDecodingFailedError(token string, err error) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeTokenDecodingFailed,
+		Message: "Failed to decode pagination token",
+		Err:     err,
+		Details: map[string]any{
+			"token": token,
 		},
 	}
 }

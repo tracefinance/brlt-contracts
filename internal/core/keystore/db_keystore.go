@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strconv"
 	"time"
 
 	"crypto"
@@ -23,8 +24,6 @@ import (
 	"vault0/internal/db"
 	"vault0/internal/errors"
 	"vault0/internal/types"
-
-	"github.com/google/uuid"
 )
 
 // DBKeyStore implements the KeyStore interface using a local database
@@ -87,8 +86,12 @@ func (ks *DBKeyStore) Create(ctx context.Context, name string, keyType types.Key
 		return nil, errors.NewInvalidKeyError("failed to marshal tags", err)
 	}
 
-	// Generate a UUID for the key ID
-	keyID := uuid.New().String()
+	// Generate a Snowflake ID for the key
+	snowflakeID, err := ks.db.GenerateID()
+	if err != nil {
+		return nil, errors.NewDatabaseError(err)
+	}
+	keyID := strconv.FormatInt(snowflakeID, 10)
 
 	// Create the key
 	key := &Key{
@@ -167,8 +170,12 @@ func (ks *DBKeyStore) Import(ctx context.Context, name string, keyType types.Key
 		curveName = curve.Params().Name
 	}
 
-	// Generate a UUID for the key ID
-	keyID := uuid.New().String()
+	// Generate a Snowflake ID for the key
+	snowflakeID, err := ks.db.GenerateID()
+	if err != nil {
+		return nil, errors.NewDatabaseError(err)
+	}
+	keyID := strconv.FormatInt(snowflakeID, 10)
 
 	// Create the key
 	key := &Key{
@@ -260,12 +267,40 @@ func (ks *DBKeyStore) GetPublicKey(ctx context.Context, id string) (*Key, error)
 	return &key, nil
 }
 
-// List retrieves all keys in the keystore
-func (ks *DBKeyStore) List(ctx context.Context) ([]*Key, error) {
-	rows, err := ks.db.ExecuteQueryContext(
-		ctx,
-		"SELECT id, name, key_type, curve, tags, created_at, public_key FROM keys",
-	)
+// List retrieves keys in the keystore with pagination
+func (ks *DBKeyStore) List(ctx context.Context, limit int, nextToken string) (*types.Page[*Key], error) {
+	// Set default limit if not specified
+	if limit <= 0 {
+		limit = 50 // Default limit
+	}
+
+	// Default pagination column
+	paginationColumn := "id"
+
+	// Base query
+	query := `SELECT id, name, key_type, curve, tags, created_at, public_key 
+		FROM keys`
+
+	args := []any{}
+
+	// Handle token-based pagination
+	if nextToken != "" {
+		token, err := types.DecodeNextPageToken(nextToken, paginationColumn)
+		if err != nil {
+			return nil, err
+		}
+
+		if token != nil {
+			query += " WHERE id > ?"
+			args = append(args, token.Value)
+		}
+	}
+
+	// Add ordering and limit
+	query += " ORDER BY id ASC LIMIT ?"
+	args = append(args, limit+1) // Fetch one extra to determine if there are more pages
+
+	rows, err := ks.db.ExecuteQueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.NewDatabaseError(err)
 	}
@@ -319,7 +354,15 @@ func (ks *DBKeyStore) List(ctx context.Context) ([]*Key, error) {
 		return nil, errors.NewDatabaseError(err)
 	}
 
-	return keys, nil
+	// Generate token function for pagination
+	generateToken := func(key *Key) *types.NextPageToken {
+		return &types.NextPageToken{
+			Column: paginationColumn,
+			Value:  key.ID,
+		}
+	}
+
+	return types.NewPage(keys, limit, generateToken), nil
 }
 
 // Update modifies a key's metadata

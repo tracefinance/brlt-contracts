@@ -2,11 +2,11 @@ package transaction
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 
 	"vault0/internal/api/middleares"
+	"vault0/internal/api/utils"
 	"vault0/internal/services/token"
 	"vault0/internal/services/transaction"
 	"vault0/internal/types"
@@ -74,7 +74,7 @@ func (h *Handler) GetTransaction(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, FromServiceTransaction(tx, token))
+	c.JSON(http.StatusOK, ToResponse(tx, token))
 }
 
 // GetTransactionsByAddress handles GET /wallets/:chain_type/:address/transactions
@@ -85,9 +85,9 @@ func (h *Handler) GetTransaction(c *gin.Context) {
 // @Param chain_type path string true "Chain type"
 // @Param address path string true "Wallet address"
 // @Param limit query int false "Number of items to return (default: 10)" default(10)
-// @Param offset query int false "Number of items to skip (default: 0)" default(0)
+// @Param next_token query string false "Token for fetching the next page"
 // @Param token_address query string false "Filter transactions by token address (use 'native' for native transactions)"
-// @Success 200 {object} PagedTransactionsResponse
+// @Success 200 {object} utils.PagedResponse[TransactionResponse]
 // @Failure 400 {object} errors.Vault0Error "Invalid request"
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
@@ -95,39 +95,37 @@ func (h *Handler) GetTransaction(c *gin.Context) {
 func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")
-	tokenAddress := c.Query("token_address")
 
 	// Parse pagination parameters
-	limitStr := c.DefaultQuery("limit", "10")
-	offsetStr := c.DefaultQuery("offset", "0")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = 10
+	var req ListTransactionsByAddressRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.Error(err)
+		return
 	}
 
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil {
-		offset = 0
+	// Set default limit if not provided
+	limit := 10
+	if req.Limit != nil {
+		limit = *req.Limit
 	}
 
-	var page *types.Page[*transaction.Transaction]
+	// Create a filter with the chain type and address
+	chainTypeVal := chainType
+	addressVal := address
 
-	if tokenAddress != "" {
-		// Create a filter for transactions with the specified token address
-		filter := transaction.NewFilter().
-			WithChainType(chainType).
-			WithAddress(address).
-			WithTokenAddress(tokenAddress).
-			WithPagination(limit, offset)
-
-		// Use filter-based transaction retrieval
-		page, err = h.transactionService.FilterTransactions(c.Request.Context(), filter)
-	} else {
-		// Use the standard address-based retrieval
-		page, err = h.transactionService.GetTransactionsByAddress(c.Request.Context(), chainType, address, limit, offset)
+	filter := &transaction.Filter{
+		ChainType: &chainTypeVal,
+		Address:   &addressVal,
 	}
 
+	// Add token address filter if provided
+	if req.TokenAddress != "" {
+		tokenAddressVal := req.TokenAddress
+		filter.TokenAddress = &tokenAddressVal
+	}
+
+	// Use filter-based transaction retrieval
+	page, err := h.transactionService.FilterTransactions(c.Request.Context(), filter, limit, req.NextToken)
 	if err != nil {
 		c.Error(err)
 		return
@@ -152,7 +150,18 @@ func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 		tokensMap[tokens[i].Address] = &tokens[i]
 	}
 
-	c.JSON(http.StatusOK, ToPagedResponse(page, tokensMap))
+	// Create a transform function for the paged response
+	transformFunc := func(tx *transaction.Transaction) TransactionResponse {
+		// Get the token from the map or use a default
+		token, ok := tokensMap[tx.TokenAddress]
+		if !ok {
+			// Fallback to direct conversion if token not found
+			token = &types.Token{Decimals: 18} // Default to 18 decimals
+		}
+		return ToResponse(tx, token)
+	}
+
+	c.JSON(http.StatusOK, utils.NewPagedResponse(page, transformFunc))
 }
 
 // FilterTransactions handles GET /transactions
@@ -165,58 +174,51 @@ func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 // @Param token_address query string false "Filter by token address (use 'native' for native transactions)"
 // @Param status query string false "Filter by transaction status"
 // @Param limit query int false "Number of items to return (default: 10)" default(10)
-// @Param offset query int false "Number of items to skip (default: 0)" default(0)
-// @Success 200 {object} PagedTransactionsResponse
+// @Param next_token query string false "Token for fetching the next page"
+// @Success 200 {object} utils.PagedResponse[TransactionResponse]
 // @Failure 400 {object} errors.Vault0Error "Invalid request"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /transactions [get]
 func (h *Handler) FilterTransactions(c *gin.Context) {
-	// Create a new filter
-	filter := transaction.NewFilter()
+	// Parse pagination and filter parameters
+	var req ListTransactionsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.Error(err)
+		return
+	}
+
+	// Set default limit if not provided
+	limit := 10
+	if req.Limit != nil {
+		limit = *req.Limit
+	}
+
+	// Create a filter with the provided parameters
+	filter := &transaction.Filter{}
 
 	// Apply chain type filter if provided
-	chainTypeStr := c.Query("chain_type")
-	if chainTypeStr != "" {
-		chainType := types.ChainType(chainTypeStr)
-		filter.WithChainType(chainType)
+	if req.ChainType != "" {
+		chainType := types.ChainType(req.ChainType)
+		filter.ChainType = &chainType
 	}
 
 	// Apply address filter if provided
-	address := c.Query("address")
-	if address != "" {
-		filter.WithAddress(address)
+	if req.Address != "" {
+		filter.Address = &req.Address
 	}
 
 	// Apply token address filter if provided
-	tokenAddress := c.Query("token_address")
-	if tokenAddress != "" {
-		filter.WithTokenAddress(tokenAddress)
+	if req.TokenAddress != "" {
+		filter.TokenAddress = &req.TokenAddress
 	}
 
 	// Apply status filter if provided
-	status := c.Query("status")
-	if status != "" {
-		filter.WithStatus(status)
+	if req.Status != "" {
+		filter.Status = &req.Status
 	}
-
-	// Parse pagination parameters
-	limitStr := c.DefaultQuery("limit", "10")
-	offsetStr := c.DefaultQuery("offset", "0")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = 10
-	}
-
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil {
-		offset = 0
-	}
-
-	filter.WithPagination(limit, offset)
 
 	// Get transactions with the applied filters
-	page, err := h.transactionService.FilterTransactions(c.Request.Context(), filter)
+	page, err := h.transactionService.FilterTransactions(c.Request.Context(), filter, limit, req.NextToken)
 	if err != nil {
 		c.Error(err)
 		return
@@ -258,5 +260,16 @@ func (h *Handler) FilterTransactions(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, ToPagedResponse(page, tokensMap))
+	// Create a transform function for the paged response
+	transformFunc := func(tx *transaction.Transaction) TransactionResponse {
+		// Get the token from the map or use a default
+		token, ok := tokensMap[tx.TokenAddress]
+		if !ok {
+			// Fallback to direct conversion if token not found
+			token = &types.Token{Decimals: 18} // Default to 18 decimals
+		}
+		return ToResponse(tx, token)
+	}
+
+	c.JSON(http.StatusOK, utils.NewPagedResponse(page, transformFunc))
 }

@@ -71,42 +71,87 @@ func (s *walletService) SyncWallet(ctx context.Context, walletID int64) (int, er
 		return 0, err
 	}
 
-	// Create options for transaction history query
-	options := blockexplorer.TransactionHistoryOptions{
+	// Define base options for transaction history query
+	baseOptions := blockexplorer.TransactionHistoryOptions{
 		StartBlock:    wallet.LastBlockNumber + 1, // Start from the next block after last synced
 		EndBlock:      0,                          // Up to the latest block
-		Page:          1,                          // Start with the first page
-		PageSize:      10000,                      // Get 10000 transactions per page
 		SortAscending: true,                       // Oldest to newest
+		Limit:         100,                        // Get 100 transactions per request
 	}
 
 	s.log.Info("Syncing wallet transaction history",
 		logger.Int64("wallet_id", wallet.ID),
 		logger.String("address", wallet.Address),
 		logger.String("chain_type", string(wallet.ChainType)),
-		logger.Int64("start_block", options.StartBlock))
+		logger.Int64("start_block", baseOptions.StartBlock))
 
 	totalSynced := 0
 	highestBlockNumber := wallet.LastBlockNumber
+
+	// First, sync normal (native) transactions
+	totalSynced += s.syncTransactionsByType(ctx, explorer, wallet, baseOptions, blockexplorer.TxTypeNormal, &highestBlockNumber)
+
+	// Then, sync ERC20 token transactions
+	totalSynced += s.syncTransactionsByType(ctx, explorer, wallet, baseOptions, blockexplorer.TxTypeERC20, &highestBlockNumber)
+
+	// Only update the last block number if we've found a higher block
+	if highestBlockNumber > wallet.LastBlockNumber {
+		if err := s.repository.UpdateBlockNumber(ctx, wallet.ID, highestBlockNumber); err != nil {
+			s.log.Error("Failed to update wallet last block number",
+				logger.Int64("wallet_id", wallet.ID),
+				logger.Int64("last_block_number", highestBlockNumber),
+				logger.Error(err))
+		}
+	}
+
+	s.log.Info("Wallet transaction history sync completed",
+		logger.Int64("wallet_id", wallet.ID),
+		logger.String("address", wallet.Address),
+		logger.Int("transactions_synced", totalSynced),
+		logger.Int64("last_block_number", highestBlockNumber))
+
+	return totalSynced, nil
+}
+
+// syncTransactionsByType fetches and processes transactions of a specific type
+func (s *walletService) syncTransactionsByType(
+	ctx context.Context,
+	explorer blockexplorer.BlockExplorer,
+	wallet *Wallet,
+	baseOptions blockexplorer.TransactionHistoryOptions,
+	txType blockexplorer.TransactionType,
+	highestBlockNumber *int64,
+) int {
+	// Create options specific to this transaction type
+	options := baseOptions
+	options.TransactionType = txType
+
+	s.log.Info("Syncing transactions",
+		logger.Int64("wallet_id", wallet.ID),
+		logger.String("address", wallet.Address),
+		logger.String("transaction_type", string(txType)))
+
+	totalSynced := 0
+	nextToken := ""
 	hasMore := true
 
 	// Loop until we have no more transactions to fetch
-	for hasMore {
+	for hasMore && totalSynced < 10000 { // Limit to 10000 transactions per type as a safety measure
 		// Check if context has been canceled
 		if ctx.Err() != nil {
-			return totalSynced, ctx.Err()
+			return totalSynced
 		}
 
 		// Fetch transaction history from the explorer
-		txPage, err := explorer.GetTransactionHistory(ctx, wallet.Address, options)
+		txPage, err := explorer.GetTransactionHistory(ctx, wallet.Address, options, nextToken)
 		if err != nil {
 			s.log.Error("Failed to fetch transaction history",
 				logger.Int64("wallet_id", wallet.ID),
 				logger.String("address", wallet.Address),
-				logger.Int("page", options.Page),
+				logger.String("transaction_type", string(txType)),
 				logger.Error(err))
 
-			return totalSynced, err
+			return totalSynced
 		}
 
 		if len(txPage.Items) == 0 {
@@ -117,8 +162,8 @@ func (s *walletService) SyncWallet(ctx context.Context, walletID int64) (int, er
 		// Process each transaction
 		for _, tx := range txPage.Items {
 			// Update the highest block number we've seen
-			if tx.BlockNumber != nil && tx.BlockNumber.Int64() > highestBlockNumber {
-				highestBlockNumber = tx.BlockNumber.Int64()
+			if tx.BlockNumber != nil && tx.BlockNumber.Int64() > *highestBlockNumber {
+				*highestBlockNumber = tx.BlockNumber.Int64()
 			}
 
 			// Check if transaction already exists
@@ -160,27 +205,21 @@ func (s *walletService) SyncWallet(ctx context.Context, walletID int64) (int, er
 		}
 
 		// Check if we need to fetch more pages
-		hasMore = txPage.HasMore
-		options.Page++
-	}
-
-	// Only update the last block number if we've synced transactions and found a higher block
-	if highestBlockNumber > wallet.LastBlockNumber {
-		if err := s.repository.UpdateBlockNumber(ctx, wallet.ID, highestBlockNumber); err != nil {
-			s.log.Error("Failed to update wallet last block number",
-				logger.Int64("wallet_id", wallet.ID),
-				logger.Int64("last_block_number", highestBlockNumber),
-				logger.Error(err))
+		if txPage.NextToken != "" {
+			nextToken = txPage.NextToken
+			hasMore = true
+		} else {
+			hasMore = false
 		}
 	}
 
-	s.log.Info("Wallet transaction history sync completed",
+	s.log.Info("Completed syncing transactions",
 		logger.Int64("wallet_id", wallet.ID),
 		logger.String("address", wallet.Address),
-		logger.Int("transactions_synced", totalSynced),
-		logger.Int64("last_block_number", highestBlockNumber))
+		logger.String("transaction_type", string(txType)),
+		logger.Int("transactions_synced", totalSynced))
 
-	return totalSynced, nil
+	return totalSynced
 }
 
 // SyncWalletByAddress fetches transaction history for a wallet by its address
@@ -270,7 +309,7 @@ func (s *walletService) StopWalletHistorySyncing() {
 // syncAllWallets syncs transaction history for all wallets
 func (s *walletService) syncAllWallets(ctx context.Context) {
 	// Get all active wallets
-	wallets, err := s.repository.List(ctx, 0, 0) // Get all wallets
+	wallets, err := s.repository.List(ctx, 0, "") // Get all wallets
 	if err != nil {
 		s.log.Error("Failed to get wallets for history sync", logger.Error(err))
 		return

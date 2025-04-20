@@ -14,3 +14,9 @@ type TokenPrice struct {
 	VolumeUSD24h float64   `db:"volume_usd_24h"` // Trading volume in last 24h USD
 	UpdatedAt    time.Time `db:"updated_at"`     // Timestamp when the data was last updated in the DB
 }
+
+// TokenPriceFilter defines criteria for filtering token prices
+type TokenPriceFilter struct {
+	// Symbols is an optional list of token symbols to filter by
+	Symbols []string
+}

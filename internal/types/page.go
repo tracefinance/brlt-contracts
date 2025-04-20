@@ -1,30 +1,107 @@
 package types
 
+import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+
+	"vault0/internal/errors"
+)
+
+// NextPageToken represents pagination state for token-based pagination
+type NextPageToken struct {
+	// Column is the database column used for cursor-based pagination
+	Column string `json:"c"`
+	// Value is the value to compare against for pagination
+	Value any `json:"v"`
+}
+
+// EncodeNextPageToken converts a NextPageToken to an encoded string
+func EncodeNextPageToken(token NextPageToken) (string, error) {
+	data, err := json.Marshal(token)
+	if err != nil {
+		return "", errors.NewTokenEncodingFailedError(err)
+	}
+	return base64.URLEncoding.EncodeToString(data), nil
+}
+
+// DecodeNextPageToken parses an encoded string into a NextPageToken
+// and validates that the token's column matches the expected column
+func DecodeNextPageToken(tokenStr string, expectedColumn string) (*NextPageToken, error) {
+	if tokenStr == "" {
+		return nil, nil
+	}
+
+	data, err := base64.URLEncoding.DecodeString(tokenStr)
+	if err != nil {
+		return nil, errors.NewTokenDecodingFailedError(tokenStr, err)
+	}
+
+	var token NextPageToken
+	if err := json.Unmarshal(data, &token); err != nil {
+		return nil, errors.NewInvalidPaginationTokenError(tokenStr, err)
+	}
+
+	// Validate that the token's column matches the expected column
+	if token.Column != expectedColumn {
+		return nil, errors.NewInvalidPaginationTokenError(
+			tokenStr,
+			fmt.Errorf("invalid column: expected '%s', got '%s'", expectedColumn, token.Column))
+	}
+
+	return &token, nil
+}
+
 // Page represents a paginated response
 type Page[T any] struct {
 	// Items contains the page items
 	Items []T `json:"items"`
-	// Offset is the starting index of the page
-	Offset int `json:"offset"`
+	// NextToken is used for fetching the next page. Empty string for the last page.
+	NextToken string `json:"next_token,omitempty"`
 	// Limit is the maximum number of items per page
 	Limit int `json:"limit"`
-	// Whether there are more pages available
-	HasMore bool `json:"has_more"`
 }
 
-// NewPage creates a new Page
-func NewPage[T any](items []T, offset, limit int) *Page[T] {
-	hasMore := limit > 0 && len(items) > limit
+// NewPage creates a new Page with token-based pagination
+// items should contain up to limit+1 elements to determine if there are more pages
+// generateNextToken is a function that creates a token from the last item
+// If limit is 0, all items are returned without pagination (no NextToken)
+func NewPage[T any](items []T, limit int, generateNextToken func(T) *NextPageToken) *Page[T] {
+	// Special case: when limit is 0, return all items without pagination
+	if limit <= 0 {
+		return &Page[T]{
+			Items:     items,
+			NextToken: "",
+			Limit:     0,
+		}
+	}
+
+	var nextToken string
 	pageItems := items
 
-	if hasMore {
-		pageItems = items[:limit] // Slice back to the requested limit
+	// Check if we have more items than the limit (we fetched limit+1)
+	hasMore := len(items) > limit
+
+	if hasMore && len(items) > 0 {
+		// Get the last visible item (not the limit+1 item)
+		lastItem := items[limit-1]
+
+		// Generate token from the last visible item
+		token := generateNextToken(lastItem)
+		if token != nil {
+			encoded, err := EncodeNextPageToken(*token)
+			if err == nil {
+				nextToken = encoded
+			}
+		}
+
+		// Slice back to the requested limit
+		pageItems = items[:limit]
 	}
 
 	return &Page[T]{
-		Items:   pageItems,
-		Offset:  offset,
-		Limit:   limit,
-		HasMore: hasMore,
+		Items:     pageItems,
+		NextToken: nextToken,
+		Limit:     limit,
 	}
 }

@@ -2,12 +2,13 @@ package token
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 
 	"vault0/internal/api/middleares"
+	"vault0/internal/api/utils"
 	"vault0/internal/errors"
+	"vault0/internal/logger"
 	"vault0/internal/services/token"
 	"vault0/internal/types"
 )
@@ -15,11 +16,12 @@ import (
 // Handler manages token-related API endpoints
 type Handler struct {
 	service token.Service
+	logger  logger.Logger
 }
 
 // NewHandler creates a new token handler
-func NewHandler(service token.Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service token.Service, logger logger.Logger) *Handler {
+	return &Handler{service: service, logger: logger}
 }
 
 // SetupRoutes configures the token API routes
@@ -43,66 +45,47 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 // @Produce json
 // @Param chain_type query string false "Filter by chain type (ethereum, polygon, etc.)"
 // @Param token_type query string false "Filter by token type (erc20, erc721, etc.)"
-// @Param offset query int false "Number of items to skip (default: 0)" default(0)
+// @Param next_token query string false "Token for pagination (empty for first page)"
 // @Param limit query int false "Number of items to return (default: 10)" default(10)
-// @Success 200 {object} TokenListResponse
+// @Success 200 {object} utils.PagedResponse[TokenResponse]
 // @Failure 400 {object} errors.Vault0Error "Invalid request"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /tokens [get]
 func (h *Handler) listTokens(c *gin.Context) {
-	// Parse query parameters
-	chainTypeStr := c.Query("chain_type")
-	tokenTypeStr := c.Query("token_type")
-	offsetStr := c.DefaultQuery("offset", "0")
-	limitStr := c.DefaultQuery("limit", "10")
-
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil {
-		c.Error(errors.NewInvalidParameterError("offset", "must be a valid integer"))
+	var req ListTokensRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.Error(errors.NewInvalidParameterError("query", "invalid query parameters format or value"))
 		return
 	}
 
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		c.Error(errors.NewInvalidParameterError("limit", "must be a valid integer"))
-		return
+	// Set default limit if not provided
+	limit := 10
+	if req.Limit != nil {
+		limit = *req.Limit
 	}
 
 	// Build filter
 	filter := token.TokenFilter{}
 
-	if chainTypeStr != "" {
-		chainType := types.ChainType(chainTypeStr)
+	if req.ChainType != "" {
+		chainType := types.ChainType(req.ChainType)
 		filter.ChainType = &chainType
 	}
 
-	if tokenTypeStr != "" {
-		tokenType := types.TokenType(tokenTypeStr)
+	if req.TokenType != "" {
+		tokenType := types.TokenType(req.TokenType)
 		filter.TokenType = &tokenType
 	}
 
-	// Get paginated tokens (directly passing offset and limit)
-	tokens, err := h.service.ListTokens(c.Request.Context(), filter, offset, limit)
+	// Get paginated tokens using token-based pagination
+	tokens, err := h.service.ListTokens(c.Request.Context(), filter, limit, req.NextToken)
 	if err != nil {
-		c.Error(errors.NewOperationFailedError("list tokens", err))
+		c.Error(err)
 		return
 	}
 
-	// Build response
-	response := TokenListResponse{
-		Items: make([]TokenResponse, len(tokens.Items)),
-		Total: int64(len(tokens.Items)),
-	}
-
-	for i, t := range tokens.Items {
-		response.Items[i] = TokenResponse{
-			Address:   t.Address,
-			ChainType: t.ChainType,
-			Symbol:    t.Symbol,
-			Decimals:  t.Decimals,
-			Type:      t.Type,
-		}
-	}
+	// Convert to response using the helper function
+	response := utils.NewPagedResponse(tokens, TokenToResponse)
 
 	c.JSON(http.StatusOK, response)
 }

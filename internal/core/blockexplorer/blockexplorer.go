@@ -50,19 +50,15 @@ type TransactionHistoryOptions struct {
 	// EndBlock specifies the latest block to include in the query
 	// Use 0 to include up to the latest block
 	EndBlock int64
-	// Page specifies which page of results to return (1-based)
-	// Must be greater than 0
-	Page int
-	// PageSize specifies how many transactions to return per page
-	// The actual number of returned items may be less than this value
-	PageSize int
-	// TransactionTypes filters which types of transactions to include
-	// If empty, all transaction types will be included
-	TransactionTypes []TransactionType
+	// TransactionType specifies which type of transactions to include
+	// If not specified, normal transactions will be used
+	TransactionType TransactionType
 	// SortAscending determines the order of returned transactions
 	// If true, transactions are sorted from oldest to newest
 	// If false, transactions are sorted from newest to oldest
 	SortAscending bool
+	// Limit specifies the maximum number of transactions to return per page
+	Limit int
 }
 
 // BlockExplorer defines the interface for interacting with blockchain explorers
@@ -77,13 +73,14 @@ type BlockExplorer interface {
 	// It supports filtering by transaction type and sorting by timestamp.
 	//
 	// The method returns a Page containing the requested transactions and pagination info.
-	// If no TransactionTypes are specified in options, all types will be included.
+	// If TransactionType is not specified in options, TxTypeNormal will be used by default.
+	// If nextToken is provided, it will be used for pagination.
 	//
 	// Returns:
 	//   - ErrInvalidAddress if the address is invalid for the chain
 	//   - ErrRateLimitExceeded if the explorer's rate limit is hit
 	//   - Other explorer-specific errors for API/network issues
-	GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions) (*types.Page[*types.Transaction], error)
+	GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, nextToken string) (*types.Page[*types.Transaction], error)
 
 	// GetTransactionByHash retrieves detailed information about a specific transaction
 	// given its hash. This is useful for getting the current state of a transaction

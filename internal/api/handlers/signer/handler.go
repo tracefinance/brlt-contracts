@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"vault0/internal/api/middleares"
+	"vault0/internal/api/utils"
 	"vault0/internal/errors"
 	"vault0/internal/services/signer"
 )
@@ -191,32 +192,31 @@ func (h *Handler) GetSigner(c *gin.Context) {
 // @Description Get a paginated list of signers
 // @Tags signers
 // @Produce json
-// @Param limit query int false "Number of items to return (default: 10)" default(10)
-// @Param offset query int false "Number of items to skip (default: 0)" default(0)
-// @Success 200 {object} PagedSignersResponse
+// @Param limit query int false "Number of items to return (default: 10, max: 100)" default(10)
+// @Param next_token query string false "Token for fetching the next page"
+// @Success 200 {object} utils.PagedResponse[*SignerResponse]
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /signers [get]
 func (h *Handler) ListSigners(c *gin.Context) {
-	limitStr := c.DefaultQuery("limit", "10")
-	offsetStr := c.DefaultQuery("offset", "0")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = 10
+	var req ListSignersRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.Error(errors.NewInvalidParameterError("query", "invalid query parameters format or value"))
+		return
 	}
 
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil {
-		offset = 0
+	// Set default limit if not provided
+	limit := 10
+	if req.Limit != nil {
+		limit = *req.Limit
 	}
 
-	pagedSigners, err := h.signerService.List(c.Request.Context(), limit, offset)
+	page, err := h.signerService.List(c.Request.Context(), limit, req.NextToken)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, ToPagedResponse(pagedSigners))
+	c.JSON(http.StatusOK, utils.NewPagedResponse(page, ToSignerResponse))
 }
 
 // GetSignersByUser handles GET /signers/user/:userId

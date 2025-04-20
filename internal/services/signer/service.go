@@ -32,8 +32,9 @@ type Service interface {
 	GetByUserID(ctx context.Context, userID int64) ([]*Signer, error)
 
 	// List returns a paginated collection of signers
-	// Default limit is 10 if limit < 1, offset is 0 if negative
-	List(ctx context.Context, limit, offset int) (*types.Page[*Signer], error)
+	// Default limit is 10 if limit < 1
+	// nextToken is used for token-based pagination (empty string for first page)
+	List(ctx context.Context, limit int, nextToken string) (*types.Page[*Signer], error)
 
 	// AddAddress creates a new address for a signer
 	// Returns an error if the signer doesn't exist or the operation fails
@@ -196,23 +197,19 @@ func (s *service) GetByUserID(ctx context.Context, userID int64) ([]*Signer, err
 }
 
 // List returns a paginated collection of signers
-func (s *service) List(ctx context.Context, limit, offset int) (*types.Page[*Signer], error) {
+func (s *service) List(ctx context.Context, limit int, nextToken string) (*types.Page[*Signer], error) {
 	// Apply default pagination values if not specified
 	// if limit <= 0, use default limit of 10
 	if limit <= 0 {
 		limit = 10
 	}
 
-	if offset < 0 {
-		offset = 0
-	}
-
 	s.log.Debug("Listing signers",
 		logger.Int("limit", limit),
-		logger.Int("offset", offset),
+		logger.String("next_token", nextToken),
 	)
 
-	return s.repository.List(ctx, limit, offset)
+	return s.repository.List(ctx, limit, nextToken)
 }
 
 // AddAddress creates a new address for a signer

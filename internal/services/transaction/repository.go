@@ -24,16 +24,13 @@ type Repository interface {
 	// GetByTxHash retrieves a transaction by its hash
 	GetByTxHash(ctx context.Context, hash string) (*Transaction, error)
 
-	// ListByWalletID retrieves transactions for a specific wallet
-	// If limit is 0, returns all transactions without pagination
-	ListByWalletID(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error)
-
-	// ListByWalletAddress retrieves transactions for a specific blockchain address
-	// If limit is 0, returns all transactions without pagination
-	ListByWalletAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error)
-
 	// List retrieves transactions based on the provided filter criteria
-	List(ctx context.Context, filter *Filter) (*types.Page[*Transaction], error)
+	// This is the primary method for retrieving transactions with different filters:
+	// - Use filter.WalletID to get transactions for a specific wallet
+	// - Use filter.ChainType and filter.Address to get transactions for a specific blockchain address
+	// - Use other filter fields for more specific queries
+	// If limit is 0, returns all transactions without pagination
+	List(ctx context.Context, filter *Filter, limit int, nextToken string) (*types.Page[*Transaction], error)
 
 	// Exists checks if a transaction exists by its hash
 	Exists(ctx context.Context, hash string) (bool, error)
@@ -157,65 +154,8 @@ func (r *repository) executeTransactionQuery(ctx context.Context, sql string, ar
 	return transactions, nil
 }
 
-// ListByWalletID retrieves transactions for a specific wallet
-func (r *repository) ListByWalletID(ctx context.Context, walletID int64, limit, offset int) (*types.Page[*Transaction], error) {
-	// Create a struct-based select builder
-	sb := r.structMap.SelectFrom("transactions")
-	sb.Where(sb.Equal("wallet_id", walletID))
-	sb.OrderBy("timestamp DESC")
-
-	// Add pagination if limit > 0
-	if limit > 0 {
-		sb.Limit(limit + 1) // Fetch one extra item to check for HasMore
-		sb.Offset(offset)
-	}
-
-	// Build the SQL and args
-	sql, args := sb.Build()
-
-	// Execute the query
-	transactions, err := r.executeTransactionQuery(ctx, sql, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	return types.NewPage(transactions, offset, limit), nil
-}
-
-// ListByWalletAddress retrieves transactions for a specific blockchain address
-func (r *repository) ListByWalletAddress(ctx context.Context, chainType types.ChainType, address string, limit, offset int) (*types.Page[*Transaction], error) {
-	// Just lowercase the address for querying
-	lowercaseAddress := strings.ToLower(address)
-
-	// Create a struct-based select builder
-	sb := r.structMap.SelectFrom("transactions")
-	sb.Where(sb.Equal("chain_type", chainType))
-	sb.Where(sb.Or(
-		sb.Equal("lower(from_address)", lowercaseAddress),
-		sb.Equal("lower(to_address)", lowercaseAddress),
-	))
-	sb.OrderBy("timestamp DESC")
-
-	// Add pagination if limit > 0
-	if limit > 0 {
-		sb.Limit(limit + 1) // Fetch one extra item to check for HasMore
-		sb.Offset(offset)
-	}
-
-	// Build the SQL and args
-	sql, args := sb.Build()
-
-	// Execute the query
-	transactions, err := r.executeTransactionQuery(ctx, sql, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	return types.NewPage(transactions, offset, limit), nil
-}
-
 // List retrieves transactions based on the provided filter criteria
-func (r *repository) List(ctx context.Context, filter *Filter) (*types.Page[*Transaction], error) {
+func (r *repository) List(ctx context.Context, filter *Filter, limit int, nextToken string) (*types.Page[*Transaction], error) {
 	// Create a struct-based select builder
 	sb := r.structMap.SelectFrom("transactions")
 
@@ -255,13 +195,25 @@ func (r *repository) List(ctx context.Context, filter *Filter) (*types.Page[*Tra
 		}
 	}
 
+	// Default sort by id for pagination
+	paginationColumn := "id"
+
+	// If nextToken is provided, decode it to get the starting point
+	token, err := types.DecodeNextPageToken(nextToken, paginationColumn)
+	if err != nil {
+		return nil, err
+	}
+
+	if token != nil {
+		sb.Where(sb.LessThan(paginationColumn, token.Value)) // Using less than because we're ordering by DESC
+	}
+
 	// Order by most recent first
-	sb.OrderBy("timestamp DESC")
+	sb.OrderBy("timestamp DESC, id DESC")
 
 	// Add pagination if limit > 0
-	if filter.Limit > 0 {
-		sb.Limit(filter.Limit + 1) // Fetch one extra item to check for HasMore
-		sb.Offset(filter.Offset)
+	if limit > 0 {
+		sb.Limit(limit + 1) // Fetch one extra item to check for HasMore
 	}
 
 	// Build the SQL and args
@@ -273,7 +225,15 @@ func (r *repository) List(ctx context.Context, filter *Filter) (*types.Page[*Tra
 		return nil, err
 	}
 
-	return types.NewPage(transactions, filter.Offset, filter.Limit), nil
+	// Generate the token function
+	generateToken := func(tx *Transaction) *types.NextPageToken {
+		return &types.NextPageToken{
+			Column: paginationColumn,
+			Value:  tx.ID,
+		}
+	}
+
+	return types.NewPage(transactions, limit, generateToken), nil
 }
 
 // Exists checks if a transaction exists by its hash

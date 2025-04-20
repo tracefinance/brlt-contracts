@@ -43,7 +43,7 @@ func (s *walletService) StartTransactionMonitoring(ctx context.Context) error {
 	s.txService.SubscribeToTransactionEvents(s.monitorCtx)
 
 	// Get all active wallets
-	wallets, err := s.repository.List(ctx, 0, 0) // Get all wallets
+	wallets, err := s.repository.List(ctx, 0, "") // Get all wallets
 	if err != nil {
 		s.monitorCancel()
 		s.monitorCtx = nil

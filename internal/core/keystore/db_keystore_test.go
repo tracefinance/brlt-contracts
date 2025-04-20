@@ -277,11 +277,13 @@ func TestDBKeyStore_List(t *testing.T) {
 
 	t.Run("List_EmptyKeyStore", func(t *testing.T) {
 		// Act
-		keys, err := keystore.List(ctx)
+		page, err := keystore.List(ctx, 10, "")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Empty(t, keys)
+		assert.Empty(t, page.Items)
+		assert.Equal(t, 10, page.Limit)
+		assert.Empty(t, page.NextToken)
 	})
 
 	t.Run("List_MultipleKeys", func(t *testing.T) {
@@ -292,17 +294,71 @@ func TestDBKeyStore_List(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		// Act
-		keys, err := keystore.List(ctx)
+		// Act - Get first page with all items
+		page, err := keystore.List(ctx, 10, "")
 
 		// Assert
 		require.NoError(t, err)
-		assert.Len(t, keys, len(keyNames))
+		assert.Len(t, page.Items, len(keyNames))
+		assert.Equal(t, 10, page.Limit)
+		assert.Empty(t, page.NextToken, "Should not have next token since all items fit in first page")
 
 		// Verify the keys are returned with correct IDs and no private keys
-		for _, key := range keys {
+		for _, key := range page.Items {
 			assert.Contains(t, keyNames, key.Name)
 			assert.Nil(t, key.PrivateKey)
+		}
+	})
+
+	t.Run("List_Pagination", func(t *testing.T) {
+		// First clear any existing keys
+		keys, err := keystore.List(ctx, 100, "")
+		require.NoError(t, err)
+		for _, key := range keys.Items {
+			err := keystore.Delete(ctx, key.ID)
+			require.NoError(t, err)
+		}
+
+		// Arrange - Create more keys than our page size
+		const pageSize = 2
+		keyNames := []string{"page-key-1", "page-key-2", "page-key-3", "page-key-4", "page-key-5"}
+		for _, name := range keyNames {
+			_, err := keystore.Create(ctx, name, types.KeyTypeECDSA, elliptic.P256(), nil)
+			require.NoError(t, err)
+		}
+
+		// Act - Get first page
+		firstPage, err := keystore.List(ctx, pageSize, "")
+
+		// Assert
+		require.NoError(t, err)
+		assert.Len(t, firstPage.Items, pageSize)
+		assert.Equal(t, pageSize, firstPage.Limit)
+		assert.NotEmpty(t, firstPage.NextToken, "Should have next token")
+
+		// Get second page
+		secondPage, err := keystore.List(ctx, pageSize, firstPage.NextToken)
+		require.NoError(t, err)
+		assert.Len(t, secondPage.Items, pageSize)
+		assert.Equal(t, pageSize, secondPage.Limit)
+		assert.NotEmpty(t, secondPage.NextToken, "Should have next token")
+
+		// Get third page
+		thirdPage, err := keystore.List(ctx, pageSize, secondPage.NextToken)
+		require.NoError(t, err)
+		assert.Len(t, thirdPage.Items, 1) // Only one left
+		assert.Equal(t, pageSize, thirdPage.Limit)
+		assert.Empty(t, thirdPage.NextToken, "Should not have next token since all items retrieved")
+
+		// Make sure all keys are different
+		allKeys := append(append(firstPage.Items, secondPage.Items...), thirdPage.Items...)
+		assert.Len(t, allKeys, len(keyNames))
+
+		// Verify all key IDs are unique
+		keyIDs := make(map[string]bool)
+		for _, key := range allKeys {
+			assert.False(t, keyIDs[key.ID], "Key ID should be unique")
+			keyIDs[key.ID] = true
 		}
 	})
 }

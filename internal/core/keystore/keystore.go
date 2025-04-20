@@ -145,15 +145,17 @@ type KeyStore interface {
 	//   - error: ErrKeyNotFound if key doesn't exist
 	GetPublicKey(ctx context.Context, id string) (*Key, error)
 
-	// List retrieves all keys in the keystore.
+	// List retrieves keys in the keystore with pagination.
 	//
 	// Parameters:
 	//   - ctx: Context for the operation
+	//   - limit: Maximum number of keys to retrieve (0 means no limit)
+	//   - nextToken: Token for retrieving the next page of results
 	//
 	// Returns:
-	//   - []*Key: List of keys (private key material is not included)
+	//   - *types.Page[*Key]: Paginated list of keys (private key material is not included)
 	//   - error: Any error that occurred during retrieval
-	List(ctx context.Context) ([]*Key, error)
+	List(ctx context.Context, limit int, nextToken string) (*types.Page[*Key], error)
 
 	// Update modifies a key's metadata.
 	//

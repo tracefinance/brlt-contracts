@@ -32,9 +32,8 @@ type Repository interface {
 	// Delete deletes a wallet by its chain type and address
 	Delete(ctx context.Context, chainType types.ChainType, address string) error
 
-	// List retrieves wallets with optional filtering
-	// If limit is 0, returns all wallets without pagination
-	List(ctx context.Context, limit, offset int) (*types.Page[*Wallet], error)
+	// List retrieves wallets with token-based pagination
+	List(ctx context.Context, limit int, nextToken string) (*types.Page[*Wallet], error)
 
 	// Exists checks if a wallet exists by its chain type and address
 	Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error)
@@ -270,21 +269,32 @@ func (r *repository) Delete(ctx context.Context, chainType types.ChainType, addr
 	return nil
 }
 
-// List retrieves wallets with optional filtering
-func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*Wallet], error) {
+// List retrieves wallets with token-based pagination
+func (r *repository) List(ctx context.Context, limit int, nextToken string) (*types.Page[*Wallet], error) {
 	// Create a struct-based select builder
 	sb := r.walletStructMap.SelectFrom("wallets")
 	sb.Where(sb.IsNull("deleted_at"))
 
-	// Default pagination values
-	if offset < 0 {
-		offset = 0
+	// Default pagination column
+	paginationColumn := "id"
+
+	// Decode the next token
+	token, err := types.DecodeNextPageToken(nextToken, paginationColumn)
+	if err != nil {
+		return nil, err
 	}
 
-	// Add pagination
+	// If there is a next token, add the condition to start after the token value
+	if token != nil {
+		sb.Where(sb.GreaterThan(paginationColumn, token.Value))
+	}
+
+	// Ensure consistent ordering
+	sb.OrderBy(paginationColumn + " ASC")
+
+	// Add pagination (fetch one extra to determine if more exist)
 	if limit > 0 {
-		sb.Limit(limit + 1) // Fetch one extra item to check for HasMore
-		sb.Offset(offset)
+		sb.Limit(limit + 1)
 	}
 
 	// Build the SQL and args
@@ -296,9 +306,15 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 		return nil, err
 	}
 
-	// Use the built-in NewPage function which calculates hasMore based on
-	// whether we got at least as many items as the limit
-	return types.NewPage(wallets, offset, limit), nil
+	// Generate the token function
+	generateToken := func(wallet *Wallet) *types.NextPageToken {
+		return &types.NextPageToken{
+			Column: paginationColumn,
+			Value:  wallet.ID,
+		}
+	}
+
+	return types.NewPage(wallets, limit, generateToken), nil
 }
 
 // Exists checks if a wallet exists by its chain type and address

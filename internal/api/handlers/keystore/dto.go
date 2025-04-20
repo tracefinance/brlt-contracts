@@ -51,9 +51,12 @@ type UpdateKeyRequest struct {
 	Tags map[string]string `json:"tags"`
 }
 
-// KeyListResponse represents a list of keys in an API response
-type KeyListResponse struct {
-	Items []KeyResponse `json:"items"`
+// ListKeysRequest defines the query parameters for listing keys
+type ListKeysRequest struct {
+	KeyType   string   `form:"key_type" binding:"omitempty"`
+	Tags      []string `form:"tag" binding:"omitempty"`
+	Limit     *int     `form:"limit" binding:"omitempty,min=1"`
+	NextToken string   `form:"next_token" binding:"omitempty"`
 }
 
 // Convert a keystore.Key to a KeyResponse

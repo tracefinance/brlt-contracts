@@ -31,7 +31,8 @@ type Repository interface {
 
 	// List retrieves a paginated collection of users
 	// When limit=0, returns all users without pagination
-	List(ctx context.Context, limit, offset int) (*types.Page[*User], error)
+	// nextToken is used for token-based pagination
+	List(ctx context.Context, limit int, nextToken string) (*types.Page[*User], error)
 }
 
 // repository implements Repository using SQLite database
@@ -200,21 +201,30 @@ func (r *repository) GetByEmail(ctx context.Context, email string) (*User, error
 	return users[0], nil
 }
 
-// List retrieves a paginated list of users
-func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*User], error) {
+// List retrieves a paginated list of users using token-based pagination
+func (r *repository) List(ctx context.Context, limit int, nextToken string) (*types.Page[*User], error) {
 	// Create a struct-based select builder
 	sb := r.userStructMap.SelectFrom("users")
-	sb.OrderBy("id")
 
-	// Default offset to 0 if negative
-	if offset < 0 {
-		offset = 0
+	// Default sort by id
+	paginationColumn := "id"
+
+	// If nextToken is provided, decode it to get the starting point
+	token, err := types.DecodeNextPageToken(nextToken, paginationColumn)
+	if err != nil {
+		return nil, err
 	}
 
-	// Add pagination
+	if token != nil {
+		sb.Where(sb.GreaterThan(paginationColumn, token.Value))
+	}
+
+	// Ensure consistent ordering
+	sb.OrderBy(paginationColumn + " ASC")
+
+	// Add pagination (fetch one extra to determine if more exist)
 	if limit > 0 {
-		sb.Limit(limit + 1) // Fetch one extra item
-		sb.Offset(offset)
+		sb.Limit(limit + 1)
 	}
 
 	// Build the SQL and args
@@ -226,5 +236,13 @@ func (r *repository) List(ctx context.Context, limit, offset int) (*types.Page[*
 		return nil, err
 	}
 
-	return types.NewPage(users, offset, limit), nil
+	// Generate the token function
+	generateToken := func(user *User) *types.NextPageToken {
+		return &types.NextPageToken{
+			Column: paginationColumn,
+			Value:  user.ID,
+		}
+	}
+
+	return types.NewPage(users, limit, generateToken), nil
 }

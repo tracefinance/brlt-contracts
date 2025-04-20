@@ -2,11 +2,11 @@ package wallet
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 
 	"vault0/internal/api/middleares"
+	"vault0/internal/api/utils"
 	"vault0/internal/services/token"
 	walletService "vault0/internal/services/wallet"
 	"vault0/internal/types"
@@ -179,41 +179,34 @@ func (h *Handler) DeleteWallet(c *gin.Context) {
 // @Description Get a paginated list of all wallets
 // @Tags wallets
 // @Produce json
-// @Param limit query int false "Maximum number of wallets to return (default: 10)" default(10)
-// @Param offset query int false "Number of wallets to skip for pagination (default: 0)" default(0)
-// @Success 200 {object} PagedWalletsResponse "Paginated list of wallets with navigation metadata"
+// @Param limit query int false "Maximum number of wallets to return (default: 10, 0 for all)" default(10)
+// @Param next_token query string false "Token for retrieving the next page of results"
+// @Success 200 {object} utils.PagedResponse[*WalletResponse] "Paginated list of wallets with navigation metadata"
+// @Failure 400 {object} errors.Vault0Error "Invalid pagination token"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /wallets [get]
 func (h *Handler) ListWallets(c *gin.Context) {
-	// Get pagination parameters
-	limitStr := c.Query("limit")
-	offsetStr := c.Query("offset")
-
-	limit := 10 // Default limit
-	if limitStr != "" {
-		parsedLimit, err := strconv.Atoi(limitStr)
-		if err == nil && parsedLimit > 0 {
-			limit = parsedLimit
-		}
+	var req ListWalletsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.Error(err)
+		return
 	}
 
-	offset := 0 // Default offset
-	if offsetStr != "" {
-		parsedOffset, err := strconv.Atoi(offsetStr)
-		if err == nil && parsedOffset >= 0 {
-			offset = parsedOffset
-		}
+	// Set default limit if not provided
+	limit := 10
+	if req.Limit != nil {
+		limit = *req.Limit
 	}
 
-	// Get the wallets
-	walletPage, err := h.walletService.List(c.Request.Context(), limit, offset)
+	// Get the wallets using token-based pagination
+	walletPage, err := h.walletService.List(c.Request.Context(), limit, req.NextToken)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	// Write response
-	c.JSON(http.StatusOK, ToPagedResponse(walletPage))
+	// Use utils.NewPagedResponse directly
+	c.JSON(http.StatusOK, utils.NewPagedResponse(walletPage, ToResponse))
 }
 
 // GetWalletBalance handles retrieving a wallet's balances by chain type and address

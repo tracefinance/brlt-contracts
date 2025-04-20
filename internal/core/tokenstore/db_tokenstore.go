@@ -3,6 +3,7 @@ package tokenstore
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
 
@@ -124,18 +125,34 @@ func (s *dbTokenStore) GetToken(ctx context.Context, address string) (*types.Tok
 }
 
 // ListTokensByChain retrieves tokens for a specific blockchain with pagination
-func (s *dbTokenStore) ListTokensByChain(ctx context.Context, chainType types.ChainType, offset, limit int) (*types.Page[types.Token], error) {
+func (s *dbTokenStore) ListTokensByChain(ctx context.Context, chainType types.ChainType, limit int, nextToken string) (*types.Page[types.Token], error) {
 	query := `SELECT address, chain_type, symbol, decimals, type 
 		FROM tokens 
-		WHERE chain_type = ?
-		ORDER BY symbol`
+		WHERE chain_type = ?`
 
 	args := []any{chainType}
 
+	// Default sort column
+	paginationColumn := "symbol"
+
+	// Handle token-based pagination
+	token, err := types.DecodeNextPageToken(nextToken, paginationColumn)
+	if err != nil {
+		return nil, err
+	}
+
+	if token != nil {
+		query += fmt.Sprintf(" AND %s > ?", paginationColumn)
+		args = append(args, token.Value)
+	}
+
+	// Add consistent ordering
+	query += fmt.Sprintf(" ORDER BY %s ASC", paginationColumn)
+
 	// Add pagination if limit > 0
 	if limit > 0 {
-		query += " LIMIT ? OFFSET ?"
-		args = append(args, limit+1, offset) // Fetch one extra item
+		query += " LIMIT ?"
+		args = append(args, limit+1) // Fetch one extra item to determine if there are more results
 	}
 
 	rows, err := s.db.ExecuteQueryContext(ctx, query, args...)
@@ -155,21 +172,48 @@ func (s *dbTokenStore) ListTokensByChain(ctx context.Context, chainType types.Ch
 		tokenItems = append(tokenItems, *token)
 	}
 
-	return types.NewPage(tokenItems, offset, limit), nil
+	// Generate token function for pagination
+	generateToken := func(token types.Token) *types.NextPageToken {
+		return &types.NextPageToken{
+			Column: paginationColumn,
+			Value:  token.Symbol,
+		}
+	}
+
+	return types.NewPage(tokenItems, limit, generateToken), nil
 }
 
 // ListTokens retrieves tokens in the store with pagination
-func (s *dbTokenStore) ListTokens(ctx context.Context, offset, limit int) (*types.Page[types.Token], error) {
+func (s *dbTokenStore) ListTokens(ctx context.Context, limit int, nextToken string) (*types.Page[types.Token], error) {
 	query := `SELECT address, chain_type, symbol, decimals, type 
-		FROM tokens 
-		ORDER BY chain_type, symbol`
+		FROM tokens`
 
 	args := []any{}
 
+	// Default sort columns
+	paginationColumn := "symbol"
+	secondaryColumn := "chain_type"
+
+	// Handle token-based pagination
+	if nextToken != "" {
+		token, err := types.DecodeNextPageToken(nextToken, paginationColumn)
+		if err != nil {
+			return nil, err
+		}
+
+		if token != nil {
+			query += fmt.Sprintf(" WHERE %s > ?", paginationColumn)
+			args = append(args, token.Value)
+		}
+	}
+
+	// Add consistent ordering
+	query += fmt.Sprintf(" ORDER BY %s ASC, %s ASC", paginationColumn, secondaryColumn)
+
 	// Add pagination if limit > 0
 	if limit > 0 {
-		query += " LIMIT ? OFFSET ?"
-		args = append(args, limit+1, offset) // Fetch one extra item
+		query += " LIMIT ?"
+		args = append(args, limit+1) // Fetch one extra item
 	}
 
 	rows, err := s.db.ExecuteQueryContext(ctx, query, args...)
@@ -189,7 +233,15 @@ func (s *dbTokenStore) ListTokens(ctx context.Context, offset, limit int) (*type
 		tokenItems = append(tokenItems, *token)
 	}
 
-	return types.NewPage(tokenItems, offset, limit), nil
+	// Generate token function for pagination
+	generateToken := func(token types.Token) *types.NextPageToken {
+		return &types.NextPageToken{
+			Column: paginationColumn,
+			Value:  token.Symbol,
+		}
+	}
+
+	return types.NewPage(tokenItems, limit, generateToken), nil
 }
 
 // UpdateToken updates an existing token

@@ -42,11 +42,13 @@ type TokenStore interface {
 
 	// ListTokens retrieves tokens in the store with pagination
 	// If limit is 0, returns all tokens without pagination
-	ListTokens(ctx context.Context, offset, limit int) (*types.Page[types.Token], error)
+	// nextToken is used for token-based pagination (empty string for first page)
+	ListTokens(ctx context.Context, limit int, nextToken string) (*types.Page[types.Token], error)
 
 	// ListTokensByChain retrieves tokens for a specific blockchain with pagination
 	// If limit is 0, returns all tokens without pagination
-	ListTokensByChain(ctx context.Context, chainType types.ChainType, offset, limit int) (*types.Page[types.Token], error)
+	// nextToken is used for token-based pagination (empty string for first page)
+	ListTokensByChain(ctx context.Context, chainType types.ChainType, limit int, nextToken string) (*types.Page[types.Token], error)
 
 	// ListTokensByAddresses retrieves tokens by a list of token addresses for a specific chain
 	// Returns tokens in the same order as the input addresses

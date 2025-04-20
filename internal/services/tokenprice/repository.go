@@ -2,6 +2,7 @@ package tokenprice
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -32,17 +33,19 @@ type Repository interface {
 	//   - Other database errors (e.g., ErrDatabaseOperationFailed).
 	GetBySymbol(ctx context.Context, symbol string) (*TokenPrice, error)
 
-	// ListBySymbols retrieves the stored price data for multiple token symbols.
+	// List retrieves a paginated list of stored token prices, optionally filtered and sorted.
+	// Uses token-based pagination for consistent results.
+	//
+	// Parameters:
+	//   - ctx: The context for the operation
+	//   - filter: Optional filtering criteria
+	//   - limit: Maximum number of items to return (0 for all items)
+	//   - nextToken: Token for pagination (empty string for first page)
 	//
 	// Returns:
-	//   - A map of symbol to TokenPrice for all found symbols.
-	//   - An empty map if no symbols are found.
-	//   - Database errors if the query fails.
-	ListBySymbols(ctx context.Context, symbols []string) (map[string]*TokenPrice, error)
-
-	// List retrieves a paginated list of stored token prices, optionally sorted.
-	// Uses offset/limit for pagination.
-	List(ctx context.Context, offset int, limit int) (*types.Page[*TokenPrice], error)
+	//   - A page of token prices with pagination information
+	//   - An error if the database operation fails
+	List(ctx context.Context, filter *TokenPriceFilter, limit int, nextToken string) (*types.Page[*TokenPrice], error)
 }
 
 // repository implements Repository interface for SQLite
@@ -65,7 +68,7 @@ func NewRepository(db *db.DB, log logger.Logger) Repository {
 }
 
 // executeTokenPriceQuery executes a query and scans the results into TokenPrice objects
-func (r *repository) executeTokenPriceQuery(ctx context.Context, sql string, args ...interface{}) ([]*TokenPrice, error) {
+func (r *repository) executeTokenPriceQuery(ctx context.Context, sql string, args ...any) ([]*TokenPrice, error) {
 	rows, err := r.db.ExecuteQueryContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -99,7 +102,7 @@ func (r *repository) UpsertMany(ctx context.Context, prices []*TokenPrice) (int6
 	conn := r.db.GetConnection()
 	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, errors.NewDatabaseError(err)
+		return 0, err
 	}
 	defer tx.Rollback()
 
@@ -119,7 +122,7 @@ func (r *repository) UpsertMany(ctx context.Context, prices []*TokenPrice) (int6
 	}
 
 	// Use FindBySymbols to get existing price data
-	existingPrices, err := r.ListBySymbols(ctx, symbols)
+	existingPrices, err := r.mapPriceBySymbol(ctx, symbols)
 	if err != nil {
 		r.log.Error("Failed to find existing token prices", logger.Error(err))
 		return 0, err
@@ -153,7 +156,7 @@ func (r *repository) UpsertMany(ctx context.Context, prices []*TokenPrice) (int6
 		updateStmt, err := tx.Prepare(updateSQL)
 		if err != nil {
 			r.log.Error("Failed to prepare update statement", logger.Error(err))
-			return 0, errors.NewDatabaseError(err)
+			return 0, err
 		}
 		defer updateStmt.Close()
 
@@ -199,7 +202,7 @@ func (r *repository) UpsertMany(ctx context.Context, prices []*TokenPrice) (int6
 		insertStmt, err := tx.Prepare(insertSQL)
 		if err != nil {
 			r.log.Error("Failed to prepare insert statement", logger.Error(err))
-			return 0, errors.NewDatabaseError(err)
+			return 0, err
 		}
 		defer insertStmt.Close()
 
@@ -232,7 +235,7 @@ func (r *repository) UpsertMany(ctx context.Context, prices []*TokenPrice) (int6
 	// Commit the transaction
 	if err := tx.Commit(); err != nil {
 		r.log.Error("Failed to commit transaction", logger.Error(err))
-		return 0, errors.NewDatabaseError(err)
+		return 0, err
 	}
 
 	return totalAffected, nil
@@ -264,14 +267,14 @@ func (r *repository) GetBySymbol(ctx context.Context, symbol string) (*TokenPric
 	return prices[0], nil
 }
 
-// ListBySymbols retrieves token prices for a list of symbols
-func (r *repository) ListBySymbols(ctx context.Context, symbols []string) (map[string]*TokenPrice, error) {
+// mapPriceBySymbol retrieves token prices for a list of symbols
+func (r *repository) mapPriceBySymbol(ctx context.Context, symbols []string) (map[string]*TokenPrice, error) {
 	if len(symbols) == 0 {
 		return make(map[string]*TokenPrice), nil
 	}
 
 	// Normalize symbols to uppercase for consistent comparison
-	upperSymbols := make([]interface{}, len(symbols))
+	upperSymbols := make([]any, len(symbols))
 	for i, symbol := range symbols {
 		upperSymbols[i] = strings.ToUpper(symbol)
 	}
@@ -289,7 +292,7 @@ func (r *repository) ListBySymbols(ctx context.Context, symbols []string) (map[s
 		r.log.Error("Failed to find token prices by symbols",
 			logger.Int("symbol_count", len(symbols)),
 			logger.Error(err))
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	// Create a map of symbol to token price
@@ -301,35 +304,65 @@ func (r *repository) ListBySymbols(ctx context.Context, symbols []string) (map[s
 	return result, nil
 }
 
-// List retrieves a paginated list of token prices
-func (r *repository) List(ctx context.Context, offset int, limit int) (*types.Page[*TokenPrice], error) {
-	// Create a struct-based select builder
+// List retrieves a paginated list of token prices based on filter criteria
+func (r *repository) List(ctx context.Context, filter *TokenPriceFilter, limit int, nextToken string) (*types.Page[*TokenPrice], error) {
+	// Create a select builder for the query
 	sb := r.structMap.SelectFrom("token_prices")
 
-	// Add ordering by rank
+	// Apply filtering if symbols are provided
+	if filter != nil && len(filter.Symbols) > 0 {
+		// Normalize symbols to uppercase for consistent comparison
+		upperSymbols := make([]any, len(filter.Symbols))
+		for i, symbol := range filter.Symbols {
+			upperSymbols[i] = strings.ToUpper(symbol)
+		}
+
+		// Add WHERE clause for symbols
+		sb.Where(sb.In("symbol", upperSymbols...))
+	}
+
+	// Apply sorting by rank for consistent pagination
 	sb.OrderBy("rank ASC")
 
-	// Normalize pagination parameters
-	if offset < 0 {
-		offset = 0
+	// Decode the token using rank as the expected column
+	token, err := types.DecodeNextPageToken(nextToken, "rank")
+	if err != nil {
+		return nil, err
 	}
 
-	// Add pagination if limit > 0
+	// Apply pagination only if token is not nil
+	if token != nil {
+		// Get rank value as an integer
+		rankInt, ok := token.Value.(int)
+		if !ok {
+			return nil, errors.NewInvalidPaginationTokenError(nextToken,
+				fmt.Errorf("rank value must be an integer, got %T", token.Value))
+		}
+
+		// Use rank directly as int
+		sb.Where(sb.GreaterThan("rank", rankInt))
+	}
+
+	// Apply limit only if specified (> 0). Fetch one extra to determine if there are more pages
 	if limit > 0 {
-		sb.Limit(limit + 1) // Fetch one extra item
-		sb.Offset(offset)
+		sb.Limit(limit + 1)
 	}
 
-	// Build the SQL and args
+	// Build and execute the query
 	sql, args := sb.Build()
-
-	// Execute the query
 	prices, err := r.executeTokenPriceQuery(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
 
-	return types.NewPage(prices, offset, limit), nil
+	// Create a properly paginated response using NewPage
+	// NewPage now handles both limit=0 and regular pagination cases
+	return types.NewPage(prices, limit, func(price *TokenPrice) *types.NextPageToken {
+		return &types.NextPageToken{
+			Column: "rank",
+			Value:  price.Rank,
+		}
+	}), nil
 }
 
 // ScanTokenPrice scans a database row into a TokenPrice struct

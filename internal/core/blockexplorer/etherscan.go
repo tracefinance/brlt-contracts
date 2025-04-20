@@ -2,6 +2,7 @@ package blockexplorer
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +19,40 @@ import (
 
 	"golang.org/x/time/rate"
 )
+
+// NextPage represents the pagination state for Etherscan API queries.
+// It is encoded as a base64 string in the NextToken field of the Page response.
+type NextPage struct {
+	Page int `json:"page"`
+}
+
+// Encode serializes the NextPage struct to a base64 string
+func (np *NextPage) Encode() string {
+	data, err := json.Marshal(np)
+	if err != nil {
+		return ""
+	}
+	return base64.URLEncoding.EncodeToString(data)
+}
+
+// DecodeNextPage decodes a base64 string into a NextPage struct
+func DecodeNextPage(token string) (*NextPage, error) {
+	if token == "" {
+		return &NextPage{Page: 1}, nil
+	}
+
+	data, err := base64.URLEncoding.DecodeString(token)
+	if err != nil {
+		return nil, errors.NewTokenDecodingFailedError(token, err)
+	}
+
+	var np NextPage
+	if err := json.Unmarshal(data, &np); err != nil {
+		return nil, errors.NewInvalidPaginationTokenError(token, err)
+	}
+
+	return &np, nil
+}
 
 const (
 	// Default values
@@ -142,10 +176,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 				logger.String("chain", string(e.chain.Type)),
 			)
 			// Calculate exponential backoff delay
-			backoffDelay := baseRetryDelay * time.Duration(1<<uint(attempt+2)) // More aggressive backoff for rate limits
-			if backoffDelay > 15*time.Second {
-				backoffDelay = 15 * time.Second // Cap at 15 seconds for rate limits
-			}
+			backoffDelay := min(baseRetryDelay*time.Duration(1<<uint(attempt+2)), 15*time.Second)
 			time.Sleep(backoffDelay)
 			continue
 		}
@@ -265,9 +296,10 @@ func (e *EtherscanExplorer) GetContract(ctx context.Context, address string) (*C
 }
 
 // getNormalTransactionHistory fetches normal transactions for an address
-func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions) ([]*types.Transaction, error) {
+func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, page, limit int) ([]*types.Transaction, error) {
 	params := url.Values{}
-	e.setTransactionHistoryParams(params, address, options, "txlist")
+	// Request limit+1 items to determine if there's a next page
+	e.setTransactionHistoryParams(params, address, options, "txlist", page, limit+1)
 
 	data, err := e.makeRequest(ctx, params)
 	if err != nil {
@@ -341,9 +373,10 @@ func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, add
 }
 
 // getInternalTransactionHistory fetches internal transactions for an address
-func (e *EtherscanExplorer) getInternalTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions) ([]*types.Transaction, error) {
+func (e *EtherscanExplorer) getInternalTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, page, limit int) ([]*types.Transaction, error) {
 	params := url.Values{}
-	e.setTransactionHistoryParams(params, address, options, "txlistinternal")
+	// Request limit+1 items to determine if there's a next page
+	e.setTransactionHistoryParams(params, address, options, "txlistinternal", page, limit+1)
 
 	data, err := e.makeRequest(ctx, params)
 	if err != nil {
@@ -406,9 +439,10 @@ func (e *EtherscanExplorer) getInternalTransactionHistory(ctx context.Context, a
 }
 
 // getERC20TransactionHistory fetches ERC20 token transfers for an address
-func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions) ([]*types.Transaction, error) {
+func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, page, limit int) ([]*types.Transaction, error) {
 	params := url.Values{}
-	e.setTransactionHistoryParams(params, address, options, "tokentx")
+	// Request limit+1 items to determine if there's a next page
+	e.setTransactionHistoryParams(params, address, options, "tokentx", page, limit+1)
 
 	data, err := e.makeRequest(ctx, params)
 	if err != nil {
@@ -481,80 +515,71 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 }
 
 // GetTransactionHistory retrieves transaction history for an address with pagination
-func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions) (*types.Page[*types.Transaction], error) {
+func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, nextToken string) (*types.Page[*types.Transaction], error) {
 	if !e.chain.IsValidAddress(address) {
 		return nil, errors.NewInvalidAddressError(address)
 	}
 
-	// Default page size if not specified
-	if options.PageSize == 0 {
-		options.PageSize = 10
+	// Default limit if not specified
+	limit := 10
+	if options.Limit > 0 {
+		limit = options.Limit
 	}
 
-	// Default page number if not specified
-	if options.Page == 0 {
-		options.Page = 1
+	// Decode next page token or start at page 1
+	nextPage, err := DecodeNextPage(nextToken)
+	if err != nil {
+		return nil, err
+	}
+	currentPage := nextPage.Page
+
+	// If no transaction type is specified, default to normal transactions
+	txType := options.TransactionType
+	if txType == "" {
+		txType = TxTypeNormal
 	}
 
-	// Initialize variables to store transactions and total count
-	var allTransactions []*types.Transaction
-	var total int64
+	// Fetch transactions based on the specified type
+	var transactions []*types.Transaction
+	var fetchErr error
 
-	// If no specific types are requested, fetch all types
-	if len(options.TransactionTypes) == 0 {
-		options.TransactionTypes = []TransactionType{TxTypeNormal, TxTypeInternal, TxTypeERC20}
+	switch txType {
+	case TxTypeNormal:
+		transactions, fetchErr = e.getNormalTransactionHistory(ctx, address, options, currentPage, limit)
+	case TxTypeInternal:
+		transactions, fetchErr = e.getInternalTransactionHistory(ctx, address, options, currentPage, limit)
+	case TxTypeERC20:
+		transactions, fetchErr = e.getERC20TransactionHistory(ctx, address, options, currentPage, limit)
+	case TxTypeERC721:
+		// Not implemented yet
+		return nil, errors.NewExplorerError(fmt.Errorf("ERC721 transaction history not supported yet"))
+	default:
+		return nil, errors.NewExplorerError(fmt.Errorf("unsupported transaction type: %s", txType))
 	}
 
-	// Fetch transactions based on requested types
-	for _, txType := range options.TransactionTypes {
-		var txs []*types.Transaction
-		var err error
-
-		switch txType {
-		case TxTypeNormal:
-			txs, err = e.getNormalTransactionHistory(ctx, address, options)
-		case TxTypeInternal:
-			txs, err = e.getInternalTransactionHistory(ctx, address, options)
-		case TxTypeERC20:
-			txs, err = e.getERC20TransactionHistory(ctx, address, options)
-		default:
-			continue
-		}
-
-		if err != nil {
-			return nil, err
-		}
-
-		allTransactions = append(allTransactions, txs...)
-		total += int64(len(txs))
+	if fetchErr != nil {
+		return nil, fetchErr
 	}
 
-	// Sort transactions by timestamp
-	sort.Slice(allTransactions, func(i, j int) bool {
-		if options.SortAscending {
-			return allTransactions[i].Timestamp < allTransactions[j].Timestamp
-		}
-		return allTransactions[i].Timestamp > allTransactions[j].Timestamp
-	})
+	// Check for next page
+	var nextPageToken string
+	hasMore := len(transactions) > limit
+	if hasMore {
+		nextPage := &NextPage{Page: currentPage + 1}
+		nextPageToken = nextPage.Encode()
+		// Trim to limit for the response
+		transactions = transactions[:limit]
+	}
 
-	// Calculate pagination
-	start := (options.Page - 1) * options.PageSize
-	end := min(start+options.PageSize, len(allTransactions))
-
-	// Check if there are more pages
-	hasMore := end < len(allTransactions)
-
-	// Return paginated results
 	return &types.Page[*types.Transaction]{
-		Items:   allTransactions[start:end],
-		Offset:  (options.Page - 1) * options.PageSize,
-		Limit:   options.PageSize,
-		HasMore: hasMore,
+		Items:     transactions,
+		NextToken: nextPageToken,
+		Limit:     limit,
 	}, nil
 }
 
 // setTransactionHistoryParams sets common parameters for transaction history queries
-func (e *EtherscanExplorer) setTransactionHistoryParams(params url.Values, address string, options TransactionHistoryOptions, action string) {
+func (e *EtherscanExplorer) setTransactionHistoryParams(params url.Values, address string, options TransactionHistoryOptions, action string, page, limit int) {
 	params.Set("module", "account")
 	params.Set("action", action)
 	params.Set("address", address)
@@ -562,8 +587,8 @@ func (e *EtherscanExplorer) setTransactionHistoryParams(params url.Values, addre
 	if options.EndBlock != 0 {
 		params.Set("endblock", strconv.FormatInt(options.EndBlock, 10))
 	}
-	params.Set("page", strconv.Itoa(options.Page))
-	params.Set("offset", strconv.Itoa(options.PageSize))
+	params.Set("page", strconv.Itoa(page))
+	params.Set("offset", strconv.Itoa(limit))
 	params.Set("sort", map[bool]string{true: "asc", false: "desc"}[options.SortAscending])
 }
 

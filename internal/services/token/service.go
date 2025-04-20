@@ -12,7 +12,8 @@ import (
 // Service defines the token service interface
 type Service interface {
 	// ListTokens retrieves tokens with optional filtering
-	ListTokens(ctx context.Context, filter TokenFilter, offset, limit int) (*types.Page[types.Token], error)
+	// nextToken is used for token-based pagination (empty string for first page)
+	ListTokens(ctx context.Context, filter TokenFilter, limit int, nextToken string) (*types.Page[types.Token], error)
 
 	// AddToken adds a new token
 	AddToken(ctx context.Context, token *types.Token) error
@@ -50,17 +51,15 @@ func NewService(tokenStore tokenstore.TokenStore, log logger.Logger) Service {
 }
 
 // ListTokens implements the Service interface
-func (s *service) ListTokens(ctx context.Context, filter TokenFilter, offset, limit int) (*types.Page[types.Token], error) {
-	// Set default values for offset and limit
-	if offset < 0 {
-		offset = 0
-	}
+func (s *service) ListTokens(ctx context.Context, filter TokenFilter, limit int, nextToken string) (*types.Page[types.Token], error) {
+	// Set default limit
 	if limit <= 0 {
 		limit = 10
 	}
+
 	// If chain type filter is provided, use the specific list method
 	if filter.ChainType != nil {
-		tokens, err := s.tokenStore.ListTokensByChain(ctx, *filter.ChainType, offset, limit)
+		tokens, err := s.tokenStore.ListTokensByChain(ctx, *filter.ChainType, limit, nextToken)
 		if err != nil {
 			s.log.Error("Failed to list tokens by chain",
 				logger.Error(err),
@@ -77,15 +76,28 @@ func (s *service) ListTokens(ctx context.Context, filter TokenFilter, offset, li
 				}
 			}
 
+			// Create a new NextPageToken generator for filtered results
+			generateToken := func(token types.Token) *types.NextPageToken {
+				return &types.NextPageToken{
+					Column: "symbol",
+					Value:  token.Symbol,
+				}
+			}
+
 			// Return a new page with filtered items
-			return types.NewPage(filtered, offset, limit), nil
+			// Need to handle pagination differently when filtering in memory
+			if len(filtered) > limit {
+				filtered = filtered[:limit]
+			}
+
+			return types.NewPage(filtered, limit, generateToken), nil
 		}
 
 		return tokens, nil
 	}
 
 	// Otherwise, list all tokens
-	tokens, err := s.tokenStore.ListTokens(ctx, offset, limit)
+	tokens, err := s.tokenStore.ListTokens(ctx, limit, nextToken)
 	if err != nil {
 		s.log.Error("Failed to list tokens", logger.Error(err))
 		return nil, err
@@ -100,8 +112,21 @@ func (s *service) ListTokens(ctx context.Context, filter TokenFilter, offset, li
 			}
 		}
 
+		// Create a new NextPageToken generator for filtered results
+		generateToken := func(token types.Token) *types.NextPageToken {
+			return &types.NextPageToken{
+				Column: "symbol",
+				Value:  token.Symbol,
+			}
+		}
+
 		// Return a new page with filtered items
-		return types.NewPage(filtered, offset, limit), nil
+		// Need to handle pagination differently when filtering in memory
+		if len(filtered) > limit {
+			filtered = filtered[:limit]
+		}
+
+		return types.NewPage(filtered, limit, generateToken), nil
 	}
 
 	return tokens, nil

@@ -24,8 +24,11 @@ type Service interface {
 	// GetKey retrieves a key by ID
 	GetKey(ctx context.Context, id string) (*keystore.Key, error)
 
-	// ListKeys retrieves keys with optional filtering
-	ListKeys(ctx context.Context, filter KeyFilter) ([]*keystore.Key, error)
+	// ListKeys retrieves keys with optional filtering and pagination
+	// limit specifies the maximum number of keys to return (0 means use default)
+	// nextToken is used for pagination (empty string for first page)
+	// returns a Page of keys and error if any
+	ListKeys(ctx context.Context, filter KeyFilter, limit int, nextToken string) (*types.Page[*keystore.Key], error)
 
 	// UpdateKey modifies a key's metadata
 	UpdateKey(ctx context.Context, id string, name string, tags map[string]string) (*keystore.Key, error)
@@ -184,44 +187,55 @@ func (s *service) GetKey(ctx context.Context, id string) (*keystore.Key, error) 
 }
 
 // ListKeys implements the Service interface
-func (s *service) ListKeys(ctx context.Context, filter KeyFilter) ([]*keystore.Key, error) {
-	// Get all keys
-	keys, err := s.keyStore.List(ctx)
+func (s *service) ListKeys(ctx context.Context, filter KeyFilter, limit int, nextToken string) (*types.Page[*keystore.Key], error) {
+	// Get keys with pagination
+	keysPage, err := s.keyStore.List(ctx, limit, nextToken)
 	if err != nil {
 		s.log.Error("Failed to list keys", logger.Error(err))
 		return nil, err
 	}
 
-	// Apply filters if specified
-	if filter.KeyType != nil || len(filter.Tags) > 0 {
-		filtered := make([]*keystore.Key, 0)
-
-		for _, key := range keys {
-			// Apply key type filter
-			if filter.KeyType != nil && key.Type != *filter.KeyType {
-				continue
-			}
-
-			// Apply tags filter (all specified tags must match)
-			matchesTags := true
-			for tagKey, tagValue := range filter.Tags {
-				if val, exists := key.Tags[tagKey]; !exists || val != tagValue {
-					matchesTags = false
-					break
-				}
-			}
-
-			if !matchesTags {
-				continue
-			}
-
-			filtered = append(filtered, key)
-		}
-
-		return filtered, nil
+	// If no filtering is required, return the page as-is
+	if filter.KeyType == nil && len(filter.Tags) == 0 {
+		return keysPage, nil
 	}
 
-	return keys, nil
+	// Apply filters if specified
+	filtered := make([]*keystore.Key, 0)
+
+	for _, key := range keysPage.Items {
+		// Apply key type filter
+		if filter.KeyType != nil && key.Type != *filter.KeyType {
+			continue
+		}
+
+		// Apply tags filter (all specified tags must match)
+		matchesTags := true
+		for tagKey, tagValue := range filter.Tags {
+			if val, exists := key.Tags[tagKey]; !exists || val != tagValue {
+				matchesTags = false
+				break
+			}
+		}
+
+		if !matchesTags {
+			continue
+		}
+
+		filtered = append(filtered, key)
+	}
+
+	// Create a new page with the filtered items
+	// Note: When applying filters, we lose the ability to properly use the NextToken
+	// since we're filtering after pagination. In a production system, you might want
+	// to implement filtering at the database level for better pagination support.
+	filteredPage := &types.Page[*keystore.Key]{
+		Items:     filtered,
+		Limit:     keysPage.Limit,
+		NextToken: keysPage.NextToken,
+	}
+
+	return filteredPage, nil
 }
 
 // UpdateKey implements the Service interface

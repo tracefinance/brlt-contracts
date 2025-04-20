@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"vault0/internal/api/middleares"
+	"vault0/internal/api/utils"
 	"vault0/internal/errors"
 	"vault0/internal/services/user"
 )
@@ -160,30 +161,28 @@ func (h *Handler) GetUser(c *gin.Context) {
 // @Tags users
 // @Produce json
 // @Param limit query int false "Number of items to return (default: 10, max: 100)" default(10)
-// @Param offset query int false "Number of items to skip (default: 0)" default(0)
-// @Success 200 {object} PagedUsersResponse
+// @Param next_token query string false "Token for fetching the next page"
+// @Success 200 {object} utils.PagedResponse[*UserResponse]
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /users [get]
 func (h *Handler) ListUsers(c *gin.Context) {
-	// Parse pagination parameters
-	limitStr := c.DefaultQuery("limit", "10")
-	offsetStr := c.DefaultQuery("offset", "0")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 || limit > 100 {
-		limit = 10
+	var req ListUsersRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.Error(errors.NewInvalidParameterError("query", "invalid query parameters format or value"))
+		return
 	}
 
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
-		offset = 0
+	// Set default limit if not provided
+	limit := 10
+	if req.Limit != nil {
+		limit = *req.Limit
 	}
 
-	page, err := h.userService.List(c.Request.Context(), limit, offset)
+	page, err := h.userService.List(c.Request.Context(), limit, req.NextToken)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, ToPagedResponse(page))
+	c.JSON(http.StatusOK, utils.NewPagedResponse(page, ToResponse))
 }
