@@ -1,13 +1,13 @@
 import type {
   IAddAddressRequest,
+  IAddress,
   ICreateSignerRequest,
   IPagedResponse, // Import IPagedResponse
   ISigner,
   IUpdateSignerRequest,
-  IAddress,
 } from '~/types';
-import { Signer, Address, fromJsonArray } from '~/types';
-import { ApiClient } from './client';
+import { Address, Signer, fromJsonArray } from '~/types';
+import type { ApiClient } from './client';
 import { API_ENDPOINTS } from './endpoints';
 
 /**
@@ -52,7 +52,7 @@ export class SignerClient {
    */
   async deleteSigner(id: string): Promise<void> {
     const endpoint = API_ENDPOINTS.SIGNERS.BY_ID(id);
-    await this.client.delete<void>(endpoint);
+    await this.client.delete(endpoint);
   }
 
   /**
@@ -67,20 +67,22 @@ export class SignerClient {
   }
 
   /**
-   * Lists signers with pagination
+   * Lists signers with token-based pagination
    * @param limit Maximum number of signers to return (default: 10)
-   * @param offset Number of signers to skip for pagination (default: 0)
+   * @param nextToken Token for retrieving the next page of results (default: undefined)
    * @returns Paginated list of signers
    */
-  async listSigners(limit: number = 10, offset: number = 0): Promise<IPagedResponse<ISigner>> { // Use IPagedResponse<ISigner>
-    const params = { limit, offset };
+  async listSigners(limit: number = 10, nextToken?: string): Promise<IPagedResponse<ISigner>> {
+    const params: Record<string, any> = { limit };
+    if (nextToken) {
+      params.next_token = nextToken;
+    }
+    
     const data = await this.client.get<any>(API_ENDPOINTS.SIGNERS.BASE, params);
-    const items = data.items ? data.items.map((item: any) => Signer.fromJson(item)) : [];
     return {
-      items: items,
+      items: fromJsonArray<ISigner>(data.items || []),
       limit: data.limit,
-      offset: data.offset,
-      hasMore: data.hasMore,
+      nextToken: data.nextToken
     };
   }
 
@@ -114,7 +116,7 @@ export class SignerClient {
    */
   async deleteAddress(signerId: string, addressId: string): Promise<void> {
     const endpoint = API_ENDPOINTS.SIGNERS.ADDRESS_BY_ID(signerId, addressId);
-    await this.client.delete<void>(endpoint);
+    await this.client.delete(endpoint);
   }
 
   /**

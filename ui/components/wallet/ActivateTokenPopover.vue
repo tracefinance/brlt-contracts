@@ -9,12 +9,12 @@ interface Props {
 
 const props = defineProps<Props>()
 const limit = ref(100)
-const offset = ref(0)
+const nextToken = ref<string | undefined>(undefined)
 const chainType = computed(() => props.selectedWallet?.chainType)
 
 const selectedToken = ref<string | null>(null)
 
-const { tokens, isLoading, error, refresh } = useTokensList(chainType, limit, offset)
+const { tokens, isLoading, error, refresh } = useTokensList(chainType, limit, nextToken)
 
 // Computed property to find the symbol of the selected token
 const selectedTokenSymbol = computed(() => {

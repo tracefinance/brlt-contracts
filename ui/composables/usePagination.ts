@@ -7,20 +7,20 @@ import type { Ref } from 'vue';
  */
 export interface UsePaginationReturn {
   limit: Ref<number>;
-  offset: Ref<number>;
+  nextToken: Ref<string | undefined>;
   setLimit: (newLimit: number) => void;
   previousPage: () => void;
-  nextPage: () => void;
+  nextPage: (newToken?: string) => void;
 }
 
 /**
- * Composable for managing pagination state based on route query parameters.
+ * Composable for managing token-based pagination state based on route query parameters.
  * 
- * Provides reactive `limit` and `offset` derived from the current route's query,
+ * Provides reactive `limit` and `nextToken` derived from the current route's query,
  * along with functions to navigate between pages and change the limit.
  *
  * @param defaultLimit - The default number of items per page (defaults to 10).
- * @returns An object containing reactive `limit`, `offset`, and navigation functions.
+ * @returns An object containing reactive `limit`, `nextToken`, and navigation functions.
  */
 export default function (defaultLimit: number = 10): UsePaginationReturn {
   const route = useRoute();
@@ -37,46 +37,54 @@ export default function (defaultLimit: number = 10): UsePaginationReturn {
   });
 
   /**
-   * Reactive offset based on route query parameter 'offset'.
-   * Ensures the offset is a non-negative number, defaulting to 0.
+   * Reactive nextToken based on route query parameter 'next_token'.
    */
-  const offset = computed(() => {
-    const queryOffset = route.query.offset ? Number(route.query.offset) : 0;
-    // Ensure offset is non-negative
-    return isNaN(queryOffset) || queryOffset < 0 ? 0 : queryOffset; 
+  const nextToken = computed(() => {
+    return typeof route.query.next_token === 'string' ? route.query.next_token : undefined;
   });
 
   /**
-   * Updates the route query to set a new limit and resets the offset.
+   * Updates the route query to set a new limit and resets pagination.
    * @param newLimit - The new number of items per page.
    */
   const setLimit = (newLimit: number): void => {
     // Ensure the new limit is valid before pushing
     const validLimit = isNaN(newLimit) || newLimit <= 0 ? defaultLimit : newLimit;
-    router.push({ query: { ...route.query, limit: validLimit, offset: 0 } });
+    const query: Record<string, any> = { ...route.query, limit: validLimit };
+    
+    // Remove next_token to start from the beginning
+    delete query.next_token;
+    
+    router.push({ query });
   };
 
   /**
    * Updates the route query to navigate to the previous page.
-   * Calculates the new offset, ensuring it doesn't go below 0.
+   * For token-based pagination, this typically means removing the token
+   * to return to the first page, as we can't easily navigate backwards.
    */
   const previousPage = (): void => {
-    const newOffset = Math.max(0, offset.value - limit.value);
-    router.push({ query: { ...route.query, offset: newOffset } });
+    // In token-based pagination, we typically can only go back to the beginning
+    // as the API doesn't provide "previous" tokens
+    const query: Record<string, any> = { ...route.query };
+    delete query.next_token;
+    router.push({ query });
   };
 
   /**
-   * Updates the route query to navigate to the next page.
-   * Calculates the new offset based on the current limit.
+   * Updates the route query to navigate to the next page using the provided token.
+   * @param newToken - The new pagination token received from the API.
    */
-  const nextPage = (): void => {
-    const newOffset = offset.value + limit.value;
-    router.push({ query: { ...route.query, offset: newOffset } });
+  const nextPage = (newToken?: string): void => {
+    if (!newToken) return; // Don't navigate if no token is provided
+    
+    const query: Record<string, any> = { ...route.query, next_token: newToken };
+    router.push({ query });
   };
 
   return {
     limit,
-    offset,
+    nextToken,
     setLimit,
     previousPage,
     nextPage,

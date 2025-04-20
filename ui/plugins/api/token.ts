@@ -1,14 +1,13 @@
-import {
-  AddTokenRequest,
-  Token,
-  fromJsonArray
-} from '~/types';
 import type {
   IAddTokenRequest,
   IPagedResponse,
   IToken,
 } from '~/types';
 import {
+  Token,
+  fromJsonArray
+} from '~/types';
+import type {
   ApiClient
 } from './client';
 import { API_ENDPOINTS } from './endpoints';
@@ -28,23 +27,24 @@ export class TokenClient {
   }
   
   /**
-   * Lists all tokens with optional filtering and pagination
+   * Lists all tokens with optional filtering and token-based pagination
    * @param chainType Optional chain type to filter by
    * @param tokenType Optional token type to filter by
    * @param limit Maximum number of tokens to return (default: 10)
-   * @param offset Number of tokens to skip for pagination (default: 0)
+   * @param nextToken Token for retrieving the next page of results (default: undefined)
    * @returns Paginated list of tokens
    */
   async listTokens(
     chainType?: string,
     tokenType?: string,
     limit: number = 10,
-    offset: number = 0
+    nextToken?: string
   ): Promise<IPagedResponse<IToken>> {
-    const params: Record<string, string | number | boolean> = {
-      limit,
-      offset
-    };
+    const params: Record<string, any> = { limit };
+    
+    if (nextToken) {
+      params.next_token = nextToken;
+    }
     
     if (chainType) {
       params.chain_type = chainType;
@@ -58,8 +58,7 @@ export class TokenClient {
     return {
       items: fromJsonArray<IToken>(data.items || []),
       limit: data.limit,
-      offset: data.offset,
-      hasMore: data.hasMore
+      nextToken: data.nextToken
     };
   }
   
@@ -103,6 +102,6 @@ export class TokenClient {
    */
   async deleteToken(address: string): Promise<void> {
     const endpoint = API_ENDPOINTS.TOKENS.DELETE(address);
-    await this.client.delete<void>(endpoint);
+    await this.client.delete(endpoint);
   }
 } 

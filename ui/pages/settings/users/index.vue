@@ -11,15 +11,15 @@ definePageMeta({
 
 const router = useRouter()
 
-const { limit, offset, setLimit, previousPage, nextPage } = usePagination(10)
+const { limit, nextToken, setLimit, previousPage, nextPage } = usePagination(10)
 
 const {
   users,
   isLoading,
   error: usersError,
-  hasMore,
+  nextPageToken,
   refresh: refreshUsers
-} = useUsersList(limit, offset)
+} = useUsersList(limit, nextToken)
 
 const {
   deleteUser,
@@ -145,8 +145,10 @@ const goToEditUser = (user: IUser) => {
       <div class="flex items-center gap-2 mt-2">
         <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
         <PaginationControls 
-          :offset="offset" :limit="limit" :has-more="hasMore" @previous="previousPage"
-          @next="nextPage" />
+          :next-token="nextPageToken"
+          :current-token="nextToken"
+          @previous="previousPage"
+          @next="nextPage(nextPageToken)" />
       </div>
     </div>
 

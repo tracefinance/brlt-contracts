@@ -3,17 +3,17 @@ import type { Ref } from 'vue'
 import type { IPagedResponse, IToken } from '~/types'
 
 /**
- * Composable for fetching a list of tokens filtered by chainType with pagination.
+ * Composable for fetching a list of tokens filtered by chainType with token-based pagination.
  *
  * @param chainType - Reactive ref for the chain type to filter tokens.
  * @param limit - Reactive ref for the number of tokens per page.
- * @param offset - Reactive ref for the starting offset.
- * @returns Reactive state including tokens, loading status, errors, and refresh function.
+ * @param nextToken - Reactive ref for the pagination token.
+ * @returns Reactive state including tokens, loading status, errors, refresh function, and next token.
  */
 export default function (
   chainType: Ref<string | undefined>,
   limit: Ref<number>,
-  offset: Ref<number>
+  nextToken: Ref<string | undefined>
 ) {
   const { $api } = useNuxtApp()
 
@@ -24,20 +24,20 @@ export default function (
     refresh
   } = useAsyncData<IPagedResponse<IToken>>(
     'tokensList',
-    () => $api.token.listTokens(chainType.value, undefined, limit.value, offset.value),
+    () => $api.token.listTokens(chainType.value, undefined, limit.value, nextToken.value),
     {
-      watch: [chainType, limit, offset],
-      default: () => ({ items: [], limit: limit.value, offset: offset.value, hasMore: false })
+      watch: [chainType, limit, nextToken],
+      default: () => ({ items: [], limit: limit.value, nextToken: undefined })
     }
   )
 
   const tokens = computed<IToken[]>(() => tokensData.value?.items || [])
-  const hasMore = computed<boolean>(() => tokensData.value?.hasMore || false)
+  const nextPageToken = computed<string | undefined>(() => tokensData.value?.nextToken)
   const isLoading = computed<boolean>(() => status.value === 'pending')
 
   return {
     tokens,
-    hasMore,
+    nextPageToken,
     isLoading,
     error,
     refresh,

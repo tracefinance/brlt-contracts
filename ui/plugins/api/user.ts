@@ -1,11 +1,11 @@
 import type {
   ICreateUserRequest,
-  IUpdateUserRequest,
   IPagedResponse,
+  IUpdateUserRequest,
   IUser,
 } from '~/types';
-import { User, fromJsonArray } from '~/types';
-import { ApiClient } from './client';
+import { User } from '~/types';
+import type { ApiClient } from './client';
 import { API_ENDPOINTS } from './endpoints';
 
 /**
@@ -50,7 +50,7 @@ export class UserClient {
    */
   async deleteUser(id: string): Promise<void> {
     const endpoint = API_ENDPOINTS.USERS.BY_ID(id);
-    await this.client.delete<void>(endpoint);
+    await this.client.delete(endpoint);
   }
 
   /**
@@ -65,19 +65,22 @@ export class UserClient {
   }
 
   /**
-   * Lists users with pagination
+   * Lists users with token-based pagination
    * @param limit Maximum number of users to return (default: 10)
-   * @param offset Number of users to skip for pagination (default: 0)
+   * @param nextToken Token for retrieving the next page of results (default: undefined)
    * @returns Paginated list of users
    */
-  async listUsers(limit: number = 10, offset: number = 0): Promise<IPagedResponse<IUser>> {
-    const params = { limit, offset };
+  async listUsers(limit: number = 10, nextToken?: string): Promise<IPagedResponse<IUser>> {
+    const params: Record<string, any> = { limit };
+    if (nextToken) {
+      params.next_token = nextToken;
+    }
+    
     const data = await this.client.get<any>(API_ENDPOINTS.USERS.BASE, params);
     return {
       items: User.fromJsonArray(data.items || []),
       limit: data.limit,
-      offset: data.offset,
-      hasMore: data.hasMore,
+      nextToken: data.nextToken
     };
   }
 } 

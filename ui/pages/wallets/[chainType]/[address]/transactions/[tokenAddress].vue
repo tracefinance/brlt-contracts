@@ -20,7 +20,7 @@ const chainType = computed(() => route.params.chainType as string)
 const tokenAddress = computed(() => route.params.tokenAddress as string)
 
 // Use the pagination composable
-const { limit, offset, setLimit, previousPage, nextPage } = usePagination(10)
+const { limit, nextToken, setLimit, previousPage, nextPage } = usePagination(10)
 
 // Use composables for data fetching
 const { 
@@ -28,9 +28,9 @@ const {
   isLoading, 
   hasInitiallyLoaded,
   error: walletTransactionsError, 
-  hasMore,
+  nextPageToken,
   refresh
-} = useWalletTransactions(chainType, address, tokenAddress, limit, offset)
+} = useWalletTransactions(chainType, address, tokenAddress, limit, nextToken)
 
 // Use the useChains composable
 const { chains, isLoading: isLoadingChains, error: chainsError } = useChains()
@@ -147,14 +147,13 @@ onUnmounted(() => {
         </Table>              
       </div>
       <div class="flex items-center gap-2 mt-2">
-          <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
-          <PaginationControls 
-            :offset="offset" 
-            :limit="limit" 
-            :has-more="hasMore" 
-            @previous="previousPage"
-            @next="nextPage"
-          />
+        <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
+        <PaginationControls 
+          :next-token="nextPageToken" 
+          :current-token="nextToken"
+          @previous="previousPage"
+          @next="nextPage(nextPageToken)"
+        />
       </div>
     </div>
   </div>

@@ -8,7 +8,7 @@ import type {
   ISyncTransactionsResponse,
   ITransaction,
 } from '~/types';
-import {
+import type {
   ApiClient
 } from './client';
 import { API_ENDPOINTS } from './endpoints';
@@ -28,23 +28,23 @@ export class TransactionClient {
   }
   
   /**
-   * Lists transactions with pagination and optional filtering
+   * Lists transactions with token-based pagination and optional filtering
    * @param limit Maximum number of transactions to return (default: 10)
-   * @param offset Number of transactions to skip for pagination (default: 0)
+   * @param nextToken Token for retrieving the next page of results (default: undefined)
    * @returns Paginated list of transactions
    */
-  async listTransactions(limit: number = 10, offset: number = 0): Promise<IPagedResponse<ITransaction>> {
-    const params: Record<string, string | number | boolean> = {
-      limit,
-      offset
-    };
+  async listTransactions(limit: number = 10, nextToken?: string): Promise<IPagedResponse<ITransaction>> {
+    const params: Record<string, any> = { limit };
+    
+    if (nextToken) {
+      params.next_token = nextToken;
+    }
     
     const data = await this.client.get<any>(API_ENDPOINTS.TRANSACTIONS.BASE, params);
     return {
       items: fromJsonArray<ITransaction>(data.items || []),
       limit: data.limit,
-      offset: data.offset,
-      hasMore: data.hasMore
+      nextToken: data.nextToken
     };
   }
   
@@ -63,9 +63,9 @@ export class TransactionClient {
    * Gets transactions for a specific wallet
    * @param address Wallet address
    * @param chainType Blockchain network type
-   * @param limit Maximum number of transactions to return (default: 10)
-   * @param offset Number of transactions to skip for pagination (default: 0)
    * @param tokenAddress Optional token address to filter transactions by
+   * @param limit Maximum number of transactions to return (default: 10)
+   * @param nextToken Token for retrieving the next page of results (default: undefined)
    * @returns Paginated list of transactions
    */
   async getWalletTransactions(
@@ -73,14 +73,15 @@ export class TransactionClient {
     chainType: string,
     tokenAddress?: string,
     limit: number = 10,
-    offset: number = 0    
+    nextToken?: string
   ): Promise<IPagedResponse<ITransaction>> {
     const endpoint = API_ENDPOINTS.TRANSACTIONS.BY_WALLET(chainType, address);
     
-    const params: Record<string, string | number | boolean> = {
-      limit,
-      offset
-    };
+    const params: Record<string, any> = { limit };
+    
+    if (nextToken) {
+      params.next_token = nextToken;
+    }
     
     if (tokenAddress) {
       params.token_address = tokenAddress;
@@ -90,8 +91,7 @@ export class TransactionClient {
     return {
       items: fromJsonArray<ITransaction>(data.items || []),
       limit: data.limit,
-      offset: data.offset,
-      hasMore: data.hasMore
+      nextToken: data.nextToken
     };
   }
   
@@ -118,7 +118,7 @@ export class TransactionClient {
     tokenAddress?: string;
     status?: string;
     limit?: number;
-    offset?: number;
+    nextToken?: string;
   }): Promise<IPagedResponse<ITransaction>> {
     const {
       chainType,
@@ -126,10 +126,14 @@ export class TransactionClient {
       tokenAddress,
       status,
       limit = 10,
-      offset = 0
+      nextToken
     } = options;
     
-    const params: Record<string, any> = { limit, offset };
+    const params: Record<string, any> = { limit };
+    
+    if (nextToken) {
+      params.next_token = nextToken;
+    }
     
     if (chainType) params.chain_type = chainType;
     if (address) params.address = address;
@@ -140,8 +144,7 @@ export class TransactionClient {
     return {
       items: fromJsonArray<ITransaction>(data.items || []),
       limit: data.limit,
-      offset: data.offset,
-      hasMore: data.hasMore
+      nextToken: data.nextToken
     };
   }
 } 

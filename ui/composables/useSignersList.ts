@@ -3,13 +3,13 @@ import type { Ref } from 'vue'
 import type { IPagedResponse, ISigner } from '~/types'
 
 /**
- * Composable for fetching a list of signers with pagination.
+ * Composable for fetching a list of signers with token-based pagination.
  *
  * @param limit - Reactive ref for the number of signers per page.
- * @param offset - Reactive ref for the starting offset.
- * @returns Reactive state including signers, loading status, errors, and refresh function.
+ * @param nextToken - Reactive ref for the pagination token.
+ * @returns Reactive state including signers, loading status, errors, refresh function, and next token.
  */
-export default function (limit: Ref<number>, offset: Ref<number>) {
+export default function (limit: Ref<number>, nextToken: Ref<string | undefined>) {
   const { $api } = useNuxtApp()
 
   const { 
@@ -19,20 +19,20 @@ export default function (limit: Ref<number>, offset: Ref<number>) {
     refresh 
   } = useAsyncData<IPagedResponse<ISigner>>(
     'signersList',
-    () => $api.signer.listSigners(limit.value, offset.value), 
+    () => $api.signer.listSigners(limit.value, nextToken.value), 
     {
-      watch: [limit, offset],
-      default: () => ({ items: [], limit: limit.value, offset: offset.value, hasMore: false })
+      watch: [limit, nextToken],
+      default: () => ({ items: [], limit: limit.value, nextToken: undefined })
     }
   )
 
   const signers = computed<ISigner[]>(() => signersData.value?.items || [])
-  const hasMore = computed<boolean>(() => signersData.value?.hasMore || false)
+  const nextPageToken = computed<string | undefined>(() => signersData.value?.nextToken)
   const isLoading = computed<boolean>(() => status.value === 'pending')
 
   return {
     signers,
-    hasMore,
+    nextPageToken,
     isLoading,
     error,
     refresh,

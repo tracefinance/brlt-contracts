@@ -10,7 +10,7 @@ import {
   Wallet,
   fromJsonArray
 } from '~/types';
-import {
+import type {
   ApiClient
 } from './client';
 import { API_ENDPOINTS } from './endpoints';
@@ -75,23 +75,26 @@ export class WalletClient {
    */
   async deleteWallet(chainType: string, address: string): Promise<void> {
     const endpoint = API_ENDPOINTS.WALLETS.BY_ADDRESS(chainType, address);
-    await this.client.delete<void>(endpoint);
+    await this.client.delete(endpoint);
   }
   
   /**
-   * Lists wallets with pagination
+   * Lists wallets with token-based pagination
    * @param limit Maximum number of wallets to return (default: 10)
-   * @param offset Number of wallets to skip for pagination (default: 0)
+   * @param nextToken Token for retrieving the next page of results (default: undefined)
    * @returns Paginated list of wallets
    */
-  async listWallets(limit: number = 10, offset: number = 0): Promise<IPagedResponse<IWallet>> {
-    const params = { limit, offset };
+  async listWallets(limit: number = 10, nextToken?: string): Promise<IPagedResponse<IWallet>> {
+    const params: Record<string, any> = { limit };
+    if (nextToken) {
+      params.next_token = nextToken;
+    }
+    
     const data = await this.client.get<any>(API_ENDPOINTS.WALLETS.BASE, params);
     return {
       items: fromJsonArray<IWallet>(data.items || []),
       limit: data.limit,
-      offset: data.offset,
-      hasMore: data.hasMore
+      nextToken: data.nextToken
     };
   }
   
@@ -115,6 +118,6 @@ export class WalletClient {
    */
   async activateToken(chainType: string, address: string, tokenAddress: string): Promise<void> {
     const endpoint = API_ENDPOINTS.WALLETS.ACTIVATE_TOKEN(chainType, address);
-    await this.client.post<void>(endpoint, { tokenAddress });
+    await this.client.post(endpoint, { tokenAddress });
   }
 } 

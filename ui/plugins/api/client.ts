@@ -1,6 +1,8 @@
 /**
  * Error response from the API
  */
+import { camelToSnakeCase, snakeToCamelCase } from '~/lib/caseConversion';
+
 export interface ApiError {
   code: string;
   message: string;
@@ -21,8 +23,6 @@ export interface ApiRequestOptions {
   params?: Record<string, string | number | boolean>;
   headers?: HeadersInit;
 }
-
-import { camelToSnakeCase, snakeToCamelCase } from '~/lib/caseConversion';
 
 /**
  * Base API client class that handles API communication

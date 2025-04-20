@@ -41,7 +41,7 @@ export class ApiService {
 /**
  * Plugin that provides API client services to components and composables
  */
-export default defineNuxtPlugin((nuxtApp) => {
+export default defineNuxtPlugin(() => {
   const apiClient = new ApiClient();
   
   const config = useRuntimeConfig();

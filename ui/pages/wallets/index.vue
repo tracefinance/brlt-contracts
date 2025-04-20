@@ -8,7 +8,7 @@ definePageMeta({
     
     const { data: walletsData } = await useAsyncData(
       'walletsRedirect',
-      () => $api.wallet.listWallets(1, 0)
+      () => $api.wallet.listWallets(1)
     )
     
     if (walletsData.value && walletsData.value.items && walletsData.value.items.length > 0) {

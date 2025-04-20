@@ -3,12 +3,12 @@ import type { Ref } from 'vue'
 import type { IPagedResponse, ITransaction } from '~/types'
 
 /**
- * Composable for fetching transactions for a specific wallet and token, with pagination.
+ * Composable for fetching transactions for a specific wallet and token, with token-based pagination.
  *
  * @param address - Reactive ref for the wallet address.
  * @param chainType - Reactive ref for the chain type.
  * @param limit - Reactive ref for the number of transactions per page.
- * @param offset - Reactive ref for the starting offset.
+ * @param nextToken - Reactive ref for the pagination token.
  * @param tokenAddress - Reactive ref for the token address (optional).
  * @returns Reactive state including transactions, pagination info, loading status, errors, refresh function, and initial load status.
  */
@@ -17,7 +17,7 @@ export default function (
   address: Ref<string | undefined>,  
   tokenAddress: Ref<string | undefined>,
   limit: Ref<number>,
-  offset: Ref<number>,  
+  nextToken: Ref<string | undefined>,  
 ) {
   const { $api } = useNuxtApp()
 
@@ -39,19 +39,19 @@ export default function (
           chainTypeValue,
           tokenAddressValue,
           limit.value,
-          offset.value
+          nextToken.value
         )
       }
       return null
     },
     {
-      watch: [address, chainType, tokenAddress, limit, offset],
+      watch: [address, chainType, tokenAddress, limit, nextToken],
       default: () => null
     }
   )
 
   const transactions = computed<ITransaction[]>(() => transactionsData.value?.items || [])
-  const hasMore = computed<boolean>(() => transactionsData.value?.hasMore || false)
+  const nextPageToken = computed<string | undefined>(() => transactionsData.value?.nextToken)
   const isLoading = computed<boolean>(() => status.value === 'pending')
 
   // --- Track Initial Load State ---
@@ -67,7 +67,7 @@ export default function (
 
   return {
     transactions,
-    hasMore,
+    nextPageToken,
     isLoading,
     error,
     refresh,

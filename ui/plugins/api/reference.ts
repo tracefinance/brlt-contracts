@@ -1,6 +1,6 @@
 import type { IChain } from '~/types';
 import { Chain } from '~/types';
-import { ApiClient } from './client';
+import type { ApiClient } from './client';
 import { API_ENDPOINTS } from './endpoints';
 
 /**

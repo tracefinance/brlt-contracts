@@ -13,11 +13,17 @@ definePageMeta({
 
 const router = useRouter()
 
-// Use the pagination composable
-const { limit, offset, setLimit, previousPage, nextPage } = usePagination(10)
+// Use the pagination composable with token-based pagination
+const { limit, nextToken, setLimit, previousPage, nextPage } = usePagination(10)
 
-// Use the signers list composable
-const { signers, hasMore, isLoading, error, refresh } = useSignersList(limit, offset)
+// Use the signers list composable with token-based pagination
+const { 
+  signers, 
+  nextPageToken, 
+  isLoading, 
+  error, 
+  refresh 
+} = useSignersList(limit, nextToken)
 const { deleteSigner, isDeleting, error: signerMutationsError } = useSignerMutations()
 
 // Delete confirmation dialog
@@ -72,7 +78,7 @@ const handleDeleteConfirm = async () => {
           <AlertDescription>
             {{ error.message || 'Failed to load signers' }}
           </AlertDescription>
-        </Alert>
+        </Alert>      
       </div>      
       <!-- Empty States -->
       <div v-else-if="signers.length === 0">
@@ -156,8 +162,11 @@ const handleDeleteConfirm = async () => {
         <div class="flex items-center gap-2 mt-2">
           <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
           <PaginationControls
-          :offset="offset" :limit="limit" :has-more="hasMore" @previous="previousPage"
-            @next="nextPage" />
+            :next-token="nextPageToken"
+            :current-token="nextToken"
+            @previous="previousPage"
+            @next="nextPage(nextPageToken)"
+          />
         </div>
       </div>
     </div>

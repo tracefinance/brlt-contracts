@@ -29,11 +29,10 @@ export function toJson<T>(data: T): any {
 }
 
 /**
- * Generic interface for paginated API responses
+ * Generic interface for token-based paginated API responses
  */
 export interface IPagedResponse<T> {
   items: T[];
   limit: number;
-  offset: number;
-  hasMore: boolean;
+  nextToken?: string;
 } 

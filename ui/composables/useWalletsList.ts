@@ -3,13 +3,13 @@ import type { Ref } from 'vue'
 import type { IPagedResponse, IWallet } from '~/types'
 
 /**
- * Composable for fetching a list of wallets with pagination.
+ * Composable for fetching a list of wallets with token-based pagination.
  *
  * @param limit - Reactive ref for the number of wallets per page.
- * @param offset - Reactive ref for the starting offset.
+ * @param nextToken - Reactive ref for the pagination token.
  * @returns Reactive state including wallets, loading status, errors, and refresh function.
  */
-export default function (limit: Ref<number>, offset: Ref<number>) {
+export default function (limit: Ref<number>, nextToken: Ref<string | undefined>) {
   const { $api } = useNuxtApp()
 
   const { 
@@ -19,22 +19,22 @@ export default function (limit: Ref<number>, offset: Ref<number>) {
     refresh 
   } = useAsyncData<IPagedResponse<IWallet>>(
     'walletsList',
-    () => $api.wallet.listWallets(limit.value, offset.value), 
+    () => $api.wallet.listWallets(limit.value, nextToken.value), 
     {
-      watch: [limit, offset],
-      default: () => ({ items: [], limit: limit.value, offset: offset.value, hasMore: false })
+      watch: [limit, nextToken],
+      default: () => ({ items: [], limit: limit.value, nextToken: undefined })
     }
   )
 
   const wallets = computed<IWallet[]>(() => walletsData.value?.items || [])
-  const hasMore = computed<boolean>(() => walletsData.value?.hasMore || false)
   const isLoading = computed<boolean>(() => status.value === 'pending')
+  const nextPageToken = computed<string | undefined>(() => walletsData.value?.nextToken)
 
   return {
     wallets,
-    hasMore,
+    nextPageToken,
     isLoading,
     error,
-    refresh,
+    refresh
   }
 } 

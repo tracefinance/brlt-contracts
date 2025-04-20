@@ -2,9 +2,8 @@
 import { computed } from 'vue';
 
 interface PageControlsProps {
-  offset: number;
-  limit: number;
-  hasMore: boolean;
+  nextToken?: string;
+  currentToken?: string;
 }
 
 const props = defineProps<PageControlsProps>();
@@ -14,8 +13,10 @@ const emit = defineEmits<{
   (e: 'previous' | 'next'): void 
 }>();
 
-const isFirstPage = computed(() => props.offset === 0);
-const canGoNext = computed(() => props.hasMore);
+const isFirstPage = computed(() => !props.currentToken);
+
+// Determine if there's a next page based on nextToken
+const hasNextPage = computed(() => !!props.nextToken && props.nextToken.trim() !== '');
 </script>
 
 <template>
@@ -26,14 +27,14 @@ const canGoNext = computed(() => props.hasMore);
       :disabled="isFirstPage" 
       @click="!isFirstPage && emit('previous')"
     >
-      <span class="sr-only">Previous page</span>
-      <Icon name="lucide:chevron-left" class="h-4 w-4" />
+      <span class="sr-only">First page</span>
+      <Icon name="lucide:chevrons-left" class="h-4 w-4" />
     </Button>
     <Button 
       variant="outline" 
       size="icon" 
-      :disabled="!canGoNext" 
-      @click="canGoNext && emit('next')"
+      :disabled="!hasNextPage" 
+      @click="hasNextPage && emit('next')"
     >
       <span class="sr-only">Next page</span>
       <Icon name="lucide:chevron-right" class="h-4 w-4" />

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { toast } from 'vue-sonner'
 import { getAddressExplorerUrl } from '~/lib/explorers'
 import type { IWallet } from '~/types'
@@ -11,16 +11,17 @@ definePageMeta({
 })
 
 const router = useRouter()
+const route = useRoute()
 
-const { limit, offset, setLimit, previousPage, nextPage } = usePagination(10)
+const { limit, nextToken, setLimit, previousPage, nextPage } = usePagination(10)
 
 const {
   wallets,
   isLoading,
   error: walletsError,
-  hasMore,
+  nextPageToken,
   refresh: refreshWallets
-} = useWalletsList(limit, offset)
+} = useWalletsList(limit, nextToken)
 
 const {
   chains,
@@ -92,6 +93,18 @@ const goToEditWallet = (wallet: IWallet) => {
   const addressEncoded = encodeURIComponent(wallet.address)
   router.push(`/settings/wallets/${chainTypeEncoded}/${addressEncoded}/edit`)
 }
+
+// When we get a new token from the API, update the route
+watch(nextPageToken, (newToken) => {
+  if (newToken && newToken !== nextToken.value) {
+    router.push({ 
+      query: { 
+        ...route.query, 
+        next_token: newToken 
+      } 
+    })
+  }
+})
 
 </script>
 
@@ -195,8 +208,11 @@ const goToEditWallet = (wallet: IWallet) => {
       <div class="flex items-center gap-2 mt-2">
         <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
         <PaginationControls 
-          :offset="offset" :limit="limit" :has-more="hasMore" @previous="previousPage"
-          @next="nextPage" />
+          :next-token="nextPageToken" 
+          :current-token="nextToken"
+          @previous="previousPage"
+          @next="nextPage(nextPageToken)" 
+        />
       </div>
     </div>
 
