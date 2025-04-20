@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Vault0 Project Guidelines
 
-This document provides general guidelines for developing the Vault0 project, optimized for AI assistant usage. **Use the code snippets as reference for best practices.**
+This document provides general guidelines for developing the Vault0 project.
 
 ## Project Overview
 Vault0 is a full-stack web3 application combining blockchain technology with modern web development. It uses a layered architecture with clear separation of concerns.
@@ -50,28 +50,6 @@ vault0/
 
 ## General Code Style Guidelines
 - Use meaningful names for variables, functions, and files.
-  - **Bad:**
-    ```typescript
-    function d(a: number) {}
-    ```
-  - **Good:**
-    ```typescript
-    function calculateTotalPrice(amount: number) {}
-    ```
-  - **Go:**
-    ```go
-    // Bad
-    func f(x int) {}
-    // Good
-    func fetchUserByID(id int) {}
-    ```
-  - **Solidity:**
-    ```solidity
-    // Bad
-    function x(uint a) public {}
-    // Good
-    function deposit(uint256 amount) public {}
-    ```
 - Keep functions small and focused.
 - Document complex logic clearly (but avoid unnecessary comments).
 - Handle errors appropriately in each layer.
@@ -79,81 +57,8 @@ vault0/
 - Follow consistent formatting.
 - **Avoid deep if nesting and adopt a fail-fast design pattern.**
   - Handle errors and invalid states as early as possible, returning or exiting immediately to keep code flat and readable.
-  - **Bad**
-    ```go
-    // Bad: Deep nesting
-    func process(data *Data) error {
-        if data != nil {
-            if data.Valid {
-                // ...
-            } else {
-                return errors.New("invalid data")
-            }
-        } else {
-            return errors.New("nil data")
-        }
-        return nil
-    }
-    ```
-  - **Good**
-    ```go
-    // Good: Fail-fast
-    func process(data *Data) error {
-        if data == nil {
-            return errors.New("nil data")
-        }
-        if !data.Valid {
-            return errors.New("invalid data")
-        }
-        // ...
-        return nil
-    }
-    ```
-  - **Typescript:**:
-    ```typescript
-    // Bad
-    function getUser(user?: User) {
-      if (user) {
-        if (user.active) {
-          // ...
-        } else {
-          throw new Error('Inactive user');
-        }
-      } else {
-        throw new Error('No user');
-      }
-    }
-    // Good
-    function getUser(user?: User) {
-      if (!user) throw new Error('No user');
-      if (!user.active) throw new Error('Inactive user');
-      // ...
-    }
-    ```
 
 *Note: Refer to `frontend.mdc`, `backend.mdc`, and `solidity.mdc` (if available) for language/framework-specific style guidelines.*
-
-## Token-Based Pagination
-
-Both frontend and backend implement token-based pagination for efficient data fetching:
-
-### Frontend (Nuxt 3)
-```typescript
-export interface IPagedResponse<T> {
-  items: T[];
-  limit: number;
-  nextToken?: string;
-}
-```
-
-### Backend (Go)
-```go
-type Page[T any] struct {
-  Items    []T    `json:"items"`                 
-  NextToken string `json:"next_token,omitempty"` 
-  Limit    int    `json:"limit"`                
-}
-```
 
 ## Git Workflow
 - **NEVER COMMIT THE CODE UNLESS YOU'RE ASKED TO DO IT.**
@@ -230,49 +135,10 @@ chore(deps): update dependencies
 - Maintain an up-to-date project `README.md`.
 - Document APIs, components, contract functions, configuration, and deployment procedures.
 - Keep inline code documentation current.
-- **Example (TypeScript JSDoc):**
-  ```typescript
-  /**
-   * Calculates the total price including tax.
-   * @param price Base price
-   * @param tax Tax rate
-   */
-  function calculateTotal(price: number, tax: number): number {
-    return price * (1 + tax);
-  }
-  ```
-- **Example (Go):**
-  ```go
-  // Add returns the sum of a and b.
-  func Add(a, b int) int {
-    return a + b
-  }
-  ```
-- **Example (Solidity NatSpec):**
-  ```solidity
-  /// @notice Transfers tokens to a recipient
-  /// @param recipient The address to transfer to
-  /// @param amount The amount to transfer
-  function transfer(address recipient, uint256 amount) public {}
-  ```
 
 ## General Security Guidelines
 - Implement proper authentication and authorization.
 - Validate all inputs.
-  - **TypeScript:**
-    ```typescript
-    if (typeof userId !== 'string') throw new Error('Invalid userId');
-    ```
-  - **Go:**
-    ```go
-    if len(username) == 0 {
-      return errors.New("username required")
-    }
-    ```
-  - **Solidity:**
-    ```solidity
-    require(amount > 0, "Amount must be positive");
-    ```
 - Protect against common vulnerabilities (e.g., OWASP Top 10).
 - Handle sensitive data securely.
 - Implement rate limiting where appropriate.
@@ -285,61 +151,14 @@ chore(deps): update dependencies
 - Handle large datasets efficiently (e.g., pagination).
 
 ## General Error Handling
-
-### Frontend (Nuxt 3)
-- Use consistent error handling in API client:
-  ```typescript
-  try {
-    const response = await fetch(/* ... */)
-    if (!response.ok) {
-      throw new ApiError(errorData.message || 'Request failed')
-    }
-    return await response.json()
-  } catch (error) {
-    // Re-throw with better context
-    throw new ApiError('Network error', { cause: error })
-  }
-  ```
-- Add error handling in composables:
-  ```typescript
-  const createItem = async () => {
-    error.value = null
-    try {
-      // API call
-    } catch (err) {
-      error.value = err as Error
-      return null
-    }
-  }
-  ```
-- Use toast system for user notifications.
-
-### Backend (Go)
-- Use custom error types (`Vault0Error`) with `Code`, `Message`, and `Details`.
-- Use predefined constructors like `errors.NewUserNotFoundError()`.
-- Map low-level errors to domain-specific errors:
-  ```go
-  if err != nil {
-    logger.Error("Failed to find user", logger.Error(err))
-    if errors.Is(err, errors.ErrCodeDatabaseNotFound) {
-      return nil, errors.NewUserNotFoundError()
-    }
-    return nil, errors.NewOperationFailedError("get user", err)
-  }
-  ```
-- In handlers, use `c.Error(err)` to let middleware handle errors.
+- Use appropriate error handling mechanisms according to the language/framework.
+- Implement consistent error handling across all components.
+- Provide meaningful error messages.
+- Log errors with contextual information.
 
 ## Monitoring and Logging
 - Implement structured logging across the application.
 - Track errors and exceptions effectively.
-- **TypeScript Example:**
-  ```typescript
-  logger.info('User logged in', { userId });
-  ```
-- **Go Example:**
-  ```go
-  log.WithFields(log.Fields{"user": userID}).Info("User logged in")
-  ```
 
 ## Development Environment
 - Document setup procedures clearly.
