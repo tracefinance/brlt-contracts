@@ -34,6 +34,7 @@ vendor/
 .idea/
 *.swp
 *.swo
+.cursor/mcp.json
 
 # OS specific
 .DS_Store
