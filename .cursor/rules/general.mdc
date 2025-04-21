@@ -51,6 +51,7 @@ vault0/
 - Handle errors appropriately in each layer.
 - Implement proper logging.
 - Follow consistent formatting.
+- **IMPORTANT: Do not add inline comments to the code.**
 - **Avoid deep if nesting and adopt a fail-fast design pattern.**
   - Handle errors and invalid states as early as possible, returning or exiting immediately to keep code flat and readable.
 
