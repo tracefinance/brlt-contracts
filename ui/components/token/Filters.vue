@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import type { Ref } from 'vue'
 import type { ChainType, TokenType } from '~/types'
 
@@ -39,8 +39,13 @@ watch(selectedTokenType, (newValue) => {
   emit('update:tokenTypeFilter', newValue === ALL_FILTER_VALUE ? null : newValue)
 })
 
-// TODO: Fetch these from a reference data source eventually
-const chainTypeOptions: ChainType[] = ['ethereum', 'polygon', 'base']
+// Fetch chains using the composable
+const { chains, isLoading: isLoadingChains } = useChains()
+
+// Compute chain options from the fetched chains data
+const chainTypeOptions = computed(() => chains.value.map(chain => chain.type))
+
+// Hardcoded token types (TODO: Fetch these from a reference data source eventually)
 const tokenTypeOptions: TokenType[] = ['erc20', 'erc721', 'erc1155']
 
 function handleClearFilters() {
@@ -51,12 +56,12 @@ function handleClearFilters() {
 <template>
   <div class="flex items-center gap-4">
     <!-- Use v-model with the local ref (which uses ALL_FILTER_VALUE for null) -->
-    <Select v-model="selectedChainType">
+    <Select v-model="selectedChainType" :disabled="isLoadingChains">
       <SelectTrigger class="w-[180px]">
         <SelectValue as-child>
           <div class="flex items-center gap-2">
             <template v-if="selectedChainType !== ALL_FILTER_VALUE">
-              <Web3Icon :symbol="selectedChainType" class="size-4 flex-shrink-0" />
+              <Web3Icon :symbol="selectedChainType" class="size-5 flex-shrink-0" />
               <span class="capitalize">{{ selectedChainType }}</span>
             </template>
             <template v-else>
@@ -65,11 +70,11 @@ function handleClearFilters() {
           </div>
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>          
+      <SelectContent>
           <SelectItem :value="ALL_FILTER_VALUE">All Chains</SelectItem>
           <SelectItem v-for="option in chainTypeOptions" :key="option" :value="option">
             <div class="flex items-center gap-2">
-              <Web3Icon :symbol="option" class="size-4" />
+              <Web3Icon :symbol="option" class="size-5" />
               <span class="capitalize">{{ option }}</span>
             </div>
           </SelectItem>
