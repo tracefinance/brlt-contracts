@@ -25,7 +25,7 @@ const symbol = ref('')
 const decimals = ref<number | undefined>(18)
 const type = ref<TokenType>('erc20')
 
-const tokenTypeOptions: TokenType[] = ['erc20', 'erc721', 'erc1155', 'native']
+const tokenTypeOptions: TokenType[] = ['erc20', 'erc721', 'erc1155']
 
 // Computed property moved from component
 const chainTypeModel = computed({

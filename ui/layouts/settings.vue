@@ -115,6 +115,19 @@ const isCurrentRoute = (href: string) => {
                  <BreadcrumbSeparator/>
                  <BreadcrumbItem>Create</BreadcrumbItem>
                </template>
+               <!-- Add Breadcrumbs for Tokens section -->
+               <template v-if="route.path.startsWith('/settings/tokens')">
+                 <BreadcrumbSeparator/>
+                 <BreadcrumbItem>
+                   <NuxtLink v-if="route.path !== '/settings/tokens'" to="/settings/tokens">Tokens</NuxtLink>
+                   <span v-else>Tokens</span>
+                 </BreadcrumbItem>
+               </template>
+               <!-- Add Breadcrumb for New Token page -->
+               <template v-if="route.path === '/settings/tokens/new'">
+                 <BreadcrumbSeparator/>
+                 <BreadcrumbItem>New</BreadcrumbItem>
+               </template>
                <!-- Add logic for other settings sections -->
             </BreadcrumbList>
           </Breadcrumb>
