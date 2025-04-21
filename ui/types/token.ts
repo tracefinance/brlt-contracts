@@ -32,11 +32,9 @@ export interface IAddTokenRequest {
 /**
  * Represents the query parameters for the list tokens request.
  */
-export interface IListTokensRequestParams {
+export interface IListTokensRequest {
   chainType?: ChainType;
   tokenType?: TokenType;
-  nextToken?: string;
-  limit?: number;
 }
 
 /**

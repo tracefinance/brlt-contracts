@@ -1,37 +1,47 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import type { IAddTokenRequest } from '~/types'
+import { getErrorMessage } from '~/lib/utils'
 
 // Settings
 definePageMeta({
   layout: 'settings',
 })
 
-// State
-const isLoading = ref(false)
-const error = ref<Error | null>(null)
+// State & Composables
 const router = useRouter()
+const { 
+  addToken: mutateAddToken, 
+  isCreating, 
+  error: mutationError 
+} = useTokenMutations()
 
-// Use the API client directly for now
-// TODO: Create and use a dedicated useTokenMutations composable later
-const { $api } = useNuxtApp()
-
-async function handleAddToken(formData: IAddTokenRequest) {
-  isLoading.value = true
-  error.value = null
-  try {
-    const newToken = await $api.token.addToken(formData)
-    toast.success(`Token ${newToken.symbol} added successfully!`)
-    router.push('/admin/tokens') // Navigate back to list on success
-  } catch (err: any) {
-    console.error('Failed to add token:', err)
-    error.value = err
+// Watch for errors from the composable
+watch(mutationError, (newError) => {
+  if (newError) {
     toast.error('Failed to add token', {
-      description: err.message || 'An unexpected error occurred.',
+      description: getErrorMessage(newError, 'An unexpected error occurred.'),
     })
-  } finally {
-    isLoading.value = false
+  }
+})
+
+// Handle form submission
+async function handleAddToken(formData: IAddTokenRequest) {
+  mutationError.value = null
+  
+  // Basic validation (can be enhanced)
+  if (!formData.address || !formData.chainType || !formData.symbol || formData.decimals === undefined || formData.decimals === null || !formData.type) {
+    toast.error('All fields are required.');
+    return;
+  }
+  
+  const newToken = await mutateAddToken(formData)
+
+  if (newToken) {
+    toast.success(`Token ${newToken.symbol} added successfully!`)
+    router.push('/settings/tokens') 
   }
 }
 
@@ -41,21 +51,19 @@ function handleCancel() {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <PageHeader title="Add New Token" description="Register a new token in the system." />
-
-    <TokenForm
-      :is-loading="isLoading"
-      @submit="handleAddToken"
-      @cancel="handleCancel"
-    />
-
-    <Alert v-if="error" variant="destructive" class="mt-4">
-      <AlertCircle class="h-4 w-4" />
-      <AlertTitle>Error Adding Token</AlertTitle>
-      <AlertDescription>
-        {{ error.message }}
-      </AlertDescription>
-    </Alert>
+  <div class="flex justify-center">
+    <Card class="w-full max-w-2xl">
+      <CardHeader>
+        <CardTitle>Add New Token</CardTitle>
+        <CardDescription>Register a new token in the system.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <TokenNewForm
+          :is-loading="isCreating" 
+          @submit="handleAddToken"
+          @cancel="handleCancel"
+        />
+      </CardContent>
+    </Card>
   </div>
 </template> 

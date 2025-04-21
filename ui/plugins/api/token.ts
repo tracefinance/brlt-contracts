@@ -1,7 +1,7 @@
 import type {
   IAddTokenRequest,
   IToken,
-  IListTokensRequestParams,
+  IListTokensRequest,
   ChainType,
   IPagedResponse,
 } from '~/types'
@@ -25,37 +25,30 @@ export class TokenClient {
   
   /**
    * Fetch a paginated list of tokens, optionally filtered.
-   * @param params - Filtering, pagination, and limit parameters.
+   * @param filters - Filtering parameters (chainType, tokenType).
+   * @param limit - The maximum number of items to return.
+   * @param nextToken - Pagination token for the next page.
    * @returns A paged response of tokens.
    */
   async listTokens(
-    params: IListTokensRequestParams = {},
+    filters: IListTokensRequest = {},
+    limit?: number,
+    nextToken?: string,
   ): Promise<IPagedResponse<IToken>> {
-    // Convert camelCase params to snake_case for the backend API
-    const snakeCaseParams: Record<string, any> = {}
-    if (params.limit !== undefined) {
-      snakeCaseParams.limit = params.limit
-    }
-    if (params.nextToken !== undefined) {
-      snakeCaseParams.next_token = params.nextToken
-    }
-    if (params.chainType !== undefined) {
-      snakeCaseParams.chain_type = params.chainType
-    }
-    if (params.tokenType !== undefined) {
-      snakeCaseParams.token_type = params.tokenType
-    }
+    const params: Record<string, any> = { ...filters }
+
+    if (limit) params.limit = limit
+    if (nextToken) params.nextToken = nextToken
 
     const data = await this.client.get<any>(
       API_ENDPOINTS.TOKENS.BASE,
-      snakeCaseParams,
+      params,
     )
-
-    // Use Token factory
+    
     return {
       items: Token.fromJsonArray(data.items || []),
       limit: data.limit,
-      nextToken: data.next_token, // Use snake_case from response
+      nextToken: data.nextToken,
     }
   }
   

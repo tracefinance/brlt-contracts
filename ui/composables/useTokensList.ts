@@ -22,13 +22,15 @@ export default function (
   const { data, status, error, refresh } = useAsyncData<IPagedResponse<IToken>>(
     'tokensList',
     () =>
-      $api.token.listTokens({
+      $api.token.listTokens(
         // Pass filter values directly from refs
-        chainType: chainTypeFilter.value ?? undefined,
-        tokenType: tokenTypeFilter.value ?? undefined,
-        limit: limit.value,
-        nextToken: nextToken.value,
-      }),
+        {
+          chainType: chainTypeFilter.value ?? undefined,
+          tokenType: tokenTypeFilter.value ?? undefined,
+        },
+        limit.value,       // Pass limit as a separate argument
+        nextToken.value,   // Pass nextToken as a separate argument
+      ),
     {
       watch: [chainTypeFilter, tokenTypeFilter, limit, nextToken], // Re-fetch when any of these change
       default: () => ({ items: [], limit: limit.value, nextToken: undefined }), // Default empty state

@@ -53,12 +53,25 @@ function handleClearFilters() {
     <!-- Use v-model with the local ref (which uses ALL_FILTER_VALUE for null) -->
     <Select v-model="selectedChainType">
       <SelectTrigger class="w-[180px]">
-        <SelectValue placeholder="Filter by Chain..." />
+        <SelectValue as-child>
+          <div class="flex items-center gap-2">
+            <template v-if="selectedChainType !== ALL_FILTER_VALUE">
+              <Web3Icon :symbol="selectedChainType" class="size-4 flex-shrink-0" />
+              <span class="capitalize">{{ selectedChainType }}</span>
+            </template>
+            <template v-else>
+              <span class="text-muted-foreground">All Chains</span>
+            </template>
+          </div>
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>          
           <SelectItem :value="ALL_FILTER_VALUE">All Chains</SelectItem>
           <SelectItem v-for="option in chainTypeOptions" :key="option" :value="option">
-            {{ option }}
+            <div class="flex items-center gap-2">
+              <Web3Icon :symbol="option" class="size-4" />
+              <span class="capitalize">{{ option }}</span>
+            </div>
           </SelectItem>
       </SelectContent>
     </Select>
@@ -66,11 +79,20 @@ function handleClearFilters() {
     <!-- Use v-model with the local ref (which uses ALL_FILTER_VALUE for null) -->
     <Select v-model="selectedTokenType">
       <SelectTrigger class="w-[180px]">
-        <SelectValue placeholder="Filter by Type..." />
+        <SelectValue as-child>
+          <div class="flex items-center gap-2">
+            <template v-if="selectedTokenType !== ALL_FILTER_VALUE">
+              <span class="uppercase">{{ selectedTokenType }}</span>
+            </template>
+            <template v-else>
+              <span class="text-muted-foreground">All types</span>
+            </template>
+          </div>
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
           <SelectItem :value="ALL_FILTER_VALUE">All Types</SelectItem>
-          <SelectItem v-for="option in tokenTypeOptions" :key="option" :value="option">
+          <SelectItem v-for="option in tokenTypeOptions" :key="option" :value="option" class="uppercase">
             {{ option }}
           </SelectItem>
       </SelectContent>
