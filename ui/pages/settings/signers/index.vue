@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import type { ISigner } from '~/types'
 // Import the new date formatting utility and shortenAddress
-import { formatDateTime, shortenAddress } from '~/lib/utils'
+// Removed unused imports (formatDateTime, shortenAddress)
 
 // Define page metadata
 definePageMeta({
@@ -30,15 +30,27 @@ const { deleteSigner, isDeleting, error: signerMutationsError } = useSignerMutat
 const isDeleteDialogOpen = ref(false)
 const signerToDelete = ref<ISigner | null>(null)
 
-const openDeleteDialog = (signer: ISigner) => {
+// --- Handler functions for events emitted by SignerListTable ---
+const handleEditSigner = (signer: ISigner) => {
+  router.push(`/settings/signers/${signer.id}/edit`)
+}
+
+const handleDeleteSigner = (signer: ISigner) => {
   signerToDelete.value = signer
   isDeleteDialogOpen.value = true
 }
+// --- End handler functions ---
 
-// Navigate to edit signer page
-const editSigner = (signer: ISigner) => {
-  router.push(`/settings/signers/${signer.id}/edit`)
-}
+// Navigate to edit signer page (renamed to avoid conflict, handled by handleEditSigner)
+// const editSigner = (signer: ISigner) => {
+//   router.push(`/settings/signers/${signer.id}/edit`)
+// }
+
+// Open delete dialog (renamed to avoid conflict, handled by handleDeleteSigner)
+// const openDeleteDialog = (signer: ISigner) => {
+//   signerToDelete.value = signer
+//   isDeleteDialogOpen.value = true
+// }
 
 const handleDeleteConfirm = async () => {
   if (!signerToDelete.value || !signerToDelete.value.id) {
@@ -69,7 +81,7 @@ const handleDeleteConfirm = async () => {
 <template>
   <div>
     <div>
-      <SignerTableSkeleton v-if="isLoading"/>
+      <SignerTableSkeleton v-if="isLoading && !signers.length"/>
       <!-- Error States -->
       <div v-else-if="error">
         <Alert variant="destructive">
@@ -78,89 +90,17 @@ const handleDeleteConfirm = async () => {
           <AlertDescription>
             {{ error.message || 'Failed to load signers' }}
           </AlertDescription>
-        </Alert>      
-      </div>      
-      <!-- Table (both empty and populated states) -->
+        </Alert>
+      </div>
+      <!-- Use the SignerListTable component -->
       <div v-else>
-        <div class="border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader class="bg-muted">
-              <TableRow>
-                <TableHead class="w-[10%]">ID</TableHead> 
-                <TableHead class="w-auto">Name</TableHead>
-                <TableHead class="w-[10%]">Type</TableHead>
-                <TableHead class="w-[10%]">User ID</TableHead>
-                <TableHead class="w-[10%]">Addresses</TableHead>
-                <TableHead class="w-[15%]">Created</TableHead> 
-                <TableHead class="w-[80px] text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <!-- Empty State Table Body -->
-            <TableBody v-if="signers.length === 0">
-              <TableRow>
-                <TableCell colSpan="7" class="text-center pt-3 pb-4">
-                  <div class="flex items-center justify-center gap-1.5">
-                    <Icon name="lucide:inbox" class="size-5 text-primary" />
-                    <span >No signers found. Create one to get started!</span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-            <!-- Populated Table Body -->
-            <TableBody v-else>
-              <TableRow v-for="signer in signers" :key="signer.id">
-                <TableCell>
-                  <NuxtLink :to="`/settings/signers/${signer.id}/view`" class="hover:underline">
-                    {{ shortenAddress(signer.id, 4, 4) }}
-                  </NuxtLink>
-                </TableCell>
-                <TableCell>{{ signer.name }}</TableCell>
-                <TableCell>
-                  <SignerTypeBadge :type="signer.type" />
-                </TableCell>
-                <TableCell>
-                  <NuxtLink 
-                    v-if="signer.userId" 
-                    :to="`/settings/users/${signer.userId}/view`" 
-                    class="hover:underline"
-                  >
-                    {{ shortenAddress(signer.userId, 4, 4) }}
-                  </NuxtLink>
-                  <span v-else class="text-xs text-muted-foreground">Not assigned</span>
-                </TableCell>                
-                <TableCell>
-                  <Badge v-if="signer.addresses?.length" variant="secondary" class="px-2 py-1">
-                    {{ signer.addresses.length }}
-                  </Badge>
-                  <span v-else class="text-xs text-muted-foreground">None</span>
-                </TableCell>
-                <TableCell>{{ formatDateTime(signer.createdAt) }}</TableCell>
-                <TableCell class="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger as-child>
-                      <Button variant="ghost" class="h-8 w-8 p-0">
-                        <span class="sr-only">Open menu</span>
-                        <Icon name="lucide:more-horizontal" class="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem @click="editSigner(signer)">
-                        <Icon name="lucide:edit" class="mr-2 size-4" />
-                        <span>Edit</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        class="text-destructive focus:text-destructive focus:bg-destructive/10"
-                        @click="openDeleteDialog(signer)">
-                        <Icon name="lucide:trash-2" class="mr-2 h-4 w-4" />
-                        <span>Delete</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
+        <SignerListTable 
+          :signers="signers"
+          :is-loading="isLoading"
+          @edit="handleEditSigner"
+          @delete="handleDeleteSigner"
+        />
+        <!-- Pagination controls remain here -->
         <div class="flex items-center gap-2 mt-2">
           <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
           <PaginationControls
@@ -173,6 +113,7 @@ const handleDeleteConfirm = async () => {
       </div>
     </div>
 
+    <!-- Delete confirmation dialog remains here -->
     <AlertDialog :open="isDeleteDialogOpen" @update:open="isDeleteDialogOpen = $event">
       <AlertDialogContent>
         <AlertDialogHeader>

@@ -23,7 +23,7 @@ defineProps<{
       </TableHeader>
       <TableBody>
         <template v-if="isLoading">
-          <TableRow>
+          <TableRow v-for="n in 1" :key="`skeleton-${n}`">
             <TableCell>
               <Skeleton class="h-4 w-full" />
             </TableCell>

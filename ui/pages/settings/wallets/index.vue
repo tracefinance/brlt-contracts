@@ -2,9 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { toast } from 'vue-sonner'
-import { getAddressExplorerUrl } from '~/lib/explorers'
 import type { IWallet } from '~/types'
-import { formatDateTime, shortenAddress, formatCurrency } from '~/lib/utils'
 
 definePageMeta({
   layout: 'settings'
@@ -17,7 +15,7 @@ const { limit, nextToken, setLimit, previousPage, nextPage } = usePagination(10)
 
 const {
   wallets,
-  isLoading,
+  isLoading: isLoadingWallets,
   error: walletsError,
   nextPageToken,
   refresh: refreshWallets
@@ -36,23 +34,30 @@ const {
 } = useWalletMutations()
 
 const error = computed(() => walletsError.value || chainsError.value)
+// const isLoading = computed(() => isLoadingWallets.value) // Unused
 
-const getWalletExplorerBaseUrl = (wallet: IWallet): string | undefined => {
-  if (isLoadingChains.value || chainsError.value) return undefined
-  const chain = chains.value.find(c => c.type?.toLowerCase() === wallet.chainType?.toLowerCase())
-  return chain?.explorerUrl
-}
-
-const getNativeTokenSymbol = (wallet: IWallet): string => {
-  if (isLoadingChains.value || chainsError.value) return ''
-  const chain = chains.value.find(c => c.type?.toLowerCase() === wallet.chainType?.toLowerCase())
-  return chain?.symbol || ''
-}
-
+// Delete confirmation dialog
 const isDeleteDialogOpen = ref(false)
 const walletToDelete = ref<IWallet | null>(null)
 
-const openDeleteDialog = (wallet: IWallet) => {
+// Helper functions moved to WalletListTable.vue
+// const getWalletExplorerBaseUrl = (wallet: IWallet): string | undefined => { ... }
+// const getNativeTokenSymbol = (wallet: IWallet): string => { ... }
+
+// --- Handlers for events emitted by WalletListTable ---
+const handleEditWallet = (wallet: IWallet) => {
+  if (!wallet || !wallet.chainType || !wallet.address) {
+    console.error('Invalid wallet data for edit navigation:', wallet)
+    toast.error('Invalid wallet data. Cannot navigate to edit page.')
+    return
+  }
+
+  const chainTypeEncoded = encodeURIComponent(wallet.chainType)
+  const addressEncoded = encodeURIComponent(wallet.address)
+  router.push(`/settings/wallets/${chainTypeEncoded}/${addressEncoded}/edit`)
+}
+
+const handleDeleteWallet = (wallet: IWallet) => {
   walletToDelete.value = wallet
   isDeleteDialogOpen.value = true
 }
@@ -82,17 +87,7 @@ const handleDeleteConfirm = async () => {
   walletToDelete.value = null
 }
 
-const goToEditWallet = (wallet: IWallet) => {
-  if (!wallet || !wallet.chainType || !wallet.address) {
-    console.error('Invalid wallet data for edit navigation:', wallet)
-    toast.error('Invalid wallet data. Cannot navigate to edit page.')
-    return
-  }
-
-  const chainTypeEncoded = encodeURIComponent(wallet.chainType)
-  const addressEncoded = encodeURIComponent(wallet.address)
-  router.push(`/settings/wallets/${chainTypeEncoded}/${addressEncoded}/edit`)
-}
+// --- End Handlers ---
 
 // When we get a new token from the API, update the route
 watch(nextPageToken, (newToken) => {
@@ -110,7 +105,7 @@ watch(nextPageToken, (newToken) => {
 
 <template>
   <div>
-    <WalletTableSkeleton v-if="isLoading" />
+    <WalletTableSkeleton v-if="isLoadingWallets && !wallets.length" />
     <div v-else-if="error">
       <Alert variant="destructive">
         <Icon name="lucide:alert-triangle" class="w-4 h-4" />
@@ -122,89 +117,14 @@ watch(nextPageToken, (newToken) => {
     </div>
 
     <div v-else>
-      <div class="border rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader class="bg-muted">
-            <TableRow>
-              <TableHead class="w-[10%]">ID</TableHead>
-              <TableHead class="w-auto">Name</TableHead>
-              <TableHead class="w-[10%]">Chain</TableHead>
-              <TableHead class="w-[10%]">Address</TableHead>
-              <TableHead class="w-[10%] text-right">Balance</TableHead>
-              <TableHead class="w-[15%]">Created</TableHead>
-              <TableHead class="w-[80px] text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody v-if="wallets.length === 0">
-            <TableRow>
-              <TableCell colSpan="7" class="text-center pt-3 pb-4">
-                <div class="flex items-center justify-center gap-1.5">
-                  <Icon name="lucide:inbox" class="size-5 text-primary" />
-                  <span>No wallets found. Create one to get started!</span>
-                </div>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-          <TableBody v-else>
-            <TableRow v-for="wallet in wallets" :key="wallet.id">
-              <TableCell>
-                <NuxtLink :to="`/settings/wallets/${wallet.chainType}/${wallet.address}/view`" class="hover:underline">
-                  {{ shortenAddress(wallet.id, 4, 4) }}
-                </NuxtLink>
-              </TableCell>
-              <TableCell>{{ wallet.name }}</TableCell>
-              <TableCell>
-                <div class="flex items-center gap-2">
-                  <Web3Icon :symbol="wallet.chainType" class="size-5" variant="branded" />
-                  <span class="capitalize">{{ wallet.chainType }}</span>
-                </div>
-              </TableCell>
-              <TableCell>
-                <a
-                  v-if="wallet.address && getWalletExplorerBaseUrl(wallet)"
-                  :href="getAddressExplorerUrl(getWalletExplorerBaseUrl(wallet), wallet.address)"
-                  target="_blank" rel="noopener noreferrer" class="hover:underline">
-                  {{ shortenAddress(wallet.address, 6, 4) }}
-                </a>
-                <span v-else-if="wallet.address">{{ shortenAddress(wallet.address, 6, 4) }}</span>
-                <span v-else class="text-muted-foreground">N/A</span>
-              </TableCell>
-              <TableCell class="text-right">
-                <span v-if="wallet.balance !== undefined && wallet.balance !== null" class="font-mono">
-                  {{ formatCurrency(wallet.balance) }} {{ getNativeTokenSymbol(wallet) }}
-                </span>
-                <span v-else-if="isLoadingChains">
-                  <Icon name="svg-spinners:3-dots-fade" class="size-4 text-muted-foreground" />
-                </span>
-                <span v-else class="text-muted-foreground">N/A</span>
-              </TableCell>
-              <TableCell>{{ wallet.createdAt ? formatDateTime(wallet.createdAt) : 'N/A' }}</TableCell>
-              <TableCell class="text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger as-child>
-                    <Button variant="ghost" class="h-8 w-8 p-0">
-                      <span class="sr-only">Open menu</span>
-                      <Icon name="lucide:more-horizontal" class="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem :disabled="!wallet.chainType || !wallet.address" @click="goToEditWallet(wallet)">
-                      <Icon name="lucide:edit" class="mr-2 size-4" />
-                      <span>Edit</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      class="text-destructive focus:text-destructive focus:bg-destructive/10"
-                      @click="openDeleteDialog(wallet)">
-                      <Icon name="lucide:trash-2" class="mr-2 size-4" />
-                      <span>Delete</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </div>
+      <WalletListTable
+        :wallets="wallets"
+        :chains="chains"
+        :is-loading="isLoadingWallets" 
+        :is-loading-chains="isLoadingChains"
+        @edit="handleEditWallet"
+        @delete="handleDeleteWallet"
+      />
       <div class="flex items-center gap-2 mt-2">
         <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
         <PaginationControls 
