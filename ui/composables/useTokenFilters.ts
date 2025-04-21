@@ -7,7 +7,7 @@ import type { ChainType, TokenType } from '~/types'
  *
  * @returns Reactive refs for filters and a function to clear them.
  */
-export default function useTokenFilters() {
+export default function () {
   const route = useRoute()
 
   // Reactive refs for filter state

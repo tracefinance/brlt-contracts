@@ -10,7 +10,7 @@ const navigationItems = [
   { name: 'Signers', href: '/settings/signers', icon: 'lucide:key' },
   { name: 'Users', href: '/settings/users', icon: 'lucide:users' },
   { name: 'Keys', href: '/settings/keys', icon: 'lucide:lock' },
-  { name: 'Tokens', href: '/admin/tokens', icon: 'lucide:coins' }
+  { name: 'Tokens', href: '/settings/tokens', icon: 'lucide:coins' }
   // Add other settings sections here
 ]
 
@@ -131,6 +131,9 @@ const isCurrentRoute = (href: string) => {
             </NuxtLink>
             <NuxtLink v-if="route.path == '/settings/keys'" to="/settings/keys/create">
               <Button>Create Key</Button>
+            </NuxtLink>
+            <NuxtLink v-if="route.path == '/settings/tokens'" to="/settings/tokens/new">
+              <Button>Create Token</Button>
             </NuxtLink>
           </div>
         </header>

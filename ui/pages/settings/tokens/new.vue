@@ -36,7 +36,7 @@ async function handleAddToken(formData: IAddTokenRequest) {
 }
 
 function handleCancel() {
-  router.push('/admin/tokens')
+  router.back()
 }
 </script>
 

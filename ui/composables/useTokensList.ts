@@ -11,7 +11,7 @@ import type { IPagedResponse, IToken, ChainType, TokenType } from '~/types'
  * @param nextToken - Reactive ref for the pagination token.
  * @returns Reactive state including the token list, loading status, errors, pagination info, and refresh function.
  */
-export default function useTokensList(
+export default function (
   chainTypeFilter: Ref<ChainType | null>,
   tokenTypeFilter: Ref<TokenType | null>,
   limit: Ref<number>,
