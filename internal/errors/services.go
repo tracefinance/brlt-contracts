@@ -19,10 +19,11 @@ const (
 	ErrCodeMissingWalletAddress  = "missing_wallet_address"
 
 	// User service errors
-	ErrCodeUserNotFound       = "user_not_found"
-	ErrCodeUserExists         = "user_exists"
-	ErrCodeInvalidCredentials = "invalid_credentials"
-	ErrCodeEmailExists        = "email_exists"
+	ErrCodeUserNotFound             = "user_not_found"
+	ErrCodeUserExists               = "user_exists"
+	ErrCodeInvalidCredentials       = "invalid_credentials"
+	ErrCodeEmailExists              = "email_exists"
+	ErrCodeUserAssociatedWithSigner = "user_associated_with_signer"
 
 	// Transaction service errors
 	ErrCodeTransactionSyncFailed = "transaction_sync_failed"
@@ -165,6 +166,17 @@ func NewEmailExistsError(email string) *Vault0Error {
 		Message: fmt.Sprintf("Email already exists: %s", email),
 		Details: map[string]any{
 			"email": email,
+		},
+	}
+}
+
+// NewUserAssociatedWithSignerError creates an error when attempting to delete a user linked to a signer
+func NewUserAssociatedWithSignerError(userID int64) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeUserAssociatedWithSigner,
+		Message: fmt.Sprintf("User with ID %d cannot be deleted because it is associated with one or more signers", userID),
+		Details: map[string]any{
+			"user_id": userID,
 		},
 	}
 }

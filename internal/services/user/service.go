@@ -5,6 +5,7 @@ import (
 
 	"vault0/internal/errors"
 	"vault0/internal/logger"
+	"vault0/internal/services/signer"
 	"vault0/internal/types"
 
 	"golang.org/x/crypto/bcrypt"
@@ -36,15 +37,17 @@ type Service interface {
 
 // service implements the Service interface
 type service struct {
-	log        logger.Logger
-	repository Repository
+	log           logger.Logger
+	repository    Repository
+	signerService signer.Service
 }
 
 // NewService creates a new user service
-func NewService(log logger.Logger, repository Repository) Service {
+func NewService(log logger.Logger, repository Repository, signerSvc signer.Service) Service {
 	return &service{
-		log:        log,
-		repository: repository,
+		log:           log,
+		repository:    repository,
+		signerService: signerSvc,
 	}
 }
 
@@ -120,9 +123,32 @@ func (s *service) Update(ctx context.Context, id int64, email, password string) 
 
 // Delete removes a user
 func (s *service) Delete(ctx context.Context, id int64) error {
-	if err := s.repository.Delete(ctx, id); err != nil {
+	// Check if user is associated with any signers before deleting
+	signers, err := s.signerService.GetByUserID(ctx, id)
+	if err != nil {
+		s.log.Error("Failed to check signer association for user",
+			logger.Int64("user_id", id),
+			logger.Error(err))
 		return err
 	}
+
+	// If signers exist for the user, prevent deletion
+	if len(signers) > 0 {
+		s.log.Warn("Attempted to delete user associated with signers",
+			logger.Int64("user_id", id),
+			logger.Int("signer_count", len(signers)))
+		return errors.NewUserAssociatedWithSignerError(id)
+	}
+
+	// Proceed with deletion if no signers are associated
+	if err := s.repository.Delete(ctx, id); err != nil {
+		s.log.Error("Failed to delete user from repository",
+			logger.Int64("user_id", id),
+			logger.Error(err))
+		return err
+	}
+
+	s.log.Info("User deleted successfully", logger.Int64("user_id", id))
 	return nil
 }
 

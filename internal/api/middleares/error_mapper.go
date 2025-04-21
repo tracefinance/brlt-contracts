@@ -86,7 +86,8 @@ func DefaultErrorMapper(err error) (int, any) {
 			errors.ErrCodeEmailExists,
 			errors.ErrCodeKeyExists,
 			errors.ErrCodeInsufficientFunds,
-			errors.ErrCodeKeyInUseByWallet:
+			errors.ErrCodeKeyInUseByWallet,
+			errors.ErrCodeUserAssociatedWithSigner:
 			return http.StatusConflict, appErr
 
 		// Precondition failures - 412 Precondition Failed
