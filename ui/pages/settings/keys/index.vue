@@ -88,11 +88,8 @@ watch(nextPageToken, (newToken) => {
 
 <template>
   <div>
-    <!-- Skeleton Loader - show only on initial load -->
-    <KeyTableSkeleton v-if="isLoading && !keys.length" />
-
     <!-- Error Alert -->
-    <div v-else-if="keysError">
+    <div v-if="keysError">
       <Alert variant="destructive">
         <Icon name="lucide:alert-triangle" class="w-4 h-4" />
         <AlertTitle>Error Loading Keys</AlertTitle>
