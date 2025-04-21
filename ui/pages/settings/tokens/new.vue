@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
-import type { IAddTokenRequest } from '~/types'
+import type { IAddTokenRequest, ChainType, TokenType } from '~/types'
 import { getErrorMessage } from '~/lib/utils'
 
 // Settings
@@ -18,6 +18,23 @@ const {
   error: mutationError 
 } = useTokenMutations()
 
+// Form state moved from component
+const address = ref('')
+const chainType = ref<ChainType | null>(null)
+const symbol = ref('')
+const decimals = ref<number | undefined>(18)
+const type = ref<TokenType>('erc20')
+
+const tokenTypeOptions: TokenType[] = ['erc20', 'erc721', 'erc1155', 'native']
+
+// Computed property moved from component
+const chainTypeModel = computed({
+  get: () => chainType.value ?? '', 
+  set: (value) => {
+    chainType.value = value || null
+  }
+})
+
 // Watch for errors from the composable
 watch(mutationError, (newError) => {
   if (newError) {
@@ -27,17 +44,30 @@ watch(mutationError, (newError) => {
   }
 })
 
-// Handle form submission
-async function handleAddToken(formData: IAddTokenRequest) {
+// Handle form submission - logic merged from component
+async function handleAddToken() {
   mutationError.value = null
   
-  // Basic validation (can be enhanced)
-  if (!formData.address || !formData.chainType || !formData.symbol || formData.decimals === undefined || formData.decimals === null || !formData.type) {
+  // Validation using local refs
+  if (!chainType.value) {
+    toast.error('Chain Type is required.');
+    return;
+  }
+  if (!address.value || !symbol.value || decimals.value === undefined || decimals.value === null || !type.value) {
     toast.error('All fields are required.');
     return;
   }
+
+  // Construct payload from local refs
+  const payload: IAddTokenRequest = {
+    address: address.value.trim(),
+    chainType: chainType.value,
+    symbol: symbol.value.trim(),
+    decimals: decimals.value,
+    type: type.value,
+  }
   
-  const newToken = await mutateAddToken(formData)
+  const newToken = await mutateAddToken(payload)
 
   if (newToken) {
     toast.success(`Token ${newToken.symbol} added successfully!`)
@@ -45,6 +75,7 @@ async function handleAddToken(formData: IAddTokenRequest) {
   }
 }
 
+// Use router directly, no need for emit
 function handleCancel() {
   router.back()
 }
@@ -58,11 +89,62 @@ function handleCancel() {
         <CardDescription>Register a new token in the system.</CardDescription>
       </CardHeader>
       <CardContent>
-        <TokenNewForm
-          :is-loading="isCreating" 
-          @submit="handleAddToken"
-          @cancel="handleCancel"
-        />
+        <form class="space-y-4" @submit.prevent="handleAddToken">
+          <div class="space-y-2">
+            <Label for="address">Token Address</Label>
+            <Input id="address" v-model="address" required placeholder="0x..." />
+          </div>
+
+          <div class="space-y-2">
+            <Label for="chainType">Chain Type</Label>
+            <ChainSelect id="chainType" v-model="chainTypeModel" required />
+          </div>
+
+          <div class="space-y-2">
+            <Label for="type">Token Type</Label>
+            <Select id="type" v-model="type" required>
+              <SelectTrigger>
+                <SelectValue as-child>
+                  <span class="uppercase">{{ type || 'Select token type' }}</span>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem v-for="option in tokenTypeOptions" :key="option" :value="option">
+                    <span class="uppercase">{{ option }}</span>
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div class="space-y-2">
+            <Label for="symbol">Symbol</Label>
+            <Input id="symbol" v-model="symbol" required placeholder="e.g., ETH, USDC" />
+          </div>
+
+          <div class="space-y-2">
+            <Label for="decimals">Decimals</Label>
+            <Input
+              id="decimals"
+              v-model.number="decimals"
+              required
+              type="number"
+              min="0"
+              max="18" 
+              placeholder="e.g., 18"
+            />
+          </div>
+
+          <div class="flex justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" :disabled="isCreating" @click="handleCancel">
+              Cancel
+            </Button>
+            <Button type="submit" :disabled="isCreating">
+              {{ isCreating ? 'Adding...' : 'Add Token' }}
+            </Button>
+          </div>
+        </form>
       </CardContent>
     </Card>
   </div>

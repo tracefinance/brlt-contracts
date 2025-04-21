@@ -49,7 +49,7 @@ const selectedChain = computed({
     <Select v-else v-model="selectedChain">
       <SelectTrigger class="bg-background">
         <div class="flex items-center">
-          <Web3Icon v-if="selectedChain" :symbol="selectedChain" variant="branded" class="size-5 mr-2"/> 
+          <Web3Icon v-if="selectedChain" :symbol="selectedChain" variant="mono" class="size-5 mr-2"/> 
           <SelectValue placeholder="Select blockchain" />
         </div>
       </SelectTrigger>
@@ -59,7 +59,7 @@ const selectedChain = computed({
           :key="option.value" 
           :value="option.value"
         >
-          <Web3Icon :symbol="option.type" variant="branded" class="size-5 mr-2 inline-block align-middle"/> 
+          <Web3Icon :symbol="option.type" variant="mono" class="size-5 mr-2 inline-block align-middle"/> 
           <span class="capitalize font-mono">{{ option.label }}</span>
         </SelectItem>
       </SelectContent>

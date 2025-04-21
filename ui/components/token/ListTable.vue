@@ -15,8 +15,8 @@ defineProps<{
       <TableHeader class="bg-muted">
         <TableRow>
           <TableHead class="w-auto">Address</TableHead>
-          <TableHead class="w-[130px]">Chain</TableHead>
-          <TableHead class="w-[130px]">Symbol</TableHead>
+          <TableHead class="w-[12%]">Chain</TableHead>
+          <TableHead class="w-[12%]">Symbol</TableHead>
           <TableHead class="w-[80px]">Type</TableHead>
           <TableHead class="w-[80px] text-right">Decimals</TableHead>
         </TableRow>
