@@ -52,6 +52,9 @@ type Repository interface {
 
 	// TokenBalanceExists checks if a token balance entry exists for a given wallet and token address
 	TokenBalanceExists(ctx context.Context, wallet *Wallet, tokenAddress string) (bool, error)
+
+	// GetWalletsByKeyID retrieves all non-deleted wallets associated with a specific keystore key ID.
+	GetWalletsByKeyID(ctx context.Context, keyID string) ([]*Wallet, error)
 }
 
 // repository implements Repository interface for SQLite
@@ -370,7 +373,6 @@ func (r *repository) UpdateBalance(ctx context.Context, wallet *Wallet, balance 
 	}
 
 	if rowsAffected == 0 {
-		// Use wallet.ID for the error message
 		return errors.NewWalletNotFoundError(strconv.FormatInt(wallet.ID, 10))
 	}
 
@@ -493,12 +495,12 @@ func (r *repository) TokenBalanceExists(ctx context.Context, wallet *Wallet, tok
 	sb.Limit(1)
 
 	// Build the SQL and args
-	sql, args := sb.Build()
+	sqlQuery, args := sb.Build()
 
 	// Execute the query
-	rows, err := r.db.ExecuteQueryContext(ctx, sql, args...)
+	rows, err := r.db.ExecuteQueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		return false, errors.NewDatabaseError(err) // Wrap DB error
+		return false, err // Return raw DB error
 	}
 	defer rows.Close()
 
@@ -507,8 +509,24 @@ func (r *repository) TokenBalanceExists(ctx context.Context, wallet *Wallet, tok
 
 	// Check for any errors during row iteration
 	if err := rows.Err(); err != nil {
-		return false, errors.NewDatabaseError(err) // Wrap DB error
+		return false, err // Return raw DB error
 	}
 
 	return exists, nil
+}
+
+// GetWalletsByKeyID retrieves all non-deleted wallets associated with a specific keystore key ID.
+func (r *repository) GetWalletsByKeyID(ctx context.Context, keyID string) ([]*Wallet, error) {
+	sb := r.walletStructMap.SelectFrom("wallets")
+	sb.Where(sb.Equal("key_id", keyID))
+	sb.Where(sb.IsNull("deleted_at"))
+
+	sqlQuery, args := sb.Build()
+
+	wallets, err := r.executeWalletQuery(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	return wallets, nil
 }

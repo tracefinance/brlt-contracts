@@ -133,6 +133,18 @@ type Service interface {
 	// Returns:
 	//   - error: ErrInvalidInput for invalid parameters, or any error from the token store
 	ActivateToken(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string) error
+
+	// GetWalletsByKeyID retrieves all non-deleted wallets associated with a specific keystore key ID.
+	// This is used internally, for example, to check if a key can be safely deleted.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation
+	//   - keyID: The ID of the keystore key
+	//
+	// Returns:
+	//   - []*Wallet: A slice of wallets associated with the key ID
+	//   - error: Any error that occurred during the database query
+	GetWalletsByKeyID(ctx context.Context, keyID string) ([]*Wallet, error)
 }
 
 // walletService implements the Service interface
@@ -377,7 +389,7 @@ func (s *walletService) GetByID(ctx context.Context, id int64) (*Wallet, error) 
 	return wallet, nil
 }
 
-// ActivateToken creates a token balance for a wallet and token address.
+// ActivateToken creates a token balance for a wallet and token address
 func (s *walletService) ActivateToken(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string) error {
 	if chainType == "" {
 		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
@@ -433,4 +445,24 @@ func (s *walletService) ActivateToken(ctx context.Context, chainType types.Chain
 	}
 
 	return nil
+}
+
+// GetWalletsByKeyID retrieves all non-deleted wallets associated with a specific keystore key ID.
+func (s *walletService) GetWalletsByKeyID(ctx context.Context, keyID string) ([]*Wallet, error) {
+	if keyID == "" {
+		return nil, errors.NewInvalidInputError("Key ID cannot be empty", "key_id", "")
+	}
+	s.log.Debug("Retrieving wallets by key ID",
+		logger.String("key_id", keyID))
+	wallets, err := s.repository.GetWalletsByKeyID(ctx, keyID)
+	if err != nil {
+		s.log.Error("Failed to get wallets by key ID from repository",
+			logger.Error(err),
+			logger.String("key_id", keyID))
+		return nil, err
+	}
+	s.log.Debug("Successfully retrieved wallets by key ID",
+		logger.String("key_id", keyID),
+		logger.Int("count", len(wallets)))
+	return wallets, nil
 }

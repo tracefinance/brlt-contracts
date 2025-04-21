@@ -7,6 +7,7 @@ import (
 	"vault0/internal/core/keystore"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
+	"vault0/internal/services/wallet"
 	"vault0/internal/types"
 )
 
@@ -39,15 +40,17 @@ type Service interface {
 
 // service implements the Service interface
 type service struct {
-	keyStore keystore.KeyStore
-	log      logger.Logger
+	keyStore      keystore.KeyStore
+	log           logger.Logger
+	walletService wallet.Service
 }
 
 // NewService creates a new keystore service instance
-func NewService(keyStore keystore.KeyStore, log logger.Logger) Service {
+func NewService(keyStore keystore.KeyStore, log logger.Logger, walletSvc wallet.Service) Service {
 	return &service{
-		keyStore: keyStore,
-		log:      log,
+		keyStore:      keyStore,
+		log:           log,
+		walletService: walletSvc,
 	}
 }
 
@@ -258,24 +261,33 @@ func (s *service) UpdateKey(ctx context.Context, id string, name string, tags ma
 
 // DeleteKey implements the Service interface
 func (s *service) DeleteKey(ctx context.Context, id string) error {
-	// First, verify the key exists
-	_, err := s.keyStore.GetPublicKey(ctx, id)
+	// Check if the key is associated with any wallets using the wallet service
+	wallets, err := s.walletService.GetWalletsByKeyID(ctx, id)
 	if err != nil {
-		s.log.Error("Failed to get key for deletion",
+		s.log.Error("Failed to check key association with wallets via service",
 			logger.Error(err),
 			logger.String("key_id", id))
 		return err
 	}
 
-	// Delete the key
+	// If associated (wallets list is not empty), prevent deletion and return the specific error
+	if len(wallets) > 0 {
+		s.log.Warn("Attempted to delete key associated with one or more wallets",
+			logger.String("key_id", id),
+			logger.Int("associated_wallets_count", len(wallets)))
+		return errors.NewKeyInUseByWalletError(id)
+	}
+
+	// If not associated, proceed with deletion
 	err = s.keyStore.Delete(ctx, id)
 	if err != nil {
-		s.log.Error("Failed to delete key",
+		s.log.Error("Failed to delete key from keystore",
 			logger.Error(err),
 			logger.String("key_id", id))
 		return err
 	}
 
 	s.log.Info("Key deleted successfully", logger.String("key_id", id))
+
 	return nil
 }

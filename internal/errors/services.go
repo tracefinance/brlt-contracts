@@ -35,6 +35,9 @@ const (
 	ErrCodeTokenPriceNotFound    = "token_price_not_found"
 	ErrCodePriceFeedUpdateFailed = "price_feed_update_failed"
 	ErrCodeDataConversionFailed  = "data_conversion_failed"
+
+	// Keystore Service Errors
+	ErrCodeKeyInUseByWallet = "key_in_use_by_wallet"
 )
 
 // NewInvalidInputError creates an error for invalid input data with a custom message
@@ -214,6 +217,17 @@ func NewPriceFeedUpdateFailed(err error, reason string) *Vault0Error {
 		Code:    ErrCodePriceFeedUpdateFailed,
 		Message: fmt.Sprintf("Failed to update token prices from feed: %s", reason),
 		Err:     err,
+	}
+}
+
+// NewKeyInUseByWalletError creates an error for when a key cannot be deleted because it's used by a wallet
+func NewKeyInUseByWalletError(keyID string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeKeyInUseByWallet,
+		Message: fmt.Sprintf("Key with ID %s cannot be deleted because it is associated with one or more wallets", keyID),
+		Details: map[string]any{
+			"key_id": keyID,
+		},
 	}
 }
 
