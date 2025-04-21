@@ -10,11 +10,15 @@ defineProps<{
 
 // Define Emits
 const emit = defineEmits<{
-  (e: 'edit', token: IToken): void
+  (e: 'edit' | 'delete', token: IToken): void
 }>()
 
 const handleEdit = (token: IToken) => {
   emit('edit', token)
+}
+
+const handleDelete = (token: IToken) => {
+  emit('delete', token)
 }
 
 </script>
@@ -103,6 +107,12 @@ const handleEdit = (token: IToken) => {
                 <DropdownMenuItem @click="handleEdit(token)">
                   <Icon name="lucide:edit" class="mr-2 size-4" />
                   <span>Edit</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  class="text-destructive focus:text-destructive focus:bg-destructive/10"
+                  @click="handleDelete(token)">
+                  <Icon name="lucide:trash-2" class="mr-2 size-4" />
+                  <span>Delete</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

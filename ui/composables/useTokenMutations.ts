@@ -1,15 +1,13 @@
 import { ref } from 'vue'
 import { useNuxtApp } from '#app'
-import type { IAddTokenRequest, IToken, ChainType, IUpdateTokenRequest } from '~/types'
-// Assuming getErrorMessage is used elsewhere or can be added later if needed
-// import { getErrorMessage } from '~/lib/utils'
+import type { IAddTokenRequest, IToken, IUpdateTokenRequest } from '~/types'
 
 export default function useTokenMutations() {
   const { $api } = useNuxtApp()
   const isCreating = ref(false)
-  const isDeleting = ref(false) // Add if delete functionality is needed later
-  const isVerifying = ref(false) // Add if verify functionality is needed later
-  const isUpdating = ref(false) // Added for update operation
+  const isDeleting = ref(false)
+  const isVerifying = ref(false)
+  const isUpdating = ref(false)
   const error = ref<Error | null>(null)
 
   /**
@@ -24,7 +22,6 @@ export default function useTokenMutations() {
     } catch (err) {
       console.error('Error adding token:', err)
       error.value = err as Error
-      // Optionally re-throw or handle specific error types if needed
       return null
     } finally {
       isCreating.value = false
@@ -33,12 +30,14 @@ export default function useTokenMutations() {
 
   /**
    * Delete a token.
+   * @param address - The address of the token to delete.
+   * @returns Whether the operation was successful.
    */
-  const deleteToken = async (chainType: ChainType, address: string): Promise<boolean> => {
+  const deleteToken = async (address: string): Promise<boolean> => {
     isDeleting.value = true;
     error.value = null;
     try {
-      await $api.token.deleteToken(chainType, address);
+      await $api.token.deleteToken(address);
       return true;
     } catch (err) {
       console.error('Error deleting token:', err);
@@ -86,17 +85,15 @@ export default function useTokenMutations() {
     }
   }
 
-  // Expose reactive state and methods
   return {
     isCreating,
     isDeleting,
     isVerifying,
-    isUpdating, // Expose isUpdating
+    isUpdating,
     error,
     addToken,
     deleteToken,
     verifyToken,
-    updateToken, // Expose updateToken
-    // Expose specific mutation errors if needed, e.g., createError, deleteError
+    updateToken,
   }
 } 

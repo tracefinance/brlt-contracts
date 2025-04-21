@@ -96,14 +96,11 @@ export class TokenClient {
   }
   
   /**
-   * Delete a token by its address and chain type.
-   * @param chainType - The chain type of the token.
+   * Delete a token by its address.
    * @param address - The address of the token to delete.
    */
-  async deleteToken(chainType: ChainType, address: string): Promise<void> {
-    // Assuming BY_ADDRESS endpoint needs chainType and address
-    const endpoint = API_ENDPOINTS.TOKENS.BY_ADDRESS(chainType, address)
-    // Use generic delete which doesn't expect a specific return type
+  async deleteToken(address: string): Promise<void> {
+    const endpoint = API_ENDPOINTS.TOKENS.DELETE(address)
     await this.client.delete(endpoint)
   }
   

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { watch, ref } from 'vue'
 import { toast } from 'vue-sonner'
 import type { ChainType, IToken } from '~/types'
 
@@ -19,9 +19,14 @@ const { tokens, isLoading, error, refresh, nextToken: apiNextToken } = useTokens
 )
 
 const { chains, isLoading: isLoadingChains, error: chainsError } = useChains()
+const { deleteToken, isDeleting, error: tokenMutationsError } = useTokenMutations()
 
 const router = useRouter()
 const route = useRoute()
+
+// State for delete dialog
+const isDeleteDialogOpen = ref(false)
+const tokenToDelete = ref<IToken | null>(null)
 
 watch([chainTypeFilter, tokenTypeFilter], ([newChain, newType]) => {
   const currentQuery = { ...route.query }
@@ -70,6 +75,36 @@ function handleEditToken(token: IToken) {
   router.push(`/settings/tokens/${token.chainType}/${token.address}/edit`)
 }
 
+function handleDeleteToken(token: IToken) {
+  tokenToDelete.value = token
+  isDeleteDialogOpen.value = true
+}
+
+async function handleDeleteConfirm() {
+  if (!tokenToDelete.value || !tokenToDelete.value.address) {
+    toast.error('Cannot delete token: Invalid data provided.')
+    isDeleteDialogOpen.value = false
+    tokenToDelete.value = null
+    return
+  }
+
+  const { address, symbol } = tokenToDelete.value
+
+  const success = await deleteToken(address)
+
+  if (success) {
+    toast.success(`Token ${symbol} deleted successfully.`)
+    await refresh()
+  } else {
+    toast.error(`Failed to delete token ${symbol}`, {
+      description: tokenMutationsError.value?.message || 'Unknown error'
+    })
+  }
+
+  isDeleteDialogOpen.value = false
+  tokenToDelete.value = null
+}
+
 </script>
 
 <template>
@@ -100,6 +135,7 @@ function handleEditToken(token: IToken) {
        :is-loading="isLoading || isLoadingChains" 
        :get-explorer-url="getChainExplorerUrl"
        @edit="handleEditToken"
+       @delete="handleDeleteToken"
     />
 
     <div class="flex items-center gap-2">
@@ -111,6 +147,30 @@ function handleEditToken(token: IToken) {
         @next="handleNextPage"
       />
     </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <AlertDialog :open="isDeleteDialogOpen" @update:open="isDeleteDialogOpen = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the token
+            "{{ tokenToDelete?.symbol }}" ({{ tokenToDelete?.address }}) from the {{ tokenToDelete?.chainType }} chain.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="isDeleting">Cancel</AlertDialogCancel>
+          <AlertDialogAction 
+            :disabled="isDeleting" 
+            variant="destructive" 
+            @click="handleDeleteConfirm"
+          >
+            <span v-if="isDeleting">Deleting...</span>
+            <span v-else>Delete Token</span>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
 
   </div>
 </template>
