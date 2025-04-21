@@ -30,6 +30,19 @@ export interface IAddTokenRequest {
 }
 
 /**
+ * Frontend representation for the UpdateToken request body.
+ * Note: Usually, address and chainType might not be updatable.
+ */
+export interface IUpdateTokenRequest {
+  symbol: string;
+  decimals: number;
+  type: TokenType;
+  // Include these if the API supports updating them:
+  // address?: string;
+  // chainType?: ChainType;
+}
+
+/**
  * Represents the query parameters for the list tokens request.
  */
 export interface IListTokensRequest {
@@ -78,6 +91,25 @@ export const AddTokenRequest = {
    * Converts IAddTokenRequest (camelCase) to JSON (snake_case for API).
    */
   toJson(request: IAddTokenRequest): any {
+    return toJson(request);
+  }
+};
+
+/**
+ * Factory functions for IUpdateTokenRequest
+ */
+export const UpdateTokenRequest = {
+  /**
+   * Creates an IUpdateTokenRequest object.
+   */
+  create(symbol: string, decimals: number, type: TokenType): IUpdateTokenRequest {
+    return { symbol, decimals, type };
+  },
+
+  /**
+   * Converts IUpdateTokenRequest (camelCase) to JSON (snake_case for API).
+   */
+  toJson(request: IUpdateTokenRequest): any {
     return toJson(request);
   }
 };

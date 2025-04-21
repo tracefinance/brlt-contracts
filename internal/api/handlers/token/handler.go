@@ -25,6 +25,13 @@ func NewHandler(service token.Service, logger logger.Logger) *Handler {
 	return &Handler{service: service, logger: logger}
 }
 
+// UpdateTokenRequest defines the request body for updating a token
+type UpdateTokenRequest struct {
+	Symbol   string          `json:"symbol" binding:"required"`
+	Decimals uint8           `json:"decimals" binding:"required"`
+	Type     types.TokenType `json:"type" binding:"required"`
+}
+
 // SetupRoutes configures the token API routes
 func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	errorHandler := middleares.NewErrorHandler(nil)
@@ -36,7 +43,7 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	tokenRoutes.GET("/verify/:address", h.verifyToken)
 	tokenRoutes.GET("/:chainType/:address", h.getToken)
 	tokenRoutes.DELETE("/:address", h.deleteToken)
-
+	tokenRoutes.PUT("/:address", h.updateToken)
 }
 
 // listTokens handles GET /tokens
@@ -242,4 +249,56 @@ func (h *Handler) deleteToken(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// updateToken handles PUT /tokens/:address
+// @Summary Update token
+// @Description Update a token's symbol, type, and decimals
+// @Tags tokens
+// @Accept json
+// @Produce json
+// @Param address path string true "Token address"
+// @Param token body UpdateTokenRequest true "Token details to update"
+// @Success 200 {object} TokenResponse
+// @Failure 400 {object} errors.Vault0Error "Invalid request"
+// @Failure 404 {object} errors.Vault0Error "Token not found"
+// @Failure 500 {object} errors.Vault0Error "Internal server error"
+// @Router /tokens/{address} [put]
+func (h *Handler) updateToken(c *gin.Context) {
+	address := c.Param("address")
+	if address == "" {
+		c.Error(errors.NewInvalidParameterError("address", "cannot be empty"))
+		return
+	}
+
+	var req UpdateTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.Error(err)
+		return
+	}
+
+	// Call the service to update the token
+	err := h.service.UpdateToken(c.Request.Context(), address, req.Symbol, req.Type, req.Decimals)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	// Get the updated token to return in the response
+	token, err := h.service.GetToken(c.Request.Context(), address)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	// Build response
+	response := TokenResponse{
+		Address:   token.Address,
+		ChainType: token.ChainType,
+		Symbol:    token.Symbol,
+		Decimals:  token.Decimals,
+		Type:      token.Type,
+	}
+
+	c.JSON(http.StatusOK, response)
 }

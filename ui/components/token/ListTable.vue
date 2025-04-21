@@ -7,6 +7,16 @@ defineProps<{
   isLoading: boolean
   getExplorerUrl: (chainType: ChainType) => string | undefined
 }>()
+
+// Define Emits
+const emit = defineEmits<{
+  (e: 'edit', token: IToken): void
+}>()
+
+const handleEdit = (token: IToken) => {
+  emit('edit', token)
+}
+
 </script>
 
 <template>
@@ -19,6 +29,7 @@ defineProps<{
           <TableHead class="w-[12%]">Symbol</TableHead>
           <TableHead class="w-[80px]">Type</TableHead>
           <TableHead class="w-[80px] text-right">Decimals</TableHead>
+          <TableHead class="w-[80px] text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -39,10 +50,13 @@ defineProps<{
             <TableCell class="text-right">
               <Skeleton class="h-4 w-[60px] inline-block" />
             </TableCell>
+            <TableCell class="text-right">
+              <Skeleton class="ml-auto size-8 rounded" />
+            </TableCell>
           </TableRow>
         </template>
         <TableRow v-else-if="tokens.length === 0">
-          <TableCell colSpan="5" class="text-center pt-3 pb-4">
+          <TableCell colSpan="6" class="text-center pt-3 pb-4">
             <div class="flex items-center justify-center gap-1.5">
               <Icon name="lucide:inbox" class="size-5 text-primary" />
               <span>No tokens found.</span>
@@ -77,6 +91,22 @@ defineProps<{
           </TableCell>
           <TableCell class="uppercase">{{ token.type }}</TableCell>
           <TableCell class="text-right">{{ token.decimals }}</TableCell>
+          <TableCell class="text-right">
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button variant="ghost" class="h-8 w-8 p-0">
+                  <span class="sr-only">Open menu</span>
+                  <Icon name="lucide:more-horizontal" class="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem @click="handleEdit(token)">
+                  <Icon name="lucide:edit" class="mr-2 size-4" />
+                  <span>Edit</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </TableCell>
         </TableRow>
       </TableBody>
     </Table>

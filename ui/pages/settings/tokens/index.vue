@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { watch } from 'vue'
-import type { ChainType } from '~/types'
+import { toast } from 'vue-sonner'
+import type { ChainType, IToken } from '~/types'
 
 definePageMeta({
   layout: 'settings',
@@ -60,6 +61,15 @@ function getChainExplorerUrl(chainType: ChainType): string | undefined {
   return chain?.explorerUrl
 }
 
+function handleEditToken(token: IToken) {
+  if (!token || !token.chainType || !token.address) {
+    console.error('Invalid token data for edit navigation:', token)
+    toast.error('Invalid token data. Cannot navigate to edit page.')
+    return
+  }
+  router.push(`/settings/tokens/${token.chainType}/${token.address}/edit`)
+}
+
 </script>
 
 <template>
@@ -89,6 +99,7 @@ function getChainExplorerUrl(chainType: ChainType): string | undefined {
        :tokens="tokens" 
        :is-loading="isLoading || isLoadingChains" 
        :get-explorer-url="getChainExplorerUrl"
+       @edit="handleEditToken"
     />
 
     <div class="flex items-center gap-2">

@@ -34,6 +34,9 @@ type Service interface {
 	// ListTokensByAddresses retrieves tokens by a list of token addresses for a specific chain
 	// If an address is not found, it will be skipped in the result
 	ListTokensByAddresses(ctx context.Context, chainType types.ChainType, addresses []string) ([]types.Token, error)
+
+	// UpdateToken updates a token's symbol, type, and decimals by address
+	UpdateToken(ctx context.Context, address string, symbol string, tokenType types.TokenType, decimals uint8) error
 }
 
 // service implements the Service interface
@@ -258,4 +261,49 @@ func (s *service) ListTokensByAddresses(ctx context.Context, chainType types.Cha
 	}
 
 	return tokens, nil
+}
+
+// UpdateToken implements the Service interface
+func (s *service) UpdateToken(ctx context.Context, address string, symbol string, tokenType types.TokenType, decimals uint8) error {
+	// Check if the token exists first
+	existingToken, err := s.tokenStore.GetToken(ctx, address)
+	if err != nil {
+		s.log.Error("Failed to get token for update",
+			logger.Error(err),
+			logger.String("address", address))
+		return err
+	}
+
+	// Update the token fields
+	existingToken.Symbol = symbol
+	existingToken.Type = tokenType
+	existingToken.Decimals = decimals
+
+	// Validate the updated token
+	if err := existingToken.Validate(); err != nil {
+		s.log.Error("Updated token validation failed",
+			logger.Error(err),
+			logger.String("symbol", symbol),
+			logger.String("address", address),
+			logger.String("token_type", string(tokenType)))
+		return err
+	}
+
+	// Update the token in the store
+	err = s.tokenStore.UpdateToken(ctx, existingToken)
+	if err != nil {
+		s.log.Error("Failed to update token",
+			logger.Error(err),
+			logger.String("address", address),
+			logger.String("symbol", symbol),
+			logger.String("token_type", string(tokenType)))
+		return err
+	}
+
+	s.log.Info("Token updated successfully",
+		logger.String("address", address),
+		logger.String("symbol", symbol),
+		logger.String("token_type", string(tokenType)))
+
+	return nil
 }

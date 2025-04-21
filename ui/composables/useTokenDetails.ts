@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import type { Ref } from 'vue'
-import type { IToken } from '~/types'
+import type { ChainType, IToken } from '~/types'
 
 /**
  * Composable for fetching details of a specific token.
@@ -23,7 +23,7 @@ export default function (chainType: Ref<string | undefined>, tokenAddress: Ref<s
       const chainTypeValue = chainType.value
       const tokenAddressValue = tokenAddress.value
       if (chainTypeValue && tokenAddressValue) {
-        return await $api.token.getToken(chainTypeValue, tokenAddressValue)
+        return await $api.token.getToken(chainTypeValue as ChainType, tokenAddressValue)
       }
       return null
     },

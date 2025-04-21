@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { useNuxtApp } from '#app'
-import type { IAddTokenRequest, IToken, ChainType } from '~/types'
+import type { IAddTokenRequest, IToken, ChainType, IUpdateTokenRequest } from '~/types'
 // Assuming getErrorMessage is used elsewhere or can be added later if needed
 // import { getErrorMessage } from '~/lib/utils'
 
@@ -9,6 +9,7 @@ export default function useTokenMutations() {
   const isCreating = ref(false)
   const isDeleting = ref(false) // Add if delete functionality is needed later
   const isVerifying = ref(false) // Add if verify functionality is needed later
+  const isUpdating = ref(false) // Added for update operation
   const error = ref<Error | null>(null)
 
   /**
@@ -66,16 +67,36 @@ export default function useTokenMutations() {
     }
   }
 
+  /**
+   * Update an existing token.
+   * Updates a token's symbol, type, and decimals by address.
+   */
+  const updateToken = async (address: string, payload: IUpdateTokenRequest): Promise<IToken | null> => {
+    isUpdating.value = true;
+    error.value = null;
+    try {
+      const updatedToken = await $api.token.updateToken(address, payload);
+      return updatedToken;
+    } catch (err) {
+      console.error(`Error updating token ${address}:`, err);
+      error.value = err as Error;
+      return null;
+    } finally {
+      isUpdating.value = false;
+    }
+  }
 
   // Expose reactive state and methods
   return {
     isCreating,
     isDeleting,
     isVerifying,
+    isUpdating, // Expose isUpdating
     error,
     addToken,
     deleteToken,
     verifyToken,
+    updateToken, // Expose updateToken
     // Expose specific mutation errors if needed, e.g., createError, deleteError
   }
 } 

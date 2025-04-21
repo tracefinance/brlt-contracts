@@ -4,6 +4,7 @@ import type {
   IListTokensRequest,
   ChainType,
   IPagedResponse,
+  IUpdateTokenRequest,
 } from '~/types'
 import { Token } from '~/types'
 import type { ApiClient } from './client'
@@ -104,5 +105,21 @@ export class TokenClient {
     const endpoint = API_ENDPOINTS.TOKENS.BY_ADDRESS(chainType, address)
     // Use generic delete which doesn't expect a specific return type
     await this.client.delete(endpoint)
+  }
+  
+  /**
+   * Update an existing token.
+   * @param address - The address of the token to update.
+   * @param request - The token update details.
+   * @returns The updated token details.
+   */
+  async updateToken(address: string, request: IUpdateTokenRequest): Promise<IToken> {
+    const endpoint = API_ENDPOINTS.TOKENS.UPDATE(address)
+    // Base client handles toJson conversion from camelCase request to snake_case body
+    const data = await this.client.put<any>(
+      endpoint,
+      request,
+    )
+    return Token.fromJson(data)
   }
 } 

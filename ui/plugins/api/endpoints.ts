@@ -31,6 +31,7 @@ export const API_ENDPOINTS = {
     BY_ADDRESS: (chainType: string, address: string) => `/tokens/${chainType}/${address}`,
     DELETE: (address: string) => `/tokens/${address}`,
     VERIFY: (address: string) => `/tokens/verify/${address}`,
+    UPDATE: (address: string) => `/tokens/${address}`,
   },
   
   // Signer endpoints
