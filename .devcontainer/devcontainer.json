@@ -20,7 +20,8 @@
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
         "ms-vscode.vscode-typescript-next",
-        "Nuxtr.nuxt-vscode-extentions"
+        "Nuxtr.nuxt-vscode-extentions",
+        "JuanBlanco.solidity"
       ],
       "settings": {
         "go.toolsManagement.checkForUpdates": "local",
