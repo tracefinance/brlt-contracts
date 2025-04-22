@@ -22,9 +22,18 @@ vault0/
 ├── cmd/             # Command-line applications (server, genkey)
 ├── internal/        # Private application code
 │   ├── api/         # Layer 3: Communication (handlers, middleware, server setup)
-│   ├── core/        # Layer 1: Core/Infrastructure (blockchain, contract, crypto, etc.)
+│   ├── core/        # Layer 1: Core/Infrastructure - Foundational modules
+│   │   ├── wallet/        # Wallet address deriation, transaction encoding and signing
+│   │   ├── pricefeed/     # Real-time price data retrieval for assets
+│   │   ├── tokenstore/    # Management of supported tokens and their metadata
+│   │   ├── keystore/      # Secure storage and retrieval of cryptographic keys
+│   │   ├── keygen/        # Generation of cryptographic keys
+│   │   ├── crypto/        # Cryptographic primitives and utilities (hashing, signing)
+│   │   ├── blockexplorer/ # Interaction with blockchain explorers for transaction data
+│   │   ├── contract/      # Smart contract interaction logic (ABIs,  deploy and methods)
+│   │   └── blockchain/    # Core blockchain interaction (clients, node connections)
 │   ├── services/    # Layer 2: Service (user, wallet, auth, blockchain domains)
-│   ├── config/       # Configuration management
+│   ├── config/      # Configuration management
 │   ├── db/          # Database access
 │   ├── errors/      # Error types and handling
 │   ├── logger/      # Logging utilities

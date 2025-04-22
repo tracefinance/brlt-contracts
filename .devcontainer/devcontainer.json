@@ -35,5 +35,8 @@
   "mounts": [
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly",
     "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,readonly"
-  ]
+  ],
+  "containerEnv": {
+    "GIT_EDITOR": "vi"
+  }
 } 
