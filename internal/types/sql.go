@@ -125,7 +125,7 @@ func NewJSONMap(m map[string]string) JSONMap {
 }
 
 // Scan implements the sql.Scanner interface for database deserialization.
-func (m *JSONMap) Scan(value interface{}) error {
+func (m *JSONMap) Scan(value any) error {
 	if value == nil {
 		*m = JSONMap{}
 		return nil
@@ -177,4 +177,73 @@ func (m JSONMap) Map() map[string]string {
 		return map[string]string{}
 	}
 	return map[string]string(m)
+}
+
+// JSONArray is a slice of strings that implements sql.Scanner and driver.Valuer interfaces
+// for seamless integration with SQL storage and retrieval as JSON.
+type JSONArray []string
+
+// NewJSONArray creates a new JSONArray from a []string.
+func NewJSONArray(s []string) JSONArray {
+	if s == nil {
+		// Return an empty slice instead of nil for consistency with JSON marshalling
+		return JSONArray{}
+	}
+	return JSONArray(s)
+}
+
+// Scan implements the sql.Scanner interface for database deserialization.
+func (a *JSONArray) Scan(value any) error {
+	if value == nil {
+		*a = JSONArray{}
+		return nil
+	}
+
+	var jsonStr string
+	switch v := value.(type) {
+	case string:
+		jsonStr = v
+	case []byte:
+		jsonStr = string(v)
+	default:
+		return fmt.Errorf("unsupported Scan type for JSONArray: %T", value)
+	}
+
+	if jsonStr == "" || jsonStr == "[]" || jsonStr == "{}" { // Consider empty JSON representations
+		*a = JSONArray{}
+		return nil
+	}
+
+	// Unmarshal JSON into the slice
+	var result []string
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return fmt.Errorf("failed to unmarshal JSON to JSONArray: %w", err)
+	}
+
+	*a = JSONArray(result)
+	return nil
+}
+
+// Value implements the driver.Valuer interface for database serialization.
+func (a JSONArray) Value() (driver.Value, error) {
+	if len(a) == 0 {
+		// Store empty or nil slice as JSON '[]'
+		return "[]", nil
+	}
+
+	// Marshal the slice to JSON
+	jsonData, err := json.Marshal(a)
+	if err != nil {
+		return nil, err
+	}
+
+	return string(jsonData), nil
+}
+
+// Slice returns the underlying []string.
+func (a JSONArray) Slice() []string {
+	if a == nil {
+		return []string{}
+	}
+	return []string(a)
 }

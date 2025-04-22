@@ -55,8 +55,6 @@ vault0/
 - **Avoid deep if nesting and adopt a fail-fast design pattern.**
   - Handle errors and invalid states as early as possible, returning or exiting immediately to keep code flat and readable.
 
-*Note: Refer to `frontend.mdc`, `backend.mdc`, and `solidity.mdc` (if available) for language/framework-specific style guidelines.*
-
 ## Git Workflow
 - **NEVER COMMIT THE CODE UNLESS YOU'RE ASKED TO DO IT.**
 - Follow Angular commit convention (e.g., `feat: add user login`, `fix: correct validation bug`).

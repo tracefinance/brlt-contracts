@@ -9,6 +9,7 @@ const (
 	ErrCodeNotFound        = "not_found"
 	ErrCodeAlreadyExists   = "already_exists"
 	ErrCodeOperationFailed = "operation_failed"
+	ErrCodeNotImplemented  = "not_implemented"
 
 	// Wallet service errors
 	ErrCodeWalletNotFound        = "wallet_not_found"
@@ -265,6 +266,25 @@ func NewTokenNotFoundError(address string, chainType string) *Vault0Error {
 		Details: map[string]any{
 			"address":    address,
 			"chain_type": chainType,
+		},
+	}
+}
+
+// NewNotImplementedError creates an error for features not yet implemented
+func NewNotImplementedError(operation string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeNotImplemented,
+		Message: fmt.Sprintf("%s is not implemented", operation),
+	}
+}
+
+// NewVaultNotFoundError creates an error for a missing vault
+func NewVaultNotFoundError(vaultID int64) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeNotFound, // Or a specific VaultNotFound code if preferred
+		Message: fmt.Sprintf("Vault not found with ID: %d", vaultID),
+		Details: map[string]any{
+			"vault_id": vaultID,
 		},
 	}
 }
