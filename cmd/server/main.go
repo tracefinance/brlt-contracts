@@ -59,7 +59,7 @@ func main() {
 	container.Services.TransactionService.StartPendingTransactionPolling(ctx)
 
 	// Start token price update job
-	container.Services.TokenPriceService.StartPriceUpdateJob(ctx)
+	container.Services.TokenPriceService.StartPricePolling(ctx)
 
 	// Start transaction monitoring
 	container.Services.WalletService.StartTransactionMonitoring(ctx)
@@ -99,14 +99,8 @@ func main() {
 	// Cancel the root context
 	cancel()
 
-	// Unsubscribe from events
-	container.Services.TransactionService.UnsubscribeFromTransactionEvents()
-
-	// Stop pending transaction polling
-	container.Services.TransactionService.StopPendingTransactionPolling()
-
 	// Stop token price update job
-	container.Services.TokenPriceService.StopPriceUpdateJob()
+	container.Services.TokenPriceService.StopPricePolling()
 
 	// Stop transaction monitoring
 	container.Services.WalletService.StopTransactionMonitoring()
@@ -119,6 +113,12 @@ func main() {
 
 	// Stop vault deployment monitoring
 	container.Services.VaultService.StopDeploymentMonitoring()
+
+	// Unsubscribe from events
+	container.Services.TransactionService.UnsubscribeFromTransactionEvents()
+
+	// Stop pending transaction polling
+	container.Services.TransactionService.StopPendingTransactionPolling()
 
 	// Perform cleanup
 	container.Server.Shutdown()

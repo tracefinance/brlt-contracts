@@ -7,8 +7,20 @@ import (
 	"vault0/internal/logger"
 )
 
-// StartPriceUpdateJob starts a background scheduler that periodically refreshes token prices
-func (s *service) StartPriceUpdateJob(ctx context.Context) {
+type MonitorService interface {
+	// StartPricePolling starts a background scheduler that periodically refreshes
+	// token prices at an interval specified in the configuration.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation, used to cancel the job
+	StartPricePolling(ctx context.Context)
+
+	// StopPricePolling stops the price update scheduler
+	StopPricePolling()
+}
+
+// StartPricePolling starts a background scheduler that periodically refreshes token prices
+func (s *service) StartPricePolling(ctx context.Context) {
 	// Get interval from config with fallback to default
 	interval := 300 // Default to 5 minutes if not specified
 	if s.config.PriceFeed.RefreshInterval > 0 {
@@ -44,8 +56,8 @@ func (s *service) StartPriceUpdateJob(ctx context.Context) {
 	}()
 }
 
-// StopPriceUpdateJob stops the price update scheduler
-func (s *service) StopPriceUpdateJob() {
+// StopPricePolling stops the price update scheduler
+func (s *service) StopPricePolling() {
 	if s.jobCancel != nil {
 		s.jobCancel()
 		s.jobCancel = nil

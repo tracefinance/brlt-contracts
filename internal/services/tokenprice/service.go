@@ -13,6 +13,8 @@ import (
 
 // Service defines the interface for token price operations.
 type Service interface {
+	MonitorService
+
 	// RefreshTokenPrices fetches the latest token prices from the configured
 	// external provider and updates the local database.
 	//
@@ -41,16 +43,6 @@ type Service interface {
 	//   - A page of token prices with pagination information
 	//   - An error if the database operation fails
 	ListTokenPrices(ctx context.Context, filter *TokenPriceFilter, limit int, nextToken string) (*types.Page[*TokenPrice], error)
-
-	// StartPriceUpdateJob starts a background scheduler that periodically refreshes
-	// token prices at an interval specified in the configuration.
-	//
-	// Parameters:
-	//   - ctx: Context for the operation, used to cancel the job
-	StartPriceUpdateJob(ctx context.Context)
-
-	// StopPriceUpdateJob stops the price update scheduler
-	StopPriceUpdateJob()
 }
 
 type service struct {
