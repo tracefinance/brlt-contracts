@@ -99,6 +99,12 @@ func main() {
 	// Cancel the root context
 	cancel()
 
+	// Unsubscribe from events
+	container.Services.TransactionService.UnsubscribeFromTransactionEvents()
+
+	// Stop pending transaction polling
+	container.Services.TransactionService.StopPendingTransactionPolling()
+
 	// Stop token price update job
 	container.Services.TokenPriceService.StopPricePolling()
 
@@ -113,12 +119,6 @@ func main() {
 
 	// Stop vault deployment monitoring
 	container.Services.VaultService.StopDeploymentMonitoring()
-
-	// Unsubscribe from events
-	container.Services.TransactionService.UnsubscribeFromTransactionEvents()
-
-	// Stop pending transaction polling
-	container.Services.TransactionService.StopPendingTransactionPolling()
 
 	// Perform cleanup
 	container.Server.Shutdown()
