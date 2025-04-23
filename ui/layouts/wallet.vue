@@ -8,7 +8,7 @@ const route = useRoute()
 
 // Reactive pagination state for wallet list (optional, can be static)
 const walletLimit = ref(100) // Fetch a larger number if needed for the sidebar
-const walletOffset = ref(0)
+const walletOffset = ref("")
 
 // Use the wallets list composable
 const { wallets, isLoading: isLoadingWallets } = useWalletsList(walletLimit, walletOffset)

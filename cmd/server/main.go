@@ -67,6 +67,12 @@ func main() {
 	// Start wallet history syncing
 	container.Services.WalletService.StartWalletHistorySyncing(ctx)
 
+	// Start vault recovery polling
+	container.Services.VaultService.StartRecoveryPolling(ctx)
+
+	// Start vault deployment monitoring
+	container.Services.VaultService.StartDeploymentMonitoring(ctx)
+
 	// Setup routes
 	container.Server.SetupRoutes()
 
@@ -107,6 +113,12 @@ func main() {
 
 	// Stop wallet history syncing
 	container.Services.WalletService.StopWalletHistorySyncing()
+
+	// Stop vault recovery polling
+	container.Services.VaultService.StopRecoveryPolling()
+
+	// Stop vault deployment monitoring
+	container.Services.VaultService.StopDeploymentMonitoring()
 
 	// Perform cleanup
 	container.Server.Shutdown()

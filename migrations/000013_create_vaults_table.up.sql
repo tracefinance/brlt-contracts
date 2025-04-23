@@ -3,13 +3,14 @@
 CREATE TABLE vaults (
     id BIGINT PRIMARY KEY,
     name TEXT NOT NULL,
+    contract_name TEXT NOT NULL,
     wallet_id BIGINT NOT NULL,
     chain_type TEXT NOT NULL,
     tx_hash TEXT NOT NULL,
     recovery_address TEXT NOT NULL,        
     signers TEXT NOT NULL, -- JSON array of signer addresses    
     status TEXT NOT NULL DEFAULT 'pending',
-    signature_threshold INT NOT NULL,
+    quorum INT NOT NULL,
     address TEXT,
     recovery_request_timestamp TIMESTAMP,
     failure_reason TEXT,

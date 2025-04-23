@@ -300,7 +300,6 @@ func (c *EVMSmartContract) GetDeployment(
 	// Get transaction receipt
 	receipt, err := c.blockchain.GetTransactionReceipt(ctx, transactionHash)
 	if err != nil {
-		// Use IsError to check for the specific error code
 		if errors.IsError(err, errors.ErrCodeTransactionNotFound) {
 			return nil, errors.NewTransactionNotFoundError(transactionHash)
 		}
@@ -309,7 +308,6 @@ func (c *EVMSmartContract) GetDeployment(
 
 	// Check if transaction was successful
 	if receipt.Status == 0 {
-		// Transaction failed (reverted)
 		return nil, errors.NewTransactionFailedError(fmt.Errorf("deployment transaction %s reverted", transactionHash))
 	}
 
@@ -318,7 +316,6 @@ func (c *EVMSmartContract) GetDeployment(
 	if receipt.ContractAddress != nil {
 		contractAddress = *receipt.ContractAddress
 	} else {
-		// This should not happen for a successful deployment tx, but handle defensively
 		return nil, errors.NewBlockchainError(fmt.Errorf("successful deployment transaction %s missing contract address in receipt", transactionHash))
 	}
 

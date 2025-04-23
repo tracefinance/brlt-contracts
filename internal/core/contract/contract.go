@@ -94,7 +94,7 @@ type SmartContract interface {
 		options DeploymentOptions,
 	) (*DeploymentResult, error)
 
-	// GetDeployment waits for a contract deployment transaction to be mined and confirmed on the blockchain.
+	// GetDeployment for a contract deployment transaction to be mined and confirmed on the blockchain.
 	// This method is useful for ensuring a contract is fully deployed before interacting with it.
 	//
 	// Parameters:

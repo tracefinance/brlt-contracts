@@ -129,7 +129,7 @@ func (c *EVMBlockchain) GetTokenBalance(ctx context.Context, address string, tok
 	// ERC20 balanceOf function signature: balanceOf(address)
 	// Function selector is the first 4 bytes of keccak256("balanceOf(address)")
 	// 0x70a08231 is the function selector for balanceOf(address)
-	methodID := crypto.Keccak256([]byte(string(types.ERC20BalanceOfMethodSignature)))[:4]
+	methodID := crypto.Keccak256([]byte(string(types.ERC20BalanceOfMethod)))[:4]
 
 	// Encode the address parameter - EVM addresses are padded to 32 bytes
 	paddedAddress := common.LeftPadBytes(common.HexToAddress(address).Bytes(), 32)

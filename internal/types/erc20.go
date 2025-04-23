@@ -15,30 +15,30 @@ type ERC20MethodSignature string
 
 // ERC20 method signatures
 const (
-	// ERC20TransferMethodSignature is the standard ERC20 Transfer method signature
-	ERC20TransferMethodSignature ERC20MethodSignature = "transfer(address,uint256)"
+	// ERC20TransferMethod is the standard ERC20 Transfer method signature
+	ERC20TransferMethod ERC20MethodSignature = "transfer(address,uint256)"
 
-	// ERC20BalanceOfMethodSignature is the standard ERC20 balanceOf method signature
-	ERC20BalanceOfMethodSignature ERC20MethodSignature = "balanceOf(address)"
+	// ERC20BalanceOfMethod is the standard ERC20 balanceOf method signature
+	ERC20BalanceOfMethod ERC20MethodSignature = "balanceOf(address)"
 
-	// ERC20ApproveMethodSignature is the standard ERC20 approve method signature
-	ERC20ApproveMethodSignature ERC20MethodSignature = "approve(address,uint256)"
+	// ERC20ApproveMethod is the standard ERC20 approve method signature
+	ERC20ApproveMethod ERC20MethodSignature = "approve(address,uint256)"
 
-	// ERC20AllowanceMethodSignature is the standard ERC20 allowance method signature
-	ERC20AllowanceMethodSignature ERC20MethodSignature = "allowance(address,address)"
+	// ERC20AllowanceMethod is the standard ERC20 allowance method signature
+	ERC20AllowanceMethod ERC20MethodSignature = "allowance(address,address)"
 
-	// ERC20TransferFromMethodSignature is the standard ERC20 transferFrom method signature
-	ERC20TransferFromMethodSignature ERC20MethodSignature = "transferFrom(address,address,uint256)"
+	// ERC20TransferFromMethod is the standard ERC20 transferFrom method signature
+	ERC20TransferFromMethod ERC20MethodSignature = "transferFrom(address,address,uint256)"
 
-	// ERC20NameMethodSignature is the standard ERC20 name method signature
-	ERC20NameMethodSignature ERC20MethodSignature = "name()"
+	// ERC20NameMethod is the standard ERC20 name method signature
+	ERC20NameMethod ERC20MethodSignature = "name()"
 
-	// ERC20SymbolMethodSignature is the standard ERC20 symbol method signature
-	ERC20SymbolMethodSignature ERC20MethodSignature = "symbol()"
+	// ERC20SymbolMethod is the standard ERC20 symbol method signature
+	ERC20SymbolMethod ERC20MethodSignature = "symbol()"
 
-	// ERC20DecimalsMethodSignature is the standard ERC20 decimals method signature
-	ERC20DecimalsMethodSignature ERC20MethodSignature = "decimals()"
+	// ERC20DecimalsMethod is the standard ERC20 decimals method signature
+	ERC20DecimalsMethod ERC20MethodSignature = "decimals()"
 
-	// ERC20TotalSupplyMethodSignature is the standard ERC20 totalSupply method signature
-	ERC20TotalSupplyMethodSignature ERC20MethodSignature = "totalSupply()"
+	// ERC20TotalSupplyMethod is the standard ERC20 totalSupply method signature
+	ERC20TotalSupplyMethod ERC20MethodSignature = "totalSupply()"
 )

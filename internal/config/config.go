@@ -110,6 +110,22 @@ type PriceFeedConfig struct {
 	RefreshInterval int    `yaml:"refresh_interval"` // Interval in seconds
 }
 
+// TransactionConfig holds configuration for transaction processing
+type TransactionConfig struct {
+	// HistorySynchInterval is the time interval in seconds between transaction synching cycles
+	HistorySynchInterval int `yaml:"history_synch_interval"`
+	// TransactionUpdateInterval is the time interval in seconds between pending transaction polling cycles
+	TransactionUpdateInterval int `yaml:"transaction_update_interval"`
+}
+
+// VaultConfig holds configuration for vault management
+type VaultConfig struct {
+	// DeploymentUpdateInterval is the time interval in seconds between checking pending vault deployments
+	DeploymentUpdateInterval int `yaml:"deployment_update_interval"`
+	// RecoveryUpdateInterval is the time interval in seconds between checking for eligible vault recoveries
+	RecoveryUpdateInterval int `yaml:"recovery_update_interval"`
+}
+
 // Config holds the application configuration
 type Config struct {
 	// DBPath is the path to the SQLite database file
@@ -126,10 +142,10 @@ type Config struct {
 	SmartContractsPath string `yaml:"smart_contracts_path"`
 	// KeyStoreType specifies the type of key store to use (db or kms)
 	KeyStoreType string `yaml:"key_store_type"`
-	// TransactionSynchingInterval is the time interval in seconds between transaction synching cycles
-	TransactionSynchingInterval int `yaml:"transaction_synching_interval"`
-	// PendingTransactionPollingInterval is the time interval in seconds between pending transaction polling cycles
-	PendingTransactionPollingInterval int `yaml:"pending_transaction_polling_interval"`
+	// Transaction holds configuration for transaction processing
+	Transaction TransactionConfig `yaml:"transaction"`
+	// Vault holds configuration for vault management
+	Vault VaultConfig `yaml:"vault"`
 	// Snowflake holds configuration for ID generation
 	Snowflake SnowflakeConfig `yaml:"snowflake"`
 	// Log holds the logging configuration

@@ -528,8 +528,8 @@ func (s *transactionService) isAddressMonitored(chainType types.ChainType, addre
 func (s *transactionService) StartPendingTransactionPolling(ctx context.Context) {
 	// Get interval from config with fallback to default
 	interval := 60 // Default to 1 minute if not specified
-	if s.config.PendingTransactionPollingInterval > 0 {
-		interval = s.config.PendingTransactionPollingInterval
+	if s.config.Transaction.TransactionUpdateInterval > 0 {
+		interval = s.config.Transaction.TransactionUpdateInterval
 	}
 
 	s.pendingPollingCtx, s.pendingPollingCancel = context.WithCancel(ctx)

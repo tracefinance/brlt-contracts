@@ -2,7 +2,7 @@ package vault
 
 import (
 	"context"
-	"database/sql" // Import encoding/json
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -10,7 +10,7 @@ import (
 
 	"vault0/internal/db"
 	"vault0/internal/errors"
-	"vault0/internal/logger" // Assuming logger is needed
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
@@ -52,14 +52,13 @@ type Repository interface {
 // repository implements Repository interface for the database
 type repository struct {
 	db             *db.DB
-	logger         logger.Logger // Assuming logger is needed
+	logger         logger.Logger
 	vaultStructMap *sqlbuilder.Struct
 }
 
 // NewRepository creates a new repository for vaults
 func NewRepository(db *db.DB, logger logger.Logger) Repository {
 	vaultStructMap := sqlbuilder.NewStruct(new(Vault))
-	// No need for MustMapper here, handle JSON manually
 
 	return &repository{
 		db:             db,
@@ -76,18 +75,18 @@ func ScanVault(row *sql.Rows) (*Vault, error) {
 	var deletedAt sql.NullTime
 	var address sql.NullString
 
-	// Assume the columns are in the order defined in the Vault struct for simplicity
 	// Adjust scan order based on actual SELECT statement if needed
 	err := row.Scan(
 		&v.ID,
 		&v.Name,
+		&v.ContractName,
 		&v.WalletID,
 		&v.ChainType,
 		&v.TxHash,
 		&v.RecoveryAddress,
-		&v.Signers, // Scan directly into v.Signers (uses types.JSONArray.Scan)
+		&v.Signers,
 		&v.Status,
-		&v.SignatureThreshold,
+		&v.Quorum,
 		&address,
 		&recoveryRequestTimestamp,
 		&failureReason,
@@ -96,7 +95,7 @@ func ScanVault(row *sql.Rows) (*Vault, error) {
 		&deletedAt,
 	)
 	if err != nil {
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	// Handle nullable fields
@@ -122,8 +121,7 @@ func ScanVault(row *sql.Rows) (*Vault, error) {
 func (r *repository) executeVaultQuery(ctx context.Context, sql string, args ...any) ([]*Vault, error) {
 	rows, err := r.db.ExecuteQueryContext(ctx, sql, args...)
 	if err != nil {
-		// Use the correct constructor signature
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -131,14 +129,13 @@ func (r *repository) executeVaultQuery(ctx context.Context, sql string, args ...
 	for rows.Next() {
 		vault, err := ScanVault(rows)
 		if err != nil {
-			return nil, err // Error already wrapped by ScanVault
+			return nil, err
 		}
 		vaults = append(vaults, vault)
 	}
 
 	if err := rows.Err(); err != nil {
-		// Use the correct constructor signature
-		return nil, errors.NewDatabaseError(err)
+		return nil, err
 	}
 
 	return vaults, nil
@@ -151,8 +148,7 @@ func (r *repository) Create(ctx context.Context, vault *Vault) error {
 		var err error
 		vault.ID, err = r.db.GenerateID()
 		if err != nil {
-			// Use the correct constructor signature
-			return errors.NewDatabaseError(err)
+			return err
 		}
 	}
 
@@ -160,7 +156,7 @@ func (r *repository) Create(ctx context.Context, vault *Vault) error {
 	now := time.Now().UTC()
 	vault.CreatedAt = now
 	vault.UpdatedAt = now
-	vault.DeletedAt = nil // Ensure DeletedAt is nil on creation
+	vault.DeletedAt = nil
 
 	// Set default status if empty
 	if vault.Status == "" {
@@ -183,24 +179,24 @@ func (r *repository) Create(ctx context.Context, vault *Vault) error {
 	if vault.RecoveryAddress == "" {
 		return errors.NewValidationError(map[string]any{"recovery_address": "recovery_address cannot be empty"})
 	}
-	if vault.Signers == nil || len(vault.Signers) == 0 {
+	if len(vault.Signers) == 0 {
 		return errors.NewValidationError(map[string]any{"signers": "signers cannot be empty"})
 	}
-	if vault.SignatureThreshold <= 0 {
-		return errors.NewValidationError(map[string]any{"signature_threshold": "signature_threshold must be positive"})
+	if vault.Quorum <= 0 {
+		return errors.NewValidationError(map[string]any{"quorum": "quorum must be positive"})
 	}
 
 	// Use the Value() method of types.JSONArray for insertion
 	signersValue, err := vault.Signers.Value()
 	if err != nil {
-		return errors.NewDatabaseError(err) // Error during JSON marshalling
+		return err
 	}
 
 	// Use direct INSERT statement
 	query := `
 		INSERT INTO vaults (
-			id, name, wallet_id, chain_type, tx_hash, recovery_address, signers,
-			status, signature_threshold, address, recovery_request_timestamp,
+			id, name, contract_name, wallet_id, chain_type, tx_hash, recovery_address, signers,
+			status, quorum, address, recovery_request_timestamp,
 			failure_reason, created_at, updated_at, deleted_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
@@ -215,8 +211,8 @@ func (r *repository) Create(ctx context.Context, vault *Vault) error {
 	}
 
 	args := []interface{}{
-		vault.ID, vault.Name, vault.WalletID, vault.ChainType, vault.TxHash,
-		vault.RecoveryAddress, signersValue, vault.Status, vault.SignatureThreshold,
+		vault.ID, vault.Name, vault.ContractName, vault.WalletID, vault.ChainType, vault.TxHash,
+		vault.RecoveryAddress, signersValue, vault.Status, vault.Quorum,
 		sql.NullString{String: vault.Address, Valid: vault.Address != ""},
 		recoveryTimestampArg,
 		failureReasonArg,
@@ -225,7 +221,7 @@ func (r *repository) Create(ctx context.Context, vault *Vault) error {
 
 	_, err = r.db.ExecuteStatementContext(ctx, query, args...)
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	return nil
@@ -236,8 +232,8 @@ func (r *repository) List(ctx context.Context, filter VaultFilter, limit int, ne
 	sb := sqlbuilder.NewSelectBuilder()
 	// Select all columns explicitly as defined in ScanVault
 	sb.Select(
-		"id", "name", "wallet_id", "chain_type", "tx_hash", "recovery_address",
-		"signers", "status", "signature_threshold", "address", "recovery_request_timestamp",
+		"id", "name", "contract_name", "wallet_id", "chain_type", "tx_hash", "recovery_address",
+		"signers", "status", "quorum", "address", "recovery_request_timestamp",
 		"failure_reason", "created_at", "updated_at", "deleted_at",
 	)
 	sb.From("vaults")
@@ -263,7 +259,7 @@ func (r *repository) List(ctx context.Context, filter VaultFilter, limit int, ne
 	// Decode the next token
 	token, err := types.DecodeNextPageToken(nextToken, paginationColumn)
 	if err != nil {
-		return nil, err // Error already wrapped by DecodeNextPageToken
+		return nil, err
 	}
 
 	// Apply pagination condition
@@ -288,7 +284,7 @@ func (r *repository) List(ctx context.Context, filter VaultFilter, limit int, ne
 	// Execute the query
 	vaults, err := r.executeVaultQuery(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, err // Error already wrapped
+		return nil, err
 	}
 
 	// Generate the token function for the next page
@@ -307,8 +303,8 @@ func (r *repository) List(ctx context.Context, filter VaultFilter, limit int, ne
 func (r *repository) GetByID(ctx context.Context, vaultID int64) (*Vault, error) {
 	sb := sqlbuilder.NewSelectBuilder()
 	sb.Select(
-		"id", "name", "wallet_id", "chain_type", "tx_hash", "recovery_address",
-		"signers", "status", "signature_threshold", "address", "recovery_request_timestamp",
+		"id", "name", "contract_name", "wallet_id", "chain_type", "tx_hash", "recovery_address",
+		"signers", "status", "quorum", "address", "recovery_request_timestamp",
 		"failure_reason", "created_at", "updated_at", "deleted_at",
 	)
 	sb.From("vaults")
@@ -319,11 +315,10 @@ func (r *repository) GetByID(ctx context.Context, vaultID int64) (*Vault, error)
 	sqlQuery, args := sb.Build()
 	vaults, err := r.executeVaultQuery(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, err // Error already wrapped
+		return nil, err
 	}
 
 	if len(vaults) == 0 {
-		// Use the correct signature: NewVaultNotFoundError(id int64)
 		return nil, errors.NewVaultNotFoundError(vaultID)
 	}
 
@@ -338,8 +333,8 @@ func (r *repository) GetByHash(ctx context.Context, txHash string) (*Vault, erro
 
 	sb := sqlbuilder.NewSelectBuilder()
 	sb.Select(
-		"id", "name", "wallet_id", "chain_type", "tx_hash", "recovery_address",
-		"signers", "status", "signature_threshold", "address", "recovery_request_timestamp",
+		"id", "name", "contract_name", "wallet_id", "chain_type", "tx_hash", "recovery_address",
+		"signers", "status", "quorum", "address", "recovery_request_timestamp",
 		"failure_reason", "created_at", "updated_at", "deleted_at",
 	)
 	sb.From("vaults")
@@ -350,11 +345,10 @@ func (r *repository) GetByHash(ctx context.Context, txHash string) (*Vault, erro
 	sqlQuery, args := sb.Build()
 	vaults, err := r.executeVaultQuery(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, err // Error already wrapped
+		return nil, err
 	}
 
 	if len(vaults) == 0 {
-		// Use the correct signature: NewNotFoundError(message string)
 		return nil, errors.NewNotFoundError(fmt.Sprintf("vault not found for tx_hash: %s", txHash))
 	}
 
@@ -369,8 +363,8 @@ func (r *repository) GetByAddress(ctx context.Context, address string) (*Vault, 
 
 	sb := sqlbuilder.NewSelectBuilder()
 	sb.Select(
-		"id", "name", "wallet_id", "chain_type", "tx_hash", "recovery_address",
-		"signers", "status", "signature_threshold", "address", "recovery_request_timestamp",
+		"id", "name", "contract_name", "wallet_id", "chain_type", "tx_hash", "recovery_address",
+		"signers", "status", "quorum", "address", "recovery_request_timestamp",
 		"failure_reason", "created_at", "updated_at", "deleted_at",
 	)
 	sb.From("vaults")
@@ -381,11 +375,10 @@ func (r *repository) GetByAddress(ctx context.Context, address string) (*Vault, 
 	sqlQuery, args := sb.Build()
 	vaults, err := r.executeVaultQuery(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, err // Error already wrapped
+		return nil, err
 	}
 
 	if len(vaults) == 0 {
-		// Use the correct signature: NewNotFoundError(message string)
 		return nil, errors.NewNotFoundError(fmt.Sprintf("vault not found for address: %s", address))
 	}
 
@@ -410,15 +403,14 @@ func (r *repository) UpdateStatus(ctx context.Context, vaultID int64, status Vau
 	sqlQuery, args := ub.Build()
 	result, err := r.db.ExecuteStatementContext(ctx, sqlQuery, args...)
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 	if rowsAffected == 0 {
-		// Use the correct signature
 		return errors.NewVaultNotFoundError(vaultID)
 	}
 
@@ -444,7 +436,7 @@ func (r *repository) Update(ctx context.Context, vaultID int64, vault *Vault) er
 	ub := sqlbuilder.NewUpdateBuilder()
 	ub.Update("vaults")
 	ub.Set(
-		ub.Assign("name", vault.Name), // Assume name is always provided for update
+		ub.Assign("name", vault.Name),
 		ub.Assign("recovery_request_timestamp", recoveryTimestampArg),
 		ub.Assign("failure_reason", failureReasonArg),
 		ub.Assign("updated_at", time.Now().UTC()),
@@ -455,15 +447,14 @@ func (r *repository) Update(ctx context.Context, vaultID int64, vault *Vault) er
 	sqlQuery, args := ub.Build()
 	result, err := r.db.ExecuteStatementContext(ctx, sqlQuery, args...)
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 	if rowsAffected == 0 {
-		// Use the correct signature
 		return errors.NewVaultNotFoundError(vaultID)
 	}
 
@@ -485,15 +476,14 @@ func (r *repository) Delete(ctx context.Context, vaultID int64) error {
 	sqlQuery, args := ub.Build()
 	result, err := r.db.ExecuteStatementContext(ctx, sqlQuery, args...)
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return err
 	}
 	if rowsAffected == 0 {
-		// Use the correct signature
 		return errors.NewVaultNotFoundError(vaultID)
 	}
 

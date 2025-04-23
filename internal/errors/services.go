@@ -39,7 +39,8 @@ const (
 	ErrCodeDataConversionFailed  = "data_conversion_failed"
 
 	// Keystore Service Errors
-	ErrCodeKeyInUseByWallet = "key_in_use_by_wallet"
+	ErrCodeKeyInUseByWallet       = "key_in_use_by_wallet"
+	ErrCodeInvalidStateTransition = "invalid_state_transition"
 )
 
 // NewInvalidInputError creates an error for invalid input data with a custom message
@@ -281,10 +282,18 @@ func NewNotImplementedError(operation string) *Vault0Error {
 // NewVaultNotFoundError creates an error for a missing vault
 func NewVaultNotFoundError(vaultID int64) *Vault0Error {
 	return &Vault0Error{
-		Code:    ErrCodeNotFound, // Or a specific VaultNotFound code if preferred
+		Code:    ErrCodeNotFound,
 		Message: fmt.Sprintf("Vault not found with ID: %d", vaultID),
 		Details: map[string]any{
 			"vault_id": vaultID,
 		},
+	}
+}
+
+// NewInvalidStateTransitionError creates an error for invalid state transitions
+func NewInvalidStateTransitionError(from, to string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeInvalidStateTransition,
+		Message: fmt.Sprintf("Invalid state transition from '%s' to '%s'", from, to),
 	}
 }

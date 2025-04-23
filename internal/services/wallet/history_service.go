@@ -254,8 +254,8 @@ func (s *walletService) StartWalletHistorySyncing(ctx context.Context) error {
 
 	// Get the syncing interval from config
 	interval := 60 * 10 // Default to 10 minutes if not specified
-	if s.config.TransactionSynchingInterval > 0 {
-		interval = s.config.TransactionSynchingInterval
+	if s.config.Transaction.HistorySynchInterval > 0 {
+		interval = s.config.Transaction.HistorySynchInterval
 	}
 
 	// Create a new context with cancel function for syncing

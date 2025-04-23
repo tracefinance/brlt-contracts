@@ -23,6 +23,7 @@ const (
 type Vault struct {
 	ID                       int64           `db:"id"`
 	Name                     string          `db:"name"`
+	ContractName             string          `db:"contract_name"`
 	WalletID                 int64           `db:"wallet_id"`
 	ChainType                string          `db:"chain_type"`
 	TxHash                   string          `db:"tx_hash"`
@@ -30,7 +31,7 @@ type Vault struct {
 	Signers                  types.JSONArray `db:"signers"`
 	Address                  string          `db:"address"`
 	Status                   VaultStatus     `db:"status"`
-	SignatureThreshold       int             `db:"signature_threshold"`
+	Quorum                   int             `db:"quorum"`
 	RecoveryRequestTimestamp *time.Time      `db:"recovery_request_timestamp"`
 	FailureReason            *string         `db:"failure_reason"`
 	CreatedAt                time.Time       `db:"created_at"`
