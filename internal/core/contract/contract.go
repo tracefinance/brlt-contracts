@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
+	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/wallet"
 	"vault0/internal/errors"
 	"vault0/internal/types"
@@ -48,6 +49,18 @@ type DeploymentOptions struct {
 	Nonce *uint64
 	// Constructor arguments for the contract deployment
 	ConstructorArgs []any
+}
+
+// ExecuteOptions holds optional parameters specifically for executing state-changing contract methods.
+type ExecuteOptions struct {
+	// GasPrice is the gas price to use for the transaction (nil for auto).
+	GasPrice *big.Int
+	// GasLimit is the gas limit to use for the transaction (0 for auto).
+	GasLimit uint64
+	// Nonce is the transaction nonce to use (0 for auto).
+	Nonce uint64
+	// Value is the amount of native currency to send with the transaction (e.g., for payable methods).
+	Value *big.Int
 }
 
 // SmartContract defines methods for interacting with smart contracts on the blockchain.
@@ -97,52 +110,59 @@ type SmartContract interface {
 	) (*DeploymentResult, error)
 
 	// CallMethod calls a read-only (view/pure) method on a deployed contract.
+	// It fetches the contract ABI using the configured block explorer.
 	// These calls don't modify blockchain state and don't consume gas.
 	//
 	// Parameters:
 	//   - ctx: The context for the operation, which can be used for cancellation.
 	//   - contractAddress: The address of the deployed contract to interact with.
-	//   - artifact: The contract artifact containing the ABI needed to encode the call.
+	//   - contractABI: Optional ABI string. If empty, ABI is fetched via explorer.
 	//   - method: The name of the method to call on the contract.
 	//   - args: Variable number of arguments to pass to the contract method.
 	//
 	// Returns:
 	//   - []any: Array of return values from the contract method call.
-	//   - error: Any error encountered during the call, such as method not found or execution revert.
+	//   - error: Any error encountered during the call, such as contract not found, ABI fetch failure, method not found, or execution revert.
 	CallMethod(
 		ctx context.Context,
 		contractAddress string,
-		artifact *Artifact,
+		contractABI string,
 		method string,
 		args ...any,
 	) ([]any, error)
 
 	// ExecuteMethod executes a state-changing method on a deployed contract.
+	// It fetches the contract ABI using the configured block explorer.
 	// These calls modify blockchain state, require gas, and result in a new transaction.
 	//
 	// Parameters:
 	//   - ctx: The context for the operation, which can be used for cancellation.
 	//   - contractAddress: The address of the deployed contract to interact with.
-	//   - artifact: The contract artifact containing the ABI needed to encode the transaction.
+	//   - contractABI: Optional ABI string. If empty, ABI is fetched via explorer.
 	//   - method: The name of the method to execute on the contract.
-	//   - options: Transaction options including gas price, gas limit, and value to send.
+	//   - options: Execution options including gas price, gas limit, nonce, and value to send.
 	//   - args: Variable number of arguments to pass to the contract method.
 	//
 	// Returns:
 	//   - string: The transaction hash of the executed transaction.
-	//   - error: Any error encountered during execution, such as insufficient funds or execution revert.
+	//   - error: Any error encountered during execution.
 	ExecuteMethod(
 		ctx context.Context,
 		contractAddress string,
-		artifact *Artifact,
+		contractABI string,
 		method string,
-		options types.TransactionOptions,
+		options ExecuteOptions,
 		args ...any,
 	) (string, error)
 }
 
 // NewSmartContract returns a SmartContract instance for the specified chain type
-func NewSmartContract(blockchain blockchain.Blockchain, wallet wallet.Wallet, config *config.Config) (SmartContract, error) {
+func NewSmartContract(
+	blockchain blockchain.Blockchain,
+	wallet wallet.Wallet,
+	explorer blockexplorer.BlockExplorer,
+	config *config.Config,
+) (SmartContract, error) {
 	// Get the chain information from the blockchain and wallet
 	blockchainChain := blockchain.Chain()
 	walletChain := wallet.Chain()
@@ -156,7 +176,7 @@ func NewSmartContract(blockchain blockchain.Blockchain, wallet wallet.Wallet, co
 	switch blockchainChain.Type {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
 		// These are all EVM-compatible chains, so use EVMSmartContract
-		return NewEVMSmartContract(blockchain, wallet, config)
+		return NewEVMSmartContract(blockchain, wallet, explorer, config)
 	default:
 		return nil, errors.NewChainNotSupportedError(string(blockchainChain.Type))
 	}

@@ -4,16 +4,18 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	stderrors "errors"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
+	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/wallet"
 	"vault0/internal/errors"
 	"vault0/internal/types"
@@ -27,20 +29,24 @@ type EVMSmartContract struct {
 	blockchain blockchain.Blockchain
 	// wallet is the wallet client
 	wallet wallet.Wallet
+	// explorer is the block explorer client
+	explorer blockexplorer.BlockExplorer
 	// config is the app configuration
 	config *config.Config
+	// abiCache stores parsed ABIs keyed by contract address
+	abiCache map[string]*abi.ABI
+	// cacheMu protects concurrent access to abiCache
+	cacheMu sync.RWMutex
 }
 
 // NewEVMSmartContract creates a new EVM contract manager
 func NewEVMSmartContract(
 	blockchain blockchain.Blockchain,
 	wallet wallet.Wallet,
+	explorer blockexplorer.BlockExplorer,
 	config *config.Config,
 ) (*EVMSmartContract, error) {
-	// Get chain information from wallet
 	chain := wallet.Chain()
-
-	// Validate chain type
 	if chain.Type != types.ChainTypeEthereum &&
 		chain.Type != types.ChainTypePolygon &&
 		chain.Type != types.ChainTypeBase {
@@ -51,8 +57,56 @@ func NewEVMSmartContract(
 		chainType:  chain.Type,
 		blockchain: blockchain,
 		wallet:     wallet,
+		explorer:   explorer,
 		config:     config,
+		abiCache:   make(map[string]*abi.ABI),
 	}, nil
+}
+
+// getContractABI retrieves the parsed ABI for a contract address, using cache first.
+func (c *EVMSmartContract) getContractABI(ctx context.Context, contractAddress string) (*abi.ABI, error) {
+	// 1. Check cache with read lock
+	c.cacheMu.RLock()
+	cachedABI, found := c.abiCache[contractAddress]
+	c.cacheMu.RUnlock()
+	if found {
+		return cachedABI, nil
+	}
+
+	// 2. Not in cache, acquire write lock
+	c.cacheMu.Lock()
+	defer c.cacheMu.Unlock()
+
+	// 3. Double-check cache (another goroutine might have populated it)
+	cachedABI, found = c.abiCache[contractAddress]
+	if found {
+		return cachedABI, nil
+	}
+
+	// 4. Fetch from explorer
+	contractInfo, err := c.explorer.GetContract(ctx, contractAddress)
+	if err != nil {
+		if errors.IsError(err, errors.ErrCodeContractNotFound) {
+			return nil, errors.NewContractNotFoundError(contractAddress, string(c.ChainType()))
+		}
+		return nil, errors.NewExplorerRequestFailedError(fmt.Errorf("failed to get contract info for ABI fetch %s: %w", contractAddress, err))
+	}
+
+	// Check if ABI is available
+	if contractInfo.ABI == "" {
+		return nil, errors.NewInvalidContractError(contractAddress, fmt.Errorf("ABI not found via explorer or contract not verified for %s", contractAddress))
+	}
+
+	// 5. Parse the ABI
+	parsedABI, err := abi.JSON(strings.NewReader(contractInfo.ABI))
+	if err != nil {
+		return nil, errors.NewInvalidContractError(contractAddress, fmt.Errorf("failed to parse ABI fetched from explorer for %s: %w", contractAddress, err))
+	}
+
+	// 6. Store pointer to parsed ABI in cache
+	c.abiCache[contractAddress] = &parsedABI // Store pointer
+
+	return &parsedABI, nil // Return pointer
 }
 
 // ChainType returns the blockchain type
@@ -75,31 +129,31 @@ func (c *EVMSmartContract) LoadArtifact(ctx context.Context, contractName string
 
 		// If still doesn't exist, return error
 		if _, err := os.Stat(artifactPath); os.IsNotExist(err) {
-			return nil, errors.NewInvalidContractError(contractName, err)
+			return nil, errors.NewInvalidContractError(contractName, fmt.Errorf("artifact file not found at %s or %s", filepath.Join(contractsPath, contractName+".json"), artifactPath))
 		}
 	}
 
 	// Read the artifact file
 	data, err := os.ReadFile(artifactPath)
 	if err != nil {
-		return nil, errors.NewInvalidContractError(contractName, err)
+		return nil, errors.NewInvalidContractError(contractName, fmt.Errorf("failed to read artifact file %s: %w", artifactPath, err))
 	}
 
 	// Parse the artifact JSON - supporting both Hardhat and Truffle formats
 	var artifactData map[string]any
 	if err := json.Unmarshal(data, &artifactData); err != nil {
-		return nil, errors.NewInvalidContractError(contractName, err)
+		return nil, errors.NewInvalidContractError(contractName, fmt.Errorf("failed to parse artifact JSON %s: %w", artifactPath, err))
 	}
 
 	// Extract the ABI
 	abiData, ok := artifactData["abi"]
 	if !ok {
-		return nil, errors.NewInvalidContractError(contractName, stderrors.New("abi not found"))
+		return nil, errors.NewInvalidContractError(contractName, fmt.Errorf("abi not found in artifact file %s", artifactPath))
 	}
 
 	abiJSON, err := json.Marshal(abiData)
 	if err != nil {
-		return nil, errors.NewInvalidContractError(contractName, err)
+		return nil, errors.NewInvalidContractError(contractName, fmt.Errorf("failed to marshal ABI from artifact file %s: %w", artifactPath, err))
 	}
 
 	// Extract the bytecode - checking multiple possible fields based on compiler
@@ -125,7 +179,7 @@ func (c *EVMSmartContract) LoadArtifact(ctx context.Context, contractName string
 	}
 
 	if bytecodeHex == "" {
-		return nil, errors.NewInvalidContractError(contractName, err)
+		return nil, errors.NewInvalidContractError(contractName, fmt.Errorf("bytecode not found in artifact file %s", artifactPath))
 	}
 
 	// Remove 0x prefix if present
@@ -134,7 +188,7 @@ func (c *EVMSmartContract) LoadArtifact(ctx context.Context, contractName string
 	// Convert hex to bytes
 	bytecode, err := hex.DecodeString(bytecodeHex)
 	if err != nil {
-		return nil, errors.NewInvalidContractError(contractName, err)
+		return nil, errors.NewInvalidContractError(contractName, fmt.Errorf("failed to decode bytecode from artifact file %s: %w", artifactPath, err))
 	}
 
 	// Extract deployed bytecode if available
@@ -161,7 +215,7 @@ func (c *EVMSmartContract) LoadArtifact(ctx context.Context, contractName string
 		// Convert hex to bytes
 		deployedBytecode, err = hex.DecodeString(deployedBytecodeHex)
 		if err != nil {
-			return nil, errors.NewInvalidContractError(contractName, err)
+			return nil, errors.NewInvalidContractError(contractName, fmt.Errorf("failed to decode deployed bytecode from artifact file %s: %w", artifactPath, err))
 		}
 	}
 
@@ -182,7 +236,7 @@ func (c *EVMSmartContract) Deploy(
 	// Parse the ABI
 	parsedABI, err := abi.JSON(strings.NewReader(artifact.ABI))
 	if err != nil {
-		return nil, errors.NewInvalidContractError(artifact.Name, err)
+		return nil, errors.NewInvalidContractError(artifact.Name, fmt.Errorf("failed to parse ABI for deployment: %w", err))
 	}
 
 	// Encode constructor parameters
@@ -191,7 +245,7 @@ func (c *EVMSmartContract) Deploy(
 		var err error
 		constructorInput, err = parsedABI.Pack("", options.ConstructorArgs...)
 		if err != nil {
-			return nil, errors.NewInvalidContractError(artifact.Name, err)
+			return nil, errors.NewInvalidContractError(artifact.Name, fmt.Errorf("failed to pack constructor arguments: %w", err))
 		}
 	}
 
@@ -210,30 +264,29 @@ func (c *EVMSmartContract) Deploy(
 		txOptions.Nonce = *options.Nonce
 	}
 
-	// Create transaction - using an empty string as "to" for contract creation
+	// Create transaction
 	tx, err := c.wallet.CreateNativeTransaction(
 		ctx,
-		"", // Use empty string for contract deployment
+		"",
 		options.Value,
 		txOptions,
 	)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewTransactionCreationError("contract deployment", err)
 	}
 
 	// Sign the transaction
 	signedTx, err := c.wallet.SignTransaction(ctx, tx)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewTransactionSigningError(err)
 	}
 
 	// Broadcast the transaction
 	txHash, err := c.blockchain.BroadcastTransaction(ctx, signedTx)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewTransactionBroadcastError(err)
 	}
 
-	// Return initial result with transaction hash, other fields will be populated by WaitForDeployment
 	return &DeploymentResult{
 		TransactionHash: txHash,
 	}, nil
@@ -247,28 +300,36 @@ func (c *EVMSmartContract) GetDeployment(
 	// Get transaction receipt
 	receipt, err := c.blockchain.GetTransactionReceipt(ctx, transactionHash)
 	if err != nil {
-		return nil, errors.NewTransactionNotFoundError(transactionHash)
+		// Use IsError to check for the specific error code
+		if errors.IsError(err, errors.ErrCodeTransactionNotFound) {
+			return nil, errors.NewTransactionNotFoundError(transactionHash)
+		}
+		return nil, errors.NewBlockchainError(fmt.Errorf("failed to get transaction receipt %s: %w", transactionHash, err))
 	}
 
 	// Check if transaction was successful
 	if receipt.Status == 0 {
-		return nil, errors.NewTransactionFailedError(err)
+		// Transaction failed (reverted)
+		return nil, errors.NewTransactionFailedError(fmt.Errorf("deployment transaction %s reverted", transactionHash))
 	}
-
-	// Get transaction to get gas price
-	tx, err := c.blockchain.GetTransaction(ctx, transactionHash)
-	if err != nil {
-		return nil, err
-	}
-
-	// Calculate deployment cost
-	deploymentCost := new(big.Int).Mul(tx.GasPrice, big.NewInt(int64(receipt.GasUsed)))
 
 	// Use ContractAddress from receipt (if present)
 	contractAddress := ""
 	if receipt.ContractAddress != nil {
 		contractAddress = *receipt.ContractAddress
+	} else {
+		// This should not happen for a successful deployment tx, but handle defensively
+		return nil, errors.NewBlockchainError(fmt.Errorf("successful deployment transaction %s missing contract address in receipt", transactionHash))
 	}
+
+	// Get transaction to get gas price
+	tx, err := c.blockchain.GetTransaction(ctx, transactionHash)
+	if err != nil {
+		return nil, errors.NewBlockchainError(fmt.Errorf("failed to get transaction %s for gas price: %w", transactionHash, err))
+	}
+
+	// Calculate deployment cost
+	deploymentCost := new(big.Int).Mul(tx.GasPrice, big.NewInt(int64(receipt.GasUsed)))
 
 	// Return deployment result
 	return &DeploymentResult{
@@ -284,32 +345,51 @@ func (c *EVMSmartContract) GetDeployment(
 func (c *EVMSmartContract) CallMethod(
 	ctx context.Context,
 	contractAddress string,
-	artifact *Artifact,
+	contractABI string,
 	method string,
 	args ...any,
 ) ([]any, error) {
-	// Parse the ABI
-	parsedABI, err := abi.JSON(strings.NewReader(artifact.ABI))
-	if err != nil {
-		return nil, errors.NewInvalidContractError(artifact.Name, err)
+	var parsedABI *abi.ABI
+	var err error
+
+	// Use provided ABI if available, otherwise fetch/cache
+	if contractABI != "" {
+		// Parse the provided ABI string
+		tmpABI, parseErr := abi.JSON(strings.NewReader(contractABI))
+		if parseErr != nil {
+			return nil, errors.NewInvalidContractError(contractAddress, fmt.Errorf("failed to parse provided ABI: %w", parseErr))
+		}
+		parsedABI = &tmpABI
+	} else {
+		// Get parsed ABI from cache or fetch it
+		parsedABI, err = c.getContractABI(ctx, contractAddress)
+		if err != nil {
+			return nil, err // Propagate errors from ABI fetching/parsing
+		}
+		if parsedABI == nil { // Should not happen if getOrFetchABI returns nil err, but defensive check
+			return nil, errors.NewInvalidContractError(contractAddress, fmt.Errorf("failed to obtain ABI for %s", contractAddress))
+		}
 	}
 
-	// Pack the method call data
+	// Pack the method call data using the obtained ABI
 	data, err := parsedABI.Pack(method, args...)
 	if err != nil {
-		return nil, errors.NewInvalidContractCallError(artifact.Name, err)
+		if strings.Contains(err.Error(), "no method with id") || strings.Contains(err.Error(), "method '"+method+"' not found") {
+			return nil, errors.NewMethodNotFoundError(method, contractAddress)
+		}
+		return nil, errors.NewInvalidContractCallError(contractAddress, fmt.Errorf("failed to pack method '%s' call data: %w", method, err))
 	}
 
 	// Call the contract
 	result, err := c.blockchain.CallContract(ctx, "", contractAddress, data)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewBlockchainError(fmt.Errorf("blockchain call failed for method '%s' on %s: %w", method, contractAddress, err))
 	}
 
 	// Unpack the result
 	outputs, err := parsedABI.Unpack(method, result)
 	if err != nil {
-		return nil, errors.NewInvalidContractCallError(artifact.Name, err)
+		return nil, errors.NewInvalidContractCallError(contractAddress, fmt.Errorf("failed to unpack result for method '%s': %w", method, err))
 	}
 
 	return outputs, nil
@@ -319,47 +399,77 @@ func (c *EVMSmartContract) CallMethod(
 func (c *EVMSmartContract) ExecuteMethod(
 	ctx context.Context,
 	contractAddress string,
-	artifact *Artifact,
+	contractABI string,
 	method string,
-	options types.TransactionOptions,
+	options ExecuteOptions,
 	args ...any,
 ) (string, error) {
-	// Parse the ABI
-	parsedABI, err := abi.JSON(strings.NewReader(artifact.ABI))
-	if err != nil {
-		return "", errors.NewInvalidContractError(artifact.Name, err)
+	var parsedABI *abi.ABI
+	var err error
+
+	// Use provided ABI if available, otherwise fetch/cache
+	if contractABI != "" {
+		// Parse the provided ABI string
+		tmpABI, parseErr := abi.JSON(strings.NewReader(contractABI))
+		if parseErr != nil {
+			return "", errors.NewInvalidContractError(contractAddress, fmt.Errorf("failed to parse provided ABI: %w", parseErr))
+		}
+		parsedABI = &tmpABI
+	} else {
+		// Get parsed ABI from cache or fetch it
+		parsedABI, err = c.getContractABI(ctx, contractAddress)
+		if err != nil {
+			return "", err
+		}
+		if parsedABI == nil { // Should not happen if getOrFetchABI returns nil err, but defensive check
+			return "", errors.NewInvalidContractError(contractAddress, fmt.Errorf("failed to obtain ABI for %s", contractAddress))
+		}
 	}
 
-	// Pack the method call data
+	// Pack the method call data using the obtained ABI
 	data, err := parsedABI.Pack(method, args...)
 	if err != nil {
-		return "", errors.NewInvalidContractCallError(artifact.Name, err)
+		if strings.Contains(err.Error(), "no method with id") || strings.Contains(err.Error(), "method '"+method+"' not found") {
+			return "", errors.NewMethodNotFoundError(method, contractAddress)
+		}
+		return "", errors.NewInvalidContractCallError(contractAddress, fmt.Errorf("failed to pack method '%s' call data: %w", method, err))
 	}
 
-	// Add method data to transaction options
-	options.Data = data
+	// Translate ExecuteOptions to types.TransactionOptions for the wallet call
+	txOptions := types.TransactionOptions{
+		GasPrice: options.GasPrice,
+		GasLimit: options.GasLimit,
+		Nonce:    options.Nonce,
+		Data:     data,
+	}
 
-	// Create transaction
+	// Ensure value from ExecuteOptions is not nil (use 0 if it is)
+	callValue := options.Value
+	if callValue == nil {
+		callValue = big.NewInt(0)
+	}
+
+	// Create transaction using the explicit value from ExecuteOptions
 	tx, err := c.wallet.CreateNativeTransaction(
 		ctx,
 		contractAddress,
-		big.NewInt(0), // No value to send for normal method calls
-		options,
+		callValue,
+		txOptions,
 	)
 	if err != nil {
-		return "", err
+		return "", errors.NewTransactionCreationError(fmt.Sprintf("method %s on %s", method, contractAddress), err)
 	}
 
 	// Sign the transaction
 	signedTx, err := c.wallet.SignTransaction(ctx, tx)
 	if err != nil {
-		return "", err
+		return "", errors.NewTransactionSigningError(err)
 	}
 
 	// Broadcast the transaction
 	txHash, err := c.blockchain.BroadcastTransaction(ctx, signedTx)
 	if err != nil {
-		return "", err
+		return "", errors.NewTransactionBroadcastError(err)
 	}
 
 	return txHash, nil

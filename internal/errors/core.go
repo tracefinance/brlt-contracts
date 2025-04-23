@@ -22,22 +22,26 @@ const (
 	ErrCodeInvalidToken = "invalid_token"
 
 	// Blockchain errors
-	ErrCodeBlockchainError         = "blockchain_error"
-	ErrCodeInvalidBlockchainConfig = "invalid_blockchain_config"
-	ErrCodeChainNotSupported       = "chain_not_supported"
-	ErrCodeInsufficientFunds       = "insufficient_funds"
-	ErrCodeInvalidTransaction      = "invalid_transaction"
-	ErrCodeTransactionNotFound     = "transaction_not_found"
-	ErrCodeBlockNotFound           = "block_not_found"
-	ErrCodeInvalidBlockIdentifier  = "invalid_block_identifier"
-	ErrCodeRPCError                = "rpc_error"
-	ErrCodeInvalidAddress          = "invalid_address"
-	ErrCodeTransactionFailed       = "transaction_failed"
-	ErrCodeInvalidContract         = "invalid_contract"
-	ErrCodeContractNotFound        = "contract_not_found"
-	ErrCodeInvalidEventSignature   = "invalid_event_signature"
-	ErrCodeInvalidEventArgs        = "invalid_event_args"
-	ErrCodeUnsupportedEventArgType = "unsupported_event_arg_type"
+	ErrCodeBlockchainError            = "blockchain_error"
+	ErrCodeInvalidBlockchainConfig    = "invalid_blockchain_config"
+	ErrCodeChainNotSupported          = "chain_not_supported"
+	ErrCodeInsufficientFunds          = "insufficient_funds"
+	ErrCodeInvalidTransaction         = "invalid_transaction"
+	ErrCodeTransactionNotFound        = "transaction_not_found"
+	ErrCodeBlockNotFound              = "block_not_found"
+	ErrCodeInvalidBlockIdentifier     = "invalid_block_identifier"
+	ErrCodeRPCError                   = "rpc_error"
+	ErrCodeInvalidAddress             = "invalid_address"
+	ErrCodeTransactionFailed          = "transaction_failed"
+	ErrCodeInvalidContract            = "invalid_contract"
+	ErrCodeContractNotFound           = "contract_not_found"
+	ErrCodeMethodNotFound             = "method_not_found"
+	ErrCodeInvalidEventSignature      = "invalid_event_signature"
+	ErrCodeInvalidEventArgs           = "invalid_event_args"
+	ErrCodeUnsupportedEventArgType    = "unsupported_event_arg_type"
+	ErrCodeTransactionCreationFailed  = "transaction_creation_failed"
+	ErrCodeTransactionSigningFailed   = "transaction_signing_failed"
+	ErrCodeTransactionBroadcastFailed = "transaction_broadcast_failed"
 
 	// Keystore errors
 	ErrCodeKeystoreError   = "keystore_error"
@@ -694,5 +698,47 @@ func NewTokenDecodingFailedError(token string, err error) *Vault0Error {
 		Details: map[string]any{
 			"token": token,
 		},
+	}
+}
+
+// NewMethodNotFoundError creates an error when a method is not found in a contract's ABI
+func NewMethodNotFoundError(methodName, contractAddress string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeMethodNotFound,
+		Message: fmt.Sprintf("Method '%s' not found in ABI for contract %s", methodName, contractAddress),
+		Details: map[string]any{
+			"method_name":      methodName,
+			"contract_address": contractAddress,
+		},
+	}
+}
+
+// NewTransactionCreationError creates an error for failures during transaction creation
+func NewTransactionCreationError(context string, err error) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeTransactionCreationFailed,
+		Message: fmt.Sprintf("Failed to create transaction (%s)", context),
+		Err:     err,
+		Details: map[string]any{
+			"context": context,
+		},
+	}
+}
+
+// NewTransactionSigningError creates an error for failures during transaction signing
+func NewTransactionSigningError(err error) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeTransactionSigningFailed,
+		Message: "Failed to sign transaction",
+		Err:     err,
+	}
+}
+
+// NewTransactionBroadcastError creates an error for failures during transaction broadcast
+func NewTransactionBroadcastError(err error) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeTransactionBroadcastFailed,
+		Message: "Failed to broadcast transaction",
+		Err:     err,
 	}
 }

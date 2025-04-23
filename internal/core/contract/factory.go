@@ -5,96 +5,74 @@ package contract
 
 import (
 	"context"
-	"sync"
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
+	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/wallet"
-	"vault0/internal/errors"
-	"vault0/internal/types"
 )
 
-// Factory creates and manages SmartContract instances.
-// It provides a centralized way to create and cache contract instances
-// for different blockchain networks.
+// Factory creates SmartContract instances based on a provided wallet.
+// It provides a centralized way to create contract instances
+// for the specific blockchain network associated with the wallet.
 type Factory interface {
-	// NewContract creates or returns a cached SmartContract instance for the specified chain type.
+	// NewSmartContract creates a SmartContract instance tailored for the provided wallet's chain.
 	//
 	// Parameters:
 	//   - ctx: Context for the operation
-	//   - chainType: The blockchain network type (e.g., Ethereum, Polygon)
+	//   - wallet: The wallet instance determining the target blockchain and credentials.
 	//
 	// Returns:
-	//   - SmartContract: The contract instance for the specified chain
-	//   - error: Any error during creation, such as unsupported chain type
-	NewContract(ctx context.Context, chainType types.ChainType) (SmartContract, error)
+	//   - SmartContract: The contract instance configured for the wallet's chain.
+	//   - error: Any error during creation, such as unsupported chain type or blockchain client issues.
+	NewSmartContract(ctx context.Context, wallet wallet.Wallet) (SmartContract, error)
 }
 
 // NewFactory creates a new SmartContract factory.
 //
 // Parameters:
 //   - blockchainRegistry: Registry for creating blockchain clients
-//   - walletFactory: Factory for creating wallet instances
+//   - explorerFactory: Factory for creating BlockExplorer instances
 //   - cfg: Application configuration
 //
 // Returns:
 //   - Factory: The configured contract factory instance
-func NewFactory(blockchainRegistry blockchain.Registry, walletFactory wallet.Factory, cfg *config.Config) Factory {
+func NewFactory(blockchainRegistry blockchain.Registry, explorerFactory blockexplorer.Factory, cfg *config.Config) Factory {
 	return &factory{
 		blockchainRegistry: blockchainRegistry,
-		walletFactory:      walletFactory,
+		explorerFactory:    explorerFactory,
 		cfg:                cfg,
-		contracts:          make(map[types.ChainType]SmartContract),
-		mu:                 sync.RWMutex{},
 	}
 }
 
 type factory struct {
 	blockchainRegistry blockchain.Registry
-	walletFactory      wallet.Factory
+	explorerFactory    blockexplorer.Factory
 	cfg                *config.Config
-	contracts          map[types.ChainType]SmartContract
-	mu                 sync.RWMutex
 }
 
-// NewContract implements the Factory interface.
-func (f *factory) NewContract(ctx context.Context, chainType types.ChainType) (SmartContract, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+// NewSmartContract implements the Factory interface. It creates a new SmartContract instance
+// for the chain associated with the provided wallet.
+func (f *factory) NewSmartContract(ctx context.Context, wallet wallet.Wallet) (SmartContract, error) {
+	// Get chain type from the provided wallet
+	chainType := wallet.Chain().Type
 
-	// Check if we already have an instance for this chain
-	if contract, ok := f.contracts[chainType]; ok {
-		return contract, nil
+	// Get the appropriate BlockExplorer instance from the factory
+	explorer, err := f.explorerFactory.GetExplorer(chainType)
+	if err != nil {
+		return nil, err
 	}
 
-	// Get blockchain client for the chain type
+	// Get blockchain client for the derived chain type
 	blockchainClient, err := f.blockchainRegistry.GetBlockchain(chainType)
 	if err != nil {
-		return nil, errors.NewBlockchainError(err)
+		return nil, err
 	}
 
-	// Create a wallet for the chain type
-	// Note: We need to get the keyID from somewhere - this might need to be passed in context
-	// or we might need to modify the interface to accept keyID
-	walletClient, err := f.walletFactory.NewWallet(ctx, chainType, "default")
+	// Create a new contract instance using the provided wallet and the dynamically obtained explorer
+	contract, err := NewSmartContract(blockchainClient, wallet, explorer, f.cfg)
 	if err != nil {
-		return nil, errors.NewWalletError("failed to create wallet", err)
+		return nil, err
 	}
 
-	// Create a new contract instance based on chain type
-	var contract SmartContract
-	switch chainType {
-	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
-		// Create EVM-compatible contract manager
-		contract, err = NewEVMSmartContract(blockchainClient, walletClient, f.cfg)
-	default:
-		return nil, errors.NewChainNotSupportedError(string(chainType))
-	}
-
-	if err != nil {
-		return nil, errors.NewInvalidContractCallError("", err)
-	}
-
-	// Store the contract instance
-	f.contracts[chainType] = contract
 	return contract, nil
 }

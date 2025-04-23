@@ -2,6 +2,7 @@ package errors
 
 import (
 	"encoding/json"
+	stderrors "errors" // Import standard errors package
 	"fmt"
 )
 
@@ -52,4 +53,12 @@ func (e *Vault0Error) Is(target error) bool {
 		return false
 	}
 	return e.Code == t.Code
+}
+
+// IsError checks if the provided error is a Vault0Error with the specified code.
+// It leverages the standard errors.Is function, which will correctly use
+// the Is method defined on the Vault0Error type.
+func IsError(err error, code string) bool {
+	target := &Vault0Error{Code: code}
+	return stderrors.Is(err, target)
 }
