@@ -82,9 +82,6 @@ func (s *walletService) StopTransactionMonitoring() {
 	// Cancel the monitoring context to stop the goroutine
 	s.monitorCancel()
 
-	// Unsubscribe from transaction events
-	s.txService.UnsubscribeFromTransactionEvents()
-
 	// Reset context and cancel function
 	s.monitorCtx = nil
 	s.monitorCancel = nil

@@ -99,16 +99,14 @@ func main() {
 	// Cancel the root context
 	cancel()
 
-	// Unsubscribe from events
+	// Unsubscribe from transaction events first to close the channel
+	// before any services that might use it
 	container.Services.TransactionService.UnsubscribeFromTransactionEvents()
 
 	// Stop pending transaction polling
 	container.Services.TransactionService.StopPendingTransactionPolling()
 
-	// Stop token price update job
-	container.Services.TokenPriceService.StopPricePolling()
-
-	// Stop transaction monitoring
+	// Stop transaction monitoring in wallet service
 	container.Services.WalletService.StopTransactionMonitoring()
 
 	// Stop wallet history syncing
@@ -119,6 +117,9 @@ func main() {
 
 	// Stop vault deployment monitoring
 	container.Services.VaultService.StopDeploymentMonitoring()
+
+	// Stop token price update job
+	container.Services.TokenPriceService.StopPricePolling()
 
 	// Perform cleanup
 	container.Server.Shutdown()
