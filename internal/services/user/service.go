@@ -13,26 +13,26 @@ import (
 
 // Service defines the user management operations interface
 type Service interface {
-	// Create registers a new user with the given email and password
+	// CreateUser registers a new user with the given email and password
 	// Returns ErrEmailExists if the email is already registered
-	Create(ctx context.Context, email, password string) (*User, error)
+	CreateUser(ctx context.Context, email, password string) (*User, error)
 
-	// Update modifies an existing user's email and/or password
+	// UpdateUser modifies an existing user's email and/or password
 	// Empty parameters are ignored. Returns ErrEmailExists if the new email is already in use
-	Update(ctx context.Context, id int64, email, password string) (*User, error)
+	UpdateUser(ctx context.Context, id int64, email, password string) (*User, error)
 
-	// Delete removes a user by ID
+	// DeleteUser removes a user by ID
 	// Returns ErrResourceNotFound if the user doesn't exist
-	Delete(ctx context.Context, id int64) error
+	DeleteUser(ctx context.Context, id int64) error
 
-	// Get retrieves a user by ID
+	// GetUserByID retrieves a user by ID
 	// Returns ErrResourceNotFound if the user doesn't exist
-	Get(ctx context.Context, id int64) (*User, error)
+	GetUserByID(ctx context.Context, id int64) (*User, error)
 
-	// List returns a paginated collection of users
+	// ListUsers returns a paginated collection of users
 	// Default limit is 10 if limit < 1
 	// nextToken is used for token-based pagination (empty string for first page)
-	List(ctx context.Context, limit int, nextToken string) (*types.Page[*User], error)
+	ListUsers(ctx context.Context, limit int, nextToken string) (*types.Page[*User], error)
 }
 
 // service implements the Service interface
@@ -51,8 +51,8 @@ func NewService(log logger.Logger, repository Repository, signerSvc signer.Servi
 	}
 }
 
-// Create creates a new user
-func (s *service) Create(ctx context.Context, email, password string) (*User, error) {
+// CreateUser creates a new user
+func (s *service) CreateUser(ctx context.Context, email, password string) (*User, error) {
 	// Check if email already exists
 	existingUser, err := s.repository.GetByEmail(ctx, email)
 	if err != nil {
@@ -82,8 +82,8 @@ func (s *service) Create(ctx context.Context, email, password string) (*User, er
 	return user, nil
 }
 
-// Update updates an existing user
-func (s *service) Update(ctx context.Context, id int64, email, password string) (*User, error) {
+// UpdateUser updates an existing user
+func (s *service) UpdateUser(ctx context.Context, id int64, email, password string) (*User, error) {
 	// Get the existing user
 	user, err := s.repository.GetByID(ctx, id)
 	if err != nil {
@@ -121,10 +121,10 @@ func (s *service) Update(ctx context.Context, id int64, email, password string) 
 	return user, nil
 }
 
-// Delete removes a user
-func (s *service) Delete(ctx context.Context, id int64) error {
+// DeleteUser removes a user
+func (s *service) DeleteUser(ctx context.Context, id int64) error {
 	// Check if user is associated with any signers before deleting
-	signers, err := s.signerService.GetByUserID(ctx, id)
+	signers, err := s.signerService.FindSignersByUserID(ctx, id)
 	if err != nil {
 		s.log.Error("Failed to check signer association for user",
 			logger.Int64("user_id", id),
@@ -152,8 +152,8 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// Get retrieves a user by ID
-func (s *service) Get(ctx context.Context, id int64) (*User, error) {
+// GetUserByID retrieves a user by ID
+func (s *service) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	user, err := s.repository.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -161,8 +161,8 @@ func (s *service) Get(ctx context.Context, id int64) (*User, error) {
 	return user, nil
 }
 
-// List retrieves a paginated list of users
-func (s *service) List(ctx context.Context, limit int, nextToken string) (*types.Page[*User], error) {
+// ListUsers retrieves a paginated list of users
+func (s *service) ListUsers(ctx context.Context, limit int, nextToken string) (*types.Page[*User], error) {
 	// Set default limit
 	if limit <= 0 {
 		limit = 10

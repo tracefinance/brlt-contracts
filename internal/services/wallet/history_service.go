@@ -167,7 +167,7 @@ func (s *walletService) syncTransactionsByType(
 			}
 
 			// Check if transaction already exists
-			exists, err := s.txService.GetTransaction(ctx, tx.Hash)
+			exists, err := s.txService.GetTransactionByHash(ctx, tx.Hash)
 			if err == nil && exists != nil {
 				// Transaction already exists, skip
 				continue

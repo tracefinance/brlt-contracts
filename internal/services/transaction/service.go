@@ -17,8 +17,8 @@ import (
 type Service interface {
 	MonitorService
 
-	// GetTransaction retrieves a transaction by its hash
-	GetTransaction(ctx context.Context, hash string) (*Transaction, error)
+	// GetTransactionByHash retrieves a transaction by its hash
+	GetTransactionByHash(ctx context.Context, hash string) (*Transaction, error)
 
 	// FilterTransactions retrieves transactions based on the provided filter criteria
 	FilterTransactions(ctx context.Context, filter *Filter, limit int, nextToken string) (*types.Page[*Transaction], error)
@@ -71,8 +71,8 @@ func NewService(
 	}
 }
 
-// GetTransaction retrieves a transaction by its hash
-func (s *transactionService) GetTransaction(ctx context.Context, hash string) (*Transaction, error) {
+// GetTransactionByHash retrieves a transaction by its hash
+func (s *transactionService) GetTransactionByHash(ctx context.Context, hash string) (*Transaction, error) {
 	if hash == "" {
 		return nil, errors.NewInvalidInputError("Hash is required", "hash", "")
 	}

@@ -63,7 +63,7 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 func (h *Handler) GetTransaction(c *gin.Context) {
 	hash := c.Param("hash")
 
-	tx, err := h.transactionService.GetTransaction(c.Request.Context(), hash)
+	tx, err := h.transactionService.GetTransactionByHash(c.Request.Context(), hash)
 	if err != nil {
 		c.Error(err)
 		return
@@ -140,7 +140,7 @@ func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 	}
 
 	// Get all tokens for the addresses
-	tokens, err := h.tokenService.ListTokensByAddresses(c.Request.Context(), chainType, tokenAddresses)
+	tokens, err := h.tokenService.GetTokensByAddresses(c.Request.Context(), chainType, tokenAddresses)
 	if err != nil {
 		c.Error(err)
 		return
@@ -250,7 +250,7 @@ func (h *Handler) FilterTransactions(c *gin.Context) {
 	// Get tokens for each chain
 	tokensMap := make(map[string]*types.Token)
 	for chainType, addresses := range addressesByChain {
-		tokens, err := h.tokenService.ListTokensByAddresses(c.Request.Context(), chainType, addresses)
+		tokens, err := h.tokenService.GetTokensByAddresses(c.Request.Context(), chainType, addresses)
 		if err != nil {
 			c.Error(err)
 			return

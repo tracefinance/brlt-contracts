@@ -158,7 +158,7 @@ func (s *walletService) handleTransaction(ctx context.Context, tx *types.Transac
 	}
 
 	// Check if the transaction already exists by hash
-	existingTx, _ := s.txService.GetTransaction(ctx, tx.Hash)
+	existingTx, _ := s.txService.GetTransactionByHash(ctx, tx.Hash)
 	if existingTx != nil {
 		s.log.Debug("Transaction already exists in database",
 			logger.String("tx_hash", tx.Hash))

@@ -71,7 +71,7 @@ func (h *Handler) CreateWallet(c *gin.Context) {
 	}
 
 	// Create wallet
-	walletModel, err := h.walletService.Create(c.Request.Context(), req.ChainType, req.Name, req.Tags)
+	walletModel, err := h.walletService.CreateWallet(c.Request.Context(), req.ChainType, req.Name, req.Tags)
 	if err != nil {
 		c.Error(err)
 		return
@@ -100,7 +100,7 @@ func (h *Handler) GetWallet(c *gin.Context) {
 	address := c.Param("address")
 
 	// Get the wallet
-	walletModel, err := h.walletService.GetByAddress(c.Request.Context(), chainType, address)
+	walletModel, err := h.walletService.GetWalletByAddress(c.Request.Context(), chainType, address)
 	if err != nil {
 		c.Error(err)
 		return
@@ -138,7 +138,7 @@ func (h *Handler) UpdateWallet(c *gin.Context) {
 	}
 
 	// Update the wallet
-	walletModel, err := h.walletService.Update(c.Request.Context(), chainType, address, req.Name, req.Tags)
+	walletModel, err := h.walletService.UpdateWallet(c.Request.Context(), chainType, address, req.Name, req.Tags)
 	if err != nil {
 		c.Error(err)
 		return
@@ -166,7 +166,7 @@ func (h *Handler) DeleteWallet(c *gin.Context) {
 	address := c.Param("address")
 
 	// Delete the wallet
-	err := h.walletService.Delete(c.Request.Context(), chainType, address)
+	err := h.walletService.DeleteWallet(c.Request.Context(), chainType, address)
 	if err != nil {
 		c.Error(err)
 		return
@@ -201,7 +201,7 @@ func (h *Handler) ListWallets(c *gin.Context) {
 	}
 
 	// Get the wallets using token-based pagination
-	walletPage, err := h.walletService.List(c.Request.Context(), limit, req.NextToken)
+	walletPage, err := h.walletService.ListWallets(c.Request.Context(), limit, req.NextToken)
 	if err != nil {
 		c.Error(err)
 		return

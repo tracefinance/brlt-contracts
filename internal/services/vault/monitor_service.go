@@ -222,7 +222,7 @@ func (s *service) checkDeploymentStatus(ctx context.Context, vault *Vault) error
 	}
 
 	// Fetch wallet to get the address for signing
-	associatedWallet, err := s.walletService.GetByID(ctx, vault.WalletID)
+	associatedWallet, err := s.walletService.GetWalletByID(ctx, vault.WalletID)
 	if err != nil {
 		s.log.Error("polling: Failed to get wallet for deployment check", logger.Int64("vault_id", vault.ID), logger.Error(err))
 		return err
@@ -399,7 +399,7 @@ func (s *service) checkAndExecuteRecoveryForVault(ctx context.Context, vault *Va
 	s.log.Info("Polling: Timelock passed, attempting to execute recovery", logger.Int64("vault_id", vault.ID))
 
 	// Fetch wallet to get the address for signing
-	walletInfo, err := s.walletService.GetByID(ctx, vault.WalletID)
+	walletInfo, err := s.walletService.GetWalletByID(ctx, vault.WalletID)
 	if err != nil {
 		// Use fmt.Errorf with %w for wrapping only if needed internally, otherwise return specific error
 		err = fmt.Errorf("failed to get wallet address for signing recovery: %w", err)

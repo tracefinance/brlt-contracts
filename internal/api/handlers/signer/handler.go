@@ -77,7 +77,7 @@ func (h *Handler) CreateSigner(c *gin.Context) {
 		userID = &id
 	}
 
-	createdSigner, err := h.signerService.Create(c.Request.Context(), req.Name, req.Type, userID)
+	createdSigner, err := h.signerService.CreateSigner(c.Request.Context(), req.Name, req.Type, userID)
 	if err != nil {
 		c.Error(err)
 		return
@@ -124,7 +124,7 @@ func (h *Handler) UpdateSigner(c *gin.Context) {
 		userID = &userId
 	}
 
-	updatedSigner, err := h.signerService.Update(c.Request.Context(), id, req.Name, req.Type, userID)
+	updatedSigner, err := h.signerService.UpdateSigner(c.Request.Context(), id, req.Name, req.Type, userID)
 	if err != nil {
 		c.Error(err)
 		return
@@ -151,7 +151,7 @@ func (h *Handler) DeleteSigner(c *gin.Context) {
 		return
 	}
 
-	err = h.signerService.Delete(c.Request.Context(), id)
+	err = h.signerService.DeleteSigner(c.Request.Context(), id)
 	if err != nil {
 		c.Error(err)
 		return
@@ -179,7 +179,7 @@ func (h *Handler) GetSigner(c *gin.Context) {
 		return
 	}
 
-	foundSigner, err := h.signerService.Get(c.Request.Context(), id)
+	foundSigner, err := h.signerService.GetSignerByID(c.Request.Context(), id)
 	if err != nil {
 		c.Error(err)
 		return
@@ -211,7 +211,7 @@ func (h *Handler) ListSigners(c *gin.Context) {
 		limit = *req.Limit
 	}
 
-	page, err := h.signerService.List(c.Request.Context(), limit, req.NextToken)
+	page, err := h.signerService.ListSigners(c.Request.Context(), limit, req.NextToken)
 	if err != nil {
 		c.Error(err)
 		return
@@ -239,7 +239,7 @@ func (h *Handler) GetSignersByUser(c *gin.Context) {
 		return
 	}
 
-	signers, err := h.signerService.GetByUserID(c.Request.Context(), userId)
+	signers, err := h.signerService.FindSignersByUserID(c.Request.Context(), userId)
 	if err != nil {
 		c.Error(err)
 		return

@@ -204,7 +204,7 @@ func (h *Handler) getKey(c *gin.Context) {
 		return
 	}
 
-	key, err := h.service.GetKey(c.Request.Context(), id)
+	key, err := h.service.GetKeyById(c.Request.Context(), id)
 	if err != nil {
 		c.Error(err)
 		return

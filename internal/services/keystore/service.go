@@ -22,8 +22,8 @@ type Service interface {
 	// SignData performs a cryptographic signing operation using the specified key
 	SignData(ctx context.Context, id string, data []byte, rawData bool) ([]byte, error)
 
-	// GetKey retrieves a key by ID
-	GetKey(ctx context.Context, id string) (*keystore.Key, error)
+	// GetKeyById retrieves a key by ID
+	GetKeyById(ctx context.Context, id string) (*keystore.Key, error)
 
 	// ListKeys retrieves keys with optional filtering and pagination
 	// limit specifies the maximum number of keys to return (0 means use default)
@@ -176,8 +176,8 @@ func (s *service) SignData(ctx context.Context, id string, data []byte, rawData 
 	return signature, nil
 }
 
-// GetKey implements the Service interface
-func (s *service) GetKey(ctx context.Context, id string) (*keystore.Key, error) {
+// GetKeyById implements the Service interface
+func (s *service) GetKeyById(ctx context.Context, id string) (*keystore.Key, error) {
 	key, err := s.keyStore.GetPublicKey(ctx, id)
 	if err != nil {
 		s.log.Error("Failed to get key",
@@ -262,7 +262,7 @@ func (s *service) UpdateKey(ctx context.Context, id string, name string, tags ma
 // DeleteKey implements the Service interface
 func (s *service) DeleteKey(ctx context.Context, id string) error {
 	// Check if the key is associated with any wallets using the wallet service
-	wallets, err := s.walletService.GetWalletsByKeyID(ctx, id)
+	wallets, err := s.walletService.FindWalletsByKeyID(ctx, id)
 	if err != nil {
 		s.log.Error("Failed to check key association with wallets via service",
 			logger.Error(err),

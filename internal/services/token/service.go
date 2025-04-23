@@ -31,9 +31,9 @@ type Service interface {
 	// If address is "native" or zero address, it returns the native token for the chain
 	GetTokenByChainAndAddress(ctx context.Context, chainType types.ChainType, address string) (*types.Token, error)
 
-	// ListTokensByAddresses retrieves tokens by a list of token addresses for a specific chain
+	// GetTokensByAddresses retrieves tokens by a list of token addresses for a specific chain
 	// If an address is not found, it will be skipped in the result
-	ListTokensByAddresses(ctx context.Context, chainType types.ChainType, addresses []string) ([]types.Token, error)
+	GetTokensByAddresses(ctx context.Context, chainType types.ChainType, addresses []string) ([]types.Token, error)
 
 	// UpdateToken updates a token's symbol, type, and decimals by address
 	UpdateToken(ctx context.Context, address string, symbol string, tokenType types.TokenType, decimals uint8) error
@@ -249,8 +249,8 @@ func (s *service) GetTokenByChainAndAddress(ctx context.Context, chainType types
 	return token, nil
 }
 
-// ListTokensByAddresses implements the Service interface
-func (s *service) ListTokensByAddresses(ctx context.Context, chainType types.ChainType, addresses []string) ([]types.Token, error) {
+// GetTokensByAddresses implements the Service interface
+func (s *service) GetTokensByAddresses(ctx context.Context, chainType types.ChainType, addresses []string) ([]types.Token, error) {
 	tokens, err := s.tokenStore.ListTokensByAddresses(ctx, chainType, addresses)
 	if err != nil {
 		s.log.Error("Failed to list tokens by addresses",

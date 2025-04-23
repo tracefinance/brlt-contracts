@@ -23,7 +23,7 @@ type Service interface {
 	MonitorService
 	HistoryService
 
-	// Create creates a new wallet with a key and derives its address.
+	// CreateWallet creates a new wallet with a key and derives its address.
 	// It performs the following steps:
 	// 1. Creates a new key in the keystore with the specified name and tags
 	// 2. Creates a wallet instance using the key
@@ -40,9 +40,9 @@ type Service interface {
 	// Returns:
 	//   - *Wallet: The created wallet information
 	//   - error: ErrInvalidInput if parameters are invalid, or any other error that occurred
-	Create(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error)
+	CreateWallet(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error)
 
-	// Update updates a wallet's name and tags by chain type and address.
+	// UpdateWallet updates a wallet's name and tags by chain type and address.
 	// The wallet is identified by its chain type and address.
 	// Only the name and tags can be updated; other fields are immutable.
 	//
@@ -56,9 +56,9 @@ type Service interface {
 	// Returns:
 	//   - *Wallet: The updated wallet information
 	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
-	Update(ctx context.Context, chainType types.ChainType, address, name string, tags map[string]string) (*Wallet, error)
+	UpdateWallet(ctx context.Context, chainType types.ChainType, address, name string, tags map[string]string) (*Wallet, error)
 
-	// Delete soft-deletes a wallet by chain type and address.
+	// DeleteWallet soft-deletes a wallet by chain type and address.
 	// The wallet is identified by its chain type and address.
 	// This operation:
 	// 1. Marks the wallet as deleted in the database
@@ -72,9 +72,9 @@ type Service interface {
 	//
 	// Returns:
 	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
-	Delete(ctx context.Context, chainType types.ChainType, address string) error
+	DeleteWallet(ctx context.Context, chainType types.ChainType, address string) error
 
-	// GetByAddress retrieves a wallet by its chain type and address.
+	// GetWalletByAddress retrieves a wallet by its chain type and address.
 	// Only returns non-deleted wallets.
 	//
 	// Parameters:
@@ -85,9 +85,9 @@ type Service interface {
 	// Returns:
 	//   - *Wallet: The wallet information if found
 	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
-	GetByAddress(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
+	GetWalletByAddress(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error)
 
-	// GetByID retrieves a wallet by its unique identifier.
+	// GetWalletByID retrieves a wallet by its unique identifier.
 	// Only returns non-deleted wallets.
 	//
 	// Parameters:
@@ -97,9 +97,9 @@ type Service interface {
 	// Returns:
 	//   - *Wallet: The wallet information if found
 	//   - error: ErrWalletNotFound if wallet doesn't exist, ErrInvalidInput for invalid parameters
-	GetByID(ctx context.Context, id int64) (*Wallet, error)
+	GetWalletByID(ctx context.Context, id int64) (*Wallet, error)
 
-	// List retrieves a paginated list of non-deleted wallets
+	// ListWallets retrieves a paginated list of non-deleted wallets
 	//
 	// Parameters:
 	//   - ctx: Context for the operation
@@ -109,9 +109,9 @@ type Service interface {
 	// Returns:
 	//   - *types.Page[*Wallet]: Paginated list of wallets with nextToken
 	//   - error: Any error that occurred during the operation
-	List(ctx context.Context, limit int, nextToken string) (*types.Page[*Wallet], error)
+	ListWallets(ctx context.Context, limit int, nextToken string) (*types.Page[*Wallet], error)
 
-	// Exists checks if a non-deleted wallet exists.
+	// WalletExists checks if a non-deleted wallet exists.
 	// This is a lightweight operation that doesn't return the wallet's data.
 	//
 	// Parameters:
@@ -122,7 +122,7 @@ type Service interface {
 	// Returns:
 	//   - bool: true if the wallet exists and is not deleted
 	//   - error: ErrInvalidInput for invalid parameters
-	Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error)
+	WalletExists(ctx context.Context, chainType types.ChainType, address string) (bool, error)
 
 	// ActivateToken creates a token balance for a wallet and token address.
 	// Parameters:
@@ -134,7 +134,7 @@ type Service interface {
 	//   - error: ErrInvalidInput for invalid parameters, or any error from the token store
 	ActivateToken(ctx context.Context, chainType types.ChainType, walletAddress, tokenAddress string) error
 
-	// GetWalletsByKeyID retrieves all non-deleted wallets associated with a specific keystore key ID.
+	// FindWalletsByKeyID retrieves all non-deleted wallets associated with a specific keystore key ID.
 	// This is used internally, for example, to check if a key can be safely deleted.
 	//
 	// Parameters:
@@ -144,7 +144,7 @@ type Service interface {
 	// Returns:
 	//   - []*Wallet: A slice of wallets associated with the key ID
 	//   - error: Any error that occurred during the database query
-	GetWalletsByKeyID(ctx context.Context, keyID string) ([]*Wallet, error)
+	FindWalletsByKeyID(ctx context.Context, keyID string) ([]*Wallet, error)
 }
 
 // walletService implements the Service interface
@@ -201,8 +201,8 @@ func NewService(
 	}
 }
 
-// Create creates a new wallet with a key and derives its address
-func (s *walletService) Create(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error) {
+// CreateWallet creates a new wallet with a key and derives its address
+func (s *walletService) CreateWallet(ctx context.Context, chainType types.ChainType, name string, tags map[string]string) (*Wallet, error) {
 	if name == "" {
 		return nil, errors.NewInvalidInputError("Name is required", "name", "")
 	}
@@ -247,8 +247,8 @@ func (s *walletService) Create(ctx context.Context, chainType types.ChainType, n
 	return wallet, nil
 }
 
-// Update updates a wallet's name and tags by chain type and address
-func (s *walletService) Update(ctx context.Context, chainType types.ChainType, address, name string, tags map[string]string) (*Wallet, error) {
+// UpdateWallet updates a wallet's name and tags by chain type and address
+func (s *walletService) UpdateWallet(ctx context.Context, chainType types.ChainType, address, name string, tags map[string]string) (*Wallet, error) {
 	if chainType == "" {
 		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -283,8 +283,8 @@ func (s *walletService) Update(ctx context.Context, chainType types.ChainType, a
 	return wallet, nil
 }
 
-// Delete soft-deletes a wallet by chain type and address
-func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, address string) error {
+// DeleteWallet soft-deletes a wallet by chain type and address
+func (s *walletService) DeleteWallet(ctx context.Context, chainType types.ChainType, address string) error {
 	if chainType == "" {
 		return errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -318,8 +318,8 @@ func (s *walletService) Delete(ctx context.Context, chainType types.ChainType, a
 	return nil
 }
 
-// GetByAddress retrieves a wallet by its chain type and address
-func (s *walletService) GetByAddress(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
+// GetWalletByAddress retrieves a wallet by its chain type and address
+func (s *walletService) GetWalletByAddress(ctx context.Context, chainType types.ChainType, address string) (*Wallet, error) {
 	if chainType == "" {
 		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -344,8 +344,8 @@ func (s *walletService) GetByAddress(ctx context.Context, chainType types.ChainT
 	return wallet, nil
 }
 
-// List retrieves a paginated list of non-deleted wallets
-func (s *walletService) List(ctx context.Context, limit int, nextToken string) (*types.Page[*Wallet], error) {
+// ListWallets retrieves a paginated list of non-deleted wallets
+func (s *walletService) ListWallets(ctx context.Context, limit int, nextToken string) (*types.Page[*Wallet], error) {
 	// Only apply default limit for negative values, pass limit=0 to get all items
 	if limit < 0 {
 		limit = 10
@@ -354,8 +354,8 @@ func (s *walletService) List(ctx context.Context, limit int, nextToken string) (
 	return s.repository.List(ctx, limit, nextToken)
 }
 
-// Exists checks if a wallet exists by its chain type and address
-func (s *walletService) Exists(ctx context.Context, chainType types.ChainType, address string) (bool, error) {
+// WalletExists checks if a wallet exists by its chain type and address
+func (s *walletService) WalletExists(ctx context.Context, chainType types.ChainType, address string) (bool, error) {
 	if chainType == "" {
 		return false, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}
@@ -375,8 +375,8 @@ func (s *walletService) Exists(ctx context.Context, chainType types.ChainType, a
 	return s.repository.Exists(ctx, chainType, address)
 }
 
-// GetByID retrieves a wallet by its unique identifier
-func (s *walletService) GetByID(ctx context.Context, id int64) (*Wallet, error) {
+// GetWalletByID retrieves a wallet by its unique identifier
+func (s *walletService) GetWalletByID(ctx context.Context, id int64) (*Wallet, error) {
 	if id == 0 {
 		return nil, errors.NewInvalidInputError("ID is required", "id", "0")
 	}
@@ -447,8 +447,8 @@ func (s *walletService) ActivateToken(ctx context.Context, chainType types.Chain
 	return nil
 }
 
-// GetWalletsByKeyID retrieves all non-deleted wallets associated with a specific keystore key ID.
-func (s *walletService) GetWalletsByKeyID(ctx context.Context, keyID string) ([]*Wallet, error) {
+// FindWalletsByKeyID retrieves all non-deleted wallets associated with a specific keystore key ID.
+func (s *walletService) FindWalletsByKeyID(ctx context.Context, keyID string) ([]*Wallet, error) {
 	if keyID == "" {
 		return nil, errors.NewInvalidInputError("Key ID cannot be empty", "key_id", "")
 	}

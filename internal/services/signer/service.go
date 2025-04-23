@@ -10,31 +10,31 @@ import (
 
 // Service defines the signer management operations interface
 type Service interface {
-	// Create creates a new signer with the given name and type
+	// CreateSigner creates a new signer with the given name and type
 	// If it's an internal signer, userID must be provided
 	// Returns an error if the operation fails
-	Create(ctx context.Context, name string, signerType SignerType, userID *int64) (*Signer, error)
+	CreateSigner(ctx context.Context, name string, signerType SignerType, userID *int64) (*Signer, error)
 
-	// Update modifies an existing signer's information
+	// UpdateSigner modifies an existing signer's information
 	// Returns an error if the signer doesn't exist or the operation fails
-	Update(ctx context.Context, id int64, name string, signerType SignerType, userID *int64) (*Signer, error)
+	UpdateSigner(ctx context.Context, id int64, name string, signerType SignerType, userID *int64) (*Signer, error)
 
-	// Delete removes a signer by ID
+	// DeleteSigner removes a signer by ID
 	// Returns an error if the signer doesn't exist or the operation fails
-	Delete(ctx context.Context, id int64) error
+	DeleteSigner(ctx context.Context, id int64) error
 
-	// Get retrieves a signer by ID
+	// GetSignerByID retrieves a signer by ID
 	// Returns an error if the signer doesn't exist or the operation fails
-	Get(ctx context.Context, id int64) (*Signer, error)
+	GetSignerByID(ctx context.Context, id int64) (*Signer, error)
 
-	// GetByUserID retrieves all signers for a user
+	// FindSignersByUserID retrieves all signers for a user
 	// Returns an empty slice if no signers are found
-	GetByUserID(ctx context.Context, userID int64) ([]*Signer, error)
+	FindSignersByUserID(ctx context.Context, userID int64) ([]*Signer, error)
 
-	// List returns a paginated collection of signers
+	// ListSigners returns a paginated collection of signers
 	// Default limit is 10 if limit < 1
 	// nextToken is used for token-based pagination (empty string for first page)
-	List(ctx context.Context, limit int, nextToken string) (*types.Page[*Signer], error)
+	ListSigners(ctx context.Context, limit int, nextToken string) (*types.Page[*Signer], error)
 
 	// AddAddress creates a new address for a signer
 	// Returns an error if the signer doesn't exist or the operation fails
@@ -63,8 +63,8 @@ func NewService(log logger.Logger, repository Repository) Service {
 	}
 }
 
-// Create creates a new signer
-func (s *service) Create(ctx context.Context, name string, signerType SignerType, userID *int64) (*Signer, error) {
+// CreateSigner creates a new signer
+func (s *service) CreateSigner(ctx context.Context, name string, signerType SignerType, userID *int64) (*Signer, error) {
 	// Validate input
 	if name == "" {
 		return nil, errors.NewInvalidInputError("Name is required", "name", "")
@@ -102,8 +102,8 @@ func (s *service) Create(ctx context.Context, name string, signerType SignerType
 	return signer, nil
 }
 
-// Update modifies an existing signer
-func (s *service) Update(ctx context.Context, id int64, name string, signerType SignerType, userID *int64) (*Signer, error) {
+// UpdateSigner modifies an existing signer
+func (s *service) UpdateSigner(ctx context.Context, id int64, name string, signerType SignerType, userID *int64) (*Signer, error) {
 	// Validate input
 	if id == 0 {
 		return nil, errors.NewInvalidInputError("Signer ID is required", "id", 0)
@@ -149,8 +149,8 @@ func (s *service) Update(ctx context.Context, id int64, name string, signerType 
 	return signer, nil
 }
 
-// Delete removes a signer
-func (s *service) Delete(ctx context.Context, id int64) error {
+// DeleteSigner removes a signer
+func (s *service) DeleteSigner(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errors.NewInvalidInputError("Signer ID is required", "id", 0)
 	}
@@ -168,8 +168,8 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// Get retrieves a signer by ID
-func (s *service) Get(ctx context.Context, id int64) (*Signer, error) {
+// GetSignerByID retrieves a signer by ID
+func (s *service) GetSignerByID(ctx context.Context, id int64) (*Signer, error) {
 	if id == 0 {
 		return nil, errors.NewInvalidInputError("Signer ID is required", "id", 0)
 	}
@@ -182,8 +182,8 @@ func (s *service) Get(ctx context.Context, id int64) (*Signer, error) {
 	return signer, nil
 }
 
-// GetByUserID retrieves all signers for a user
-func (s *service) GetByUserID(ctx context.Context, userID int64) ([]*Signer, error) {
+// FindSignersByUserID retrieves all signers for a user
+func (s *service) FindSignersByUserID(ctx context.Context, userID int64) ([]*Signer, error) {
 	if userID == 0 {
 		return nil, errors.NewInvalidInputError("User ID is required", "user_id", 0)
 	}
@@ -196,8 +196,8 @@ func (s *service) GetByUserID(ctx context.Context, userID int64) ([]*Signer, err
 	return signers, nil
 }
 
-// List returns a paginated collection of signers
-func (s *service) List(ctx context.Context, limit int, nextToken string) (*types.Page[*Signer], error) {
+// ListSigners returns a paginated collection of signers
+func (s *service) ListSigners(ctx context.Context, limit int, nextToken string) (*types.Page[*Signer], error) {
 	// Apply default pagination values if not specified
 	// if limit <= 0, use default limit of 10
 	if limit <= 0 {

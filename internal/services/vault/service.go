@@ -174,7 +174,7 @@ func (s *service) CreateVault(
 	whitelistedTokens []string,
 ) (*Vault, error) {
 
-	walletInfo, err := s.walletService.GetByID(ctx, walletID)
+	walletInfo, err := s.walletService.GetWalletByID(ctx, walletID)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +319,7 @@ func (s *service) ExecuteRecovery(ctx context.Context, vaultID int64) (string, e
 	}
 
 	// Fetch wallet to get the address for signing
-	walletInfo, err := s.walletService.GetByID(ctx, vault.WalletID)
+	walletInfo, err := s.walletService.GetWalletByID(ctx, vault.WalletID)
 	if err != nil {
 		s.log.Error("Failed to get signing wallet for ExecuteRecovery", logger.Int64("vault_id", vaultID), logger.Error(err))
 		return "", errors.NewOperationFailedError("get_signing_wallet", err)
@@ -443,7 +443,7 @@ func (s *service) AddSupportedToken(ctx context.Context, vaultID int64, tokenAdd
 		return "", err
 	}
 
-	walletInfo, err := s.walletService.GetByID(ctx, vault.WalletID)
+	walletInfo, err := s.walletService.GetWalletByID(ctx, vault.WalletID)
 	if err != nil {
 		return "", err
 	}
@@ -529,7 +529,7 @@ func (s *service) RemoveSupportedToken(ctx context.Context, vaultID int64, token
 		return "", err
 	}
 
-	walletInfo, err := s.walletService.GetByID(ctx, vault.WalletID)
+	walletInfo, err := s.walletService.GetWalletByID(ctx, vault.WalletID)
 	if err != nil {
 		return "", err
 	}
@@ -615,7 +615,7 @@ func (s *service) StartRecovery(ctx context.Context, vaultID int64) (string, err
 	}
 
 	// Fetch wallet to get the address for signing
-	walletInfo, err := s.walletService.GetByID(ctx, vault.WalletID)
+	walletInfo, err := s.walletService.GetWalletByID(ctx, vault.WalletID)
 	if err != nil {
 		s.log.Error("Failed to get signing wallet for StartRecovery", logger.Int64("vault_id", vaultID), logger.Error(err))
 		return "", errors.NewOperationFailedError("get_signing_wallet", err)
@@ -710,7 +710,7 @@ func (s *service) CancelRecovery(ctx context.Context, vaultID int64) (string, er
 	}
 
 	// Fetch wallet to get the address for signing
-	walletInfo, err := s.walletService.GetByID(ctx, vault.WalletID)
+	walletInfo, err := s.walletService.GetWalletByID(ctx, vault.WalletID)
 	if err != nil {
 		s.log.Error("Failed to get signing wallet for CancelRecovery", logger.Int64("vault_id", vaultID), logger.Error(err))
 		return "", errors.NewOperationFailedError("get_signing_wallet", err)

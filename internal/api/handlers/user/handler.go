@@ -60,7 +60,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	createdUser, err := h.userService.Create(c.Request.Context(), req.Email, req.Password)
+	createdUser, err := h.userService.CreateUser(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
 		c.Error(err)
 		return
@@ -95,7 +95,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	updatedUser, err := h.userService.Update(c.Request.Context(), id, req.Email, req.Password)
+	updatedUser, err := h.userService.UpdateUser(c.Request.Context(), id, req.Email, req.Password)
 	if err != nil {
 		c.Error(err)
 		return
@@ -121,7 +121,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.userService.Delete(c.Request.Context(), id); err != nil {
+	if err := h.userService.DeleteUser(c.Request.Context(), id); err != nil {
 		c.Error(err)
 		return
 	}
@@ -147,7 +147,7 @@ func (h *Handler) GetUser(c *gin.Context) {
 		return
 	}
 
-	foundUser, err := h.userService.Get(c.Request.Context(), id)
+	foundUser, err := h.userService.GetUserByID(c.Request.Context(), id)
 	if err != nil {
 		c.Error(err)
 		return
@@ -179,7 +179,7 @@ func (h *Handler) ListUsers(c *gin.Context) {
 		limit = *req.Limit
 	}
 
-	page, err := h.userService.List(c.Request.Context(), limit, req.NextToken)
+	page, err := h.userService.ListUsers(c.Request.Context(), limit, req.NextToken)
 	if err != nil {
 		c.Error(err)
 		return
