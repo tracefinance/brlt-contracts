@@ -60,7 +60,7 @@ type Service interface {
 	//   - *types.Page[*Vault]: A paginated response containing a list of Vaults and a next token.
 	//   - error: An error if the database query fails.
 	ListVaults(ctx context.Context, filter VaultFilter, limit int, nextToken string) (*types.Page[*Vault], error)
-	// UpdateVaultName modifies the name of an existing vault.
+	// UpdateVault modifies the name of an existing vault.
 	// Parameters:
 	//   - ctx: The context for the request.
 	//   - vaultID: The ID of the vault to update.
@@ -68,7 +68,7 @@ type Service interface {
 	// Returns:
 	//   - *Vault: The updated Vault details.
 	//   - error: An error if the vault is not found, the name is invalid, or the DB update fails.
-	UpdateVaultName(ctx context.Context, vaultID int64, newName string) (*Vault, error)
+	UpdateVault(ctx context.Context, vaultID int64, newName string) (*Vault, error)
 	// AddSupportedToken adds a token address to the vault's whitelist on the smart contract.
 	// Parameters:
 	//   - ctx: The context for the request.
@@ -408,7 +408,7 @@ func (s *service) ListVaults(ctx context.Context, filter VaultFilter, limit int,
 	return page, nil
 }
 
-func (s *service) UpdateVaultName(ctx context.Context, vaultID int64, newName string) (*Vault, error) {
+func (s *service) UpdateVault(ctx context.Context, vaultID int64, newName string) (*Vault, error) {
 	if newName == "" {
 		return nil, errors.NewMissingParameterError("newName")
 	}
