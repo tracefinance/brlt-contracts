@@ -28,8 +28,8 @@ func NewHandler(service vault.Service, log logger.Logger) *Handler {
 	}
 }
 
-// RegisterRoutes configures routes for vault management
-func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
+// SetupRoutes configures routes for vault management
+func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	// Create error handler middleware
 	errorHandler := middleares.NewErrorHandler(nil)
 

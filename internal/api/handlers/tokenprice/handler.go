@@ -27,8 +27,8 @@ func NewHandler(svc tokensvc.Service, log logger.Logger) *Handler {
 	}
 }
 
-// RegisterRoutes registers the token price API routes with the Gin engine.
-func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
+// SetupRoutes registers the token price API routes with the Gin engine.
+func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	group := router.Group("/token-prices")
 	{
 		group.GET("", h.ListTokenPrices)
