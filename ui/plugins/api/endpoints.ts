@@ -62,4 +62,15 @@ export const API_ENDPOINTS = {
     IMPORT: '/keys/import',
     SIGN: (id: string) => `/keys/${id}/sign`,
   },
+  
+  // Vault endpoints
+  VAULTS: {
+    BASE: '/vaults',
+    BY_ID: (id: number) => `/vaults/${id}`,
+    TOKENS: (id: number) => `/vaults/${id}/tokens`,
+    TOKEN_BY_ADDRESS: (id: number, address: string) => `/vaults/${id}/tokens/${address}`,
+    RECOVERY_START: (id: number) => `/vaults/${id}/recovery/start`,
+    RECOVERY_CANCEL: (id: number) => `/vaults/${id}/recovery/cancel`,
+    RECOVERY_EXECUTE: (id: number) => `/vaults/${id}/recovery/execute`
+  },
 };

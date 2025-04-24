@@ -8,5 +8,6 @@ export * from './signer';
 export * from './user';
 export * from './key';
 export * from './common';
+export * from './vault';
 
 // Ensure new types are explicitly exported if needed, but '*' should cover it.

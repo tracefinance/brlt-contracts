@@ -7,6 +7,7 @@ import { ReferenceClient } from './reference';
 import { SignerClient } from './signer';
 import { UserClient } from './user';
 import { KeyClient } from './key';
+import { VaultClient } from './vault';
 
 /**
  * API service that provides access to all API clients
@@ -58,6 +59,7 @@ export default defineNuxtPlugin(() => {
   const signerClient = new SignerClient(apiClient);
   const userClient = new UserClient(apiClient);
   const keyClient = new KeyClient(apiClient);
+  const vaultClient = new VaultClient(apiClient);
   
   return {
     provide: {
@@ -68,7 +70,8 @@ export default defineNuxtPlugin(() => {
         user: userClient,
         signer: signerClient,
         reference: referenceClient,
-        key: keyClient
+        key: keyClient,
+        vault: vaultClient
       }
     }
   };

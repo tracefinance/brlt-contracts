@@ -214,7 +214,7 @@ func (h *Handler) GetVault(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "Vault ID"
-// @Param request body UpdateVaultNameRequest true "Vault update parameters"
+// @Param request body UpdateVaultRequest true "Vault update parameters"
 // @Success 200 {object} VaultResponse
 // @Failure 400 {object} errors.Vault0Error "Invalid request"
 // @Failure 404 {object} errors.Vault0Error "Vault not found"
@@ -234,7 +234,7 @@ func (h *Handler) UpdateVault(c *gin.Context) {
 
 	var req UpdateVaultRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.log.Error("Failed to bind JSON for UpdateVaultNameRequest",
+		h.log.Error("Failed to bind JSON for UpdateVaultRequest",
 			logger.Error(err),
 			logger.Int64("vault_id", id))
 		c.Error(errors.NewValidationError(map[string]any{
