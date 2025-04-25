@@ -10,6 +10,7 @@ import (
 	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/keystore"
 	"vault0/internal/core/tokenstore"
+	coretx "vault0/internal/core/transaction"
 	coreWallet "vault0/internal/core/wallet"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
@@ -159,6 +160,7 @@ type walletService struct {
 	chains               *types.Chains
 	txService            transaction.Service
 	txRepository         transaction.Repository
+	txMonitor            coretx.Monitor
 	blockExplorerFactory blockexplorer.Factory
 	mu                   sync.RWMutex
 
@@ -183,6 +185,7 @@ func NewService(
 	chains *types.Chains,
 	txService transaction.Service,
 	txRepository transaction.Repository,
+	txMonitor coretx.Monitor,
 	blockExplorerFactory blockexplorer.Factory,
 ) Service {
 	return &walletService{
@@ -196,6 +199,7 @@ func NewService(
 		chains:               chains,
 		txService:            txService,
 		txRepository:         txRepository,
+		txMonitor:            txMonitor,
 		blockExplorerFactory: blockExplorerFactory,
 		mu:                   sync.RWMutex{},
 	}

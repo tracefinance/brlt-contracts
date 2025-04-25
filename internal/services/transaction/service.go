@@ -2,10 +2,8 @@ package transaction
 
 import (
 	"context"
-	"sync"
 
 	"vault0/internal/config"
-	"vault0/internal/core/blockchain"
 	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/tokenstore"
 	"vault0/internal/errors"
@@ -34,16 +32,9 @@ type transactionService struct {
 	repository           Repository
 	tokenStore           tokenstore.TokenStore
 	blockExplorerFactory blockexplorer.Factory
-	blockchainRegistry   blockchain.Registry
 	chains               *types.Chains
-	eventCtx             context.Context
-	eventCancel          context.CancelFunc
 	pendingPollingCtx    context.Context
 	pendingPollingCancel context.CancelFunc
-	transactionEvents    chan *types.Transaction
-	// In-memory store for addresses to monitor
-	monitoredAddresses map[types.ChainType]map[string]struct{}
-	addressMutex       sync.RWMutex
 }
 
 // NewService creates a new transaction service
@@ -53,21 +44,15 @@ func NewService(
 	repository Repository,
 	tokenStore tokenstore.TokenStore,
 	blockExplorerFactory blockexplorer.Factory,
-	blockchainRegistry blockchain.Registry,
 	chains *types.Chains,
 ) Service {
-	const channelBufferSize = 100
 	return &transactionService{
 		config:               config,
 		log:                  log,
 		repository:           repository,
 		tokenStore:           tokenStore,
 		blockExplorerFactory: blockExplorerFactory,
-		blockchainRegistry:   blockchainRegistry,
 		chains:               chains,
-		transactionEvents:    make(chan *types.Transaction, channelBufferSize),
-		// Initialize the monitored addresses map
-		monitoredAddresses: make(map[types.ChainType]map[string]struct{}),
 	}
 }
 

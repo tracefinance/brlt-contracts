@@ -10,6 +10,7 @@ import (
 	"vault0/internal/core/keystore"
 	"vault0/internal/core/pricefeed"
 	"vault0/internal/core/tokenstore"
+	"vault0/internal/core/transaction"
 	"vault0/internal/core/wallet"
 	"vault0/internal/db"
 	"vault0/internal/logger"
@@ -34,6 +35,7 @@ var CoreSet = wire.NewSet(
 	contract.NewFactory,
 	types.NewChains,
 	pricefeed.NewPriceFeed,
+	transaction.NewMonitor,
 	NewCore,
 )
 
@@ -50,6 +52,7 @@ type Core struct {
 	ContractFactory      contract.Factory
 	BlockExplorerFactory blockexplorer.Factory
 	PriceFeed            pricefeed.PriceFeed
+	TransactionMonitor   transaction.Monitor
 }
 
 // NewCore creates a new Core instance with all core dependencies
@@ -65,6 +68,7 @@ func NewCore(
 	contractFactory contract.Factory,
 	blockExplorerFactory blockexplorer.Factory,
 	priceFeed pricefeed.PriceFeed,
+	transactionMonitor transaction.Monitor,
 ) *Core {
 	return &Core{
 		Config:               config,
@@ -78,5 +82,6 @@ func NewCore(
 		ContractFactory:      contractFactory,
 		BlockExplorerFactory: blockExplorerFactory,
 		PriceFeed:            priceFeed,
+		TransactionMonitor:   transactionMonitor,
 	}
 }

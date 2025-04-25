@@ -53,7 +53,7 @@ func main() {
 	defer cancel()
 
 	// Start transaction event subscriptions
-	container.Services.TransactionService.SubscribeToTransactionEvents(ctx)
+	container.Core.TransactionMonitor.SubscribeToTransactionEvents(ctx)
 
 	// Start pending transaction polling
 	container.Services.TransactionService.StartPendingTransactionPolling(ctx)
@@ -101,7 +101,7 @@ func main() {
 
 	// Unsubscribe from transaction events first to close the channel
 	// before any services that might use it
-	container.Services.TransactionService.UnsubscribeFromTransactionEvents()
+	container.Core.TransactionMonitor.UnsubscribeFromTransactionEvents()
 
 	// Stop pending transaction polling
 	container.Services.TransactionService.StopPendingTransactionPolling()

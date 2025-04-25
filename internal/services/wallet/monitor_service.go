@@ -40,7 +40,7 @@ func (s *walletService) StartTransactionMonitoring(ctx context.Context) error {
 	s.monitorCtx, s.monitorCancel = context.WithCancel(context.Background())
 
 	// Start transaction event subscription if not already started
-	s.txService.SubscribeToTransactionEvents(s.monitorCtx)
+	s.txMonitor.SubscribeToTransactionEvents(s.monitorCtx)
 
 	// Get all active wallets
 	wallets, err := s.repository.List(ctx, 0, "") // Get all wallets
@@ -97,7 +97,7 @@ func (s *walletService) monitorAddress(ctx context.Context, chainType types.Chai
 		return err
 	}
 
-	if err := s.txService.MonitorAddress(ctx, addr); err != nil {
+	if err := s.txMonitor.MonitorAddress(ctx, addr); err != nil {
 		return err
 	}
 
@@ -116,7 +116,7 @@ func (s *walletService) unmonitorAddress(ctx context.Context, chainType types.Ch
 		return err
 	}
 
-	if err := s.txService.UnmonitorAddress(ctx, addr); err != nil {
+	if err := s.txMonitor.UnmonitorAddress(ctx, addr); err != nil {
 		return err
 	}
 
@@ -130,7 +130,7 @@ func (s *walletService) unmonitorAddress(ctx context.Context, chainType types.Ch
 // processTransactionEvents listens for transaction events and processes them
 func (s *walletService) processTransactionEvents(ctx context.Context) {
 	// Get the transaction events channel
-	txEventsChan := s.txService.TransactionEvents()
+	txEventsChan := s.txMonitor.TransactionEvents()
 
 	for {
 		select {
