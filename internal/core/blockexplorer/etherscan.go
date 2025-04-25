@@ -220,10 +220,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 					logger.String("result", string(response.Result)),
 				)
 				// Calculate exponential backoff delay
-				backoffDelay := baseRetryDelay * time.Duration(1<<uint(attempt+2)) // More aggressive backoff for rate limits
-				if backoffDelay > 15*time.Second {
-					backoffDelay = 15 * time.Second // Cap at 15 seconds for rate limits
-				}
+				backoffDelay := min(baseRetryDelay*time.Duration(1<<uint(attempt+2)), 15*time.Second)
 				time.Sleep(backoffDelay)
 				continue
 			}
@@ -351,6 +348,13 @@ func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, add
 			}
 		}
 
+		// Determine transaction type
+		txType := types.TransactionTypeNative
+		// If to is empty or contractAddress is not empty, it's a contract deployment transaction
+		if (tx.To == "" || tx.To == "0x") && tx.ContractAddress != "" {
+			txType = types.TransactionTypeDeploy
+		}
+
 		result[i] = &types.Transaction{
 			Chain:        e.chain.Type,
 			Hash:         tx.Hash,
@@ -361,7 +365,7 @@ func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, add
 			Nonce:        nonce,
 			GasPrice:     gasPrice,
 			GasLimit:     gasLimit,
-			Type:         types.TransactionTypeNative,
+			Type:         txType,
 			TokenAddress: tx.ContractAddress,
 			Status:       types.TransactionStatus(map[string]string{"0": "success", "1": "failed"}[tx.IsError]),
 			Timestamp:    timestamp,

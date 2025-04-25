@@ -2,6 +2,15 @@
 import { fromJson } from './model';
 
 /**
+ * Types of transactions
+ */
+export enum TransactionType {
+  NATIVE = 'native',
+  ERC20 = 'erc20',
+  DEPLOY = 'deploy'
+}
+
+/**
  * Interface representing a transaction
  */
 export interface ITransaction {

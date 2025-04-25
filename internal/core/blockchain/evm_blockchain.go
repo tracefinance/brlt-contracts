@@ -868,6 +868,13 @@ func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethTypes.Tra
 		to = tx.To().Hex()
 	}
 
+	// Determine transaction type
+	txType := types.TransactionTypeNative
+	// If to is empty and has data, it's a contract deployment transaction
+	if to == "" && len(tx.Data()) > 0 {
+		txType = types.TransactionTypeDeploy
+	}
+
 	return &types.Transaction{
 		Chain:     c.chain.Type,
 		Hash:      tx.Hash().Hex(),
@@ -879,7 +886,7 @@ func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethTypes.Tra
 		GasPrice:  tx.GasPrice(),
 		GasLimit:  tx.Gas(),
 		GasUsed:   gasUsed,
-		Type:      types.TransactionTypeNative,
+		Type:      txType,
 		Status:    status,
 		Timestamp: int64(timestamp),
 	}
@@ -1030,6 +1037,13 @@ func (c *EVMBlockchain) convertEthereumBlockToBlock(block *ethTypes.Block) *type
 			to = tx.To().Hex()
 		}
 
+		// Determine transaction type
+		txType := types.TransactionTypeNative
+		// If to is empty and has data, it's a contract deployment transaction
+		if to == "" && len(tx.Data()) > 0 {
+			txType = types.TransactionTypeDeploy
+		}
+
 		transactions[i] = &types.Transaction{
 			Chain:     c.chain.Type,
 			Hash:      tx.Hash().Hex(),
@@ -1040,7 +1054,7 @@ func (c *EVMBlockchain) convertEthereumBlockToBlock(block *ethTypes.Block) *type
 			Nonce:     tx.Nonce(),
 			GasPrice:  tx.GasPrice(),
 			GasLimit:  tx.Gas(),
-			Type:      types.TransactionTypeNative,
+			Type:      txType,
 			Status:    types.TransactionStatusMined, // Mined but detailed status unknown without receipt
 			Timestamp: int64(block.Time()),
 		}

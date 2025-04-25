@@ -13,9 +13,9 @@ type TransactionType string
 
 // Supported transaction types
 const (
-	TransactionTypeNative   TransactionType = "native"
-	TransactionTypeERC20    TransactionType = "erc20"
-	TransactionTypeContract TransactionType = "contract"
+	TransactionTypeNative TransactionType = "native"
+	TransactionTypeERC20  TransactionType = "erc20"
+	TransactionTypeDeploy TransactionType = "deploy"
 )
 
 // TransactionStatus represents the status of a transaction in the blockchain
