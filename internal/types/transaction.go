@@ -16,6 +16,8 @@ const (
 	TransactionTypeNative TransactionType = "native"
 	TransactionTypeERC20  TransactionType = "erc20"
 	TransactionTypeDeploy TransactionType = "deploy"
+	// TransactionTypeContractCall represents a generic smart contract method call
+	TransactionTypeContractCall TransactionType = "contract_call"
 )
 
 // TransactionStatus represents the status of a transaction in the blockchain
