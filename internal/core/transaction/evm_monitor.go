@@ -5,7 +5,6 @@ import (
 	"math/big"
 	"strings"
 	"sync"
-	"time"
 
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/tokenstore"
@@ -28,6 +27,9 @@ type evmMonitor struct {
 	monitoredAddresses map[types.ChainType]map[string]struct{}
 	addressMutex       sync.RWMutex
 
+	// Contract subscription registry
+	subscriptionRegistry *SubscriptionRegistry
+
 	// Context for event subscription
 	eventCtx    context.Context
 	eventCancel context.CancelFunc
@@ -41,12 +43,13 @@ func NewEVMMonitor(
 	chains *types.Chains,
 ) Monitor {
 	return &evmMonitor{
-		log:                log,
-		blockchainRegistry: blockchainRegistry,
-		tokenStore:         tokenStore,
-		chains:             chains,
-		transactionEvents:  make(chan *types.Transaction, 100), // Buffer size
-		monitoredAddresses: make(map[types.ChainType]map[string]struct{}),
+		log:                  log,
+		blockchainRegistry:   blockchainRegistry,
+		tokenStore:           tokenStore,
+		chains:               chains,
+		transactionEvents:    make(chan *types.Transaction, 100), // Buffer size
+		monitoredAddresses:   make(map[types.ChainType]map[string]struct{}),
+		subscriptionRegistry: NewSubscriptionRegistry(),
 	}
 }
 
@@ -125,6 +128,213 @@ func (s *evmMonitor) UnmonitorAddress(ctx context.Context, addr *types.Address) 
 	return nil
 }
 
+// MonitorContractAddress adds a contract address to monitor for specific events
+func (s *evmMonitor) MonitorContractAddress(ctx context.Context, addr *types.Address, events []string) error {
+	if addr == nil {
+		return errors.NewInvalidInputError("Address cannot be nil", "address", nil)
+	}
+	if err := addr.Validate(); err != nil {
+		return err
+	}
+
+	// Require at least one event to be specified
+	if len(events) == 0 {
+		return errors.NewInvalidInputError("At least one event must be specified", "events", nil)
+	}
+
+	normalizedAddr := strings.ToLower(addr.Address) // Normalize for consistent lookup
+	chainType := addr.ChainType
+
+	// Get existing subscription or create a new one
+	existingSub := s.subscriptionRegistry.GetSubscription(chainType, normalizedAddr)
+
+	// Create event map
+	eventMap := make(map[string]struct{})
+	if existingSub != nil {
+		// Copy existing events
+		for event := range existingSub.Events {
+			eventMap[event] = struct{}{}
+		}
+	}
+
+	// Add new events
+	updated := false
+	for _, event := range events {
+		if _, exists := eventMap[event]; !exists {
+			eventMap[event] = struct{}{}
+			updated = true
+		}
+	}
+
+	if !updated && existingSub != nil {
+		s.log.Debug("Contract already monitored with these events",
+			logger.String("address", addr.Address),
+			logger.String("chain_type", string(chainType)))
+		return nil
+	}
+
+	// Create or update subscription
+	sub := &ContractSubscription{
+		ChainType:    chainType,
+		ContractAddr: normalizedAddr,
+		Events:       eventMap,
+	}
+
+	// Cancel existing subscription if any
+	if existingSub != nil && existingSub.CancelFunc != nil {
+		existingSub.CancelFunc()
+	}
+
+	// Store the new subscription
+	s.subscriptionRegistry.AddOrUpdateSubscription(sub)
+
+	s.log.Info("Added contract to monitoring list with events",
+		logger.String("address", addr.Address),
+		logger.String("chain_type", string(chainType)),
+		logger.Int("event_count", len(eventMap)))
+
+	// Start new subscription if we have an active event context
+	if s.eventCtx != nil {
+		s.startContractSubscription(chainType, normalizedAddr)
+	}
+
+	return nil
+}
+
+// UnmonitorContractAddress removes a contract address from the monitoring list
+func (s *evmMonitor) UnmonitorContractAddress(ctx context.Context, addr *types.Address) error {
+	if addr == nil {
+		return errors.NewInvalidInputError("Address cannot be nil", "address", nil)
+	}
+	if err := addr.Validate(); err != nil {
+		return err
+	}
+
+	normalizedAddr := strings.ToLower(addr.Address) // Normalize for consistent lookup
+	chainType := addr.ChainType
+
+	// Get existing subscription
+	existingSub := s.subscriptionRegistry.GetSubscription(chainType, normalizedAddr)
+	if existingSub == nil {
+		s.log.Debug("Contract not found in monitoring list for removal",
+			logger.String("address", addr.Address),
+			logger.String("chain_type", string(chainType)))
+		return nil
+	}
+
+	// Cancel subscription if active
+	if existingSub.CancelFunc != nil {
+		existingSub.CancelFunc()
+	}
+
+	// Remove from registry
+	s.subscriptionRegistry.RemoveSubscription(chainType, normalizedAddr)
+
+	s.log.Info("Removed contract from monitoring list",
+		logger.String("address", addr.Address),
+		logger.String("chain_type", string(chainType)))
+
+	return nil
+}
+
+// startContractSubscription starts a new subscription for a contract
+func (s *evmMonitor) startContractSubscription(chainType types.ChainType, contractAddr string) {
+	// Get the chain configuration
+	chain, exists := s.chains.Chains[chainType]
+	if !exists {
+		s.log.Warn("Cannot start contract subscription, chain not found",
+			logger.String("chain_type", string(chainType)))
+		return
+	}
+
+	// Get the subscription
+	sub := s.subscriptionRegistry.GetSubscription(chainType, contractAddr)
+	if sub == nil {
+		s.log.Warn("Cannot start contract subscription, subscription not found",
+			logger.String("chain_type", string(chainType)),
+			logger.String("contract_addr", contractAddr))
+		return
+	}
+
+	// Convert event set to slice
+	eventSigs := make([]string, 0, len(sub.Events))
+	for event := range sub.Events {
+		eventSigs = append(eventSigs, event)
+	}
+
+	if len(eventSigs) == 0 {
+		s.log.Warn("No events to monitor for contract, skipping subscription",
+			logger.String("chain_type", string(chainType)),
+			logger.String("contract_addr", contractAddr))
+		return
+	}
+
+	// Create a context for this subscription
+	subCtx, cancel := context.WithCancel(s.eventCtx)
+	sub.CancelFunc = cancel
+
+	// Update the subscription in registry with cancel function
+	s.subscriptionRegistry.AddOrUpdateSubscription(sub)
+
+	// Get blockchain client
+	client, err := s.blockchainRegistry.GetBlockchain(chainType)
+	if err != nil {
+		s.log.Error("Failed to get blockchain client for contract subscription",
+			logger.String("chain_type", string(chainType)),
+			logger.Error(err))
+		return
+	}
+
+	s.log.Info("Starting contract event subscriptions",
+		logger.String("chain_type", string(chainType)),
+		logger.String("contract_addr", contractAddr),
+		logger.Int("event_count", len(eventSigs)))
+
+	// Start a goroutine for each event
+	for _, eventSig := range eventSigs {
+		go func(eventSignature string) {
+			// Subscribe to contract events
+			logCh, errCh, err := client.SubscribeContractLogs(
+				subCtx,
+				[]string{contractAddr},
+				eventSignature,
+				nil, // No specific args filter
+				0,   // Start from recent blocks
+			)
+
+			if err != nil {
+				s.log.Error("Failed to subscribe to contract event",
+					logger.String("chain_type", string(chainType)),
+					logger.String("contract_addr", contractAddr),
+					logger.String("event_signature", eventSignature),
+					logger.Error(err))
+				return
+			}
+
+			// Process the logs
+			for {
+				select {
+				case <-subCtx.Done():
+					s.log.Info("Contract event subscription stopped",
+						logger.String("chain_type", string(chainType)),
+						logger.String("contract_addr", contractAddr),
+						logger.String("event_signature", eventSignature))
+					return
+				case err := <-errCh:
+					s.log.Warn("Contract event subscription error",
+						logger.String("chain_type", string(chainType)),
+						logger.String("contract_addr", contractAddr),
+						logger.String("event_signature", eventSignature),
+						logger.Error(err))
+				case log := <-logCh:
+					// Process the log based on event signature
+					s.processContractEventLog(subCtx, chain, log, eventSignature)
+				}
+			}
+		}(eventSig)
+	}
+}
+
 // SubscribeToTransactionEvents starts listening for new blocks and processing transactions
 func (s *evmMonitor) SubscribeToTransactionEvents(ctx context.Context) {
 	s.eventCtx, s.eventCancel = context.WithCancel(ctx)
@@ -134,16 +344,20 @@ func (s *evmMonitor) SubscribeToTransactionEvents(ctx context.Context) {
 		// Start a goroutine for each chain to subscribe to new blocks
 		go s.subscribeToChainBlocks(s.eventCtx, chain)
 
-		// Start a goroutine for each chain to subscribe to ERC20 transfers
-		go s.subscribeToERC20Transfers(s.eventCtx, chain)
+		// Start subscriptions for all monitored contracts on this chain
+		subs := s.subscriptionRegistry.GetSubscriptionsForChain(chain.Type)
+		for _, sub := range subs {
+			go s.startContractSubscription(chain.Type, sub.ContractAddr)
+		}
 	}
-
-	// Subscribe to token events to dynamically update ERC20 token subscriptions
-	go s.subscribeToTokenEvents(s.eventCtx)
 }
 
 // UnsubscribeFromTransactionEvents stops listening for blockchain events
 func (s *evmMonitor) UnsubscribeFromTransactionEvents() {
+	// Cancel all contract subscriptions
+	s.subscriptionRegistry.CancelAllSubscriptions()
+
+	// Cancel the main event context
 	if s.eventCancel != nil {
 		s.eventCancel()
 		s.eventCancel = nil
@@ -360,132 +574,6 @@ func (s *evmMonitor) processERC20TransferLog(ctx context.Context, chain types.Ch
 	s.emitTransactionEvent(tx)
 }
 
-// subscribeToTokenEvents listens for token event notifications and updates ERC20 subscriptions
-func (s *evmMonitor) subscribeToTokenEvents(ctx context.Context) {
-	tokenEvents := s.tokenStore.TokenEvents()
-	s.log.Info("Started token events subscription")
-
-	for {
-		select {
-		case <-ctx.Done():
-			s.log.Info("Token events subscription stopped")
-			return
-		case event, ok := <-tokenEvents:
-			if !ok {
-				// Channel was closed
-				s.log.Info("Token events channel closed")
-				return
-			}
-
-			// Only react to token added events
-			if event.EventType == tokenstore.TokenEventAdded && event.Token != nil {
-				// Skip native tokens
-				if event.Token.IsNative() {
-					continue
-				}
-
-				s.log.Info("New token added, updating ERC20 subscription",
-					logger.String("symbol", event.Token.Symbol),
-					logger.String("address", event.Token.Address),
-					logger.String("chain", string(event.Token.ChainType)))
-
-				// For simplicity, restart the entire ERC20 subscription for this chain
-				// A more optimized approach would be to add this token to existing subscriptions
-				if chain, exists := s.chains.Chains[event.Token.ChainType]; exists {
-					// Create a new context for the restarted subscription
-					tokenCtx, cancel := context.WithCancel(ctx)
-
-					// Start new subscription
-					go func(chain types.Chain) {
-						s.subscribeToERC20Transfers(tokenCtx, chain)
-					}(chain)
-
-					// Cancel any previous subscription for this chain after a short delay
-					// This ensures we have the new subscription running before canceling the old one
-					go func() {
-						time.Sleep(5 * time.Second)
-						cancel()
-					}()
-				}
-			}
-		}
-	}
-}
-
-// subscribeToERC20Transfers subscribes to ERC20 token transfer events on a specific chain
-func (s *evmMonitor) subscribeToERC20Transfers(ctx context.Context, chain types.Chain) {
-	// Get blockchain client for the chain type
-	client, err := s.blockchainRegistry.GetBlockchain(chain.Type)
-	if err != nil {
-		s.log.Error("Failed to get blockchain client for ERC20 subscription",
-			logger.String("chain_type", string(chain.Type)),
-			logger.Error(err))
-		return
-	}
-
-	// Get tokens from the token store for this chain
-	tokenPage, err := s.tokenStore.ListTokensByChain(ctx, chain.Type, 0, "")
-	if err != nil {
-		s.log.Error("Failed to get tokens for ERC20 subscription",
-			logger.String("chain_type", string(chain.Type)),
-			logger.Error(err))
-		return
-	}
-
-	// Filter out native tokens and collect token addresses
-	var tokenAddresses []string
-	for _, token := range tokenPage.Items {
-		// Skip native tokens (they have empty contract addresses)
-		if token.Address == "" || token.IsNative() {
-			continue
-		}
-		tokenAddresses = append(tokenAddresses, token.Address)
-	}
-
-	// If no token addresses found, log and exit
-	if len(tokenAddresses) == 0 {
-		s.log.Info("No ERC20 tokens found in token store, skipping subscription",
-			logger.String("chain_type", string(chain.Type)))
-		return
-	}
-
-	s.log.Info("Starting ERC20 transfer event subscription",
-		logger.String("chain_type", string(chain.Type)),
-		logger.Int("token_count", len(tokenAddresses)))
-
-	// Subscribe to Transfer events for specific token contracts
-	logCh, errCh, err := client.SubscribeContractLogs(
-		ctx,
-		tokenAddresses,
-		string(types.ERC20TransferEventSignature),
-		nil, // No specific args filter, emitTransactionEvent handles address filtering
-		0,   // Start from recent blocks
-	)
-
-	if err != nil {
-		s.log.Error("Failed to subscribe to ERC20 transfers",
-			logger.String("chain_type", string(chain.Type)),
-			logger.Error(err))
-		return
-	}
-
-	// Process the logs
-	for {
-		select {
-		case <-ctx.Done():
-			s.log.Info("ERC20 subscription stopped",
-				logger.String("chain_type", string(chain.Type)))
-			return
-		case err := <-errCh:
-			s.log.Warn("ERC20 subscription error",
-				logger.String("chain_type", string(chain.Type)),
-				logger.Error(err))
-		case log := <-logCh:
-			s.processERC20TransferLog(ctx, chain, log)
-		}
-	}
-}
-
 // emitTransactionEvent sends a raw transaction to the transaction events channel.
 func (s *evmMonitor) emitTransactionEvent(tx *types.Transaction) {
 	select {
@@ -519,4 +607,67 @@ func (s *evmMonitor) isAddressMonitored(chainType types.ChainType, addresses []s
 	}
 
 	return false
+}
+
+// processContractEventLog processes a contract event log based on its signature
+func (s *evmMonitor) processContractEventLog(ctx context.Context, chain types.Chain, log types.Log, eventSig string) {
+	// Check if this contract/event combination is monitored
+	if !s.isContractMonitored(chain.Type, log.Address, eventSig) {
+		return
+	}
+
+	// Process based on event signature
+	switch eventSig {
+	case string(types.ERC20TransferEventSignature):
+		// Process ERC20 Transfer event
+		s.processERC20TransferLog(ctx, chain, log)
+	// Additional cases for other ERC20 events
+	case string(types.ERC20ApprovalEventSignature):
+		// Process ERC20 Approval event if needed
+		s.log.Debug("Received ERC20 Approval event",
+			logger.String("tx_hash", log.TransactionHash),
+			logger.String("contract", log.Address))
+
+	// Add cases for MultiSig events
+	case string(types.MultiSigDepositedEventSig):
+		s.log.Debug("Received MultiSig Deposited event",
+			logger.String("tx_hash", log.TransactionHash),
+			logger.String("contract", log.Address))
+
+	case string(types.MultiSigWithdrawalRequestedEventSig):
+		s.log.Debug("Received MultiSig WithdrawalRequested event",
+			logger.String("tx_hash", log.TransactionHash),
+			logger.String("contract", log.Address))
+
+	// Add other MultiSig event cases
+	case string(types.MultiSigWithdrawalSignedEventSig),
+		string(types.MultiSigWithdrawalExecutedEventSig),
+		string(types.MultiSigRecoveryRequestedEventSig),
+		string(types.MultiSigRecoveryCancelledEventSig),
+		string(types.MultiSigRecoveryExecutedEventSig),
+		string(types.MultiSigRecoveryCompletedEventSig),
+		string(types.MultiSigTokenSupportedEventSig),
+		string(types.MultiSigTokenRemovedEventSig),
+		string(types.MultiSigNonSupportedTokenRecoveredEventSig),
+		string(types.MultiSigTokenWhitelistedEventSig),
+		string(types.MultiSigRecoveryAddressChangeProposedEventSig),
+		string(types.MultiSigRecoveryAddressChangeSignatureAddedEventSig),
+		string(types.MultiSigRecoveryAddressChangedEventSig):
+		// Log basic info for now - these would be processed according to their specific logic
+		s.log.Debug("Received MultiSig event",
+			logger.String("event", eventSig),
+			logger.String("tx_hash", log.TransactionHash),
+			logger.String("contract", log.Address))
+
+	default:
+		s.log.Debug("Received unknown contract event",
+			logger.String("event_signature", eventSig),
+			logger.String("tx_hash", log.TransactionHash),
+			logger.String("contract", log.Address))
+	}
+}
+
+// isContractMonitored checks if a contract address is monitored for a specific event
+func (s *evmMonitor) isContractMonitored(chainType types.ChainType, contractAddr string, eventSig string) bool {
+	return s.subscriptionRegistry.HasEventSubscription(chainType, contractAddr, eventSig)
 }

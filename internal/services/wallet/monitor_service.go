@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"context"
+	"vault0/internal/core/tokenstore"
 	"vault0/internal/logger"
 	"vault0/internal/types"
 )
@@ -11,7 +12,8 @@ type MonitorService interface {
 	// It performs the following steps:
 	// 1. Retrieves all active wallets
 	// 2. Monitors each wallet's address for transactions
-	// 3. Processes incoming transaction events and saves them to the database
+	// 3. Subscribes to ERC20 token contracts for Transfer events
+	// 4. Processes incoming transaction events and saves them to the database
 	//
 	// Parameters:
 	//   - ctx: Context for the operation
@@ -60,6 +62,15 @@ func (s *walletService) StartTransactionMonitoring(ctx context.Context) error {
 				logger.Error(err))
 		}
 	}
+
+	// Monitor all tokens in the token store for Transfer events
+	if err := s.monitorAllTokens(ctx); err != nil {
+		s.log.Warn("Failed to monitor all tokens", logger.Error(err))
+		// Continue even if token monitoring setup fails
+	}
+
+	// Start listening for new tokens added to the token store
+	go s.listenForTokenEvents(s.monitorCtx)
 
 	// Start a goroutine to process transaction events
 	go s.processTransactionEvents(s.monitorCtx)
@@ -125,6 +136,123 @@ func (s *walletService) unmonitorAddress(ctx context.Context, chainType types.Ch
 		logger.String("chain_type", string(chainType)))
 
 	return nil
+}
+
+// monitorAllTokens monitors all tokens in the token store for Transfer events
+func (s *walletService) monitorAllTokens(ctx context.Context) error {
+	// Get all tokens from the token store
+	tokens, err := s.tokenStore.ListTokens(ctx, 0, "")
+	if err != nil {
+		return err
+	}
+
+	// Set up monitoring for each token's Transfer events
+	for _, token := range tokens.Items {
+		if err := s.monitorTokenContract(ctx, token.ChainType, token.Address); err != nil {
+			s.log.Warn("Failed to monitor token contract",
+				logger.String("token_address", token.Address),
+				logger.String("chain_type", string(token.ChainType)),
+				logger.Error(err))
+			// Continue with other tokens even if one fails
+		}
+	}
+
+	s.log.Info("Started monitoring all token contracts for Transfer events",
+		logger.Int("token_count", len(tokens.Items)))
+
+	return nil
+}
+
+// monitorTokenContract sets up monitoring for a specific token contract
+func (s *walletService) monitorTokenContract(ctx context.Context, chainType types.ChainType, tokenAddress string) error {
+	// Create the address object for the token
+	addr, err := types.NewAddress(chainType, tokenAddress)
+	if err != nil {
+		return err
+	}
+
+	// Monitor for Transfer events on the token contract
+	events := []string{string(types.ERC20TransferEventSignature)}
+	if err := s.txMonitor.MonitorContractAddress(ctx, addr, events); err != nil {
+		return err
+	}
+
+	s.log.Debug("Started monitoring token contract for Transfer events",
+		logger.String("token_address", tokenAddress),
+		logger.String("chain_type", string(chainType)))
+
+	return nil
+}
+
+// unmonitorTokenContract stops monitoring a token contract
+func (s *walletService) unmonitorTokenContract(ctx context.Context, chainType types.ChainType, tokenAddress string) error {
+	// Create the address object for the token
+	addr, err := types.NewAddress(chainType, tokenAddress)
+	if err != nil {
+		return err
+	}
+
+	// Stop monitoring the token contract
+	if err := s.txMonitor.UnmonitorContractAddress(ctx, addr); err != nil {
+		return err
+	}
+
+	s.log.Debug("Stopped monitoring token contract",
+		logger.String("token_address", tokenAddress),
+		logger.String("chain_type", string(chainType)))
+
+	return nil
+}
+
+// listenForTokenEvents listens for new tokens added to the token store
+func (s *walletService) listenForTokenEvents(ctx context.Context) {
+	tokenEvents := s.tokenStore.TokenEvents()
+
+	for {
+		select {
+		case <-ctx.Done():
+			// Context cancelled, stop processing
+			return
+
+		case event, ok := <-tokenEvents:
+			if !ok {
+				// Channel closed
+				s.log.Warn("Token events channel closed")
+				return
+			}
+
+			// Process the token event
+			switch event.EventType {
+			case tokenstore.TokenEventAdded:
+				// New token added, start monitoring it
+				if event.Token != nil {
+					if err := s.monitorTokenContract(ctx, event.Token.ChainType, event.Token.Address); err != nil {
+						s.log.Warn("Failed to monitor new token contract",
+							logger.String("token_address", event.Token.Address),
+							logger.String("chain_type", string(event.Token.ChainType)),
+							logger.Error(err))
+					}
+				}
+
+			case tokenstore.TokenEventDeleted:
+				// Token deleted, stop monitoring it
+				if event.Token != nil {
+					if err := s.unmonitorTokenContract(ctx, event.Token.ChainType, event.Token.Address); err != nil {
+						s.log.Warn("Failed to unmonitor token contract",
+							logger.String("token_address", event.Token.Address),
+							logger.String("chain_type", string(event.Token.ChainType)),
+							logger.Error(err))
+					}
+				}
+
+			case tokenstore.TokenEventUpdated:
+				// Token updated, no action needed for monitoring
+				s.log.Debug("Token updated in token store",
+					logger.String("token_address", event.Token.Address),
+					logger.String("chain_type", string(event.Token.ChainType)))
+			}
+		}
+	}
 }
 
 // processTransactionEvents listens for transaction events and processes them

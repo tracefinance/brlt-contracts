@@ -35,6 +35,15 @@ type Monitor interface {
 
 	// UnmonitorAddress removes an address from the monitoring list.
 	UnmonitorAddress(ctx context.Context, addr *types.Address) error
+
+	// MonitorContractAddress adds a contract address to monitor for specific events.
+	// The events parameter can be a string representation of an event signature from
+	// types.ERC20EventSignature or types.MultiSigEventSignature.
+	// If events is empty, all known events for the contract will be monitored.
+	MonitorContractAddress(ctx context.Context, addr *types.Address, events []string) error
+
+	// UnmonitorContractAddress removes a contract address from monitoring for all events.
+	UnmonitorContractAddress(ctx context.Context, addr *types.Address) error
 }
 
 // NewMonitor creates a new instance of Monitor
