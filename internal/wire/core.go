@@ -41,18 +41,18 @@ var CoreSet = wire.NewSet(
 
 // Core holds all core infrastructure dependencies
 type Core struct {
-	Config               *config.Config
-	DB                   *db.DB
-	Logger               logger.Logger
-	KeyStore             keystore.KeyStore
-	TokenStore           tokenstore.TokenStore
-	Chains               *types.Chains
-	WalletFactory        wallet.Factory
-	BlockchainRegistry   blockchain.Factory
-	ContractFactory      contract.Factory
-	BlockExplorerFactory blockexplorer.Factory
-	PriceFeed            pricefeed.PriceFeed
-	TransactionMonitor   transaction.Monitor
+	Config                  *config.Config
+	DB                      *db.DB
+	Logger                  logger.Logger
+	KeyStore                keystore.KeyStore
+	TokenStore              tokenstore.TokenStore
+	Chains                  *types.Chains
+	WalletFactory           wallet.Factory
+	BlockchainClientFactory blockchain.Factory
+	ContractManagerFactory  contract.Factory
+	BlockExplorerFactory    blockexplorer.Factory
+	PriceFeed               pricefeed.PriceFeed
+	TransactionMonitor      transaction.Monitor
 }
 
 // NewCore creates a new Core instance with all core dependencies
@@ -63,25 +63,25 @@ func NewCore(
 	keyStore keystore.KeyStore,
 	tokenStore tokenstore.TokenStore,
 	chains *types.Chains,
-	walletFactory wallet.Factory,
-	blockchainRegistry blockchain.Factory,
-	contractFactory contract.Factory,
-	blockExplorerFactory blockexplorer.Factory,
 	priceFeed pricefeed.PriceFeed,
+	walletFactory wallet.Factory,
+	blockchainClientFactory blockchain.Factory,
+	contractManagerFactory contract.Factory,
+	blockExplorerFactory blockexplorer.Factory,
 	transactionMonitor transaction.Monitor,
 ) *Core {
 	return &Core{
-		Config:               config,
-		DB:                   db,
-		Logger:               logger,
-		KeyStore:             keyStore,
-		TokenStore:           tokenStore,
-		Chains:               chains,
-		WalletFactory:        walletFactory,
-		BlockchainRegistry:   blockchainRegistry,
-		ContractFactory:      contractFactory,
-		BlockExplorerFactory: blockExplorerFactory,
-		PriceFeed:            priceFeed,
-		TransactionMonitor:   transactionMonitor,
+		Config:                  config,
+		DB:                      db,
+		Logger:                  logger,
+		KeyStore:                keyStore,
+		TokenStore:              tokenStore,
+		Chains:                  chains,
+		PriceFeed:               priceFeed,
+		WalletFactory:           walletFactory,
+		BlockchainClientFactory: blockchainClientFactory,
+		ContractManagerFactory:  contractManagerFactory,
+		BlockExplorerFactory:    blockExplorerFactory,
+		TransactionMonitor:      transactionMonitor,
 	}
 }
