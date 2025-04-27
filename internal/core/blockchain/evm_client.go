@@ -50,16 +50,16 @@ const (
 	operationFetchBlock = "fetch block" // Operation name for block fetching
 )
 
-// EVMBlockchain implements Blockchain for EVM compatible chains
-type EVMBlockchain struct {
+// evmBlockchainClient implements Blockchain for EVM compatible chains
+type evmBlockchainClient struct {
 	client    *ethclient.Client
 	rpcClient *rpc.Client
 	chain     types.Chain
 	log       logger.Logger
 }
 
-// NewEVMBlockchain creates a new EVM blockchain client
-func NewEVMBlockchain(chain types.Chain, log logger.Logger) (*EVMBlockchain, error) {
+// NewEVMBlockchainClient creates a new EVM blockchain client
+func NewEVMBlockchainClient(chain types.Chain, log logger.Logger) (*evmBlockchainClient, error) {
 	if chain.RPCUrl == "" {
 		return nil, errors.NewInvalidBlockchainConfigError(string(chain.Type), "rpc_url")
 	}
@@ -74,7 +74,7 @@ func NewEVMBlockchain(chain types.Chain, log logger.Logger) (*EVMBlockchain, err
 	client := ethclient.NewClient(rpcClient)
 
 	// Create the EVM blockchain client
-	evm := &EVMBlockchain{
+	evm := &evmBlockchainClient{
 		client:    client,
 		rpcClient: rpcClient,
 		chain:     chain,
@@ -93,7 +93,7 @@ func NewEVMBlockchain(chain types.Chain, log logger.Logger) (*EVMBlockchain, err
 }
 
 // GetChainID implements Blockchain.GetChainID
-func (c *EVMBlockchain) GetChainID(ctx context.Context) (int64, error) {
+func (c *evmBlockchainClient) GetChainID(ctx context.Context) (int64, error) {
 	chainID, err := c.client.ChainID(ctx)
 	if err != nil {
 		return 0, errors.NewRPCError(err)
@@ -102,7 +102,7 @@ func (c *EVMBlockchain) GetChainID(ctx context.Context) (int64, error) {
 }
 
 // GetBalance implements Blockchain.GetBalance
-func (c *EVMBlockchain) GetBalance(ctx context.Context, address string) (*big.Int, error) {
+func (c *evmBlockchainClient) GetBalance(ctx context.Context, address string) (*big.Int, error) {
 	if err := c.chain.ValidateAddress(address); err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (c *EVMBlockchain) GetBalance(ctx context.Context, address string) (*big.In
 }
 
 // GetTokenBalance implements Blockchain.GetTokenBalance
-func (c *EVMBlockchain) GetTokenBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error) {
+func (c *evmBlockchainClient) GetTokenBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error) {
 	// Validate both addresses
 	if err := c.chain.ValidateAddress(address); err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func (c *EVMBlockchain) GetTokenBalance(ctx context.Context, address string, tok
 }
 
 // GetNonce implements Blockchain.GetNonce
-func (c *EVMBlockchain) GetNonce(ctx context.Context, address string) (uint64, error) {
+func (c *evmBlockchainClient) GetNonce(ctx context.Context, address string) (uint64, error) {
 	if err := c.chain.ValidateAddress(address); err != nil {
 		return 0, err
 	}
@@ -170,7 +170,7 @@ func (c *EVMBlockchain) GetNonce(ctx context.Context, address string) (uint64, e
 }
 
 // GetTransaction implements Blockchain.GetTransaction
-func (c *EVMBlockchain) GetTransaction(ctx context.Context, hash string) (*types.Transaction, error) {
+func (c *evmBlockchainClient) GetTransaction(ctx context.Context, hash string) (*types.Transaction, error) {
 	if !strings.HasPrefix(hash, "0x") {
 		hash = "0x" + hash
 	}
@@ -212,7 +212,7 @@ func (c *EVMBlockchain) GetTransaction(ctx context.Context, hash string) (*types
 }
 
 // GetBlock implements Blockchain.GetBlock
-func (c *EVMBlockchain) GetBlock(ctx context.Context, identifier string) (*types.Block, error) {
+func (c *evmBlockchainClient) GetBlock(ctx context.Context, identifier string) (*types.Block, error) {
 	var fetchBlockFn func() (any, error)
 
 	// Check if the identifier is a special keyword
@@ -281,7 +281,7 @@ func (c *EVMBlockchain) GetBlock(ctx context.Context, identifier string) (*types
 }
 
 // GetTransactionReceipt implements Blockchain.GetTransactionReceipt
-func (c *EVMBlockchain) GetTransactionReceipt(ctx context.Context, hash string) (*types.TransactionReceipt, error) {
+func (c *evmBlockchainClient) GetTransactionReceipt(ctx context.Context, hash string) (*types.TransactionReceipt, error) {
 	if !strings.HasPrefix(hash, "0x") {
 		hash = "0x" + hash
 	}
@@ -314,7 +314,7 @@ func (c *EVMBlockchain) GetTransactionReceipt(ctx context.Context, hash string) 
 }
 
 // EstimateGas implements Blockchain.EstimateGas
-func (c *EVMBlockchain) EstimateGas(ctx context.Context, tx *types.Transaction) (uint64, error) {
+func (c *evmBlockchainClient) EstimateGas(ctx context.Context, tx *types.Transaction) (uint64, error) {
 	var from common.Address
 	if tx.From != "" {
 		if err := c.chain.ValidateAddress(tx.From); err != nil {
@@ -348,7 +348,7 @@ func (c *EVMBlockchain) EstimateGas(ctx context.Context, tx *types.Transaction) 
 }
 
 // GetGasPrice implements Blockchain.GetGasPrice
-func (c *EVMBlockchain) GetGasPrice(ctx context.Context) (*big.Int, error) {
+func (c *evmBlockchainClient) GetGasPrice(ctx context.Context) (*big.Int, error) {
 	gasPrice, err := c.client.SuggestGasPrice(ctx)
 	if err != nil {
 		return nil, errors.NewRPCError(err)
@@ -357,7 +357,7 @@ func (c *EVMBlockchain) GetGasPrice(ctx context.Context) (*big.Int, error) {
 }
 
 // CallContract implements Blockchain.CallContract
-func (c *EVMBlockchain) CallContract(ctx context.Context, from string, to string, data []byte) ([]byte, error) {
+func (c *evmBlockchainClient) CallContract(ctx context.Context, from string, to string, data []byte) ([]byte, error) {
 	var fromAddress common.Address
 	if from != "" && from != types.ZeroAddress {
 		if err := c.chain.ValidateAddress(from); err != nil {
@@ -386,7 +386,7 @@ func (c *EVMBlockchain) CallContract(ctx context.Context, from string, to string
 }
 
 // BroadcastTransaction implements Blockchain.BroadcastTransaction
-func (c *EVMBlockchain) BroadcastTransaction(ctx context.Context, signedTx []byte) (string, error) {
+func (c *evmBlockchainClient) BroadcastTransaction(ctx context.Context, signedTx []byte) (string, error) {
 	var tx ethTypes.Transaction
 	if err := tx.UnmarshalBinary(signedTx); err != nil {
 		return "", errors.NewInvalidTransactionError(err)
@@ -400,7 +400,7 @@ func (c *EVMBlockchain) BroadcastTransaction(ctx context.Context, signedTx []byt
 }
 
 // FilterContractLogs implements Blockchain.FilterContractLogs
-func (c *EVMBlockchain) FilterContractLogs(ctx context.Context, addresses []string, eventSignature string, eventArgs []any, fromBlock, toBlock int64) ([]types.Log, error) {
+func (c *evmBlockchainClient) FilterContractLogs(ctx context.Context, addresses []string, eventSignature string, eventArgs []any, fromBlock, toBlock int64) ([]types.Log, error) {
 	// Convert addresses to Ethereum addresses
 	var ethAddresses []common.Address
 	if len(addresses) > 0 {
@@ -461,7 +461,7 @@ func (c *EVMBlockchain) FilterContractLogs(ctx context.Context, addresses []stri
 	return result, nil
 }
 
-func (c *EVMBlockchain) SubscribeContractLogs(ctx context.Context, addresses []string, eventSignature string, eventArgs []any, fromBlock int64) (<-chan types.Log, <-chan error, error) {
+func (c *evmBlockchainClient) SubscribeContractLogs(ctx context.Context, addresses []string, eventSignature string, eventArgs []any, fromBlock int64) (<-chan types.Log, <-chan error, error) {
 	// Convert addresses to Ethereum addresses
 	var ethAddresses []common.Address
 	if len(addresses) > 0 {
@@ -563,7 +563,7 @@ func (c *EVMBlockchain) SubscribeContractLogs(ctx context.Context, addresses []s
 }
 
 // SubscribeNewHead implements Blockchain.SubscribeNewHead
-func (c *EVMBlockchain) SubscribeNewHead(ctx context.Context) (<-chan types.Block, <-chan error, error) {
+func (c *evmBlockchainClient) SubscribeNewHead(ctx context.Context) (<-chan types.Block, <-chan error, error) {
 	// Create channels for blocks and errors
 	blockChan := make(chan types.Block, subscriptionLogBufferSize)
 	errChan := make(chan error, subscriptionErrBufferSize)
@@ -693,7 +693,7 @@ func (c *EVMBlockchain) SubscribeNewHead(ctx context.Context) (<-chan types.Bloc
 // The processItem function should:
 //   - Process an item from the subscription and return true if processing was successful
 //   - Return the latest block number for reconnection tracking (if applicable)
-func (c *EVMBlockchain) handleSubscription(
+func (c *evmBlockchainClient) handleSubscription(
 	ctx context.Context,
 	name string,
 	initialFromBlock int64,
@@ -815,12 +815,12 @@ func (c *EVMBlockchain) handleSubscription(
 }
 
 // Close implements Blockchain.Close
-func (c *EVMBlockchain) Close() {
+func (c *evmBlockchainClient) Close() {
 	c.rpcClient.Close()
 }
 
 // convertEthereumLogsToLogs converts Ethereum logs to our Log model
-func (c *EVMBlockchain) convertEthereumLogsToLogs(logs []*ethTypes.Log) []types.Log {
+func (c *evmBlockchainClient) convertEthereumLogsToLogs(logs []*ethTypes.Log) []types.Log {
 	result := make([]types.Log, len(logs))
 	for i, log := range logs {
 		topics := make([]string, len(log.Topics))
@@ -842,7 +842,7 @@ func (c *EVMBlockchain) convertEthereumLogsToLogs(logs []*ethTypes.Log) []types.
 }
 
 // convertEthereumTransactionToTransaction converts an Ethereum transaction to common.Transaction
-func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethTypes.Transaction, receipt *ethTypes.Receipt, timestamp uint64) *types.Transaction {
+func (c *evmBlockchainClient) convertEthereumTransactionToTransaction(tx *ethTypes.Transaction, receipt *ethTypes.Receipt, timestamp uint64) *types.Transaction {
 	var status types.TransactionStatus
 	var gasUsed uint64
 
@@ -893,12 +893,12 @@ func (c *EVMBlockchain) convertEthereumTransactionToTransaction(tx *ethTypes.Tra
 }
 
 // Chain implements Blockchain.Chain
-func (c *EVMBlockchain) Chain() types.Chain {
+func (c *evmBlockchainClient) Chain() types.Chain {
 	return c.chain
 }
 
 // convertEventToTopics converts an event signature and arguments to Ethereum topics
-func (c *EVMBlockchain) convertEventToTopics(eventSignature string, eventArgs []any) ([][]common.Hash, error) {
+func (c *evmBlockchainClient) convertEventToTopics(eventSignature string, eventArgs []any) ([][]common.Hash, error) {
 	// Generate the event signature hash (topic[0])
 	eventID := crypto.Keccak256Hash([]byte(eventSignature))
 
@@ -1017,7 +1017,7 @@ func (c *EVMBlockchain) convertEventToTopics(eventSignature string, eventArgs []
 }
 
 // convertEthereumBlockToBlock converts an Ethereum block to our Block model
-func (c *EVMBlockchain) convertEthereumBlockToBlock(block *ethTypes.Block) *types.Block {
+func (c *evmBlockchainClient) convertEthereumBlockToBlock(block *ethTypes.Block) *types.Block {
 	// Extract and convert all transactions
 	ethTransactions := block.Transactions()
 	transactions := make([]*types.Transaction, len(ethTransactions))
@@ -1078,7 +1078,7 @@ func (c *EVMBlockchain) convertEthereumBlockToBlock(block *ethTypes.Block) *type
 
 // retryOperation executes the given operation with exponential backoff retries
 // Returns the operation result and a boolean indicating success
-func (c *EVMBlockchain) retryOperation(
+func (c *evmBlockchainClient) retryOperation(
 	operationName string,
 	contextInfo map[string]any,
 	operation func() (any, error),

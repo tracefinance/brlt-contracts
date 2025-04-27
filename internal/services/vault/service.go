@@ -188,7 +188,7 @@ func (s *service) CreateVault(
 		return nil, err
 	}
 
-	contractCore, err := s.contractFactory.NewSmartContract(ctx, wallet)
+	contractCore, err := s.contractFactory.NewManager(ctx, wallet)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +333,7 @@ func (s *service) ExecuteRecovery(ctx context.Context, vaultID int64) (string, e
 		return "", err
 	}
 
-	contractCore, err := s.contractFactory.NewSmartContract(ctx, walletCore)
+	contractCore, err := s.contractFactory.NewManager(ctx, walletCore)
 	if err != nil {
 		s.log.Error("Failed to create core contract instance for execute recovery",
 			logger.Int64("vault_id", vault.ID),
@@ -355,7 +355,7 @@ func (s *service) ExecuteRecovery(ctx context.Context, vaultID int64) (string, e
 		logger.String("contract_address", vault.Address))
 
 	// Execute method using the contractCore instance
-	opts := contract.ExecuteOptions{Value: big.NewInt(0)}
+	opts := contract.ExecutionOptions{Value: big.NewInt(0)}
 	txHash, err := contractCore.ExecuteMethod(
 		ctx,
 		vault.Address,
@@ -481,7 +481,7 @@ func (s *service) AddSupportedToken(ctx context.Context, vaultID int64, tokenAdd
 		return "", err
 	}
 
-	contractCore, err := s.contractFactory.NewSmartContract(ctx, walletCore)
+	contractCore, err := s.contractFactory.NewManager(ctx, walletCore)
 	if err != nil {
 		s.log.Error("Failed to create core contract instance for token add",
 			logger.Int64("vault_id", vaultID),
@@ -504,7 +504,7 @@ func (s *service) AddSupportedToken(ctx context.Context, vaultID int64, tokenAdd
 		logger.String("token_address", normalizedTokenAddr))
 
 	// Execute method using the contractCore instance
-	opts := contract.ExecuteOptions{Value: big.NewInt(0)}
+	opts := contract.ExecutionOptions{Value: big.NewInt(0)}
 	txHash, err := contractCore.ExecuteMethod(
 		ctx,
 		contractInfo.Address,
@@ -555,7 +555,7 @@ func (s *service) RemoveSupportedToken(ctx context.Context, vaultID int64, token
 		return "", err
 	}
 
-	contractCore, err := s.contractFactory.NewSmartContract(ctx, walletCore)
+	contractCore, err := s.contractFactory.NewManager(ctx, walletCore)
 	if err != nil {
 		s.log.Error("Failed to create core contract instance for token remove", logger.Int64("vault_id", vaultID), logger.Error(err))
 		return "", err
@@ -577,7 +577,7 @@ func (s *service) RemoveSupportedToken(ctx context.Context, vaultID int64, token
 		logger.String("contract_address", vaultContractAddress),
 		logger.String("token_address", normalizedTokenAddr))
 
-	opts := contract.ExecuteOptions{Value: big.NewInt(0)}
+	opts := contract.ExecutionOptions{Value: big.NewInt(0)}
 
 	txHash, err := contractCore.ExecuteMethod(
 		ctx,
@@ -629,7 +629,7 @@ func (s *service) StartRecovery(ctx context.Context, vaultID int64) (string, err
 		return "", err
 	}
 
-	contractCore, err := s.contractFactory.NewSmartContract(ctx, walletCore)
+	contractCore, err := s.contractFactory.NewManager(ctx, walletCore)
 	if err != nil {
 		s.log.Error("Failed to create core contract instance for recovery",
 			logger.Int64("vault_id", vaultID),
@@ -651,7 +651,7 @@ func (s *service) StartRecovery(ctx context.Context, vaultID int64) (string, err
 		logger.String("contract_address", vault.Address))
 
 	// Execute method using the contractCore instance
-	opts := contract.ExecuteOptions{Value: big.NewInt(0)}
+	opts := contract.ExecutionOptions{Value: big.NewInt(0)}
 	txHash, err := contractCore.ExecuteMethod(
 		ctx,
 		vault.Address,
@@ -724,7 +724,7 @@ func (s *service) CancelRecovery(ctx context.Context, vaultID int64) (string, er
 		return "", err
 	}
 
-	contractCore, err := s.contractFactory.NewSmartContract(ctx, walletCore)
+	contractCore, err := s.contractFactory.NewManager(ctx, walletCore)
 	if err != nil {
 		s.log.Error("Failed to create core contract instance for cancel recovery",
 			logger.Int64("vault_id", vaultID),
@@ -746,7 +746,7 @@ func (s *service) CancelRecovery(ctx context.Context, vaultID int64) (string, er
 		logger.String("contract_address", vault.Address))
 
 	// Execute method using the contractCore instance
-	opts := contract.ExecuteOptions{Value: big.NewInt(0)}
+	opts := contract.ExecutionOptions{Value: big.NewInt(0)}
 	txHash, err := contractCore.ExecuteMethod(
 		ctx,
 		vault.Address,

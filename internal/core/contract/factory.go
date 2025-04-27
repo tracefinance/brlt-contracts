@@ -9,25 +9,27 @@ import (
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/wallet"
+	"vault0/internal/errors"
+	"vault0/internal/types"
 )
 
 // Factory creates SmartContract instances based on a provided wallet.
 // It provides a centralized way to create contract instances
 // for the specific blockchain network associated with the wallet.
 type Factory interface {
-	// NewSmartContract creates a SmartContract instance tailored for the provided wallet's chain.
+	// NewManager creates a ContractManager instance tailored for the provided wallet's chain.
 	//
 	// Parameters:
 	//   - ctx: Context for the operation
 	//   - wallet: The wallet instance determining the target blockchain and credentials.
 	//
 	// Returns:
-	//   - SmartContract: The contract instance configured for the wallet's chain.
+	//   - ContractManager: The contract instance configured for the wallet's chain.
 	//   - error: Any error during creation, such as unsupported chain type or blockchain client issues.
-	NewSmartContract(ctx context.Context, wallet wallet.Wallet) (SmartContract, error)
+	NewManager(ctx context.Context, wallet wallet.Wallet) (ContractManager, error)
 }
 
-// NewFactory creates a new SmartContract factory.
+// NewFactory creates a new ContractManager factory.
 //
 // Parameters:
 //   - blockchainRegistry: Registry for creating blockchain clients
@@ -36,7 +38,7 @@ type Factory interface {
 //
 // Returns:
 //   - Factory: The configured contract factory instance
-func NewFactory(blockchainRegistry blockchain.Registry, explorerFactory blockexplorer.Factory, cfg *config.Config) Factory {
+func NewFactory(blockchainRegistry blockchain.Factory, explorerFactory blockexplorer.Factory, cfg *config.Config) Factory {
 	return &factory{
 		blockchainRegistry: blockchainRegistry,
 		explorerFactory:    explorerFactory,
@@ -45,34 +47,28 @@ func NewFactory(blockchainRegistry blockchain.Registry, explorerFactory blockexp
 }
 
 type factory struct {
-	blockchainRegistry blockchain.Registry
+	blockchainRegistry blockchain.Factory
 	explorerFactory    blockexplorer.Factory
 	cfg                *config.Config
 }
 
-// NewSmartContract implements the Factory interface. It creates a new SmartContract instance
+// NewManager implements the Factory interface. It creates a new SmartContract instance
 // for the chain associated with the provided wallet.
-func (f *factory) NewSmartContract(ctx context.Context, wallet wallet.Wallet) (SmartContract, error) {
+func (f *factory) NewManager(ctx context.Context, wallet wallet.Wallet) (ContractManager, error) {
 	// Get chain type from the provided wallet
 	chainType := wallet.Chain().Type
 
-	// Get the appropriate BlockExplorer instance from the factory
-	explorer, err := f.explorerFactory.GetExplorer(chainType)
-	if err != nil {
-		return nil, err
-	}
-
 	// Get blockchain client for the derived chain type
-	blockchainClient, err := f.blockchainRegistry.GetBlockchain(chainType)
+	blockchainClient, err := f.blockchainRegistry.NewClient(chainType)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create a new contract instance using the provided wallet and the dynamically obtained explorer
-	contract, err := NewSmartContract(blockchainClient, wallet, explorer, f.cfg)
-	if err != nil {
-		return nil, err
+	switch chainType {
+	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
+		// These are all EVM-compatible chains, so use EVMSmartContract
+		return NewEVMSmartContract(blockchainClient, wallet, f.cfg)
+	default:
+		return nil, errors.NewChainNotSupportedError(string(chainType))
 	}
-
-	return contract, nil
 }

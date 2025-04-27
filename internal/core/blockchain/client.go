@@ -6,7 +6,7 @@ import (
 	"vault0/internal/types"
 )
 
-// Blockchain defines a blockchain client interface that abstracts interactions with
+// BlockchainClient defines a blockchain client interface that abstracts interactions with
 // various blockchain networks. It provides methods for querying blockchain state,
 // submitting transactions, interacting with smart contracts, and subscribing to events.
 //
@@ -17,7 +17,7 @@ import (
 //
 // Most methods accept a context.Context parameter to allow for cancellation and
 // timeouts when interacting with the blockchain network.
-type Blockchain interface {
+type BlockchainClient interface {
 	// GetTransaction retrieves transaction details by hash.
 	//
 	// Parameters:

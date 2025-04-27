@@ -29,7 +29,7 @@ var CoreSet = wire.NewSet(
 	logger.NewLogger,
 	keystore.NewKeyStore,
 	tokenstore.NewTokenStore,
-	blockchain.NewRegistry,
+	blockchain.NewFactory,
 	wallet.NewFactory,
 	blockexplorer.NewFactory,
 	contract.NewFactory,
@@ -48,7 +48,7 @@ type Core struct {
 	TokenStore           tokenstore.TokenStore
 	Chains               *types.Chains
 	WalletFactory        wallet.Factory
-	BlockchainRegistry   blockchain.Registry
+	BlockchainRegistry   blockchain.Factory
 	ContractFactory      contract.Factory
 	BlockExplorerFactory blockexplorer.Factory
 	PriceFeed            pricefeed.PriceFeed
@@ -64,7 +64,7 @@ func NewCore(
 	tokenStore tokenstore.TokenStore,
 	chains *types.Chains,
 	walletFactory wallet.Factory,
-	blockchainRegistry blockchain.Registry,
+	blockchainRegistry blockchain.Factory,
 	contractFactory contract.Factory,
 	blockExplorerFactory blockexplorer.Factory,
 	priceFeed pricefeed.PriceFeed,

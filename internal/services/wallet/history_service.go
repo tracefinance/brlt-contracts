@@ -66,7 +66,7 @@ func (s *walletService) SyncWallet(ctx context.Context, walletID int64) (int, er
 	}
 
 	// Get the blockchain explorer for this chain type
-	explorer, err := s.blockExplorerFactory.GetExplorer(wallet.ChainType)
+	explorer, err := s.blockExplorerFactory.NewExplorer(wallet.ChainType)
 	if err != nil {
 		return 0, err
 	}

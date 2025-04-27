@@ -156,7 +156,7 @@ type walletService struct {
 	keystore             keystore.KeyStore
 	tokenStore           tokenstore.TokenStore
 	walletFactory        coreWallet.Factory
-	blockchainRegistry   blockchain.Registry
+	blockchainFactory    blockchain.Factory
 	chains               *types.Chains
 	txService            transaction.Service
 	txRepository         transaction.Repository
@@ -181,7 +181,7 @@ func NewService(
 	keyStore keystore.KeyStore,
 	tokenStore tokenstore.TokenStore,
 	walletFactory coreWallet.Factory,
-	blockchainRegistry blockchain.Registry,
+	blockchainRegistry blockchain.Factory,
 	chains *types.Chains,
 	txService transaction.Service,
 	txRepository transaction.Repository,
@@ -195,7 +195,7 @@ func NewService(
 		keystore:             keyStore,
 		tokenStore:           tokenStore,
 		walletFactory:        walletFactory,
-		blockchainRegistry:   blockchainRegistry,
+		blockchainFactory:    blockchainRegistry,
 		chains:               chains,
 		txService:            txService,
 		txRepository:         txRepository,

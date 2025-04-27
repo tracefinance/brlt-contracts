@@ -16,7 +16,7 @@ import (
 // EVMMonitor implements Monitor for EVM-compatible blockchains
 type evmMonitor struct {
 	log                logger.Logger
-	blockchainRegistry blockchain.Registry
+	blockchainRegistry blockchain.Factory
 	tokenStore         tokenstore.TokenStore
 	chains             *types.Chains
 
@@ -38,7 +38,7 @@ type evmMonitor struct {
 // NewEVMMonitor creates a new instance of Monitor for EVM-compatible blockchains
 func NewEVMMonitor(
 	log logger.Logger,
-	blockchainRegistry blockchain.Registry,
+	blockchainRegistry blockchain.Factory,
 	tokenStore tokenstore.TokenStore,
 	chains *types.Chains,
 ) Monitor {
@@ -277,7 +277,7 @@ func (s *evmMonitor) startContractSubscription(chainType types.ChainType, contra
 	s.subscriptionRegistry.AddOrUpdateSubscription(sub)
 
 	// Get blockchain client
-	client, err := s.blockchainRegistry.GetBlockchain(chainType)
+	client, err := s.blockchainRegistry.NewClient(chainType)
 	if err != nil {
 		s.log.Error("Failed to get blockchain client for contract subscription",
 			logger.String("chain_type", string(chainType)),
@@ -370,7 +370,7 @@ func (s *evmMonitor) UnsubscribeFromTransactionEvents() {
 // subscribeToChainBlocks subscribes to new blocks for a specific chain
 func (s *evmMonitor) subscribeToChainBlocks(ctx context.Context, chain types.Chain) {
 	// Get blockchain client for the chain type
-	client, err := s.blockchainRegistry.GetBlockchain(chain.Type)
+	client, err := s.blockchainRegistry.NewClient(chain.Type)
 	if err != nil {
 		s.log.Error("Failed to get blockchain client",
 			logger.String("chain_type", string(chain.Type)),
@@ -480,7 +480,7 @@ func (s *evmMonitor) processERC20TransferLog(ctx context.Context, chain types.Ch
 	}
 
 	// Get blockchain client to fetch transaction details and block information
-	client, err := s.blockchainRegistry.GetBlockchain(chain.Type)
+	client, err := s.blockchainRegistry.NewClient(chain.Type)
 	if err != nil {
 		s.log.Error("Failed to get blockchain client for transaction details",
 			logger.String("chain_type", string(chain.Type)),

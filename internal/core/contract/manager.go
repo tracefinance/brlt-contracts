@@ -3,12 +3,6 @@ package contract
 import (
 	"context"
 	"math/big"
-	"vault0/internal/config"
-	"vault0/internal/core/blockchain"
-	"vault0/internal/core/blockexplorer"
-	"vault0/internal/core/wallet"
-	"vault0/internal/errors"
-	"vault0/internal/types"
 )
 
 // Artifact represents a compiled smart contract artifact
@@ -51,8 +45,8 @@ type DeploymentOptions struct {
 	ConstructorArgs []any
 }
 
-// ExecuteOptions holds optional parameters specifically for executing state-changing contract methods.
-type ExecuteOptions struct {
+// ExecutionOptions holds optional parameters specifically for executing state-changing contract methods.
+type ExecutionOptions struct {
 	// GasPrice is the gas price to use for the transaction (nil for auto).
 	GasPrice *big.Int
 	// GasLimit is the gas limit to use for the transaction (0 for auto).
@@ -63,10 +57,10 @@ type ExecuteOptions struct {
 	Value *big.Int
 }
 
-// SmartContract defines methods for interacting with smart contracts on the blockchain.
+// ContractManager defines methods for interacting with smart contracts on the blockchain.
 // It provides functionality for loading contract artifacts, deploying contracts,
 // and executing contract methods (both read-only and state-changing operations).
-type SmartContract interface {
+type ContractManager interface {
 	// LoadArtifact loads a contract artifact from the filesystem.
 	//
 	// Parameters:
@@ -151,33 +145,7 @@ type SmartContract interface {
 		contractAddress string,
 		contractABI string,
 		method string,
-		options ExecuteOptions,
+		options ExecutionOptions,
 		args ...any,
 	) (string, error)
-}
-
-// NewSmartContract returns a SmartContract instance for the specified chain type
-func NewSmartContract(
-	blockchain blockchain.Blockchain,
-	wallet wallet.Wallet,
-	explorer blockexplorer.BlockExplorer,
-	config *config.Config,
-) (SmartContract, error) {
-	// Get the chain information from the blockchain and wallet
-	blockchainChain := blockchain.Chain()
-	walletChain := wallet.Chain()
-
-	// Validate that the wallet and blockchain have matching chain types
-	if blockchainChain.Type != walletChain.Type {
-		return nil, errors.NewChainNotSupportedError(string(blockchainChain.Type))
-	}
-
-	// Create the appropriate implementation based on chain type
-	switch blockchainChain.Type {
-	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
-		// These are all EVM-compatible chains, so use EVMSmartContract
-		return NewEVMSmartContract(blockchain, wallet, explorer, config)
-	default:
-		return nil, errors.NewChainNotSupportedError(string(blockchainChain.Type))
-	}
 }

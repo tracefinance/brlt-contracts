@@ -49,7 +49,7 @@ type Monitor interface {
 // NewMonitor creates a new instance of Monitor
 func NewMonitor(
 	log logger.Logger,
-	blockchainRegistry blockchain.Registry,
+	blockchainRegistry blockchain.Factory,
 	tokenStore tokenstore.TokenStore,
 	chains *types.Chains,
 ) Monitor {

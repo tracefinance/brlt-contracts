@@ -234,7 +234,7 @@ func (s *service) checkDeploymentStatus(ctx context.Context, vault *Vault) error
 		return err
 	}
 
-	contractCore, err := s.contractFactory.NewSmartContract(ctx, walletCore)
+	contractCore, err := s.contractFactory.NewManager(ctx, walletCore)
 	if err != nil {
 		s.log.Error("polling: Failed to create core contract for deployment check", logger.Int64("vault_id", vault.ID), logger.Error(err))
 		return err
@@ -415,7 +415,7 @@ func (s *service) checkAndExecuteRecoveryForVault(ctx context.Context, vault *Va
 		return "", err
 	}
 
-	contractCore, err := s.contractFactory.NewSmartContract(ctx, walletCore)
+	contractCore, err := s.contractFactory.NewManager(ctx, walletCore)
 	if err != nil {
 		s.log.Error("Failed to create core contract instance for execute recovery",
 			logger.Int64("vault_id", vault.ID),
@@ -432,7 +432,7 @@ func (s *service) checkAndExecuteRecoveryForVault(ctx context.Context, vault *Va
 		return "", err
 	}
 
-	opts := contract.ExecuteOptions{Value: big.NewInt(0)}
+	opts := contract.ExecutionOptions{Value: big.NewInt(0)}
 	txHash, err := contractCore.ExecuteMethod(
 		ctx,
 		vault.Address,

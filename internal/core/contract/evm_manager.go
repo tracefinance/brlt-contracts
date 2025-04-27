@@ -21,12 +21,12 @@ import (
 	"vault0/internal/types"
 )
 
-// EVMSmartContract implements the SmartContract interface for EVM compatible chains
-type EVMSmartContract struct {
+// evmContractManager implements the SmartContract interface for EVM compatible chains
+type evmContractManager struct {
 	// chainType is the type of blockchain
 	chainType types.ChainType
 	// blockchain is the blockchain client
-	blockchain blockchain.Blockchain
+	blockchain blockchain.BlockchainClient
 	// wallet is the wallet client
 	wallet wallet.Wallet
 	// explorer is the block explorer client
@@ -41,11 +41,10 @@ type EVMSmartContract struct {
 
 // NewEVMSmartContract creates a new EVM contract manager
 func NewEVMSmartContract(
-	blockchain blockchain.Blockchain,
+	blockchain blockchain.BlockchainClient,
 	wallet wallet.Wallet,
-	explorer blockexplorer.BlockExplorer,
 	config *config.Config,
-) (*EVMSmartContract, error) {
+) (*evmContractManager, error) {
 	chain := wallet.Chain()
 	if chain.Type != types.ChainTypeEthereum &&
 		chain.Type != types.ChainTypePolygon &&
@@ -53,18 +52,17 @@ func NewEVMSmartContract(
 		return nil, errors.NewChainNotSupportedError(string(chain.Type))
 	}
 
-	return &EVMSmartContract{
+	return &evmContractManager{
 		chainType:  chain.Type,
 		blockchain: blockchain,
 		wallet:     wallet,
-		explorer:   explorer,
 		config:     config,
 		abiCache:   make(map[string]*abi.ABI),
 	}, nil
 }
 
 // getContractABI retrieves the parsed ABI for a contract address, using cache first.
-func (c *EVMSmartContract) getContractABI(ctx context.Context, contractAddress string) (*abi.ABI, error) {
+func (c *evmContractManager) getContractABI(ctx context.Context, contractAddress string) (*abi.ABI, error) {
 	// 1. Check cache with read lock
 	c.cacheMu.RLock()
 	cachedABI, found := c.abiCache[contractAddress]
@@ -110,12 +108,12 @@ func (c *EVMSmartContract) getContractABI(ctx context.Context, contractAddress s
 }
 
 // ChainType returns the blockchain type
-func (c *EVMSmartContract) ChainType() types.ChainType {
+func (c *evmContractManager) ChainType() types.ChainType {
 	return c.wallet.Chain().Type
 }
 
 // LoadArtifact loads a contract artifact from the filesystem
-func (c *EVMSmartContract) LoadArtifact(ctx context.Context, contractName string) (*Artifact, error) {
+func (c *evmContractManager) LoadArtifact(ctx context.Context, contractName string) (*Artifact, error) {
 	// Get the path to the smart contracts directory
 	contractsPath := c.config.GetSmartContractsPath()
 
@@ -228,7 +226,7 @@ func (c *EVMSmartContract) LoadArtifact(ctx context.Context, contractName string
 }
 
 // Deploy deploys a smart contract to the blockchain
-func (c *EVMSmartContract) Deploy(
+func (c *evmContractManager) Deploy(
 	ctx context.Context,
 	artifact *Artifact,
 	options DeploymentOptions,
@@ -293,7 +291,7 @@ func (c *EVMSmartContract) Deploy(
 }
 
 // GetDeployment waits for a contract deployment to complete
-func (c *EVMSmartContract) GetDeployment(
+func (c *evmContractManager) GetDeployment(
 	ctx context.Context,
 	transactionHash string,
 ) (*DeploymentResult, error) {
@@ -339,7 +337,7 @@ func (c *EVMSmartContract) GetDeployment(
 }
 
 // CallMethod calls a read-only method on a deployed contract
-func (c *EVMSmartContract) CallMethod(
+func (c *evmContractManager) CallMethod(
 	ctx context.Context,
 	contractAddress string,
 	contractABI string,
@@ -393,12 +391,12 @@ func (c *EVMSmartContract) CallMethod(
 }
 
 // ExecuteMethod executes a state-changing method on a deployed contract
-func (c *EVMSmartContract) ExecuteMethod(
+func (c *evmContractManager) ExecuteMethod(
 	ctx context.Context,
 	contractAddress string,
 	contractABI string,
 	method string,
-	options ExecuteOptions,
+	options ExecutionOptions,
 	args ...any,
 ) (string, error) {
 	var parsedABI *abi.ABI

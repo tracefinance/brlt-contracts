@@ -9,8 +9,8 @@ import (
 
 // Factory creates and manages BlockExplorer instances
 type Factory interface {
-	// GetExplorer returns a BlockExplorer instance for the specified chain type
-	GetExplorer(chainType types.ChainType) (BlockExplorer, error)
+	// NewExplorer returns a BlockExplorer instance for the specified chain type
+	NewExplorer(chainType types.ChainType) (BlockExplorer, error)
 }
 
 // NewFactory creates a new BlockExplorer factory
@@ -30,8 +30,8 @@ type factory struct {
 	explorers map[types.ChainType]BlockExplorer
 }
 
-// GetExplorer returns a BlockExplorer instance for the specified chain type
-func (f *factory) GetExplorer(chainType types.ChainType) (BlockExplorer, error) {
+// NewExplorer returns a BlockExplorer instance for the specified chain type
+func (f *factory) NewExplorer(chainType types.ChainType) (BlockExplorer, error) {
 	// Check if we already have an instance for this chain
 	if explorer, ok := f.explorers[chainType]; ok {
 		return explorer, nil

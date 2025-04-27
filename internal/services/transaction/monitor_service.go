@@ -141,7 +141,7 @@ func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context)
 		// Process transactions by chain type
 		for chainType, transactions := range txsByChain {
 			// Get explorer for the chain
-			explorer, err := s.blockExplorerFactory.GetExplorer(chainType)
+			explorer, err := s.blockExplorerFactory.NewExplorer(chainType)
 			if err != nil {
 				s.log.Error("Failed to get explorer",
 					logger.String("chain_type", string(chainType)),

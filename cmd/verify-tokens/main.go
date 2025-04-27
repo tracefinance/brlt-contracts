@@ -137,7 +137,7 @@ func verifyTokens(
 	defer wg.Done()
 
 	// Get explorer for this chain
-	explorer, err := container.Core.BlockExplorerFactory.GetExplorer(chain.Type)
+	explorer, err := container.Core.BlockExplorerFactory.NewExplorer(chain.Type)
 	if err != nil {
 		results <- TokenVerificationResult{
 			Chain: chain,
