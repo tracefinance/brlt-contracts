@@ -369,7 +369,9 @@ func (c *evmContractManager) ExecuteMethod(
 	}
 
 	// Pack the method call data using the obtained ABI
-	data, err := parsedABI.Pack(method, args...)
+	// NOTE: We pack here primarily for validation, but the actual packing for the
+	// transaction data will happen inside CreateContractCallTransaction.
+	_, err = parsedABI.Pack(method, args...)
 	if err != nil {
 		if strings.Contains(err.Error(), "no method with id") || strings.Contains(err.Error(), "method '"+method+"' not found") {
 			return "", errors.NewMethodNotFoundError(method, contractAddress)
@@ -377,25 +379,41 @@ func (c *evmContractManager) ExecuteMethod(
 		return "", errors.NewInvalidContractCallError(contractAddress, fmt.Errorf("failed to pack method '%s' call data: %w", method, err))
 	}
 
-	// Translate ExecuteOptions to types.TransactionOptions for the wallet call
+	// Translate ExecuteOptions to types.TransactionOptions
+	// We don't set Data here, as CreateContractCallTransaction will handle encoding.
 	txOptions := types.TransactionOptions{
 		GasPrice: options.GasPrice,
 		GasLimit: options.GasLimit,
 		Nonce:    options.Nonce,
-		Data:     data,
+		// Data field is intentionally omitted here
 	}
 
 	// Ensure value from ExecuteOptions is not nil (use 0 if it is)
+	// This value will now be passed to CreateContractCallTransaction.
 	callValue := options.Value
 	if callValue == nil {
 		callValue = big.NewInt(0)
 	}
 
-	// Create transaction using the explicit value from ExecuteOptions
-	tx, err := c.wallet.CreateNativeTransaction(
+	// Create transaction using CreateContractCallTransaction
+	// It requires the ABI string to perform the encoding itself.
+	finalAbiString := contractABI // Use provided if available
+	if finalAbiString == "" {
+		// Marshal the parsed ABI back to string if it wasn't provided
+		abiBytes, marshalErr := json.Marshal(parsedABI.Methods)
+		if marshalErr != nil {
+			return "", errors.NewInvalidContractError(contractAddress, fmt.Errorf("failed to marshal fetched ABI: %w", marshalErr))
+		}
+		finalAbiString = string(abiBytes)
+	}
+
+	tx, err := c.wallet.CreateContractCallTransaction(
 		ctx,
 		contractAddress,
-		callValue,
+		callValue,      // Pass the value from options
+		finalAbiString, // Pass the ABI string
+		method,         // Pass the method name
+		args,           // Pass the arguments
 		txOptions,
 	)
 	if err != nil {
@@ -415,4 +433,38 @@ func (c *evmContractManager) ExecuteMethod(
 	}
 
 	return txHash, nil
+}
+
+// getContractABI retrieves and parses the ABI for a given contract address.
+// It prioritizes fetching from the block explorer if available.
+func (c *evmContractManager) getContractABI(ctx context.Context, contractAddress string) (*abi.ABI, error) {
+	// Check if block explorer is configured and available
+	if c.explorer == nil {
+		// If no explorer, we cannot fetch the ABI dynamically
+		// Assuming NewConfigurationError exists and takes context string
+		return nil, errors.NewConfigurationError(fmt.Sprintf("BlockExplorer not configured for chain %s, cannot fetch ABI for %s", c.chainType, contractAddress))
+	}
+
+	// Fetch contract info using the block explorer
+	contractInfo, err := c.explorer.GetContract(ctx, contractAddress)
+	if err != nil {
+		// Propagate errors from the explorer (e.g., network error, contract not found)
+		return nil, err
+	}
+
+	// Check if ABI was actually returned
+	if contractInfo == nil || contractInfo.ABI == "" {
+		// Use correct NewABIError signature: NewABIError(err error, context string)
+		// Since there's no underlying technical error here, just missing data, we pass nil for err.
+		return nil, errors.NewABIError(nil, fmt.Sprintf("ABI not found for contract %s via block explorer", contractAddress))
+	}
+
+	// Parse the fetched ABI string
+	parsedABI, err := abi.JSON(strings.NewReader(contractInfo.ABI))
+	if err != nil {
+		// Use correct NewABIError signature
+		return nil, errors.NewABIError(err, fmt.Sprintf("failed to parse ABI fetched from explorer for %s", contractAddress))
+	}
+
+	return &parsedABI, nil
 }

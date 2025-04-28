@@ -272,7 +272,7 @@ func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethTypes.Transac
 }
 
 // CreateContractCallTransaction implements the Wallet interface method.
-func (w *EVMWallet) CreateContractCallTransaction(ctx context.Context, contractAddress string, abiString string, method string, args []any, options types.TransactionOptions) (*types.Transaction, error) {
+func (w *EVMWallet) CreateContractCallTransaction(ctx context.Context, contractAddress string, value *big.Int, abiString string, method string, args []any, options types.TransactionOptions) (*types.Transaction, error) {
 	fromAddress, err := w.DeriveAddress(ctx)
 	if err != nil {
 		return nil, err // Don't wrap errors from DeriveAddress
@@ -280,6 +280,13 @@ func (w *EVMWallet) CreateContractCallTransaction(ctx context.Context, contractA
 
 	if !common.IsHexAddress(contractAddress) {
 		return nil, errors.NewInvalidAddressError(contractAddress)
+	}
+
+	// Validate the value
+	if value == nil {
+		value = big.NewInt(0) // Default to 0 if nil
+	} else if value.Cmp(big.NewInt(0)) < 0 {
+		return nil, errors.NewInvalidAmountError("value cannot be negative")
 	}
 
 	// Parse the ABI string
@@ -318,7 +325,7 @@ func (w *EVMWallet) CreateContractCallTransaction(ctx context.Context, contractA
 			Chain:    w.chain.Type,
 			From:     fromAddress,
 			To:       contractAddress,
-			Value:    big.NewInt(0), // Value is typically zero for contract calls unless sending native currency
+			Value:    value,
 			Data:     data,
 			Nonce:    options.Nonce,
 			GasPrice: gasPrice,

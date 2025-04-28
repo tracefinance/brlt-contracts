@@ -108,6 +108,7 @@ type Wallet interface {
 	// Parameters:
 	//   - ctx: Context for the operation.
 	//   - contractAddress: The address of the smart contract to interact with.
+	//   - value: The amount of native currency to send with the call (for payable functions).
 	//   - abiString: The JSON ABI string of the contract.
 	//   - method: The name of the contract method to call.
 	//   - args: A slice of arguments for the contract method call.
@@ -116,6 +117,7 @@ type Wallet interface {
 	// Returns:
 	//   - *types.Transaction: An unsigned transaction object ready for signing.
 	//                       The 'Data' field will contain the ABI-encoded call.
+	//                       The 'Value' field will contain the native currency amount.
 	//   - error: Any error encountered during ABI encoding or transaction creation.
-	CreateContractCallTransaction(ctx context.Context, contractAddress string, abiString string, method string, args []any, options types.TransactionOptions) (*types.Transaction, error)
+	CreateContractCallTransaction(ctx context.Context, contractAddress string, value *big.Int, abiString string, method string, args []any, options types.TransactionOptions) (*types.Transaction, error)
 }
