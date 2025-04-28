@@ -2,7 +2,6 @@ package transaction
 
 import (
 	"context"
-	"math/big"
 	"strings"
 	"sync"
 
@@ -15,10 +14,10 @@ import (
 
 // EVMMonitor implements Monitor for EVM-compatible blockchains
 type evmMonitor struct {
-	log                logger.Logger
-	blockchainRegistry blockchain.Factory
-	tokenStore         tokenstore.TokenStore
-	chains             *types.Chains
+	log               logger.Logger
+	blockchainFactory blockchain.Factory
+	tokenStore        tokenstore.TokenStore
+	chains            *types.Chains
 
 	// Transaction events channel
 	transactionEvents chan *types.Transaction
@@ -44,7 +43,7 @@ func NewEVMMonitor(
 ) Monitor {
 	return &evmMonitor{
 		log:                  log,
-		blockchainRegistry:   blockchainRegistry,
+		blockchainFactory:    blockchainRegistry,
 		tokenStore:           tokenStore,
 		chains:               chains,
 		transactionEvents:    make(chan *types.Transaction, 100), // Buffer size
@@ -277,7 +276,7 @@ func (s *evmMonitor) startContractSubscription(chainType types.ChainType, contra
 	s.subscriptionRegistry.AddOrUpdateSubscription(sub)
 
 	// Get blockchain client
-	client, err := s.blockchainRegistry.NewClient(chainType)
+	client, err := s.blockchainFactory.NewClient(chainType)
 	if err != nil {
 		s.log.Error("Failed to get blockchain client for contract subscription",
 			logger.String("chain_type", string(chainType)),
@@ -370,7 +369,7 @@ func (s *evmMonitor) UnsubscribeFromTransactionEvents() {
 // subscribeToChainBlocks subscribes to new blocks for a specific chain
 func (s *evmMonitor) subscribeToChainBlocks(ctx context.Context, chain types.Chain) {
 	// Get blockchain client for the chain type
-	client, err := s.blockchainRegistry.NewClient(chain.Type)
+	client, err := s.blockchainFactory.NewClient(chain.Type)
 	if err != nil {
 		s.log.Error("Failed to get blockchain client",
 			logger.String("chain_type", string(chain.Type)),
@@ -471,16 +470,18 @@ func (s *evmMonitor) processERC20TransferLog(ctx context.Context, chain types.Ch
 	toAddr := toAddrObj.ToChecksum()
 
 	// Check if either the 'from' or 'to' address is monitored before fetching details
-	if !s.isAddressMonitored(chain.Type, []string{fromAddr, toAddr}) {
-		s.log.Debug("Skipping ERC20 transfer processing, neither address is monitored",
+	// Also check the contract address emitting the log
+	if !s.isAddressMonitored(chain.Type, []string{fromAddr, toAddr, log.Address}) {
+		s.log.Debug("Skipping ERC20 transfer processing, related addresses not monitored",
 			logger.String("tx_hash", log.TransactionHash),
 			logger.String("from_address", fromAddr),
-			logger.String("to_address", toAddr))
+			logger.String("to_address", toAddr),
+			logger.String("contract_address", log.Address))
 		return
 	}
 
-	// Get blockchain client to fetch transaction details and block information
-	client, err := s.blockchainRegistry.NewClient(chain.Type)
+	// Get blockchain client to fetch transaction details
+	client, err := s.blockchainFactory.NewClient(chain.Type)
 	if err != nil {
 		s.log.Error("Failed to get blockchain client for transaction details",
 			logger.String("chain_type", string(chain.Type)),
@@ -488,90 +489,32 @@ func (s *evmMonitor) processERC20TransferLog(ctx context.Context, chain types.Ch
 		return
 	}
 
-	// Fetch the full transaction to get gas price and gas limit
-	var gasPrice *big.Int
-	var gasLimit uint64
-	var gasUsed uint64
-	var nonce uint64
-	var timestamp int64
-
 	// Get full transaction details from blockchain
+	// This transaction object should already be correctly structured (with embedded BaseTransaction)
+	// and populated with execution details by the blockchain client implementation.
 	fullTx, err := client.GetTransaction(ctx, log.TransactionHash)
 	if err != nil {
-		s.log.Warn("Failed to fetch transaction details, continuing with limited data",
+		s.log.Warn("Failed to fetch full transaction details for ERC20 log",
 			logger.String("tx_hash", log.TransactionHash),
 			logger.Error(err))
-	} else {
-		// Extract gas details from the transaction
-		gasPrice = fullTx.GasPrice
-		gasLimit = fullTx.GasLimit
-		gasUsed = fullTx.GasUsed
-		nonce = fullTx.Nonce
-		timestamp = fullTx.Timestamp
-	}
-
-	// If timestamp is not available from the transaction, try to get it from the block
-	if timestamp == 0 && log.BlockNumber != nil {
-		block, err := client.GetBlock(ctx, log.BlockNumber.String())
-		if err != nil {
-			s.log.Warn("Failed to fetch block for timestamp, continuing without it",
-				logger.String("block_number", log.BlockNumber.String()),
-				logger.Error(err))
-		} else {
-			timestamp = block.Timestamp.Unix()
-		}
-	}
-
-	// Create a new transaction directly from the log data
-	// Parse the token address using the address utilities
-	tokenAddrObj, err := types.NewAddress(chain.Type, log.Address)
-	if err != nil {
-		s.log.Warn("Invalid token address in ERC20 transfer",
-			logger.String("tx_hash", log.TransactionHash),
-			logger.String("raw_address", log.Address),
-			logger.Error(err))
+		// Optionally, we could construct a partial transaction from the log here if needed,
+		// but for now, we'll only emit if we get the full details.
 		return
 	}
-	tokenAddress := tokenAddrObj.ToChecksum()
 
-	// Parse the transfer amount from log data
-	var value *big.Int
-	if len(log.Data) > 0 {
-		value = new(big.Int).SetBytes(log.Data)
-	} else {
-		value = big.NewInt(0)
+	// Double-check if the fetched transaction involves monitored addresses
+	// (The addresses in the log might differ slightly from the tx.From/tx.To in edge cases)
+	if !s.isAddressMonitored(chain.Type, []string{fullTx.From, fullTx.To}) {
+		s.log.Debug("Skipping fetched transaction processing, addresses not monitored",
+			logger.String("tx_hash", fullTx.Hash),
+			logger.String("chain", string(chain.Type)),
+			logger.String("from_address", fullTx.From),
+			logger.String("to_address", fullTx.To))
+		return
 	}
 
-	// Create a transaction record with all available details
-	tx := &types.Transaction{
-		Chain:        chain.Type,
-		Hash:         log.TransactionHash,
-		From:         fromAddr,
-		To:           toAddr,
-		Value:        value,
-		Type:         types.TransactionTypeERC20,
-		TokenAddress: tokenAddress,
-		Status:       types.TransactionStatusSuccess, // ERC20 transfer logs occur only for successful transfers
-		BlockNumber:  log.BlockNumber,
-		Timestamp:    timestamp,
-		GasPrice:     gasPrice,
-		GasLimit:     gasLimit,
-		GasUsed:      gasUsed,
-		Nonce:        nonce,
-	}
-
-	// Get token details from token store to enrich the emitted transaction
-	token, err := s.tokenStore.GetToken(ctx, tokenAddress)
-	if err == nil && token != nil {
-		tx.TokenSymbol = token.Symbol
-	} else {
-		s.log.Warn("Token not found in token store for ERC20 transfer, emitting without symbol",
-			logger.String("token_address", tokenAddress),
-			logger.String("chain", string(chain.Type)))
-	}
-
-	// Emit the raw transaction (filtered by monitored addresses inside emitTransactionEvent)
-	s.emitTransactionEvent(tx)
+	// Emit the fully populated transaction fetched from the client
+	s.emitTransactionEvent(fullTx)
 }
 
 // emitTransactionEvent sends a raw transaction to the transaction events channel.
