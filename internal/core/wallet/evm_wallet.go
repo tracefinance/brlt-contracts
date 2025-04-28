@@ -3,9 +3,11 @@ package wallet
 import (
 	"context"
 	"encoding/asn1"
+	"fmt"
 	"math/big"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -107,15 +109,17 @@ func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, toAddress strin
 	}
 
 	tx := &types.Transaction{
-		Chain:    w.chain.Type,
-		From:     fromAddress,
-		To:       toAddress,
-		Value:    amount,
-		Data:     options.Data,
-		Nonce:    options.Nonce,
-		GasPrice: gasPrice,
-		GasLimit: gasLimit,
-		Type:     types.TransactionTypeNative,
+		BaseTransaction: types.BaseTransaction{
+			Chain:    w.chain.Type,
+			From:     fromAddress,
+			To:       toAddress,
+			Value:    amount,
+			Data:     options.Data,
+			Nonce:    options.Nonce,
+			GasPrice: gasPrice,
+			GasLimit: gasLimit,
+			Type:     types.TransactionTypeNative,
+		},
 	}
 
 	return tx, nil
@@ -155,16 +159,17 @@ func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, tokenAddress, to
 	}
 
 	tx := &types.Transaction{
-		Chain:        w.chain.Type,
-		From:         fromAddress,
-		To:           tokenAddress,
-		Value:        big.NewInt(0),
-		Data:         data,
-		Nonce:        options.Nonce,
-		GasPrice:     gasPrice,
-		GasLimit:     gasLimit,
-		Type:         types.TransactionTypeERC20,
-		TokenAddress: tokenAddress,
+		BaseTransaction: types.BaseTransaction{
+			Chain:    w.chain.Type,
+			From:     fromAddress,
+			To:       tokenAddress,
+			Value:    big.NewInt(0),
+			Data:     data,
+			Nonce:    options.Nonce,
+			GasPrice: gasPrice,
+			GasLimit: gasLimit,
+			Type:     types.TransactionTypeContractCall,
+		},
 	}
 
 	return tx, nil
@@ -264,4 +269,64 @@ func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethTypes.Transac
 	}
 
 	return nil, errors.NewSignatureRecoveryError(nil)
+}
+
+// CreateContractCallTransaction implements the Wallet interface method.
+func (w *EVMWallet) CreateContractCallTransaction(ctx context.Context, contractAddress string, abiString string, method string, args []any, options types.TransactionOptions) (*types.Transaction, error) {
+	fromAddress, err := w.DeriveAddress(ctx)
+	if err != nil {
+		return nil, err // Don't wrap errors from DeriveAddress
+	}
+
+	if !common.IsHexAddress(contractAddress) {
+		return nil, errors.NewInvalidAddressError(contractAddress)
+	}
+
+	// Parse the ABI string
+	parsedABI, err := abi.JSON(strings.NewReader(abiString))
+	if err != nil {
+		// Use the error constructor correctly, passing the underlying error
+		return nil, errors.NewABIError(err, "failed to parse ABI JSON")
+	}
+
+	// Pack the arguments for the method call
+	data, err := parsedABI.Pack(method, args...)
+	if err != nil {
+		// Use the general ABI error, adding method context
+		context := fmt.Sprintf("failed to pack ABI arguments for method '%s'", method)
+		return nil, errors.NewABIError(err, context)
+	}
+
+	// Set gas price and limit, using defaults if not provided
+	gasPrice := options.GasPrice
+	if gasPrice == nil || gasPrice.Cmp(big.NewInt(0)) == 0 {
+		gasPrice = big.NewInt(int64(w.chain.DefaultGasPrice))
+	}
+
+	gasLimit := options.GasLimit
+	if gasLimit == 0 {
+		// Use a reasonable default for contract calls, perhaps higher than native
+		gasLimit = w.chain.DefaultGasLimit * 2 // Example: double the native default
+		if gasLimit == 0 {                     // Ensure it's not zero if default is zero
+			gasLimit = 100000 // Fallback default
+		}
+	}
+
+	// Create the transaction struct
+	tx := &types.Transaction{
+		BaseTransaction: types.BaseTransaction{
+			Chain:    w.chain.Type,
+			From:     fromAddress,
+			To:       contractAddress,
+			Value:    big.NewInt(0), // Value is typically zero for contract calls unless sending native currency
+			Data:     data,
+			Nonce:    options.Nonce,
+			GasPrice: gasPrice,
+			GasLimit: gasLimit,
+			Type:     types.TransactionTypeContractCall,
+		},
+		// Execution fields are zero/nil here as the transaction is not yet executed
+	}
+
+	return tx, nil
 }

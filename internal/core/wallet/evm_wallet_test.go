@@ -233,8 +233,7 @@ func TestCreateTokenTransaction(t *testing.T) {
 	assert.Equal(t, tokenAddress, tx.To, "To address should be token contract address")
 	assert.Equal(t, big.NewInt(0), tx.Value, "Value should be 0 for token transactions")
 	assert.NotEmpty(t, tx.Data, "Transaction data should contain ERC20 transfer ABI")
-	assert.Equal(t, types.TransactionTypeERC20, tx.Type, "Transaction type should be ERC20")
-	assert.Equal(t, tokenAddress, tx.TokenAddress, "Token address should match input")
+	assert.Equal(t, types.TransactionTypeContractCall, tx.Type, "Transaction type should be ContractCall")
 
 	// Test failure case: invalid toAddress
 	_, err = wallet.CreateTokenTransaction(ctx, tokenAddress, "invalid-address", amount, types.TransactionOptions{})
@@ -273,13 +272,16 @@ func TestSignTransaction(t *testing.T) {
 
 	// Create a test transaction
 	tx := &types.Transaction{
-		Chain:    types.ChainTypeEthereum,
-		From:     address,
-		To:       "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-		Value:    big.NewInt(1000000000000000000), // 1 ETH
-		GasPrice: big.NewInt(20000000000),         // 20 Gwei
-		GasLimit: 21000,
-		Nonce:    0,
+		BaseTransaction: types.BaseTransaction{
+			Chain:    types.ChainTypeEthereum,
+			From:     address,
+			To:       "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+			Value:    big.NewInt(1000000000000000000), // 1 ETH
+			GasPrice: big.NewInt(20000000000),         // 20 Gwei
+			GasLimit: 21000,
+			Nonce:    0,
+			Type:     types.TransactionTypeNative, // Assuming this test case is for a native tx
+		},
 	}
 
 	// Set up the mock to sign with the private key
@@ -312,12 +314,15 @@ func TestSignTransaction(t *testing.T) {
 		require.NoError(t, err)
 
 		tx := &types.Transaction{
-			Chain:    types.ChainTypeEthereum,
-			From:     "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-			To:       "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-			Value:    big.NewInt(1),
-			GasPrice: big.NewInt(1),
-			GasLimit: 21000,
+			BaseTransaction: types.BaseTransaction{
+				Chain:    types.ChainTypeEthereum,
+				From:     "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+				To:       "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+				Value:    big.NewInt(1),
+				GasPrice: big.NewInt(1),
+				GasLimit: 21000,
+				Type:     types.TransactionTypeNative, // Assuming native type for this test
+			},
 		}
 
 		// Execute

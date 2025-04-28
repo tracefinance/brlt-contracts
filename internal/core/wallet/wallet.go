@@ -100,4 +100,22 @@ type Wallet interface {
 	//   - []byte: Signed transaction bytes ready for broadcasting
 	//   - error: Any error during signing
 	SignTransaction(ctx context.Context, tx *types.Transaction) ([]byte, error)
+
+	// CreateContractCallTransaction creates an unsigned transaction to call a
+	// method on a smart contract. It uses the provided ABI to encode the
+	// method call data.
+	//
+	// Parameters:
+	//   - ctx: Context for the operation.
+	//   - contractAddress: The address of the smart contract to interact with.
+	//   - abiString: The JSON ABI string of the contract.
+	//   - method: The name of the contract method to call.
+	//   - args: A slice of arguments for the contract method call.
+	//   - options: Chain-specific transaction parameters (gas price, nonce, etc.).
+	//
+	// Returns:
+	//   - *types.Transaction: An unsigned transaction object ready for signing.
+	//                       The 'Data' field will contain the ABI-encoded call.
+	//   - error: Any error encountered during ABI encoding or transaction creation.
+	CreateContractCallTransaction(ctx context.Context, contractAddress string, abiString string, method string, args []any, options types.TransactionOptions) (*types.Transaction, error)
 }
