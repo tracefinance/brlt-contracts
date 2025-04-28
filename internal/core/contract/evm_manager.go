@@ -65,18 +65,17 @@ func (c *evmContractManager) LoadArtifact(ctx context.Context, contractName stri
 	// Get the path to the smart contracts directory
 	contractsPath := c.config.GetSmartContractsPath()
 
-	// Construct the artifact path - supporting both Hardhat and Truffle formats
-	// Try Hardhat format first
-	artifactPath := filepath.Join(contractsPath, contractName+".json")
+	// Get the base name by removing any extension
+	ext := filepath.Ext(contractName)
+	baseName := strings.TrimSuffix(contractName, ext)
 
-	// If file doesn't exist, try looking in a subdirectory (Truffle format)
+	// Construct the expected artifact path: {contractsPath}/{baseName}/{baseName}.json
+	artifactPath := filepath.Join(contractsPath, baseName, baseName+".json")
+
+	// Check if the file exists at the expected path
 	if _, err := os.Stat(artifactPath); os.IsNotExist(err) {
-		artifactPath = filepath.Join(contractsPath, contractName, contractName+".json")
-
-		// If still doesn't exist, return error
-		if _, err := os.Stat(artifactPath); os.IsNotExist(err) {
-			return nil, errors.NewInvalidContractError(contractName, fmt.Errorf("artifact file not found at %s or %s", filepath.Join(contractsPath, contractName+".json"), artifactPath))
-		}
+		// If not found, return an error indicating the expected path
+		return nil, errors.NewInvalidContractError(contractName, fmt.Errorf("artifact file not found at expected path: %s", artifactPath))
 	}
 
 	// Read the artifact file
@@ -166,7 +165,7 @@ func (c *evmContractManager) LoadArtifact(ctx context.Context, contractName stri
 	}
 
 	return &Artifact{
-		Name:             contractName,
+		Name:             baseName,
 		ABI:              string(abiJSON),
 		Bytecode:         bytecode,
 		DeployedBytecode: deployedBytecode,

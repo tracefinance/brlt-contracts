@@ -61,7 +61,7 @@ func (u *evmAbiUtils) LoadABIByName(ctx context.Context, abiType SupportedABITyp
 	contractName, err := u.config.GetABIContractNameForType(string(abiType))
 	if err != nil {
 		// Wrap the config error for clarity
-		return nil, fmt.Errorf("failed to get ABI contract name for type '%s': %w", abiType, err)
+		return nil, err
 	}
 
 	// 3. Load artifact using the contract name
@@ -86,19 +86,21 @@ func (u *evmAbiUtils) LoadABIByName(ctx context.Context, abiType SupportedABITyp
 // Uses contract.Artifact from the contract package.
 func (u *evmAbiUtils) loadArtifact(ctx context.Context, contractName string) (*contract.Artifact, error) {
 	contractsPath := u.config.GetSmartContractsPath()
-	// Construct path using contractName directly now (LoadABIByName handles the .json)
-	artifactPath := filepath.Join(contractsPath, contractName+".json")
 
+	// Get the base name by removing any extension
+	ext := filepath.Ext(contractName)
+	baseName := strings.TrimSuffix(contractName, ext)
+
+	// Construct the expected artifact path: {contractsPath}/{baseName}/{baseName}.json
+	artifactPath := filepath.Join(contractsPath, baseName, baseName+".json")
+
+	// Check if the file exists at the primary expected path
 	if _, err := os.Stat(artifactPath); os.IsNotExist(err) {
-		// Try subdirectory format
-		artifactPath = filepath.Join(contractsPath, contractName, contractName+".json")
-		if _, err := os.Stat(artifactPath); os.IsNotExist(err) {
-			// Use the original expected filename in the error message
-			origJsonFile := contractName + ".json"
-			return nil, errors.NewInvalidContractError(contractName, fmt.Errorf("artifact file not found at %s or %s", filepath.Join(contractsPath, origJsonFile), artifactPath))
-		}
+		// If not found, return an error indicating the expected path
+		return nil, errors.NewInvalidContractError(contractName, fmt.Errorf("artifact file not found at expected path: %s", artifactPath))
 	}
 
+	// Read the artifact file
 	data, err := os.ReadFile(artifactPath)
 	if err != nil {
 		return nil, errors.NewInvalidContractError(contractName, fmt.Errorf("failed to read artifact file %s: %w", artifactPath, err))
@@ -119,7 +121,7 @@ func (u *evmAbiUtils) loadArtifact(ctx context.Context, contractName string) (*c
 	}
 
 	return &contract.Artifact{
-		Name: contractName,
+		Name: baseName, // Use baseName for the Artifact struct as well
 		ABI:  string(abiJSON),
 	}, nil
 }
