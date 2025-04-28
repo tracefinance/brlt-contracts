@@ -845,9 +845,11 @@ func (c *evmBlockchainClient) convertEthereumLogsToLogs(logs []*ethTypes.Log) []
 func (c *evmBlockchainClient) convertEthereumTransactionToTransaction(tx *ethTypes.Transaction, receipt *ethTypes.Receipt, timestamp uint64) *types.Transaction {
 	var status types.TransactionStatus
 	var gasUsed uint64
+	var blockNumber *big.Int
 
 	if receipt != nil {
 		gasUsed = receipt.GasUsed
+		blockNumber = receipt.BlockNumber
 		if receipt.Status == 1 {
 			status = types.TransactionStatusSuccess
 		} else {
@@ -861,6 +863,8 @@ func (c *evmBlockchainClient) convertEthereumTransactionToTransaction(tx *ethTyp
 	signer := ethTypes.LatestSignerForChainID(big.NewInt(c.chain.ID))
 	if sender, err := ethTypes.Sender(signer, tx); err == nil {
 		from = sender.Hex()
+	} else {
+		c.log.Warn("Failed to derive sender from transaction", logger.String("tx_hash", tx.Hash().Hex()), logger.Error(err))
 	}
 
 	var to string
@@ -870,25 +874,35 @@ func (c *evmBlockchainClient) convertEthereumTransactionToTransaction(tx *ethTyp
 
 	// Determine transaction type
 	txType := types.TransactionTypeNative
-	// If to is empty and has data, it's a contract deployment transaction
+	// If 'to' is empty and has data, it's a contract deployment transaction
 	if to == "" && len(tx.Data()) > 0 {
 		txType = types.TransactionTypeDeploy
+	} else if len(tx.Data()) > 0 {
+		// If 'to' is set and has data, it's a contract call
+		txType = types.TransactionTypeContractCall
 	}
 
+	// Populate BaseTransaction
+	baseTx := types.BaseTransaction{
+		Chain:    c.chain.Type,
+		Hash:     tx.Hash().Hex(),
+		From:     from,
+		To:       to,
+		Value:    tx.Value(),
+		Data:     tx.Data(),
+		Nonce:    tx.Nonce(),
+		GasPrice: tx.GasPrice(),
+		GasLimit: tx.Gas(),
+		Type:     txType,
+	}
+
+	// Create the full Transaction struct
 	return &types.Transaction{
-		Chain:     c.chain.Type,
-		Hash:      tx.Hash().Hex(),
-		From:      from,
-		To:        to,
-		Value:     tx.Value(),
-		Data:      tx.Data(),
-		Nonce:     tx.Nonce(),
-		GasPrice:  tx.GasPrice(),
-		GasLimit:  tx.Gas(),
-		GasUsed:   gasUsed,
-		Type:      txType,
-		Status:    status,
-		Timestamp: int64(timestamp),
+		BaseTransaction: baseTx,
+		GasUsed:         gasUsed,
+		Status:          status,
+		Timestamp:       int64(timestamp),
+		BlockNumber:     blockNumber,
 	}
 }
 
@@ -1022,14 +1036,19 @@ func (c *evmBlockchainClient) convertEthereumBlockToBlock(block *ethTypes.Block)
 	ethTransactions := block.Transactions()
 	transactions := make([]*types.Transaction, len(ethTransactions))
 
+	blockTimestamp := int64(block.Time())
+	blockNumber := block.Number()
+
 	for i, tx := range ethTransactions {
-		// For transactions in a mined block, we know they've been processed
-		// We don't need to fetch the receipt to know the status for basic block viewing
-		// The full status can be fetched later if needed via GetTransaction
+		// For transactions in a mined block, we know they've been processed.
+		// We will set Status to Mined, but won't fetch the receipt here for efficiency.
+		// GetTransaction can be called later for full status (Success/Failed) and GasUsed.
 		from := ""
 		signer := ethTypes.LatestSignerForChainID(big.NewInt(c.chain.ID))
 		if sender, err := ethTypes.Sender(signer, tx); err == nil {
 			from = sender.Hex()
+		} else {
+			c.log.Warn("Failed to derive sender from block transaction", logger.String("tx_hash", tx.Hash().Hex()), logger.Error(err))
 		}
 
 		var to string
@@ -1039,24 +1058,33 @@ func (c *evmBlockchainClient) convertEthereumBlockToBlock(block *ethTypes.Block)
 
 		// Determine transaction type
 		txType := types.TransactionTypeNative
-		// If to is empty and has data, it's a contract deployment transaction
 		if to == "" && len(tx.Data()) > 0 {
 			txType = types.TransactionTypeDeploy
+		} else if len(tx.Data()) > 0 {
+			txType = types.TransactionTypeContractCall
 		}
 
+		// Populate BaseTransaction
+		baseTx := types.BaseTransaction{
+			Chain:    c.chain.Type,
+			Hash:     tx.Hash().Hex(),
+			From:     from,
+			To:       to,
+			Value:    tx.Value(),
+			Data:     tx.Data(),
+			Nonce:    tx.Nonce(),
+			GasPrice: tx.GasPrice(),
+			GasLimit: tx.Gas(),
+			Type:     txType,
+		}
+
+		// Create the full Transaction struct for the block context
 		transactions[i] = &types.Transaction{
-			Chain:     c.chain.Type,
-			Hash:      tx.Hash().Hex(),
-			From:      from,
-			To:        to,
-			Value:     tx.Value(),
-			Data:      tx.Data(),
-			Nonce:     tx.Nonce(),
-			GasPrice:  tx.GasPrice(),
-			GasLimit:  tx.Gas(),
-			Type:      txType,
-			Status:    types.TransactionStatusMined, // Mined but detailed status unknown without receipt
-			Timestamp: int64(block.Time()),
+			BaseTransaction: baseTx,
+			Status:          types.TransactionStatusMined, // Default status for tx in a mined block
+			Timestamp:       blockTimestamp,
+			BlockNumber:     blockNumber,
+			// GasUsed is not available without fetching the receipt
 		}
 	}
 
@@ -1064,7 +1092,7 @@ func (c *evmBlockchainClient) convertEthereumBlockToBlock(block *ethTypes.Block)
 		Hash:             block.Hash().Hex(),
 		Number:           block.Number(),
 		ParentHash:       block.ParentHash().Hex(),
-		Timestamp:        time.Unix(int64(block.Time()), 0),
+		Timestamp:        time.Unix(blockTimestamp, 0),
 		TransactionCount: len(transactions),
 		Transactions:     transactions,
 		Miner:            block.Coinbase().Hex(),
