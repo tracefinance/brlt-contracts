@@ -293,7 +293,7 @@ func (e *EtherscanExplorer) GetContract(ctx context.Context, address string) (*C
 }
 
 // getNormalTransactionHistory fetches normal transactions for an address
-func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, page, limit int) ([]*types.Transaction, error) {
+func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, page, limit int) ([]*NormalTxHistoryEntry, error) {
 	params := url.Values{}
 	// Request limit+1 items to determine if there's a next page
 	e.setTransactionHistoryParams(params, address, options, "txlist", page, limit+1)
@@ -324,60 +324,62 @@ func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, add
 		return nil, errors.NewInvalidExplorerResponseError(err, string(data))
 	}
 
-	result := make([]*types.Transaction, len(txs))
-	for i, tx := range txs {
+	result := make([]*NormalTxHistoryEntry, 0, len(txs))
+	for _, tx := range txs {
 		blockNumber := new(big.Int)
 		blockNumber.SetString(tx.BlockNumber, 10)
 		gasLimit, _ := strconv.ParseUint(tx.Gas, 10, 64)
 		gasPrice := new(big.Int)
 		gasPrice.SetString(tx.GasPrice, 10)
+		gasUsed, _ := strconv.ParseUint(tx.GasUsed, 10, 64)
 		nonce, _ := strconv.ParseUint(tx.Nonce, 10, 64)
 		value := new(big.Int)
 		value.SetString(tx.Value, 10)
+		timestamp, _ := strconv.ParseInt(tx.Timestamp, 10, 64)
 
-		// Parse timestamp with error checking
-		timestamp := time.Now().Unix()
-		if tx.Timestamp != "" {
-			if timestampInt, err := strconv.ParseInt(tx.Timestamp, 10, 64); err == nil {
-				timestamp = timestampInt
-			} else {
-				e.log.Debug("Failed to parse transaction timestamp",
-					logger.String("hash", tx.Hash),
-					logger.String("timestamp_str", tx.Timestamp),
-					logger.Error(err))
-			}
+		status := types.TransactionStatusSuccess
+		if tx.IsError == "1" {
+			status = types.TransactionStatusFailed
 		}
 
-		// Determine transaction type
 		txType := types.TransactionTypeNative
-		// If to is empty or contractAddress is not empty, it's a contract deployment transaction
 		if (tx.To == "" || tx.To == "0x") && tx.ContractAddress != "" {
 			txType = types.TransactionTypeDeploy
+		} // Cannot reliably detect ContractCall without input data
+
+		baseTx := types.BaseTransaction{
+			Chain:    e.chain.Type,
+			Hash:     tx.Hash,
+			From:     tx.From,
+			To:       tx.To,
+			Value:    value,
+			Data:     nil, // Not provided
+			Nonce:    nonce,
+			GasPrice: gasPrice,
+			GasLimit: gasLimit,
+			Type:     txType,
 		}
 
-		result[i] = &types.Transaction{
-			Chain:        e.chain.Type,
-			Hash:         tx.Hash,
-			From:         tx.From,
-			To:           tx.To,
-			Value:        value,
-			Data:         nil, // Etherscan doesn't return transaction data
-			Nonce:        nonce,
-			GasPrice:     gasPrice,
-			GasLimit:     gasLimit,
-			Type:         txType,
-			TokenAddress: tx.ContractAddress,
-			Status:       types.TransactionStatus(map[string]string{"0": "success", "1": "failed"}[tx.IsError]),
-			Timestamp:    timestamp,
-			BlockNumber:  blockNumber,
+		historyEntry := TransactionHistoryEntry{
+			BaseTransaction: baseTx,
+			Status:          status,
+			Timestamp:       timestamp,
+			BlockNumber:     blockNumber,
+			GasUsed:         gasUsed,
 		}
+
+		normalEntry := &NormalTxHistoryEntry{
+			TransactionHistoryEntry: historyEntry,
+			ContractAddress:         tx.ContractAddress, // Specific to normal tx (deploy)
+		}
+		result = append(result, normalEntry)
 	}
 
 	return result, nil
 }
 
 // getInternalTransactionHistory fetches internal transactions for an address
-func (e *EtherscanExplorer) getInternalTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, page, limit int) ([]*types.Transaction, error) {
+func (e *EtherscanExplorer) getInternalTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, page, limit int) ([]*InternalTxHistoryEntry, error) {
 	params := url.Values{}
 	// Request limit+1 items to determine if there's a next page
 	e.setTransactionHistoryParams(params, address, options, "txlistinternal", page, limit+1)
@@ -404,46 +406,52 @@ func (e *EtherscanExplorer) getInternalTransactionHistory(ctx context.Context, a
 		return nil, errors.NewInvalidExplorerResponseError(err, string(data))
 	}
 
-	result := make([]*types.Transaction, len(txs))
-	for i, tx := range txs {
+	result := make([]*InternalTxHistoryEntry, 0, len(txs))
+	for _, tx := range txs {
 		blockNumber := new(big.Int)
 		blockNumber.SetString(tx.BlockNumber, 10)
 		value := new(big.Int)
 		value.SetString(tx.Value, 10)
+		gasUsed, _ := strconv.ParseUint(tx.GasUsed, 10, 64)
+		timestamp, _ := strconv.ParseInt(tx.Timestamp, 10, 64)
 
-		// Parse timestamp with error checking
-		timestamp := time.Now().Unix()
-		if tx.Timestamp != "" {
-			if timestampInt, err := strconv.ParseInt(tx.Timestamp, 10, 64); err == nil {
-				timestamp = timestampInt
-			} else {
-				e.log.Debug("Failed to parse transaction timestamp",
-					logger.String("hash", tx.Hash),
-					logger.String("timestamp_str", tx.Timestamp),
-					logger.Error(err))
-			}
+		status := types.TransactionStatusSuccess
+		if tx.IsError == "1" {
+			status = types.TransactionStatusFailed
 		}
 
-		result[i] = &types.Transaction{
-			Chain:        e.chain.Type,
-			Hash:         tx.Hash,
-			From:         tx.From,
-			To:           tx.To,
-			Value:        value,
-			Data:         nil,
-			Type:         types.TransactionTypeNative,
-			TokenAddress: tx.ContractAddress,
-			Status:       types.TransactionStatus(map[string]string{"0": "success", "1": "failed"}[tx.IsError]),
-			Timestamp:    timestamp,
-			BlockNumber:  blockNumber,
+		// Internal transactions are native transfers triggered by contracts
+		txType := types.TransactionTypeNative
+
+		baseTx := types.BaseTransaction{
+			Chain: e.chain.Type,
+			Hash:  tx.Hash, // Parent tx hash
+			From:  tx.From,
+			To:    tx.To,
+			Value: value,
+			Type:  txType,
+			// Nonce, GasPrice, GasLimit, Data are zero/nil
 		}
+
+		historyEntry := TransactionHistoryEntry{
+			BaseTransaction: baseTx,
+			Status:          status,
+			Timestamp:       timestamp,
+			BlockNumber:     blockNumber,
+			GasUsed:         gasUsed,
+		}
+
+		internalEntry := &InternalTxHistoryEntry{
+			TransactionHistoryEntry: historyEntry,
+		}
+		result = append(result, internalEntry)
 	}
 
 	return result, nil
 }
 
 // getERC20TransactionHistory fetches ERC20 token transfers for an address
-func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, page, limit int) ([]*types.Transaction, error) {
+func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, page, limit int) ([]*ERC20TxHistoryEntry, error) {
 	params := url.Values{}
 	// Request limit+1 items to determine if there's a next page
 	e.setTransactionHistoryParams(params, address, options, "tokentx", page, limit+1)
@@ -456,14 +464,14 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 	var txs []struct {
 		Hash            string `json:"hash"`
 		From            string `json:"from"`
-		To              string `json:"to"`
-		Value           string `json:"value"`
+		To              string `json:"to"`    // This is the recipient of the transfer
+		Value           string `json:"value"` // This is the token amount
 		Gas             string `json:"gas"`
 		GasPrice        string `json:"gasPrice"`
 		Nonce           string `json:"nonce"`
 		BlockNumber     string `json:"blockNumber"`
 		Timestamp       string `json:"timeStamp"`
-		ContractAddress string `json:"contractAddress"`
+		ContractAddress string `json:"contractAddress"` // This is the token address
 		TokenName       string `json:"tokenName"`
 		TokenSymbol     string `json:"tokenSymbol"`
 		TokenDecimal    string `json:"tokenDecimal"`
@@ -473,53 +481,60 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 		return nil, errors.NewInvalidExplorerResponseError(err, string(data))
 	}
 
-	result := make([]*types.Transaction, len(txs))
-	for i, tx := range txs {
+	result := make([]*ERC20TxHistoryEntry, 0, len(txs))
+	for _, tx := range txs {
 		blockNumber := new(big.Int)
 		blockNumber.SetString(tx.BlockNumber, 10)
 		gasLimit, _ := strconv.ParseUint(tx.Gas, 10, 64)
 		gasPrice := new(big.Int)
 		gasPrice.SetString(tx.GasPrice, 10)
 		nonce, _ := strconv.ParseUint(tx.Nonce, 10, 64)
-		value := new(big.Int)
-		value.SetString(tx.Value, 10)
+		tokenAmount := new(big.Int)
+		tokenAmount.SetString(tx.Value, 10)
+		timestamp, _ := strconv.ParseInt(tx.Timestamp, 10, 64)
 
-		// Parse timestamp with error checking
-		timestamp := time.Now().Unix()
-		if tx.Timestamp != "" {
-			if timestampInt, err := strconv.ParseInt(tx.Timestamp, 10, 64); err == nil {
-				timestamp = timestampInt
-			} else {
-				e.log.Debug("Failed to parse transaction timestamp",
-					logger.String("hash", tx.Hash),
-					logger.String("timestamp_str", tx.Timestamp),
-					logger.Error(err))
-			}
+		// ERC20 transfers are contract calls
+		txType := types.TransactionTypeContractCall
+
+		// Status is assumed success for token transfers listed here
+		status := types.TransactionStatusSuccess
+
+		baseTx := types.BaseTransaction{
+			Chain:    e.chain.Type,
+			Hash:     tx.Hash,
+			From:     tx.From,
+			To:       tx.ContractAddress, // Tx interacts with token contract
+			Value:    big.NewInt(0),      // Native value likely 0
+			Data:     nil,                // Not provided
+			Nonce:    nonce,
+			GasPrice: gasPrice,
+			GasLimit: gasLimit,
+			Type:     txType,
 		}
 
-		result[i] = &types.Transaction{
-			Chain:        e.chain.Type,
-			Hash:         tx.Hash,
-			From:         tx.From,
-			To:           tx.To,
-			Value:        value,
-			Data:         nil,
-			Nonce:        nonce,
-			GasPrice:     gasPrice,
-			GasLimit:     gasLimit,
-			Type:         types.TransactionTypeERC20,
-			TokenAddress: tx.ContractAddress,
-			Status:       types.TransactionStatusSuccess,
-			Timestamp:    timestamp,
-			BlockNumber:  blockNumber,
+		historyEntry := TransactionHistoryEntry{
+			BaseTransaction: baseTx,
+			Status:          status,
+			Timestamp:       timestamp,
+			BlockNumber:     blockNumber,
+			// GasUsed not provided by tokentx endpoint
 		}
+
+		erc20Entry := &ERC20TxHistoryEntry{
+			TransactionHistoryEntry: historyEntry,
+			TokenAddress:            tx.ContractAddress,
+			TokenSymbol:             tx.TokenSymbol,
+			TokenRecipient:          tx.To, // Actual recipient of tokens
+			TokenAmount:             tokenAmount,
+		}
+		result = append(result, erc20Entry)
 	}
 
 	return result, nil
 }
 
 // GetTransactionHistory retrieves transaction history for an address with pagination
-func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, nextToken string) (*types.Page[*types.Transaction], error) {
+func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, nextToken string) (*types.Page[any], error) {
 	if !e.chain.IsValidAddress(address) {
 		return nil, errors.NewInvalidAddressError(address)
 	}
@@ -544,16 +559,44 @@ func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address s
 	}
 
 	// Fetch transactions based on the specified type
-	var transactions []*types.Transaction
+	var fetchedItems []any // Use []any to hold results from different helpers
+	var itemLength int
 	var fetchErr error
 
 	switch txType {
 	case TxTypeNormal:
-		transactions, fetchErr = e.getNormalTransactionHistory(ctx, address, options, currentPage, limit)
+		txs, err := e.getNormalTransactionHistory(ctx, address, options, currentPage, limit)
+		if err == nil {
+			fetchedItems = make([]any, len(txs))
+			for i, tx := range txs {
+				fetchedItems[i] = tx
+			}
+			itemLength = len(txs)
+		} else {
+			fetchErr = err
+		}
 	case TxTypeInternal:
-		transactions, fetchErr = e.getInternalTransactionHistory(ctx, address, options, currentPage, limit)
+		txs, err := e.getInternalTransactionHistory(ctx, address, options, currentPage, limit)
+		if err == nil {
+			fetchedItems = make([]any, len(txs))
+			for i, tx := range txs {
+				fetchedItems[i] = tx
+			}
+			itemLength = len(txs)
+		} else {
+			fetchErr = err
+		}
 	case TxTypeERC20:
-		transactions, fetchErr = e.getERC20TransactionHistory(ctx, address, options, currentPage, limit)
+		erc20Txs, err := e.getERC20TransactionHistory(ctx, address, options, currentPage, limit)
+		if err == nil {
+			fetchedItems = make([]any, len(erc20Txs))
+			for i, tx := range erc20Txs {
+				fetchedItems[i] = tx
+			}
+			itemLength = len(erc20Txs)
+		} else {
+			fetchErr = err
+		}
 	case TxTypeERC721:
 		// Not implemented yet
 		return nil, errors.NewExplorerError(fmt.Errorf("ERC721 transaction history not supported yet"))
@@ -565,18 +608,19 @@ func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address s
 		return nil, fetchErr
 	}
 
-	// Check for next page
+	// Check for next page (remember we fetched limit + 1)
 	var nextPageToken string
-	hasMore := len(transactions) > limit
+	hasMore := itemLength > limit
 	if hasMore {
 		nextPage := &NextPage{Page: currentPage + 1}
 		nextPageToken = nextPage.Encode()
 		// Trim to limit for the response
-		transactions = transactions[:limit]
+		fetchedItems = fetchedItems[:limit]
 	}
 
-	return &types.Page[*types.Transaction]{
-		Items:     transactions,
+	// Return page of type any
+	return &types.Page[any]{
+		Items:     fetchedItems,
 		NextToken: nextPageToken,
 		Limit:     limit,
 	}, nil
@@ -728,19 +772,36 @@ func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash strin
 	status := types.TransactionStatusPending
 
 	// If transaction is in a block, check the receipt status
+	var gasUsed uint64
+	var receiptStatus uint64
 	if blockNumber.Int64() > 0 && tx.BlockHash != "" {
 		status = types.TransactionStatusMined
 
-		// Try to get the receipt for detailed status
+		// Try to get the receipt for detailed status and gas used
 		receipt, err := e.GetTransactionReceiptByHash(ctx, hash)
 		if err == nil {
+			receiptStatus = receipt.Status
+			gasUsed = receipt.GasUsed
 			// Status 1 means success, 0 means failure
-			if receipt.Status == 1 {
+			if receiptStatus == 1 {
 				status = types.TransactionStatusSuccess
-			} else if receipt.Status == 0 {
+			} else if receiptStatus == 0 {
 				status = types.TransactionStatusFailed
 			}
 		}
+	}
+
+	// Fetch input data separately if needed (not returned by eth_getTransactionByHash)
+	// This requires another API call which we avoid here for performance.
+	// If input data is crucial, consider using a node provider directly.
+	var inputData []byte // Placeholder
+
+	// Determine transaction type based on presence of input data and 'to' address
+	txType := types.TransactionTypeNative
+	if tx.To == "" || tx.To == "0x" { // Assuming input data would be present for deployment
+		txType = types.TransactionTypeDeploy // Needs input data to confirm
+	} else if len(inputData) > 0 { // Placeholder check
+		txType = types.TransactionTypeContractCall
 	}
 
 	e.log.Debug("Retrieved transaction",
@@ -748,18 +809,26 @@ func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash strin
 		logger.String("status", string(status)),
 		logger.String("block_number", blockNumber.String()))
 
+	baseTx := types.BaseTransaction{
+		Chain:    e.chain.Type,
+		Hash:     tx.Hash,
+		From:     tx.From,
+		To:       tx.To,
+		Value:    value,
+		Data:     inputData, // Would be nil here
+		Nonce:    nonce,
+		GasPrice: gasPrice,
+		GasLimit: gasLimit,
+		Type:     txType,
+	}
+
 	return &types.Transaction{
-		Chain:       e.chain.Type,
-		Hash:        tx.Hash,
-		From:        tx.From,
-		To:          tx.To,
-		Value:       value,
-		Nonce:       nonce,
-		GasPrice:    gasPrice,
-		GasLimit:    gasLimit,
-		Type:        types.TransactionTypeNative,
-		Status:      status,
-		BlockNumber: blockNumber,
+		BaseTransaction: baseTx,
+		Status:          status,
+		BlockNumber:     blockNumber,
+		GasUsed:         gasUsed, // Populated if receipt was fetched
+		// Timestamp is not directly available from eth_getTransactionByHash or its receipt
+		// Needs a separate eth_getBlockByNumber call if required.
 	}, nil
 }
 

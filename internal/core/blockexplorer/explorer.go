@@ -5,62 +5,6 @@ import (
 	"vault0/internal/types"
 )
 
-// ContractInfo represents detailed information about a smart contract
-// retrieved from a blockchain explorer.
-type ContractInfo struct {
-	// ABI is the contract's Application Binary Interface in JSON format
-	// It defines the methods and events available in the contract
-	ABI string
-	// ContractName is the name of the contract as defined in its source code
-	ContractName string
-	// SourceCode contains the verified source code of the contract
-	// This will be empty if the contract is not verified
-	SourceCode string
-	// IsVerified indicates whether the contract's source code has been
-	// verified and published on the block explorer
-	IsVerified bool
-}
-
-// TransactionType represents different categories of blockchain transactions
-// that can be queried from the explorer.
-type TransactionType string
-
-const (
-	// TxTypeNormal represents standard blockchain transactions
-	// These include native currency transfers and contract interactions
-	TxTypeNormal TransactionType = "normal"
-	// TxTypeInternal represents internal transactions
-	// These are transfers of native currency triggered by smart contract execution
-	TxTypeInternal TransactionType = "internal"
-	// TxTypeERC20 represents ERC20 token transfer transactions
-	// These track the movement of ERC20 tokens between addresses
-	TxTypeERC20 TransactionType = "erc20"
-	// TxTypeERC721 represents NFT transfer transactions
-	// These track the movement of NFTs (ERC721 tokens) between addresses
-	TxTypeERC721 TransactionType = "erc721"
-)
-
-// TransactionHistoryOptions contains parameters for filtering and paginating
-// transaction history queries. It provides fine-grained control over which
-// transactions are returned.
-type TransactionHistoryOptions struct {
-	// StartBlock specifies the earliest block to include in the query
-	// Use 0 to start from the genesis block
-	StartBlock int64
-	// EndBlock specifies the latest block to include in the query
-	// Use 0 to include up to the latest block
-	EndBlock int64
-	// TransactionType specifies which type of transactions to include
-	// If not specified, normal transactions will be used
-	TransactionType TransactionType
-	// SortAscending determines the order of returned transactions
-	// If true, transactions are sorted from oldest to newest
-	// If false, transactions are sorted from newest to oldest
-	SortAscending bool
-	// Limit specifies the maximum number of transactions to return per page
-	Limit int
-}
-
 // BlockExplorer defines the interface for interacting with blockchain explorers
 // such as Etherscan, Polygonscan, etc.
 //
@@ -69,18 +13,9 @@ type TransactionHistoryOptions struct {
 // transaction history, balances, and token information for any address on the
 // supported blockchain.
 type BlockExplorer interface {
-	// GetTransactionHistory retrieves transaction history for an address with pagination.
-	// It supports filtering by transaction type and sorting by timestamp.
-	//
-	// The method returns a Page containing the requested transactions and pagination info.
-	// If TransactionType is not specified in options, TxTypeNormal will be used by default.
-	// If nextToken is provided, it will be used for pagination.
-	//
-	// Returns:
-	//   - ErrInvalidAddress if the address is invalid for the chain
-	//   - ErrRateLimitExceeded if the explorer's rate limit is hit
-	//   - Other explorer-specific errors for API/network issues
-	GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, nextToken string) (*types.Page[*types.Transaction], error)
+	// GetTransactionHistory retrieves the transaction history for a given address with pagination.
+	// It supports filtering by transaction type (normal, internal, ERC20, ERC721) and block range.
+	GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, nextToken string) (*types.Page[any], error)
 
 	// GetTransactionByHash retrieves detailed information about a specific transaction
 	// given its hash. This is useful for getting the current state of a transaction
