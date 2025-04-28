@@ -1,6 +1,6 @@
 ---
 description: 
-globs: 
+globs: tasks/*
 alwaysApply: false
 ---
 # Task List Management

@@ -14,9 +14,9 @@ type TransactionType string
 // Supported transaction types
 const (
 	TransactionTypeNative TransactionType = "native"
-	TransactionTypeERC20  TransactionType = "erc20"
 	TransactionTypeDeploy TransactionType = "deploy"
-	// TransactionTypeContractCall represents a generic smart contract method call
+
+	// TransactionTypeContractCall indicates a transaction is a contract method call
 	TransactionTypeContractCall TransactionType = "contract_call"
 )
 
@@ -44,43 +44,47 @@ const (
 	TransactionStatusUnknown TransactionStatus = "unknown"
 )
 
-// Transaction represents a blockchain transaction
-type Transaction struct {
+// BaseTransaction holds the core, immutable fields of a blockchain transaction.
+// These fields are typically known before the transaction is executed.
+type BaseTransaction struct {
 	// Chain is the blockchain type
 	Chain ChainType
 	// Hash is the transaction hash
 	Hash string
 	// From is the sender address
 	From string
-	// To is the recipient address
+	// To is the recipient address (can be nil for contract creation)
 	To string
-	// Value is the amount of native currency
+	// Value is the amount of native currency transferred
 	Value *big.Int
-	// Data is the transaction data (for smart contract interactions)
+	// Data is the transaction input data (for contract interactions or creation)
 	Data []byte
-	// Nonce is the transaction nonce
+	// Nonce is the transaction nonce provided by the sender
 	Nonce uint64
-	// GasPrice is the gas price (for EVM chains)
+	// GasPrice is the price per unit of gas (e.g., gwei for EVM)
 	GasPrice *big.Int
-	// GasLimit is the gas limit (for EVM chains)
+	// GasLimit is the maximum gas units the transaction can consume
 	GasLimit uint64
-	// GasUsed is the actual amount of gas used (only available after mining)
-	GasUsed uint64
-	// Type is the transaction type
+	// Type indicates the general nature of the transaction (e.g., native transfer, deployment)
 	Type TransactionType
-	// TokenAddress is the token contract address (for ERC20 transactions)
-	TokenAddress string
-	// TokenSymbol is the symbol of the token (e.g., "ETH", "USDC")
-	TokenSymbol string
-	// Status is the transaction status
+}
+
+// Transaction represents a blockchain transaction including its execution outcome.
+// It embeds BaseTransaction for the core details.
+type Transaction struct {
+	// Embeds the core, immutable transaction details
+	BaseTransaction
+	// GasUsed is the actual amount of gas consumed during execution
+	GasUsed uint64
+	// Status indicates the execution outcome (e.g., success, failed)
 	Status TransactionStatus
-	// Timestamp is the transaction timestamp
+	// Timestamp is the Unix timestamp when the transaction was included in a block
 	Timestamp int64
-	// BlockNumber is the block number
+	// BlockNumber is the number of the block containing the transaction
 	BlockNumber *big.Int
 }
 
-// TransactionOptions represents optional parameters for a transaction
+// TransactionOptions represents optional parameters for constructing a transaction
 type TransactionOptions struct {
 	// GasPrice is the gas price (for EVM chains)
 	GasPrice *big.Int

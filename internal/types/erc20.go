@@ -1,5 +1,7 @@
 package types
 
+import "math/big"
+
 type ERC20EventSignature string
 
 // ERC20 event signatures
@@ -42,3 +44,24 @@ const (
 	// ERC20TotalSupplyMethod is the standard ERC20 totalSupply method signature
 	ERC20TotalSupplyMethod ERC20MethodSignature = "totalSupply()"
 )
+
+// ERC20 transaction type constants
+const (
+	// TransactionTypeERC20Transfer indicates a transaction is an ERC20 token transfer
+	TransactionTypeERC20Transfer TransactionType = "erc20_transfer"
+)
+
+// ERC20Transfer represents an ERC20 token transfer transaction
+// It embeds BaseTransaction for the core details and adds token-specific fields
+type ERC20Transfer struct {
+	// Embeds the core transaction details
+	BaseTransaction
+	// TokenAddress is the address of the ERC20 token contract
+	TokenAddress string
+	// TokenSymbol is the symbol of the ERC20 token
+	TokenSymbol string
+	// Recipient is the address receiving the tokens
+	Recipient string
+	// Amount is the amount of tokens transferred
+	Amount *big.Int
+}

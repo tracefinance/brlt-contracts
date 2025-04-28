@@ -3,6 +3,7 @@ package errors
 import (
 	"fmt"
 	"math/big"
+	// Removed: "vault0/internal/types"
 )
 
 // Core module error codes
@@ -97,6 +98,13 @@ const (
 	ErrCodeInvalidPaginationToken = "invalid_pagination_token"
 	ErrCodeTokenEncodingFailed    = "token_encoding_failed"
 	ErrCodeTokenDecodingFailed    = "token_decoding_failed"
+
+	// Blockchain node errors
+	ErrCodeBlockchainNodeUnreachable = "blockchain_node_unreachable"
+
+	// ABI errors
+	ErrCodeABIError     = "abi_error"
+	ErrCodeMappingError = "mapping_error"
 )
 
 // NewConfigurationError creates an error for configuration issues.
@@ -740,5 +748,38 @@ func NewTransactionBroadcastError(err error) *Vault0Error {
 		Code:    ErrCodeTransactionBroadcastFailed,
 		Message: "Failed to broadcast transaction",
 		Err:     err,
+	}
+}
+
+// NewBlockchainNodeUnreachableError creates a new error for unreachable blockchain nodes.
+func NewBlockchainNodeUnreachableError(node string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeBlockchainNodeUnreachable,
+		Message: fmt.Sprintf("Blockchain node '%s' is unreachable", node),
+		Details: map[string]any{
+			"node": node,
+		},
+	}
+}
+
+// NewABIError creates a new error for ABI processing issues.
+func NewABIError(err error, context string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIError,
+		Message: fmt.Sprintf("ABI processing failed: %s", context),
+		Details: map[string]any{"context": context},
+		Err:     err,
+	}
+}
+
+// NewMappingError creates a new error for transaction mapping failures.
+func NewMappingError(txHashStr string, reason string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeMappingError,
+		Message: fmt.Sprintf("Failed to map transaction %s: %s", txHashStr, reason),
+		Details: map[string]any{
+			"transaction_hash": txHashStr,
+			"reason":           reason,
+		},
 	}
 }

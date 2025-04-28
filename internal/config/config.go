@@ -154,6 +154,8 @@ type Config struct {
 	Blockchains BlockchainsConfig `yaml:"blockchains"`
 	// PriceFeed holds configuration for the price feed service
 	PriceFeed PriceFeedConfig `yaml:"price_feed"`
+	// ABIMapping maps supported ABI types (e.g., "erc20") to their contract artifact names
+	ABIMapping map[string]string `yaml:"abi_mapping"`
 }
 
 // LoadConfig loads the application configuration from YAML file and environment variables
@@ -260,4 +262,20 @@ func loadEnvFiles() {
 // GetSmartContractsPath returns the path to the compiled smart contract artifacts
 func (c *Config) GetSmartContractsPath() string {
 	return c.SmartContractsPath
+}
+
+// GetABIContractNameForType returns the configured contract name (artifact filename without extension)
+// for a given supported ABI type string.
+func (c *Config) GetABIContractNameForType(abiType string) (string, error) {
+	if c.ABIMapping == nil {
+		return "", fmt.Errorf("ABI mapping configuration is missing")
+	}
+	contractName, ok := c.ABIMapping[abiType]
+	if !ok {
+		return "", fmt.Errorf("ABI mapping not found for type: %s", abiType)
+	}
+	if contractName == "" {
+		return "", fmt.Errorf("ABI mapping is empty for type: %s", abiType)
+	}
+	return contractName, nil
 }

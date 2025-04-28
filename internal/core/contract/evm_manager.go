@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 
@@ -33,10 +32,6 @@ type evmContractManager struct {
 	explorer blockexplorer.BlockExplorer
 	// config is the app configuration
 	config *config.Config
-	// abiCache stores parsed ABIs keyed by contract address
-	abiCache map[string]*abi.ABI
-	// cacheMu protects concurrent access to abiCache
-	cacheMu sync.RWMutex
 }
 
 // NewEVMSmartContract creates a new EVM contract manager
@@ -57,54 +52,7 @@ func NewEVMSmartContract(
 		blockchain: blockchain,
 		wallet:     wallet,
 		config:     config,
-		abiCache:   make(map[string]*abi.ABI),
 	}, nil
-}
-
-// getContractABI retrieves the parsed ABI for a contract address, using cache first.
-func (c *evmContractManager) getContractABI(ctx context.Context, contractAddress string) (*abi.ABI, error) {
-	// 1. Check cache with read lock
-	c.cacheMu.RLock()
-	cachedABI, found := c.abiCache[contractAddress]
-	c.cacheMu.RUnlock()
-	if found {
-		return cachedABI, nil
-	}
-
-	// 2. Not in cache, acquire write lock
-	c.cacheMu.Lock()
-	defer c.cacheMu.Unlock()
-
-	// 3. Double-check cache (another goroutine might have populated it)
-	cachedABI, found = c.abiCache[contractAddress]
-	if found {
-		return cachedABI, nil
-	}
-
-	// 4. Fetch from explorer
-	contractInfo, err := c.explorer.GetContract(ctx, contractAddress)
-	if err != nil {
-		if errors.IsError(err, errors.ErrCodeContractNotFound) {
-			return nil, errors.NewContractNotFoundError(contractAddress, string(c.ChainType()))
-		}
-		return nil, errors.NewExplorerRequestFailedError(fmt.Errorf("failed to get contract info for ABI fetch %s: %w", contractAddress, err))
-	}
-
-	// Check if ABI is available
-	if contractInfo.ABI == "" {
-		return nil, errors.NewInvalidContractError(contractAddress, fmt.Errorf("ABI not found via explorer or contract not verified for %s", contractAddress))
-	}
-
-	// 5. Parse the ABI
-	parsedABI, err := abi.JSON(strings.NewReader(contractInfo.ABI))
-	if err != nil {
-		return nil, errors.NewInvalidContractError(contractAddress, fmt.Errorf("failed to parse ABI fetched from explorer for %s: %w", contractAddress, err))
-	}
-
-	// 6. Store pointer to parsed ABI in cache
-	c.abiCache[contractAddress] = &parsedABI // Store pointer
-
-	return &parsedABI, nil // Return pointer
 }
 
 // ChainType returns the blockchain type
