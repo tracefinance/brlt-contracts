@@ -1,147 +1,208 @@
 package transaction
 
 import (
+	"database/sql"
 	"math/big"
 	"time"
 
+	"vault0/internal/errors"
 	"vault0/internal/types"
 )
 
-// Transaction represents a transaction entity stored in the database
+// Transaction represents a transaction entity stored in the database.
 type Transaction struct {
-	ID           int64           `db:"id"`
-	WalletID     int64           `db:"wallet_id"`
-	ChainType    types.ChainType `db:"chain_type"`
-	Hash         string          `db:"hash"`
-	FromAddress  string          `db:"from_address"`
-	ToAddress    string          `db:"to_address"`
-	Value        types.BigInt    `db:"value"`
-	Data         []byte          `db:"data"`
-	Nonce        uint64          `db:"nonce"`
-	GasPrice     types.BigInt    `db:"gas_price"`
-	GasLimit     uint64          `db:"gas_limit"`
-	Type         string          `db:"type"`
-	TokenAddress string          `db:"token_address"`
-	TokenSymbol  string          `db:"token_symbol"`
-	Status       string          `db:"status"`
-	Timestamp    int64           `db:"timestamp"`
-	BlockNumber  *int64          `db:"block_number"`
-	CreatedAt    time.Time       `db:"created_at"`
-	UpdatedAt    time.Time       `db:"updated_at"`
+	// Service fields
+	ID        int64        `db:"id"`
+	WalletID  int64        `db:"wallet_id"`
+	CreatedAt time.Time    `db:"created_at"`
+	UpdatedAt time.Time    `db:"updated_at"`
+	DeletedAt sql.NullTime `db:"deleted_at"`
+
+	// BaseTransaction
+	Chain    types.ChainType       `db:"chain_type"`
+	Hash     string                `db:"hash"`
+	From     string                `db:"from_address"`
+	To       string                `db:"to_address"`
+	Value    *types.BigInt         `db:"value"`
+	Data     []byte                `db:"data"`
+	Nonce    uint64                `db:"nonce"`
+	GasPrice *types.BigInt         `db:"gas_price"`
+	GasLimit uint64                `db:"gas_limit"`
+	Type     types.TransactionType `db:"type"`
+
+	// Execution details
+	GasUsed     sql.NullInt64           `db:"gas_used"`
+	Status      types.TransactionStatus `db:"status"`
+	Timestamp   sql.NullInt64           `db:"timestamp"`
+	BlockNumber *types.BigInt           `db:"block_number"`
 }
 
-// ScanTransaction scans a database row into a Transaction struct
+// ScanTransaction scans a database row into a Transaction struct.
+// It handles the mapping between database types and the struct fields,
+// including custom types like types.BigInt and sql.Null*.
 func ScanTransaction(row interface {
 	Scan(dest ...any) error
 }) (*Transaction, error) {
 	tx := &Transaction{}
-	var valueStr, gasPriceStr string
 
 	err := row.Scan(
 		&tx.ID,
 		&tx.WalletID,
-		&tx.ChainType,
+		&tx.CreatedAt,
+		&tx.UpdatedAt,
+		&tx.DeletedAt,
+		&tx.Chain,
 		&tx.Hash,
-		&tx.FromAddress,
-		&tx.ToAddress,
-		&valueStr,
+		&tx.From,
+		&tx.To,
+		&tx.Value,
 		&tx.Data,
 		&tx.Nonce,
-		&gasPriceStr,
+		&tx.GasPrice,
 		&tx.GasLimit,
 		&tx.Type,
-		&tx.TokenAddress,
-		&tx.TokenSymbol,
+		&tx.GasUsed,
 		&tx.Status,
 		&tx.Timestamp,
 		&tx.BlockNumber,
-		&tx.CreatedAt,
-		&tx.UpdatedAt,
 	)
 	if err != nil {
-		return nil, err
-	}
-
-	// Parse value from string
-	if valueStr != "" {
-		value, err := types.NewBigIntFromString(valueStr)
-		if err != nil {
-			return nil, err
-		}
-		tx.Value = value
-	}
-
-	// Parse gas price from string
-	if gasPriceStr != "" {
-		gasPrice, err := types.NewBigIntFromString(gasPriceStr)
-		if err != nil {
-			return nil, err
-		}
-		tx.GasPrice = gasPrice
+		return nil, errors.NewDatabaseError(err)
 	}
 
 	return tx, nil
 }
 
-// FromCoreTransaction converts a core transaction to a service transaction
+// FromCoreTransaction converts a core transaction to a service transaction.
+// It maps fields from types.Transaction (including embedded BaseTransaction)
+// to the service layer's Transaction model.
 func FromCoreTransaction(coreTx *types.Transaction, walletID int64) *Transaction {
-	var blockNumber *int64
+	if coreTx == nil {
+		return nil
+	}
+
+	tx := &Transaction{
+		WalletID: walletID,
+		Chain:    coreTx.BaseTransaction.Chain,
+		Hash:     coreTx.BaseTransaction.Hash,
+		From:     coreTx.BaseTransaction.From,
+		To:       coreTx.BaseTransaction.To,
+		Data:     coreTx.BaseTransaction.Data,
+		Nonce:    coreTx.BaseTransaction.Nonce,
+		GasLimit: coreTx.BaseTransaction.GasLimit,
+		Type:     coreTx.BaseTransaction.Type,
+		Status:   coreTx.Status,
+	}
+
+	// Handle *big.Int to *types.BigInt conversion (checking for nil)
+	if coreTx.BaseTransaction.Value != nil {
+		value := types.NewBigInt(coreTx.BaseTransaction.Value)
+		tx.Value = &value
+	} else {
+		zeroValue := types.NewBigInt(big.NewInt(0))
+		tx.Value = &zeroValue
+	}
+	if coreTx.BaseTransaction.GasPrice != nil {
+		gasPrice := types.NewBigInt(coreTx.BaseTransaction.GasPrice)
+		tx.GasPrice = &gasPrice
+	} else {
+		zeroGasPrice := types.NewBigInt(big.NewInt(0))
+		tx.GasPrice = &zeroGasPrice
+	}
 	if coreTx.BlockNumber != nil {
-		bn := coreTx.BlockNumber.Int64()
-		blockNumber = &bn
+		blockNumber := types.NewBigInt(coreTx.BlockNumber)
+		tx.BlockNumber = &blockNumber
 	}
 
-	return &Transaction{
-		WalletID:     walletID,
-		ChainType:    coreTx.Chain,
-		Hash:         coreTx.Hash,
-		FromAddress:  coreTx.From,
-		ToAddress:    coreTx.To,
-		Value:        types.NewBigInt(coreTx.Value),
-		Data:         coreTx.Data,
-		Nonce:        coreTx.Nonce,
-		GasPrice:     types.NewBigInt(coreTx.GasPrice),
-		GasLimit:     coreTx.GasLimit,
-		Type:         string(coreTx.Type),
-		TokenAddress: coreTx.TokenAddress,
-		TokenSymbol:  coreTx.TokenSymbol,
-		Status:       string(coreTx.Status),
-		Timestamp:    coreTx.Timestamp,
-		BlockNumber:  blockNumber,
+	// Handle nullable fields from coreTx
+	if coreTx.Timestamp > 0 {
+		tx.Timestamp = sql.NullInt64{Int64: coreTx.Timestamp, Valid: true}
 	}
+	if coreTx.GasUsed > 0 {
+		tx.GasUsed = sql.NullInt64{Int64: int64(coreTx.GasUsed), Valid: true}
+	}
+
+	return tx
 }
 
-// ToCoreTransaction converts a service transaction to a core transaction
+// ToCoreTransaction converts a service transaction back to a core transaction.
+// It maps fields from the service layer's Transaction model to types.Transaction
+// (including embedded BaseTransaction).
 func (t *Transaction) ToCoreTransaction() *types.Transaction {
-	var blockNumber *big.Int
-	if t.BlockNumber != nil {
-		blockNumber = big.NewInt(*t.BlockNumber)
+	if t == nil {
+		return nil
 	}
 
-	return &types.Transaction{
-		Chain:        t.ChainType,
-		Hash:         t.Hash,
-		From:         t.FromAddress,
-		To:           t.ToAddress,
-		Value:        t.Value.ToBigInt(),
-		Data:         t.Data,
-		Nonce:        t.Nonce,
-		GasPrice:     t.GasPrice.ToBigInt(),
-		GasLimit:     t.GasLimit,
-		Type:         types.TransactionType(t.Type),
-		TokenAddress: t.TokenAddress,
-		TokenSymbol:  t.TokenSymbol,
-		Status:       types.TransactionStatus(t.Status),
-		Timestamp:    t.Timestamp,
-		BlockNumber:  blockNumber,
+	coreTx := &types.Transaction{
+		BaseTransaction: types.BaseTransaction{
+			Chain:    t.Chain,
+			Hash:     t.Hash,
+			From:     t.From,
+			To:       t.To,
+			Data:     t.Data,
+			Nonce:    t.Nonce,
+			GasLimit: t.GasLimit,
+			Type:     t.Type,
+		},
+		Status: t.Status,
 	}
+
+	// Handle *types.BigInt to *big.Int conversion (checking for nil)
+	if t.Value != nil {
+		coreTx.BaseTransaction.Value = t.Value.ToBigInt()
+	} else {
+		coreTx.BaseTransaction.Value = big.NewInt(0)
+	}
+	if t.GasPrice != nil {
+		coreTx.BaseTransaction.GasPrice = t.GasPrice.ToBigInt()
+	} else {
+		coreTx.BaseTransaction.GasPrice = big.NewInt(0)
+	}
+	if t.BlockNumber != nil {
+		coreTx.BlockNumber = t.BlockNumber.ToBigInt()
+	}
+
+	// Handle nullable fields from service model
+	if t.Timestamp.Valid {
+		coreTx.Timestamp = t.Timestamp.Int64
+	}
+	if t.GasUsed.Valid {
+		coreTx.GasUsed = uint64(t.GasUsed.Int64)
+	}
+
+	return coreTx
 }
 
-// Filter represents the criteria for filtering transactions
+// IsContractCall checks if the transaction type is a contract call.
+func (t *Transaction) IsContractCall() bool {
+	return t != nil && t.Type == types.TransactionTypeContractCall
+}
+
+// IsERC20Transfer checks if the transaction type is an ERC20 transfer.
+func (t *Transaction) IsERC20Transfer() bool {
+	return t != nil && t.Type == types.TransactionTypeERC20Transfer
+}
+
+// Filter represents the criteria for filtering transactions in the service layer.
 type Filter struct {
-	Status       *string
-	ChainType    *types.ChainType
-	WalletID     *int64
-	Address      *string
-	TokenAddress *string
+	Status      *types.TransactionStatus
+	ChainType   *types.ChainType
+	WalletID    *int64
+	Address     *string
+	Type        *types.TransactionType
+	BlockNumber *big.Int
+	MinBlock    *big.Int
+	MaxBlock    *big.Int
+}
+
+// Helper method to check if any filter criteria are set
+func (f *Filter) IsEmpty() bool {
+	return f == nil || (f.Status == nil &&
+		f.ChainType == nil &&
+		f.WalletID == nil &&
+		f.Address == nil &&
+		f.Type == nil &&
+		f.BlockNumber == nil &&
+		f.MinBlock == nil &&
+		f.MaxBlock == nil)
 }

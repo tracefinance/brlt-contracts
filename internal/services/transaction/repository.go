@@ -2,7 +2,7 @@ package transaction
 
 import (
 	"context"
-	"strings"
+	"fmt"
 	"time"
 
 	"github.com/huandu/go-sqlbuilder"
@@ -45,7 +45,6 @@ type repository struct {
 
 // NewRepository creates a new SQLite repository for transactions
 func NewRepository(db *db.DB, log logger.Logger) Repository {
-	// Create a struct mapper for Transaction
 	structMap := sqlbuilder.NewStruct(new(Transaction))
 
 	return &repository{
@@ -57,7 +56,6 @@ func NewRepository(db *db.DB, log logger.Logger) Repository {
 
 // Create inserts a new transaction into the database
 func (r *repository) Create(ctx context.Context, tx *Transaction) error {
-	// Generate a Snowflake ID if not provided
 	if tx.ID == 0 {
 		id, err := r.db.GenerateID()
 		if err != nil {
@@ -66,58 +64,45 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 		tx.ID = id
 	}
 
-	// Set timestamps
 	now := time.Now()
 	tx.CreatedAt = now
 	tx.UpdatedAt = now
 
-	// Normalize addresses using the new Address struct
-	if tx.FromAddress != "" {
-		fromAddr, err := types.NewAddress(tx.ChainType, tx.FromAddress)
+	if tx.From != "" {
+		fromAddr, err := types.NewAddress(tx.Chain, tx.From)
 		if err != nil {
 			return err
 		}
-		tx.FromAddress = fromAddr.Address
+		tx.From = fromAddr.Address
 	}
 
-	if tx.ToAddress != "" {
-		toAddr, err := types.NewAddress(tx.ChainType, tx.ToAddress)
+	if tx.To != "" {
+		toAddr, err := types.NewAddress(tx.Chain, tx.To)
 		if err != nil {
 			return err
 		}
-		tx.ToAddress = toAddr.Address
+		tx.To = toAddr.Address
 	}
 
-	if tx.TokenAddress != "" {
-		tokenAddr, err := types.NewAddress(tx.ChainType, tx.TokenAddress)
-		if err != nil {
-			return err
-		}
-		tx.TokenAddress = tokenAddr.Address
-	}
-
-	// Create a struct-based insert builder with the transaction value
 	insertBuilder := r.structMap.InsertInto("transactions", tx)
 
-	// Build the SQL and args
 	sql, args := insertBuilder.Build()
 
-	// Execute the insert
 	_, err := r.db.ExecuteStatementContext(ctx, sql, args...)
-	return err
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // GetByTxHash retrieves a transaction by its hash
 func (r *repository) GetByTxHash(ctx context.Context, hash string) (*Transaction, error) {
-	// Create a struct-based select builder
 	sb := r.structMap.SelectFrom("transactions")
-	sb.Where(sb.Equal("hash", hash))
+	sb.Where(sb.E("hash", hash))
 	sb.Limit(1)
 
-	// Build the SQL and args
 	sql, args := sb.Build()
 
-	// Execute the query
 	transactions, err := r.executeTransactionQuery(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -148,7 +133,7 @@ func (r *repository) executeTransactionQuery(ctx context.Context, sql string, ar
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, errors.NewDatabaseError(err)
 	}
 
 	return transactions, nil
@@ -156,46 +141,58 @@ func (r *repository) executeTransactionQuery(ctx context.Context, sql string, ar
 
 // List retrieves transactions based on the provided filter criteria
 func (r *repository) List(ctx context.Context, filter *Filter, limit int, nextToken string) (*types.Page[*Transaction], error) {
-	// Create a struct-based select builder
+
 	sb := r.structMap.SelectFrom("transactions")
 
-	// Apply filters
-	if filter.Status != nil {
-		sb.Where(sb.Equal("status", *filter.Status))
-	}
+	if filter != nil {
+		if filter.Status != nil {
+			sb.Where(sb.E("status", *filter.Status))
+		}
 
-	if filter.ChainType != nil {
-		sb.Where(sb.Equal("chain_type", *filter.ChainType))
-	}
+		if filter.ChainType != nil {
+			sb.Where(sb.E("chain_type", *filter.ChainType))
+		}
 
-	if filter.WalletID != nil {
-		sb.Where(sb.Equal("wallet_id", *filter.WalletID))
-	}
+		if filter.WalletID != nil {
+			sb.Where(sb.E("wallet_id", *filter.WalletID))
+		}
 
-	if filter.Address != nil {
-		// Just lowercase the address for querying
-		lowercaseAddress := strings.ToLower(*filter.Address)
-		sb.Where(sb.Or(
-			sb.Equal("lower(from_address)", lowercaseAddress),
-			sb.Equal("lower(to_address)", lowercaseAddress),
-		))
-	}
+		if filter.Address != nil {
+			if filter.ChainType == nil {
+				return nil, errors.NewInvalidInputError("ChainType is required when filtering by Address", "chain_type", "")
+			}
 
-	if filter.TokenAddress != nil {
-		tokenAddress := strings.ToLower(*filter.TokenAddress)
+			addrNorm, err := types.NewAddress(*filter.ChainType, *filter.Address)
+			if err != nil {
+				return nil, err
+			}
 
-		// Special handling for native transactions
-		if tokenAddress == "native" || tokenAddress == types.ZeroAddress {
 			sb.Where(sb.Or(
-				sb.Equal("type", string(types.TransactionTypeNative)),
-				sb.IsNull("token_address"),
+				sb.E("from_address", addrNorm.Address),
+				sb.E("to_address", addrNorm.Address),
 			))
-		} else {
-			sb.Where(sb.Equal("lower(token_address)", tokenAddress))
+		}
+
+		if filter.Type != nil {
+			sb.Where(sb.E("type", *filter.Type))
+		}
+
+		if filter.BlockNumber != nil {
+			sb.Where(sb.E("block_number", filter.BlockNumber.String())) // Compare as string due to DECIMAL storage
+		}
+
+		if filter.MinBlock != nil {
+			sb.Where(sb.GE("block_number", filter.MinBlock.String())) // Compare as string
+		}
+
+		if filter.MaxBlock != nil {
+			sb.Where(sb.LE("block_number", filter.MaxBlock.String())) // Compare as string
 		}
 	}
 
-	// Default sort by id for pagination
+	// Always exclude soft-deleted records unless explicitly requested (not supported by current filter)
+	sb.Where(sb.IsNull("deleted_at"))
+
 	paginationColumn := "id"
 
 	// If nextToken is provided, decode it to get the starting point
@@ -205,27 +202,30 @@ func (r *repository) List(ctx context.Context, filter *Filter, limit int, nextTo
 	}
 
 	if token != nil {
-		sb.Where(sb.LessThan(paginationColumn, token.Value)) // Using less than because we're ordering by DESC
+		idVal, ok := token.Value.(int64)
+		if !ok {
+			return nil, errors.NewInvalidParameterError("next_token",
+				fmt.Errorf("unexpected token value type: %T", token.Value).Error())
+		}
+
+		sb.Where(sb.L(paginationColumn, idVal)) // Using less than because we're ordering by DESC
 	}
 
-	// Order by most recent first
-	sb.OrderBy("timestamp DESC, id DESC")
+	sb.OrderBy("id DESC")
 
 	// Add pagination if limit > 0
 	if limit > 0 {
 		sb.Limit(limit + 1) // Fetch one extra item to check for HasMore
 	}
 
-	// Build the SQL and args
 	sql, args := sb.Build()
+	r.log.Debug("Listing transactions", logger.String("sql", sql), logger.Any("args", args))
 
-	// Execute the query
 	transactions, err := r.executeTransactionQuery(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
 
-	// Generate the token function
 	generateToken := func(tx *Transaction) *types.NextPageToken {
 		return &types.NextPageToken{
 			Column: paginationColumn,
@@ -242,7 +242,7 @@ func (r *repository) Exists(ctx context.Context, hash string) (bool, error) {
 	sb := sqlbuilder.NewSelectBuilder()
 	sb.Select("1")
 	sb.From("transactions")
-	sb.Where(sb.Equal("hash", hash))
+	sb.Where(sb.E("hash", hash))
 	sb.Limit(1)
 
 	// Build the SQL and args
@@ -251,69 +251,67 @@ func (r *repository) Exists(ctx context.Context, hash string) (bool, error) {
 	// Execute the query
 	rows, err := r.db.ExecuteQueryContext(ctx, sql, args...)
 	if err != nil {
-		return false, err
+		return false, errors.NewDatabaseError(err)
 	}
 	defer rows.Close()
 
-	return rows.Next(), nil
+	exists := rows.Next()
+	if err := rows.Err(); err != nil {
+		return false, errors.NewDatabaseError(err)
+	}
+
+	return exists, nil
 }
 
 // Update updates an existing transaction in the database
 func (r *repository) Update(ctx context.Context, tx *Transaction) error {
-	// Ensure the transaction ID is provided
 	if tx.ID == 0 {
-		return errors.NewInvalidInputError("Transaction ID is required for update", "id", "")
+		return errors.NewMissingParameterError("transaction ID")
 	}
 
-	// Update the timestamp
 	tx.UpdatedAt = time.Now()
 
-	// Normalize addresses using the new Address struct
-	if tx.FromAddress != "" {
-		fromAddr, err := types.NewAddress(tx.ChainType, tx.FromAddress)
+	if tx.From != "" {
+		fromAddr, err := types.NewAddress(tx.Chain, tx.From)
 		if err != nil {
 			return err
 		}
-		tx.FromAddress = fromAddr.Address
+		tx.From = fromAddr.Address
 	}
 
-	if tx.ToAddress != "" {
-		toAddr, err := types.NewAddress(tx.ChainType, tx.ToAddress)
+	if tx.To != "" {
+		toAddr, err := types.NewAddress(tx.Chain, tx.To)
 		if err != nil {
 			return err
 		}
-		tx.ToAddress = toAddr.Address
+		tx.To = toAddr.Address
 	}
 
-	if tx.TokenAddress != "" {
-		tokenAddr, err := types.NewAddress(tx.ChainType, tx.TokenAddress)
-		if err != nil {
-			return err
-		}
-		tx.TokenAddress = tokenAddr.Address
-	}
-
-	// Create a struct-based update builder
 	ub := r.structMap.Update("transactions", tx)
-	ub.Where(ub.Equal("id", tx.ID))
+	ub.Where(ub.E("id", tx.ID))
 
-	// Build the SQL and args
 	sql, args := ub.Build()
+	r.log.Debug("Updating transaction", logger.String("sql", sql), logger.Any("args", args))
 
-	// Execute the update
 	result, err := r.db.ExecuteStatementContext(ctx, sql, args...)
 	if err != nil {
 		return err
 	}
 
-	// Check if any rows were affected
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return err
+		// Log this error as it might indicate a driver issue
+		r.log.Error("Failed to get rows affected after update", logger.Error(err), logger.Int64("tx_id", tx.ID))
+		return errors.NewDatabaseError(err)
 	}
 
 	if rowsAffected == 0 {
-		return errors.NewTransactionNotFoundError(tx.Hash)
+		// Use the hash if available for a more informative error, otherwise use ID
+		hashOrID := fmt.Sprintf("ID %d", tx.ID)
+		if tx.Hash != "" {
+			hashOrID = fmt.Sprintf("hash %s", tx.Hash)
+		}
+		return errors.NewTransactionNotFoundError(hashOrID)
 	}
 
 	return nil
