@@ -11,7 +11,7 @@ import (
 
 // Factory is the interface for creating wallet instances
 type Factory interface {
-	NewWallet(ctx context.Context, chainType types.ChainType, keyID string) (Wallet, error)
+	NewWallet(ctx context.Context, chainType types.ChainType, keyID string) (WalletManager, error)
 }
 
 // Factory creates wallet instances for different chains
@@ -33,7 +33,7 @@ func NewFactory(keystore keystore.KeyStore, chains *types.Chains, config *config
 }
 
 // NewWallet creates a new wallet for the given chain type and key ID
-func (f *factory) NewWallet(ctx context.Context, chainType types.ChainType, keyID string) (Wallet, error) {
+func (f *factory) NewWallet(ctx context.Context, chainType types.ChainType, keyID string) (WalletManager, error) {
 	chain, err := f.chains.Get(chainType)
 	if err != nil {
 		return nil, errors.NewChainNotSupportedError(string(chainType))

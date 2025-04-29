@@ -15,6 +15,11 @@ import (
 type BlockExplorer interface {
 	// GetTransactionHistory retrieves the transaction history for a given address with pagination.
 	// It supports filtering by transaction type (normal, internal, ERC20, ERC721) and block range.
+	// The `any` type in the returned `types.Page[any]` will be one of the following based on `options.TransactionType`:
+	//  - TxTypeNormal:   *NormalTxHistoryEntry
+	//  - TxTypeInternal: *InternalTxHistoryEntry
+	//  - TxTypeERC20:    *ERC20TxHistoryEntry
+	//  - TxTypeERC721:   *ERC721TxHistoryEntry
 	GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, nextToken string) (*types.Page[any], error)
 
 	// GetTransactionByHash retrieves detailed information about a specific transaction

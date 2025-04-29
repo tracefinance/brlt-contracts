@@ -59,19 +59,20 @@ func (s *transactionService) updateTransactionStatus(
 	originalTx *Transaction,
 	updatedTxData *types.Transaction,
 ) (*Transaction, error) {
-	// Process the transaction to set token symbol and create Transaction model
-	updatedTransaction := s.processTransaction(ctx, updatedTxData)
+	// Convert the core transaction data to the service transaction model, passing WalletID
+	updatedTransaction := FromCoreTransaction(updatedTxData, originalTx.WalletID)
 
-	// Preserve original metadata
+	// Preserve original service-layer metadata THAT IS NOT part of the core conversion
 	updatedTransaction.ID = originalTx.ID
 	updatedTransaction.CreatedAt = originalTx.CreatedAt
-	updatedTransaction.Timestamp = originalTx.Timestamp
+	updatedTransaction.DeletedAt = originalTx.DeletedAt // Preserve soft delete status
 
-	// Update in database
+	// Update in database using the updated service model
 	err := s.repository.Update(ctx, updatedTransaction)
 	if err != nil {
-		s.log.Error("Failed to update transaction",
-			logger.String("tx_hash", originalTx.Hash),
+		s.log.Error("Failed to update transaction in repository",
+			logger.String("tx_hash", updatedTransaction.Hash),
+			logger.Int64("wallet_id", updatedTransaction.WalletID),
 			logger.Error(err))
 		return nil, err
 	}
@@ -91,25 +92,25 @@ func (s *transactionService) StopPendingTransactionPolling() {
 // pollPendingOrMinedTransactions polls for pending or mined transactions and attempts to update their status
 func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context) (int, error) {
 	// Default statuses to look for
-	statuses := []string{
-		string(types.TransactionStatusPending),
-		string(types.TransactionStatusMined),
+	statusesToCheck := []types.TransactionStatus{
+		types.TransactionStatusPending,
+		types.TransactionStatusMined,
 	}
 
 	s.log.Info("Running scheduled poll for pending and mined transactions",
-		logger.Any("statuses", statuses))
+		logger.Any("statuses", statusesToCheck))
 
 	updatedCount := 0
 
 	// Process each status
-	for _, status := range statuses {
+	for _, status := range statusesToCheck {
 		// Check if context is cancelled
 		if ctx.Err() != nil {
 			return updatedCount, ctx.Err()
 		}
 
 		// Get transactions with the specified status across all chains
-		statusValue := status // Create a copy to use its address
+		statusValue := status // Create a copy for pointer
 		filter := &Filter{
 			Status: &statusValue,
 		}
@@ -117,25 +118,25 @@ func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context)
 		page, err := s.repository.List(ctx, filter, 0, "") // 0 limit means no pagination
 		if err != nil {
 			s.log.Error("Failed to get transactions by status",
-				logger.String("status", status),
+				logger.String("status", string(status)),
 				logger.Error(err))
 			continue
 		}
 
 		if len(page.Items) == 0 {
 			s.log.Info("No transactions found with status",
-				logger.String("status", status))
+				logger.String("status", string(status)))
 			continue
 		}
 
 		s.log.Info("Found transactions with status to check",
-			logger.String("status", status),
+			logger.String("status", string(status)),
 			logger.Int("count", len(page.Items)))
 
 		// Group transactions by chain type for more efficient explorer usage
 		txsByChain := make(map[types.ChainType][]*Transaction)
 		for _, tx := range page.Items {
-			txsByChain[tx.ChainType] = append(txsByChain[tx.ChainType], tx)
+			txsByChain[tx.Chain] = append(txsByChain[tx.Chain], tx)
 		}
 
 		// Process transactions by chain type
@@ -151,13 +152,12 @@ func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context)
 
 			s.log.Info("Processing transactions",
 				logger.String("chain_type", string(chainType)),
-				logger.String("status", status),
+				logger.String("status", string(status)),
 				logger.Int("count", len(transactions)))
 
 			// Process each transaction individually
 			for _, tx := range transactions {
-				// Fetch updated transaction details from explorer
-				updatedTx, err := explorer.GetTransactionByHash(ctx, tx.Hash)
+				updatedCoreTx, err := explorer.GetTransactionByHash(ctx, tx.Hash)
 				if err != nil {
 					s.log.Error("Failed to fetch transaction update",
 						logger.String("tx_hash", tx.Hash),
@@ -168,7 +168,7 @@ func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context)
 
 				// Check if status has changed
 				originalStatus := types.TransactionStatus(tx.Status)
-				updatedStatus := updatedTx.Status
+				updatedStatus := updatedCoreTx.Status
 
 				if originalStatus == updatedStatus {
 					s.log.Debug("Transaction status unchanged",
@@ -183,7 +183,7 @@ func (s *transactionService) pollPendingOrMinedTransactions(ctx context.Context)
 					logger.String("new_status", string(updatedStatus)))
 
 				// Update transaction with new status and data
-				if _, err := s.updateTransactionStatus(ctx, tx, updatedTx); err != nil {
+				if _, err := s.updateTransactionStatus(ctx, tx, updatedCoreTx); err != nil {
 					// Error already logged in updateTransactionStatus
 					continue
 				}

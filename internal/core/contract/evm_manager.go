@@ -27,7 +27,7 @@ type evmContractManager struct {
 	// blockchain is the blockchain client
 	blockchain blockchain.BlockchainClient
 	// wallet is the wallet client
-	wallet wallet.Wallet
+	wallet wallet.WalletManager
 	// explorer is the block explorer client
 	explorer blockexplorer.BlockExplorer
 	// config is the app configuration
@@ -37,7 +37,7 @@ type evmContractManager struct {
 // NewEVMSmartContract creates a new EVM contract manager
 func NewEVMSmartContract(
 	blockchain blockchain.BlockchainClient,
-	wallet wallet.Wallet,
+	wallet wallet.WalletManager,
 	config *config.Config,
 ) (*evmContractManager, error) {
 	chain := wallet.Chain()

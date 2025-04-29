@@ -62,35 +62,34 @@ type TransactionHistoryOptions struct {
 	Limit int
 }
 
-// TransactionHistoryEntry represents a transaction entry returned by explorer history APIs.
-// It embeds the core BaseTransaction and adds common execution details available from history.
-type TransactionHistoryEntry struct {
-	types.BaseTransaction
-	Status      types.TransactionStatus
-	Timestamp   int64
-	BlockNumber *big.Int
-	GasUsed     uint64
-}
-
 // NormalTxHistoryEntry represents a normal transaction from history.
 type NormalTxHistoryEntry struct {
-	TransactionHistoryEntry
+	types.Transaction
 	// ContractAddress is set if this normal transaction resulted in a contract deployment.
 	ContractAddress string
 }
 
 // InternalTxHistoryEntry represents an internal transaction from history.
 type InternalTxHistoryEntry struct {
-	TransactionHistoryEntry
+	types.Transaction
 	// Note: Internal transactions via Etherscan lack Nonce, GasPrice, GasLimit, Data.
 	// The embedded BaseTransaction fields for these will be zero/nil.
 }
 
 // ERC20TxHistoryEntry represents an ERC20 token transfer event from history.
 type ERC20TxHistoryEntry struct {
-	TransactionHistoryEntry
+	types.Transaction
 	TokenAddress   string
 	TokenSymbol    string
-	TokenRecipient string   // The actual recipient of the token transfer
-	TokenAmount    *big.Int // The amount of tokens transferred
+	TokenRecipient string
+	TokenAmount    *big.Int
+}
+
+// ERC721TxHistoryEntry represents an ERC721 (NFT) token transfer event from history.
+type ERC721TxHistoryEntry struct {
+	types.Transaction
+	TokenAddress string
+	TokenSymbol  string
+	TokenName    string
+	TokenID      *big.Int // The specific ID of the NFT transferred
 }

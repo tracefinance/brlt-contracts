@@ -47,6 +47,9 @@ type Repository interface {
 	// GetTokenBalances retrieves all token balances for a wallet
 	GetTokenBalances(ctx context.Context, walletID int64) ([]*TokenBalance, error)
 
+	// GetTokenBalance retrieves a specific token balance for a wallet and token address
+	GetTokenBalance(ctx context.Context, walletID int64, tokenAddress string) (*TokenBalance, error)
+
 	// UpdateBlockNumber updates only the last_block_number for a given wallet ID
 	UpdateBlockNumber(ctx context.Context, walletID int64, blockNumber int64) error
 
@@ -467,6 +470,45 @@ func (r *repository) GetTokenBalances(ctx context.Context, walletID int64) ([]*T
 
 	// Execute the query
 	return r.executeTokenBalanceQuery(ctx, sql, args...)
+}
+
+// GetTokenBalance retrieves a specific token balance for a wallet and token address.
+// If the balance entry does not exist, it returns a TokenBalance with a zero value and nil error.
+func (r *repository) GetTokenBalance(ctx context.Context, walletID int64, tokenAddress string) (*TokenBalance, error) {
+	// Normalize and validate the token address. Need wallet ChainType for this.
+	// Since we only have walletID, we need to fetch the wallet first or assume the address is already normalized.
+	// For simplicity here, let's assume the caller provides a normalized address.
+	// A better approach might be to require the Wallet object or fetch it internally.
+	normalizedTokenAddress := strings.ToLower(tokenAddress) // Basic normalization, consider checksum
+
+	// Create a struct-based select builder
+	sb := r.tokenBalanceStructMap.SelectFrom("wallet_balances")
+	sb.Where(sb.Equal("wallet_id", walletID))
+	// Use the potentially normalized address for the query
+	sb.Where(sb.Equal("lower(token_address)", normalizedTokenAddress))
+
+	// Build the SQL and args
+	sqlQuery, args := sb.Build()
+
+	// Execute the query
+	tokenBalances, err := r.executeTokenBalanceQuery(ctx, sqlQuery, args...)
+	if err != nil {
+		// Propagate actual database errors
+		return nil, errors.NewDatabaseError(err) // Use a general DB error
+	}
+
+	if len(tokenBalances) == 0 {
+		// Return a zero balance if not found, using the provided (normalized) address
+		return &TokenBalance{
+			WalletID:     walletID,
+			TokenAddress: tokenAddress, // Return the original address provided by caller
+			Balance:      types.ZeroBigInt(),
+			UpdatedAt:    time.Time{}, // Zero time indicates it's not from DB
+		}, nil
+	}
+
+	// Return the found token balance
+	return tokenBalances[0], nil
 }
 
 // UpdateBlockNumber updates only the last_block_number for a given wallet ID

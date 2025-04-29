@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 
 	"vault0/internal/errors"
@@ -20,15 +21,15 @@ type BalanceService interface {
 	//   - error: ErrWalletNotFound if wallet doesn't exist, or other processing errors
 	UpdateWalletBalance(ctx context.Context, tx *types.Transaction) error
 
-	// UpdateTokenBalance updates the token balance for a wallet based on a transaction.
+	// UpdateTokenBalance updates the token balance for a wallet based on an ERC20 transfer.
 	// It identifies the involved wallet (sender or receiver) and updates the specific
 	// token balance. For senders, it also deducts the native currency gas cost.
 	// Parameters:
 	//   - ctx: Context for the operation
-	//   - tx: The transaction details (must be of type ERC20)
+	//   - transfer: The parsed ERC20 transfer details
 	// Returns:
 	//   - error: ErrWalletNotFound, ErrTokenNotFound, or other processing errors
-	UpdateTokenBalance(ctx context.Context, tx *types.Transaction) error
+	UpdateTokenBalance(ctx context.Context, transfer *types.ERC20Transfer) error
 
 	// GetWalletBalances retrieves the native and token balances for a wallet
 	GetWalletBalances(ctx context.Context, id int64) ([]*TokenBalanceData, error)
@@ -101,89 +102,128 @@ func (s *walletService) UpdateWalletBalance(ctx context.Context, tx *types.Trans
 	return s.repository.UpdateBalance(ctx, wallet, newBalance)
 }
 
-// UpdateTokenBalance updates the token balance for a wallet based on a transaction
-func (s *walletService) UpdateTokenBalance(ctx context.Context, tx *types.Transaction) error {
-	if tx == nil {
-		return errors.NewInvalidInputError("Transaction is required", "tx", nil)
-	}
-	if tx.Type != types.TransactionTypeERC20 {
-		return errors.NewInvalidInputError("Transaction must be ERC20 type", "tx.Type", tx.Type)
-	}
-	if tx.TokenAddress == "" {
-		return errors.NewInvalidInputError("Token address is required for ERC20 transaction", "tx.TokenAddress", "")
+// UpdateTokenBalance updates the token balance for a wallet based on an ERC20 transfer
+func (s *walletService) UpdateTokenBalance(ctx context.Context, transfer *types.ERC20Transfer) error {
+	if transfer == nil {
+		return errors.NewInvalidInputError("ERC20 Transfer data is required", "transfer", nil)
 	}
 
-	isOutgoing, err := s.isOutgoingTransaction(ctx, tx)
+	// Determine if the transaction involves a monitored wallet as sender or receiver
+	walletIsSender, senderWallet, err := s.findWalletForAddress(ctx, transfer.Chain, transfer.From)
 	if err != nil {
-		return err
-	}
-
-	var wallet *Wallet
-	if isOutgoing {
-		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.From)
-	} else {
-		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.To)
-	}
-	if err != nil {
-		return err
-	}
-
-	// Normalize the token address
-	normalizedTokenAddr, err := types.NewAddress(wallet.ChainType, tx.TokenAddress)
-	if err != nil {
-		return err
-	}
-	normalizedTokenAddressStr := normalizedTokenAddr.ToChecksum()
-
-	tokenBalances, err := s.repository.GetTokenBalances(ctx, wallet.ID)
-	if err != nil {
-		return err
-	}
-
-	var currentTokenBalance *big.Int
-	found := false
-	for _, tb := range tokenBalances {
-		if tb.TokenAddress == normalizedTokenAddressStr {
-			currentTokenBalance = tb.Balance.ToBigInt()
-			found = true
-			break
+		appErr, ok := err.(*errors.Vault0Error)
+		if !ok || appErr.Code != errors.ErrCodeNotFound {
+			return fmt.Errorf("error checking sender wallet: %w", err)
 		}
 	}
-	if !found {
-		currentTokenBalance = big.NewInt(0)
+	walletIsReceiver, receiverWallet, err := s.findWalletForAddress(ctx, transfer.Chain, transfer.Recipient)
+	if err != nil {
+		appErr, ok := err.(*errors.Vault0Error)
+		if !ok || appErr.Code != errors.ErrCodeNotFound {
+			return fmt.Errorf("error checking receiver wallet: %w", err)
+		}
 	}
+
+	if !walletIsSender && !walletIsReceiver {
+		// This transfer doesn't involve any monitored wallet we manage
+		s.log.Debug("ERC20 transfer does not involve a monitored wallet", logger.String("tx_hash", transfer.Hash))
+		return nil
+	}
+
+	// Prefer sender if both are monitored (e.g., internal transfer), as gas cost applies to sender.
+	var involvedWallet *Wallet
+	isOutgoing := false
+	if walletIsSender {
+		involvedWallet = senderWallet
+		isOutgoing = true
+	} else {
+		involvedWallet = receiverWallet
+		isOutgoing = false // walletIsReceiver must be true here
+	}
+
+	s.log.Info("Updating token balance from ERC20 transfer",
+		logger.Int64("wallet_id", involvedWallet.ID),
+		logger.String("token_address", transfer.TokenAddress),
+		logger.String("tx_hash", transfer.Hash),
+		logger.Bool("is_outgoing", isOutgoing))
+
+	// Normalize the token address
+	tokenAddress, err := types.NewAddress(involvedWallet.ChainType, transfer.TokenAddress)
+	if err != nil {
+		return err
+	}
+	normalizedTokenAddress := tokenAddress.ToChecksum()
+
+	// Get current balance or default to zero using the new repository method
+	tb, err := s.repository.GetTokenBalance(ctx, involvedWallet.ID, normalizedTokenAddress)
+	if err != nil {
+		return err
+	}
+
+	// tb.Balance will be zero if the balance didn't exist in the DB
+	currentTokenBalance := tb.Balance.ToBigInt()
 
 	var newTokenBalance *big.Int
 	if isOutgoing {
-		newTokenBalance = new(big.Int).Sub(currentTokenBalance, tx.Value)
+		newTokenBalance = new(big.Int).Sub(currentTokenBalance, transfer.Amount) // Use Amount from transfer
 		if newTokenBalance.Sign() < 0 {
 			newTokenBalance = big.NewInt(0)
 		}
 	} else {
-		newTokenBalance = new(big.Int).Add(currentTokenBalance, tx.Value)
+		newTokenBalance = new(big.Int).Add(currentTokenBalance, transfer.Amount) // Use Amount from transfer
 	}
 
-	if err := s.repository.UpdateTokenBalance(ctx, wallet, normalizedTokenAddressStr, newTokenBalance); err != nil {
-		return err
+	if err := s.repository.UpdateTokenBalance(ctx, involvedWallet, normalizedTokenAddress, newTokenBalance); err != nil {
+		s.log.Error("Failed to update token balance in repository",
+			logger.Int64("wallet_id", involvedWallet.ID),
+			logger.String("token_address", normalizedTokenAddress),
+			logger.Error(err))
+		return err // Return the error to the caller
 	}
 
+	// Deduct native gas cost ONLY if the wallet was the sender
 	if isOutgoing {
-		currentNativeBalance := wallet.Balance.ToBigInt()
-		gasUsed := new(big.Int).SetUint64(tx.GasUsed)
-		gasCost := new(big.Int).Mul(tx.GasPrice, gasUsed)
-		newNativeBalance := new(big.Int).Sub(currentNativeBalance, gasCost)
-		if newNativeBalance.Sign() < 0 {
-			newNativeBalance = big.NewInt(0)
-		}
-		if err := s.repository.UpdateBalance(ctx, wallet, newNativeBalance); err != nil {
-			s.log.Error("Failed to update sender native balance for gas during token transfer",
-				logger.Int64("wallet_id", wallet.ID),
-				logger.String("tx_hash", tx.Hash),
-				logger.Error(err))
+		// Use GasUsed and GasPrice from the embedded BaseTransaction
+		if transfer.GasUsed > 0 && transfer.GasPrice != nil && transfer.GasPrice.Sign() > 0 {
+			currentNativeBalance := involvedWallet.Balance.ToBigInt()
+			gasUsed := new(big.Int).SetUint64(transfer.GasUsed)
+			gasCost := new(big.Int).Mul(transfer.GasPrice, gasUsed)
+			newNativeBalance := new(big.Int).Sub(currentNativeBalance, gasCost)
+			if newNativeBalance.Sign() < 0 {
+				newNativeBalance = big.NewInt(0)
+			}
+			if err := s.repository.UpdateBalance(ctx, involvedWallet, newNativeBalance); err != nil {
+				s.log.Error("Failed to update sender native balance for gas during token transfer",
+					logger.Int64("wallet_id", involvedWallet.ID),
+					logger.String("tx_hash", transfer.Hash),
+					logger.Error(err))
+				// Do not return error here, token balance update succeeded.
+			}
+		} else {
+			s.log.Warn("Missing gas details in ERC20Transfer, cannot deduct native gas cost",
+				logger.String("tx_hash", transfer.Hash),
+				logger.Int64("wallet_id", involvedWallet.ID))
 		}
 	}
 
 	return nil
+}
+
+// findWalletForAddress is a helper to check if an address belongs to a managed wallet.
+// Returns (found bool, *Wallet, error).
+func (s *walletService) findWalletForAddress(ctx context.Context, chain types.ChainType, address string) (bool, *Wallet, error) {
+	if address == "" {
+		return false, nil, nil // Empty address cannot be a wallet
+	}
+	wallet, err := s.repository.GetByAddress(ctx, chain, address)
+	if err != nil {
+		appErr, ok := err.(*errors.Vault0Error)
+		if ok && appErr.Code == errors.ErrCodeNotFound {
+			return false, nil, nil // Not found is not an error here, just means address isn't ours
+		}
+		return false, nil, err
+	}
+	return true, wallet, nil
 }
 
 // GetWalletBalances retrieves the native and token balances for a wallet

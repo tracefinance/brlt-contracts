@@ -41,10 +41,10 @@ type WalletInfo struct {
 	ChainType types.ChainType
 }
 
-// Wallet defines the interface for blockchain wallet operations.
+// WalletManager defines the interface for blockchain wallet operations.
 // Implementations must ensure secure handling of private keys and
 // proper transaction signing according to chain-specific requirements.
-type Wallet interface {
+type WalletManager interface {
 	// Chain returns the blockchain network information for this wallet.
 	// This includes network parameters, chain ID, and other chain-specific
 	// configuration needed for transaction creation and signing.

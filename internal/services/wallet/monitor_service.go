@@ -2,7 +2,11 @@ package wallet
 
 import (
 	"context"
+	"fmt"
+
+	"vault0/internal/core/abiutils"
 	"vault0/internal/core/tokenstore"
+	"vault0/internal/core/transaction"
 	"vault0/internal/logger"
 	"vault0/internal/types"
 )
@@ -279,57 +283,138 @@ func (s *walletService) processTransactionEvents(ctx context.Context) {
 	}
 }
 
-// handleTransaction processes a single transaction
+// handleTransaction processes a single transaction received from the monitor
 func (s *walletService) handleTransaction(ctx context.Context, tx *types.Transaction) {
 	if tx == nil {
 		return
 	}
 
-	// Check if the transaction already exists by hash
+	// 1. Check if the transaction already exists by hash
 	existingTx, _ := s.txService.GetTransactionByHash(ctx, tx.Hash)
 	if existingTx != nil {
-		s.log.Debug("Transaction already exists in database",
-			logger.String("tx_hash", tx.Hash))
+		// Already processed, maybe update status if needed, but likely can just return
+		s.log.Debug("Transaction already processed", logger.String("tx_hash", tx.Hash))
 		return
 	}
 
-	// Transaction doesn't exist yet, log and update balances
-	s.log.Info("Processing new transaction",
+	s.log.Info("Processing new transaction event",
 		logger.String("tx_hash", tx.Hash),
 		logger.String("chain", string(tx.Chain)),
-		logger.String("from", tx.From),
-		logger.String("to", tx.To),
-		logger.String("type", string(tx.Type)))
+		logger.String("type", string(tx.Type)), // Original type from monitor
+	)
 
-	// Find the wallet by chain and address (if possible)
-	wallet, err := s.repository.GetByAddress(ctx, tx.Chain, tx.To)
-	if err != nil || wallet == nil {
-		// Try sender address if recipient not found
-		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.From)
+	abiUtils, err := abiutils.NewABIUtils(tx.Chain, s.config, s.blockExplorerFactory)
+	if err != nil {
+		s.log.Error("Failed to create ABI utils", logger.Error(err))
+		return
 	}
-	if err == nil && wallet != nil {
-		// Save the transaction using the service method
-		if err := s.txService.CreateWalletTransaction(ctx, wallet.ID, tx); err != nil {
-			s.log.Error("Failed to create wallet transaction from monitor event",
+
+	txMapper, err := transaction.NewMapper(tx.Chain, s.tokenStore, s.log, abiUtils)
+	if err != nil {
+		s.log.Error("Failed to create transaction mapper", logger.Error(err))
+		return
+	}
+
+	// 2. Attempt to map the transaction to a specific type
+	mappedTx, mapErr := txMapper.ToTypedTransaction(ctx, tx)
+	if mapErr != nil {
+		// Log mapping error but continue processing as a generic transaction
+		s.log.Warn("Failed to map transaction to specific type",
+			logger.String("tx_hash", tx.Hash),
+			logger.Error(mapErr))
+	}
+
+	// 3. Find associated wallet (check both 'to' and 'from')
+	// Determine relevant addresses based on the mapped type or the original tx
+	var relevantAddresses []string
+	if mappedTx != nil {
+		switch specificTx := mappedTx.(type) {
+		case *types.ERC20Transfer:
+			relevantAddresses = append(relevantAddresses, specificTx.From, specificTx.Recipient)
+			// Potentially add specific logging for ERC20 Transfer
+			s.log.Info("Mapped transaction to ERC20 Transfer",
 				logger.String("tx_hash", tx.Hash),
-				logger.Error(err))
+				logger.String("token", specificTx.TokenAddress),
+				logger.String("recipient", specificTx.Recipient),
+				logger.String("amount", specificTx.Amount.String()))
+		// Add cases for MultiSig types if they affect monitored wallets directly
+		case *types.MultiSigWithdrawalRequest, *types.MultiSigSignWithdrawal, *types.MultiSigExecuteWithdrawal:
+			// Add relevant addresses if needed (e.g., MultiSig contract address, recipient in execute)
+			relevantAddresses = append(relevantAddresses, tx.From, tx.To) // Default to original for now
+			s.log.Info("Mapped transaction to MultiSig operation",
+				logger.String("tx_hash", tx.Hash),
+				logger.Any("mapped_type", fmt.Sprintf("%T", specificTx)))
+		default:
+			// Unknown mapped type or simple contract call, use original addresses
+			relevantAddresses = append(relevantAddresses, tx.From, tx.To)
+		}
+	} else {
+		// Mapping failed or returned nil, use original addresses
+		relevantAddresses = append(relevantAddresses, tx.From, tx.To)
+	}
+
+	// Find wallets associated with relevant addresses
+	var associatedWallet *Wallet
+	for _, addr := range relevantAddresses {
+		if addr == "" { // Skip empty addresses
+			continue
+		}
+		wallet, err := s.repository.GetByAddress(ctx, tx.Chain, addr)
+		if err == nil && wallet != nil {
+			associatedWallet = wallet
+			break // Found the first associated wallet
 		}
 	}
 
-	// Update wallet balances if the transaction was successful
-	if tx.Status == types.TransactionStatusSuccess {
-		switch tx.Type {
-		case types.TransactionTypeNative:
+	// 4. Save the original transaction if an associated wallet was found
+	if associatedWallet != nil {
+		if err := s.txService.CreateWalletTransaction(ctx, associatedWallet.ID, tx); err != nil {
+			s.log.Error("Failed to create wallet transaction from monitor event",
+				logger.String("tx_hash", tx.Hash),
+				logger.Int64("wallet_id", associatedWallet.ID),
+				logger.Error(err))
+			// Decide if we should return here or still attempt balance update
+		}
+	} else {
+		// No associated wallet found for this transaction
+		s.log.Debug("Transaction does not involve any monitored wallets", logger.String("tx_hash", tx.Hash))
+		return // Stop processing if no wallet is involved
+	}
+
+	// 5. Update wallet balances if the transaction was successful
+	if tx.Status != types.TransactionStatusSuccess {
+		s.log.Info("Transaction not successful, skipping balance update",
+			logger.String("tx_hash", tx.Hash),
+			logger.String("status", string(tx.Status)))
+		return
+	}
+
+	// Use mapped transaction for balance updates if available and relevant
+	balanceUpdated := false
+	if mappedTx != nil {
+		switch specificTx := mappedTx.(type) {
+		case *types.ERC20Transfer:
+			if err := s.UpdateTokenBalance(ctx, specificTx); err != nil {
+				s.log.Error("Failed to update token balance from mapped ERC20 transfer",
+					logger.String("tx_hash", tx.Hash),
+					logger.Int64("wallet_id", associatedWallet.ID),
+					logger.String("token_address", specificTx.TokenAddress),
+					logger.Error(err))
+			} else {
+				balanceUpdated = true
+			}
+			// Add cases for other mapped types that affect balances if needed
+		}
+	}
+
+	// Fallback to updating native balance if no specific balance was updated
+	// and the transaction involves the associated wallet directly (sender/receiver)
+	if !balanceUpdated && (tx.From == associatedWallet.Address || tx.To == associatedWallet.Address) {
+		if tx.Type == types.TransactionTypeNative || mappedTx == nil { // Update native balance for native tx or unmapped tx
 			if err := s.UpdateWalletBalance(ctx, tx); err != nil {
 				s.log.Error("Failed to update native balance from transaction",
 					logger.String("tx_hash", tx.Hash),
-					logger.Error(err))
-			}
-		case types.TransactionTypeERC20:
-			if err := s.UpdateTokenBalance(ctx, tx); err != nil {
-				s.log.Error("Failed to update token balance from transaction",
-					logger.String("tx_hash", tx.Hash),
-					logger.String("token_address", tx.TokenAddress),
+					logger.Int64("wallet_id", associatedWallet.ID), // Log the wallet ID found earlier
 					logger.Error(err))
 			}
 		}

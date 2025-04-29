@@ -360,7 +360,7 @@ func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, add
 			Type:     txType,
 		}
 
-		historyEntry := TransactionHistoryEntry{
+		txEntry := types.Transaction{
 			BaseTransaction: baseTx,
 			Status:          status,
 			Timestamp:       timestamp,
@@ -369,8 +369,8 @@ func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, add
 		}
 
 		normalEntry := &NormalTxHistoryEntry{
-			TransactionHistoryEntry: historyEntry,
-			ContractAddress:         tx.ContractAddress, // Specific to normal tx (deploy)
+			Transaction:     txEntry,
+			ContractAddress: tx.ContractAddress, // Specific to normal tx (deploy)
 		}
 		result = append(result, normalEntry)
 	}
@@ -433,7 +433,7 @@ func (e *EtherscanExplorer) getInternalTransactionHistory(ctx context.Context, a
 			// Nonce, GasPrice, GasLimit, Data are zero/nil
 		}
 
-		historyEntry := TransactionHistoryEntry{
+		txEntry := types.Transaction{
 			BaseTransaction: baseTx,
 			Status:          status,
 			Timestamp:       timestamp,
@@ -442,7 +442,7 @@ func (e *EtherscanExplorer) getInternalTransactionHistory(ctx context.Context, a
 		}
 
 		internalEntry := &InternalTxHistoryEntry{
-			TransactionHistoryEntry: historyEntry,
+			Transaction: txEntry,
 		}
 		result = append(result, internalEntry)
 	}
@@ -512,7 +512,7 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 			Type:     txType,
 		}
 
-		historyEntry := TransactionHistoryEntry{
+		txEntry := types.Transaction{
 			BaseTransaction: baseTx,
 			Status:          status,
 			Timestamp:       timestamp,
@@ -521,13 +521,97 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 		}
 
 		erc20Entry := &ERC20TxHistoryEntry{
-			TransactionHistoryEntry: historyEntry,
-			TokenAddress:            tx.ContractAddress,
-			TokenSymbol:             tx.TokenSymbol,
-			TokenRecipient:          tx.To, // Actual recipient of tokens
-			TokenAmount:             tokenAmount,
+			Transaction:    txEntry,
+			TokenAddress:   tx.ContractAddress,
+			TokenSymbol:    tx.TokenSymbol,
+			TokenRecipient: tx.To, // Actual recipient of tokens
+			TokenAmount:    tokenAmount,
 		}
 		result = append(result, erc20Entry)
+	}
+
+	return result, nil
+}
+
+// getERC721TransactionHistory fetches ERC721 (NFT) token transfers for an address
+func (e *EtherscanExplorer) getERC721TransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, page, limit int) ([]*ERC721TxHistoryEntry, error) {
+	params := url.Values{}
+	// Request limit+1 items to determine if there's a next page
+	// Use "tokennfttx" action for ERC721
+	e.setTransactionHistoryParams(params, address, options, "tokennfttx", page, limit+1)
+
+	data, err := e.makeRequest(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	var txs []struct {
+		Hash            string `json:"hash"`
+		From            string `json:"from"`
+		To              string `json:"to"` // Recipient of NFT
+		Gas             string `json:"gas"`
+		GasPrice        string `json:"gasPrice"`
+		Nonce           string `json:"nonce"`
+		BlockNumber     string `json:"blockNumber"`
+		Timestamp       string `json:"timeStamp"`
+		ContractAddress string `json:"contractAddress"` // NFT contract address
+		TokenName       string `json:"tokenName"`
+		TokenSymbol     string `json:"tokenSymbol"`
+		TokenID         string `json:"tokenID"`
+		// tokenDecimal is usually 0 for NFTs, not needed here
+	}
+
+	if err := json.Unmarshal(data, &txs); err != nil {
+		return nil, errors.NewInvalidExplorerResponseError(err, string(data))
+	}
+
+	result := make([]*ERC721TxHistoryEntry, 0, len(txs))
+	for _, tx := range txs {
+		blockNumber := new(big.Int)
+		blockNumber.SetString(tx.BlockNumber, 10)
+		gasLimit, _ := strconv.ParseUint(tx.Gas, 10, 64)
+		gasPrice := new(big.Int)
+		gasPrice.SetString(tx.GasPrice, 10)
+		nonce, _ := strconv.ParseUint(tx.Nonce, 10, 64)
+		tokenID := new(big.Int)
+		tokenID.SetString(tx.TokenID, 10)
+		timestamp, _ := strconv.ParseInt(tx.Timestamp, 10, 64)
+
+		// ERC721 transfers are contract calls
+		txType := types.TransactionTypeContractCall
+
+		// Status is assumed success for token transfers listed here
+		status := types.TransactionStatusSuccess
+
+		baseTx := types.BaseTransaction{
+			Chain:    e.chain.Type,
+			Hash:     tx.Hash,
+			From:     tx.From,
+			To:       tx.ContractAddress, // Tx interacts with NFT contract
+			Value:    big.NewInt(0),      // Native value likely 0
+			Data:     nil,                // Not provided
+			Nonce:    nonce,
+			GasPrice: gasPrice,
+			GasLimit: gasLimit,
+			Type:     txType,
+		}
+
+		txEntry := types.Transaction{
+			BaseTransaction: baseTx,
+			Status:          status,
+			Timestamp:       timestamp,
+			BlockNumber:     blockNumber,
+			// GasUsed not provided by tokenfttx endpoint
+		}
+
+		erc721Entry := &ERC721TxHistoryEntry{
+			Transaction:  txEntry,
+			TokenAddress: tx.ContractAddress,
+			TokenSymbol:  tx.TokenSymbol,
+			TokenName:    tx.TokenName,
+			TokenID:      tokenID,
+		}
+		result = append(result, erc721Entry)
 	}
 
 	return result, nil
@@ -598,8 +682,16 @@ func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address s
 			fetchErr = err
 		}
 	case TxTypeERC721:
-		// Not implemented yet
-		return nil, errors.NewExplorerError(fmt.Errorf("ERC721 transaction history not supported yet"))
+		erc721Txs, err := e.getERC721TransactionHistory(ctx, address, options, currentPage, limit)
+		if err == nil {
+			fetchedItems = make([]any, len(erc721Txs))
+			for i, tx := range erc721Txs {
+				fetchedItems[i] = tx
+			}
+			itemLength = len(erc721Txs)
+		} else {
+			fetchErr = err
+		}
 	default:
 		return nil, errors.NewExplorerError(fmt.Errorf("unsupported transaction type: %s", txType))
 	}

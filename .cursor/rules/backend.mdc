@@ -468,6 +468,7 @@ func NewInvalidRequestError(details string) *Vault0Error { /* ... */ }
 2.  **No Wrapping Between Modules**: Catch errors from lower layers (e.g., database errors in service) and return a new, domain-specific error (e.g., `errors.NewOperationFailedError("get user", err)` or `errors.NewUserNotFoundError()`). Do NOT just wrap the DB error.
 3.  **Middleware Handles API Errors**: In handlers, propagate errors using `c.Error(err)`. The `middleware.ErrorHandler` maps `Vault0Error` to HTTP status codes and JSON responses.
 4.  **Log Errors**: Log errors using the structured logger *before* returning a new error type.
+5.  **Check Error Codes**: Use the `errors.IsError(err, errors.ErrCodeSpecificError)` function to check if an error is a specific `Vault0Error` by its code. This leverages the standard `errors.Is` functionality correctly.
 
 ```go
 // Bad: Wrapping
@@ -478,7 +479,8 @@ if err != nil {
 // Good: Mapping and Logging
 if err != nil {
     s.logger.Error("Failed to find user in repository", logger.String("user_id", id), logger.Error(err))
-    if errors.Is(err, errors.ErrCodeDatabaseNotFound) { // Check underlying *type* if needed
+    // Use IsError to check for specific Vault0Error codes
+    if errors.IsError(err, errors.ErrCodeDatabaseNotFound) {
         return nil, errors.NewUserNotFoundError()
     }
     // Return a generic service error for unexpected DB issues
@@ -507,7 +509,7 @@ if err != nil {
 
 ```go
 // Good assertion
-assert.ErrorIs(t, err, errors.ErrCodeUserNotFound)
+assert.ErrorIs(t, err, errors.ErrCodeUserNotFound) // Use errors.IsError for checking specific codes in logic
 assert.ErrorContains(t, err, "database connection refused")
 
 // Bad assertion (avoid string comparison if possible)

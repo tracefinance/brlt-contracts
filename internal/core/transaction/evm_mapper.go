@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto" // Need crypto for Keccak256
 
+	"vault0/internal/core/abiutils"
 	"vault0/internal/core/tokenstore"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
@@ -21,11 +22,11 @@ var erc20TransferMethodID = crypto.Keccak256([]byte("transfer(address,uint256)")
 type evmMapper struct {
 	tokenStore tokenstore.TokenStore
 	logger     logger.Logger
-	abiUtils   ABIUtils
+	abiUtils   abiutils.ABIUtils
 }
 
-// NewMapper creates a new instance of the EVM transaction mapper.
-func NewMapper(tokenStore tokenstore.TokenStore, log logger.Logger, abiUtils ABIUtils) Mapper { // Added abiUtils param
+// NewEvmMapper creates a new instance of the EVM transaction mapper.
+func NewEvmMapper(tokenStore tokenstore.TokenStore, log logger.Logger, abiUtils abiutils.ABIUtils) Mapper {
 	return &evmMapper{
 		tokenStore: tokenStore,
 		logger:     log.With(logger.String("component", "transaction_mapper")),
@@ -133,7 +134,7 @@ func (m *evmMapper) mapMultiSigTx(ctx context.Context, tx *types.Transaction, ex
 	methodID := m.abiUtils.ExtractMethodID(tx.Data)
 
 	// Use LoadABIByName
-	multiSigABI, err := m.abiUtils.LoadABIByName(ctx, ABITypeMultiSig) // Corrected call
+	multiSigABI, err := m.abiUtils.LoadABIByName(ctx, abiutils.ABITypeMultiSig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load MultiSig ABI: %w", err)
 	}
@@ -308,7 +309,7 @@ func (m *evmMapper) ToTypedTransaction(ctx context.Context, tx *types.Transactio
 	}
 
 	// Try mapping to MultiSig methods (this uses LoadABIByName internally now)
-	multiSigABI, err := m.abiUtils.LoadABIByName(ctx, ABITypeMultiSig) // Use LoadABIByName with type
+	multiSigABI, err := m.abiUtils.LoadABIByName(ctx, abiutils.ABITypeMultiSig)
 	if err == nil {
 		if method, err := m.abiUtils.GetMethodFromABI(multiSigABI, methodID); err == nil {
 			switch method.Name {

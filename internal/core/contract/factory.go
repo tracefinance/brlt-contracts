@@ -26,7 +26,7 @@ type Factory interface {
 	// Returns:
 	//   - ContractManager: The contract instance configured for the wallet's chain.
 	//   - error: Any error during creation, such as unsupported chain type or blockchain client issues.
-	NewManager(ctx context.Context, wallet wallet.Wallet) (ContractManager, error)
+	NewManager(ctx context.Context, wallet wallet.WalletManager) (ContractManager, error)
 }
 
 // NewFactory creates a new ContractManager factory.
@@ -54,7 +54,7 @@ type factory struct {
 
 // NewManager implements the Factory interface. It creates a new SmartContract instance
 // for the chain associated with the provided wallet.
-func (f *factory) NewManager(ctx context.Context, wallet wallet.Wallet) (ContractManager, error) {
+func (f *factory) NewManager(ctx context.Context, wallet wallet.WalletManager) (ContractManager, error) {
 	// Get chain type from the provided wallet
 	chainType := wallet.Chain().Type
 

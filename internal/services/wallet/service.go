@@ -6,15 +6,16 @@ import (
 	"sync"
 
 	"vault0/internal/config"
+	"vault0/internal/core/abiutils"
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/keystore"
 	"vault0/internal/core/tokenstore"
-	coretx "vault0/internal/core/transaction"
+	coreTx "vault0/internal/core/transaction"
 	coreWallet "vault0/internal/core/wallet"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
-	"vault0/internal/services/transaction"
+	txService "vault0/internal/services/transaction"
 	"vault0/internal/types"
 )
 
@@ -157,12 +158,14 @@ type walletService struct {
 	tokenStore           tokenstore.TokenStore
 	walletFactory        coreWallet.Factory
 	blockchainFactory    blockchain.Factory
+	abiUtilsFactory      abiutils.Factory
 	chains               *types.Chains
-	txService            transaction.Service
-	txRepository         transaction.Repository
-	txMonitor            coretx.Monitor
+	txMonitor            coreTx.Monitor
+	txService            txService.Service
 	blockExplorerFactory blockexplorer.Factory
-	mu                   sync.RWMutex
+
+	// Mutex for thread safety
+	mu sync.RWMutex
 
 	// Transaction monitoring fields
 	monitorCtx    context.Context
@@ -181,12 +184,12 @@ func NewService(
 	keyStore keystore.KeyStore,
 	tokenStore tokenstore.TokenStore,
 	walletFactory coreWallet.Factory,
-	blockchainRegistry blockchain.Factory,
-	chains *types.Chains,
-	txService transaction.Service,
-	txRepository transaction.Repository,
-	txMonitor coretx.Monitor,
+	blockchainFactory blockchain.Factory,
 	blockExplorerFactory blockexplorer.Factory,
+	abiUtilsFactory abiutils.Factory,
+	chains *types.Chains,
+	txService txService.Service,
+	txMonitor coreTx.Monitor,
 ) Service {
 	return &walletService{
 		config:               config,
@@ -195,14 +198,22 @@ func NewService(
 		keystore:             keyStore,
 		tokenStore:           tokenStore,
 		walletFactory:        walletFactory,
-		blockchainFactory:    blockchainRegistry,
+		blockchainFactory:    blockchainFactory,
+		blockExplorerFactory: blockExplorerFactory,
+		abiUtilsFactory:      abiUtilsFactory,
 		chains:               chains,
 		txService:            txService,
-		txRepository:         txRepository,
 		txMonitor:            txMonitor,
-		blockExplorerFactory: blockExplorerFactory,
 		mu:                   sync.RWMutex{},
 	}
+}
+
+func (s *walletService) getTransactionMapper(chainType types.ChainType) (coreTx.Mapper, error) {
+	abiUtils, err := s.abiUtilsFactory.NewABIUtils(chainType)
+	if err != nil {
+		return nil, err
+	}
+	return coreTx.NewMapper(chainType, s.tokenStore, s.log, abiUtils)
 }
 
 // CreateWallet creates a new wallet with a key and derives its address

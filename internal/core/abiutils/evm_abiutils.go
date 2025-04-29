@@ -1,4 +1,4 @@
-package transaction
+package abiutils
 
 import (
 	"bytes"

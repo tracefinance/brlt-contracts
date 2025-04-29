@@ -2,6 +2,10 @@ package transaction
 
 import (
 	"context"
+	"vault0/internal/core/abiutils"
+	"vault0/internal/core/tokenstore"
+	"vault0/internal/errors"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
@@ -38,4 +42,14 @@ type Mapper interface {
 	// It returns the specific transaction struct (as `any`) or an error if identification
 	// or parsing fails, or if the method is unknown.
 	ToTypedTransaction(ctx context.Context, tx *types.Transaction) (any, error)
+}
+
+// NewMapper creates a new instance of the EVM transaction mapper.
+func NewMapper(chainType types.ChainType, tokenStore tokenstore.TokenStore, log logger.Logger, abiUtils abiutils.ABIUtils) (Mapper, error) {
+	switch chainType {
+	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
+		return NewEvmMapper(tokenStore, log, abiUtils), nil
+	default:
+		return nil, errors.NewChainNotSupportedError(string(chainType))
+	}
 }
