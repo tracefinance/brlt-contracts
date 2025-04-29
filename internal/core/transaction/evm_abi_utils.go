@@ -200,7 +200,7 @@ func (u *evmAbiUtils) ParseContractInput(method *abi.Method, inputData []byte) (
 		return nil, errors.NewABIError(fmt.Errorf("input data length %d is not a multiple of 32 bytes for method %s", len(inputData), method.Name), "invalid_length")
 	}
 
-	unpackedArgs := make(map[string]interface{})
+	unpackedArgs := make(map[string]any)
 	err := method.Inputs.UnpackIntoMap(unpackedArgs, inputData)
 	if err != nil {
 		return nil, errors.NewABIError(fmt.Errorf("failed to unpack input for method %s: %w", method.Name, err), "unpacking_failed")

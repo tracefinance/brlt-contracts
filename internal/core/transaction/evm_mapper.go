@@ -21,7 +21,7 @@ var erc20TransferMethodID = crypto.Keccak256([]byte("transfer(address,uint256)")
 type evmMapper struct {
 	tokenStore tokenstore.TokenStore
 	logger     logger.Logger
-	abiUtils   ABIUtils // Added ABIUtils dependency
+	abiUtils   ABIUtils
 }
 
 // NewMapper creates a new instance of the EVM transaction mapper.
@@ -29,7 +29,7 @@ func NewMapper(tokenStore tokenstore.TokenStore, log logger.Logger, abiUtils ABI
 	return &evmMapper{
 		tokenStore: tokenStore,
 		logger:     log.With(logger.String("component", "transaction_mapper")),
-		abiUtils:   abiUtils, // Store dependency
+		abiUtils:   abiUtils,
 	}
 }
 
@@ -103,11 +103,11 @@ func (m *evmMapper) ToERC20Transfer(ctx context.Context, tx *types.Transaction) 
 
 	// Create the specific type remains the same
 	erc20Tx := &types.ERC20Transfer{
-		BaseTransaction: tx.BaseTransaction,
-		TokenAddress:    tokenInfo.Address,
-		TokenSymbol:     tokenInfo.Symbol,
-		Recipient:       recipientAddr.String(),
-		Amount:          amountBigInt.ToBigInt(),
+		Transaction:  *tx,
+		TokenAddress: tokenInfo.Address,
+		TokenSymbol:  tokenInfo.Symbol,
+		Recipient:    recipientAddr.String(),
+		Amount:       amountBigInt.ToBigInt(),
 	}
 	erc20Tx.Type = types.TransactionTypeERC20Transfer
 
@@ -141,17 +141,6 @@ func (m *evmMapper) mapMultiSigTx(ctx context.Context, tx *types.Transaction, ex
 	method, err := m.abiUtils.GetMethodFromABI(multiSigABI, methodID)
 	if err != nil || method.Name != expectedMethodName {
 		return nil, errors.NewMappingError(tx.Hash, fmt.Sprintf("method ID %x does not match MultiSig %s", methodID, expectedMethodName))
-	}
-
-	// Handle requestRecovery potentially having no args/data
-	if expectedMethodName == "requestRecovery" {
-		if len(method.Inputs) == 0 {
-			return make(map[string]interface{}), nil // No args expected, return empty map
-		}
-		// If inputs ARE expected, but data was short (handled above), this parse will fail
-		if len(tx.Data) < 4 {
-			return nil, errors.NewMappingError(tx.Hash, "transaction data too short for requestRecovery method with arguments")
-		}
 	}
 
 	parsedArgs, err := m.abiUtils.ParseContractInput(method, tx.Data[4:])
@@ -194,7 +183,7 @@ func (m *evmMapper) ToMultiSigWithdrawalRequest(ctx context.Context, tx *types.T
 	}
 
 	multiSigTx := &types.MultiSigWithdrawalRequest{
-		BaseTransaction: tx.BaseTransaction,
+		Transaction:     *tx,
 		Token:           tokenAddr.String(),
 		Amount:          amountBigInt.ToBigInt(),
 		Recipient:       recipientAddr.String(),
@@ -207,7 +196,7 @@ func (m *evmMapper) ToMultiSigWithdrawalRequest(ctx context.Context, tx *types.T
 
 // ToMultiSigSignWithdrawal implements Mapper.
 func (m *evmMapper) ToMultiSigSignWithdrawal(ctx context.Context, tx *types.Transaction) (*types.MultiSigSignWithdrawal, error) {
-	parsedArgs, err := m.mapMultiSigTx(ctx, tx, "signWithdrawalRequest", []string{"requestID"})
+	parsedArgs, err := m.mapMultiSigTx(ctx, tx, "signWithdrawal", []string{"requestID"})
 	if err != nil {
 		return nil, err
 	}
@@ -218,8 +207,8 @@ func (m *evmMapper) ToMultiSigSignWithdrawal(ctx context.Context, tx *types.Tran
 	}
 
 	multiSigTx := &types.MultiSigSignWithdrawal{
-		BaseTransaction: tx.BaseTransaction,
-		RequestID:       requestIDBytes32,
+		Transaction: *tx,
+		RequestID:   requestIDBytes32,
 	}
 	multiSigTx.Type = types.TransactionTypeMultiSigSignWithdrawal
 
@@ -239,8 +228,8 @@ func (m *evmMapper) ToMultiSigExecuteWithdrawal(ctx context.Context, tx *types.T
 	}
 
 	multiSigTx := &types.MultiSigExecuteWithdrawal{
-		BaseTransaction: tx.BaseTransaction,
-		RequestID:       requestIDBytes32,
+		Transaction: *tx,
+		RequestID:   requestIDBytes32,
 	}
 	multiSigTx.Type = types.TransactionTypeMultiSigExecuteWithdrawal
 
@@ -260,8 +249,8 @@ func (m *evmMapper) ToMultiSigAddSupportedToken(ctx context.Context, tx *types.T
 	}
 
 	multiSigTx := &types.MultiSigAddSupportedToken{
-		BaseTransaction: tx.BaseTransaction,
-		Token:           tokenAddr.String(),
+		Transaction: *tx,
+		Token:       tokenAddr.String(),
 	}
 	multiSigTx.Type = types.TransactionTypeMultiSigAddSupportedToken
 
@@ -283,7 +272,7 @@ func (m *evmMapper) ToMultiSigRecoveryRequest(ctx context.Context, tx *types.Tra
 	// No arguments to extract
 
 	multiSigTx := &types.MultiSigRecoveryRequest{
-		BaseTransaction: tx.BaseTransaction,
+		Transaction: *tx,
 	}
 	multiSigTx.Type = types.TransactionTypeMultiSigRecoveryRequest
 
@@ -325,7 +314,7 @@ func (m *evmMapper) ToTypedTransaction(ctx context.Context, tx *types.Transactio
 			switch method.Name {
 			case "requestWithdrawal":
 				return m.ToMultiSigWithdrawalRequest(ctx, tx)
-			case "signWithdrawalRequest":
+			case "signWithdrawal":
 				return m.ToMultiSigSignWithdrawal(ctx, tx)
 			case "executeWithdrawal":
 				return m.ToMultiSigExecuteWithdrawal(ctx, tx)

@@ -79,7 +79,7 @@ const (
 // MultiSigWithdrawalRequest represents a withdrawal request transaction in the MultiSig wallet
 type MultiSigWithdrawalRequest struct {
 	// Embeds the core transaction details
-	BaseTransaction
+	Transaction
 	// Token is the address of the token to withdraw
 	Token string
 	// Amount is the amount of tokens to withdraw
@@ -93,7 +93,7 @@ type MultiSigWithdrawalRequest struct {
 // MultiSigSignWithdrawal represents a transaction signing a withdrawal request in the MultiSig wallet
 type MultiSigSignWithdrawal struct {
 	// Embeds the core transaction details
-	BaseTransaction
+	Transaction
 	// RequestID is the unique identifier of the withdrawal request being signed
 	RequestID [32]byte
 }
@@ -101,7 +101,7 @@ type MultiSigSignWithdrawal struct {
 // MultiSigExecuteWithdrawal represents a transaction executing a withdrawal in the MultiSig wallet
 type MultiSigExecuteWithdrawal struct {
 	// Embeds the core transaction details
-	BaseTransaction
+	Transaction
 	// RequestID is the unique identifier of the withdrawal request being executed
 	RequestID [32]byte
 }
@@ -109,7 +109,7 @@ type MultiSigExecuteWithdrawal struct {
 // MultiSigAddSupportedToken represents a transaction adding a supported token to the MultiSig wallet
 type MultiSigAddSupportedToken struct {
 	// Embeds the core transaction details
-	BaseTransaction
+	Transaction
 	// Token is the address of the token being added as supported
 	Token string
 }
@@ -117,25 +117,25 @@ type MultiSigAddSupportedToken struct {
 // MultiSigRecoveryRequest represents a transaction requesting recovery of the MultiSig wallet
 type MultiSigRecoveryRequest struct {
 	// Embeds the core transaction details
-	BaseTransaction
+	Transaction
 }
 
 // MultiSigCancelRecovery represents a transaction cancelling a recovery request for the MultiSig wallet
 type MultiSigCancelRecovery struct {
 	// Embeds the core transaction details
-	BaseTransaction
+	Transaction
 }
 
 // MultiSigExecuteRecovery represents a transaction executing recovery for the MultiSig wallet
 type MultiSigExecuteRecovery struct {
 	// Embeds the core transaction details
-	BaseTransaction
+	Transaction
 }
 
 // MultiSigProposeRecoveryAddressChange represents a transaction proposing a change to the recovery address
 type MultiSigProposeRecoveryAddressChange struct {
 	// Embeds the core transaction details
-	BaseTransaction
+	Transaction
 	// NewRecoveryAddress is the proposed new recovery address
 	NewRecoveryAddress string
 }
@@ -143,7 +143,7 @@ type MultiSigProposeRecoveryAddressChange struct {
 // MultiSigSignRecoveryAddressChange represents a transaction signing a recovery address change
 type MultiSigSignRecoveryAddressChange struct {
 	// Embeds the core transaction details
-	BaseTransaction
+	Transaction
 	// ProposalID is the unique identifier of the recovery address change proposal
 	ProposalID [32]byte
 }

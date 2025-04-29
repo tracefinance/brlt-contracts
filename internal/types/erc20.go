@@ -55,7 +55,7 @@ const (
 // It embeds BaseTransaction for the core details and adds token-specific fields
 type ERC20Transfer struct {
 	// Embeds the core transaction details
-	BaseTransaction
+	Transaction
 	// TokenAddress is the address of the ERC20 token contract
 	TokenAddress string
 	// TokenSymbol is the symbol of the ERC20 token
