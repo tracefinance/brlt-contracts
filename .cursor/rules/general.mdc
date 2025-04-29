@@ -16,7 +16,9 @@ Vault0 is a full-stack web3 application combining blockchain technology with mod
 - Prioritize security and performance.
 - Maintain consistent code style.
 - Focus on accessibility and user experience.
-- **Code Comment**: DO NOT ADD unnecessary comments to the code.
+- **Avoid Automatic Comments:** Do **not** add comments to generated or modified code unless explicitly requested by the user for specific sections or explanations. Focus on writing clear, self-documenting code.
+- Avoid deep if nesting and adopt a fail-fast design pattern.
+- Handle errors and invalid states as early as possible, returning or exiting immediately to keep code flat and readable.
 
 ## Project Structure
 ```
@@ -47,13 +49,9 @@ vault0/
 ## General Code Style Guidelines
 - Use meaningful names for variables, functions, and files.
 - Keep functions small and focused.
-- Document complex logic clearly (but avoid unnecessary comments).
 - Handle errors appropriately in each layer.
 - Implement proper logging.
 - Follow consistent formatting.
-- **IMPORTANT: Do not add inline comments to the code.**
-- **Avoid deep if nesting and adopt a fail-fast design pattern.**
-  - Handle errors and invalid states as early as possible, returning or exiting immediately to keep code flat and readable.
 
 ## Git Workflow
 - **NEVER COMMIT THE CODE UNLESS YOU'RE ASKED TO DO IT.**
