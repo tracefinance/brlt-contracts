@@ -44,11 +44,35 @@ const (
 	TransactionStatusUnknown TransactionStatus = "unknown"
 )
 
+// CoreTransaction defines an interface for accessing the core properties of a blockchain transaction
+type CoreTransaction interface {
+	// GetChainType returns the blockchain type
+	GetChainType() ChainType
+	// GetHash returns the transaction hash
+	GetHash() string
+	// GetFrom returns the sender address
+	GetFrom() string
+	// GetTo returns the recipient address
+	GetTo() string
+	// GetValue returns the amount of native currency transferred
+	GetValue() *big.Int
+	// GetData returns the transaction input data
+	GetData() []byte
+	// GetNonce returns the transaction nonce
+	GetNonce() uint64
+	// GetGasPrice returns the price per unit of gas
+	GetGasPrice() *big.Int
+	// GetGasLimit returns the maximum gas units the transaction can consume
+	GetGasLimit() uint64
+	// GetType returns the general nature of the transaction
+	GetType() TransactionType
+}
+
 // BaseTransaction holds the core, immutable fields of a blockchain transaction.
 // These fields are typically known before the transaction is executed.
 type BaseTransaction struct {
-	// Chain is the blockchain type
-	Chain ChainType
+	// ChainType is the blockchain type
+	ChainType ChainType
 	// Hash is the transaction hash
 	Hash string
 	// From is the sender address
@@ -82,6 +106,8 @@ type Transaction struct {
 	Timestamp int64
 	// BlockNumber is the number of the block containing the transaction
 	BlockNumber *big.Int
+	// Metadata is a flexible field for transformers to add contextual information.
+	Metadata map[string]any
 }
 
 // TransactionOptions represents optional parameters for constructing a transaction
@@ -118,6 +144,58 @@ type Log struct {
 	BlockNumber     *big.Int  // Block number
 	TransactionHash string    // Transaction hash
 	LogIndex        uint      // Log index in the block
+}
+
+// Methods to implement CoreTransaction interface for BaseTransaction
+
+// GetChainType returns the blockchain type
+func (tx *BaseTransaction) GetChainType() ChainType {
+	return tx.ChainType
+}
+
+// GetHash returns the transaction hash
+func (tx *BaseTransaction) GetHash() string {
+	return tx.Hash
+}
+
+// GetFrom returns the sender address
+func (tx *BaseTransaction) GetFrom() string {
+	return tx.From
+}
+
+// GetTo returns the recipient address
+func (tx *BaseTransaction) GetTo() string {
+	return tx.To
+}
+
+// GetValue returns the amount of native currency transferred
+func (tx *BaseTransaction) GetValue() *big.Int {
+	return tx.Value
+}
+
+// GetData returns the transaction input data
+func (tx *BaseTransaction) GetData() []byte {
+	return tx.Data
+}
+
+// GetNonce returns the transaction nonce
+func (tx *BaseTransaction) GetNonce() uint64 {
+	return tx.Nonce
+}
+
+// GetGasPrice returns the price per unit of gas
+func (tx *BaseTransaction) GetGasPrice() *big.Int {
+	return tx.GasPrice
+}
+
+// GetGasLimit returns the maximum gas units the transaction can consume
+func (tx *BaseTransaction) GetGasLimit() uint64 {
+	return tx.GasLimit
+}
+
+// GetType returns the general nature of the transaction
+func (tx *BaseTransaction) GetType() TransactionType {
+	return tx.Type
 }
 
 // ParseAddressFromTopic extracts and validates an address from the topic at the given index.

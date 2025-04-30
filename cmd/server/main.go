@@ -52,20 +52,19 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start transaction event subscriptions
-	container.Core.TransactionMonitor.SubscribeToTransactionEvents(ctx)
+	// Register wallet service as a transaction transformer
+	if err := container.Services.Transaction.TransformerService.RegisterTransformer("wallet", container.Services.WalletService); err != nil {
+		log.Error("Failed to register wallet transformer", logger.Error(err))
+	}
 
 	// Start pending transaction polling
-	container.Services.TransactionService.StartPendingTransactionPolling(ctx)
+	container.Services.Transaction.PoolingService.StartPendingTransactionPolling(ctx)
+
+	// Start transaction monitoring
+	container.Services.Transaction.MonitorService.StartTransactionMonitoring(ctx)
 
 	// Start token price update job
 	container.Services.TokenPriceService.StartPricePolling(ctx)
-
-	// Start transaction monitoring
-	container.Services.WalletService.StartTransactionMonitoring(ctx)
-
-	// Start wallet history syncing
-	container.Services.WalletService.StartWalletHistorySyncing(ctx)
 
 	// Start vault recovery polling
 	container.Services.VaultService.StartRecoveryPolling(ctx)
@@ -101,16 +100,10 @@ func main() {
 
 	// Unsubscribe from transaction events first to close the channel
 	// before any services that might use it
-	container.Core.TransactionMonitor.UnsubscribeFromTransactionEvents()
+	container.Services.Transaction.MonitorService.StopTransactionMonitoring()
 
 	// Stop pending transaction polling
-	container.Services.TransactionService.StopPendingTransactionPolling()
-
-	// Stop transaction monitoring in wallet service
-	container.Services.WalletService.StopTransactionMonitoring()
-
-	// Stop wallet history syncing
-	container.Services.WalletService.StopWalletHistorySyncing()
+	container.Services.Transaction.PoolingService.StopPendingTransactionPolling()
 
 	// Stop vault recovery polling
 	container.Services.VaultService.StopRecoveryPolling()

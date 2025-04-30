@@ -13,24 +13,31 @@ type Factory interface {
 	// NewClient returns a blockchain client for the specified chain type.
 	// Returns ErrCodeChainNotSupported if the chain type is not supported.
 	NewClient(chainType types.ChainType) (BlockchainClient, error)
+
+	// NewMonitor returns a blockchain monitor for the specified chain type.
+	// Returns ErrCodeChainNotSupported if the chain type is not supported.
+	NewMonitor(chainType types.ChainType) (BLockchainEventMonitor, error)
 }
 
 // Factory creates blockchain implementations
 type factory struct {
-	chains     *types.Chains
-	cfg        *config.Config
-	log        logger.Logger
-	clients    map[types.ChainType]BlockchainClient
-	clientsMux sync.RWMutex
+	chains      *types.Chains
+	cfg         *config.Config
+	log         logger.Logger
+	clients     map[types.ChainType]BlockchainClient
+	clientsMux  sync.RWMutex
+	monitors    map[types.ChainType]BLockchainEventMonitor
+	monitorsMux sync.RWMutex
 }
 
 // NewFactory creates a new blockchain factory with the given configuration
 func NewFactory(chains *types.Chains, cfg *config.Config, log logger.Logger) Factory {
 	return &factory{
-		cfg:     cfg,
-		log:     log,
-		chains:  chains,
-		clients: make(map[types.ChainType]BlockchainClient),
+		cfg:      cfg,
+		log:      log,
+		chains:   chains,
+		clients:  make(map[types.ChainType]BlockchainClient),
+		monitors: make(map[types.ChainType]BLockchainEventMonitor),
 	}
 }
 
@@ -60,4 +67,35 @@ func (f *factory) NewClient(chainType types.ChainType) (BlockchainClient, error)
 	default:
 		return nil, errors.NewChainNotSupportedError(string(chainType))
 	}
+}
+
+// NewMonitor returns a blockchain monitor for the specified chain type.
+func (f *factory) NewMonitor(chainType types.ChainType) (BLockchainEventMonitor, error) {
+	f.monitorsMux.RLock()
+	if monitor, exists := f.monitors[chainType]; exists {
+		f.monitorsMux.RUnlock()
+		return monitor, nil
+	}
+	f.monitorsMux.RUnlock()
+
+	// If not cached, need exclusive lock to create and store
+	f.monitorsMux.Lock()
+	defer f.monitorsMux.Unlock()
+
+	// Double-check if another goroutine created it while we waited for the lock
+	if monitor, exists := f.monitors[chainType]; exists {
+		return monitor, nil
+	}
+
+	// Get the client for the chain, utilizing the client cache
+	client, err := f.NewClient(chainType)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create and cache the new monitor
+	monitor := NewMonitor(f.log, client)
+	f.monitors[chainType] = monitor
+
+	return monitor, nil
 }

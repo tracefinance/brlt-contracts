@@ -4,6 +4,7 @@ import (
 	"github.com/google/wire"
 
 	"vault0/internal/config"
+	"vault0/internal/core/abiutils"
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/contract"
@@ -35,7 +36,8 @@ var CoreSet = wire.NewSet(
 	contract.NewFactory,
 	types.NewChains,
 	pricefeed.NewPriceFeed,
-	transaction.NewMonitor,
+	abiutils.NewFactory,
+	transaction.NewFactory,
 	NewCore,
 )
 
@@ -51,8 +53,9 @@ type Core struct {
 	BlockchainClientFactory blockchain.Factory
 	ContractManagerFactory  contract.Factory
 	BlockExplorerFactory    blockexplorer.Factory
+	ABIUtilsFactory         abiutils.Factory
 	PriceFeed               pricefeed.PriceFeed
-	TransactionMonitor      transaction.Monitor
+	TransactionFactory      transaction.Factory
 }
 
 // NewCore creates a new Core instance with all core dependencies
@@ -68,7 +71,8 @@ func NewCore(
 	blockchainClientFactory blockchain.Factory,
 	contractManagerFactory contract.Factory,
 	blockExplorerFactory blockexplorer.Factory,
-	transactionMonitor transaction.Monitor,
+	abiUtilsFactory abiutils.Factory,
+	transactionFactory transaction.Factory,
 ) *Core {
 	return &Core{
 		Config:                  config,
@@ -82,6 +86,7 @@ func NewCore(
 		BlockchainClientFactory: blockchainClientFactory,
 		ContractManagerFactory:  contractManagerFactory,
 		BlockExplorerFactory:    blockExplorerFactory,
-		TransactionMonitor:      transactionMonitor,
+		ABIUtilsFactory:         abiUtilsFactory,
+		TransactionFactory:      transactionFactory,
 	}
 }

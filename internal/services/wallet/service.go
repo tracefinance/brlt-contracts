@@ -3,14 +3,9 @@ package wallet
 import (
 	"context"
 	"math/big"
-	"sync"
 
-	"vault0/internal/config"
-	"vault0/internal/core/abiutils"
-	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/keystore"
 	"vault0/internal/core/tokenstore"
-	coreTx "vault0/internal/core/transaction"
 	coreWallet "vault0/internal/core/wallet"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
@@ -21,8 +16,6 @@ import (
 // Service defines the wallet service interface
 type Service interface {
 	BalanceService
-	MonitorService
-	HistoryService
 
 	// CreateWallet creates a new wallet with a key and derives its address.
 	// It performs the following steps:
@@ -146,70 +139,39 @@ type Service interface {
 	//   - []*Wallet: A slice of wallets associated with the key ID
 	//   - error: Any error that occurred during the database query
 	FindWalletsByKeyID(ctx context.Context, keyID string) ([]*Wallet, error)
+
+	// TransformTransaction implements transaction.TransactionTransformer interface.
+	// It adds wallet information to transaction metadata if the transaction is associated with a wallet.
+	TransformTransaction(ctx context.Context, tx *types.Transaction) error
 }
 
 // walletService implements the Service interface
 type walletService struct {
-	config               *config.Config
-	log                  logger.Logger
-	repository           Repository
-	keystore             keystore.KeyStore
-	tokenStore           tokenstore.TokenStore
-	walletFactory        coreWallet.Factory
-	abiUtilsFactory      abiutils.Factory
-	chains               *types.Chains
-	txMonitor            coreTx.Monitor
-	txService            txService.Service
-	blockExplorerFactory blockexplorer.Factory
-
-	// Mutex for thread safety
-	mu sync.RWMutex
-
-	// Transaction monitoring fields
-	monitorCtx    context.Context
-	monitorCancel context.CancelFunc
-
-	// Transaction history syncing fields
-	syncHistoryCtx    context.Context
-	syncHistoryCancel context.CancelFunc
+	log           logger.Logger
+	repository    Repository
+	keystore      keystore.KeyStore
+	tokenStore    tokenstore.TokenStore
+	walletFactory coreWallet.Factory
+	chains        *types.Chains
 }
 
 // NewService creates a new wallet service
 func NewService(
-	config *config.Config,
 	log logger.Logger,
 	repository Repository,
 	keyStore keystore.KeyStore,
 	tokenStore tokenstore.TokenStore,
 	walletFactory coreWallet.Factory,
-	blockExplorerFactory blockexplorer.Factory,
-	abiUtilsFactory abiutils.Factory,
 	chains *types.Chains,
-	txService txService.Service,
-	txMonitor coreTx.Monitor,
 ) Service {
 	return &walletService{
-		config:               config,
-		log:                  log,
-		repository:           repository,
-		keystore:             keyStore,
-		tokenStore:           tokenStore,
-		walletFactory:        walletFactory,
-		blockExplorerFactory: blockExplorerFactory,
-		abiUtilsFactory:      abiUtilsFactory,
-		chains:               chains,
-		txService:            txService,
-		txMonitor:            txMonitor,
-		mu:                   sync.RWMutex{},
+		log:           log,
+		repository:    repository,
+		keystore:      keyStore,
+		tokenStore:    tokenStore,
+		walletFactory: walletFactory,
+		chains:        chains,
 	}
-}
-
-func (s *walletService) getTransactionMapper(chainType types.ChainType) (coreTx.Mapper, error) {
-	abiUtils, err := s.abiUtilsFactory.NewABIUtils(chainType)
-	if err != nil {
-		return nil, err
-	}
-	return coreTx.NewMapper(chainType, s.tokenStore, s.log, abiUtils)
 }
 
 // CreateWallet creates a new wallet with a key and derives its address
@@ -248,11 +210,6 @@ func (s *walletService) CreateWallet(ctx context.Context, chainType types.ChainT
 
 	if err := s.repository.Create(ctx, wallet); err != nil {
 		return nil, err
-	}
-
-	// Monitor the new wallet's address for transactions if transaction monitoring is active
-	if s.monitorCtx != nil {
-		s.monitorAddress(ctx, wallet.ChainType, wallet.Address)
 	}
 
 	return wallet, nil
@@ -312,18 +269,8 @@ func (s *walletService) DeleteWallet(ctx context.Context, chainType types.ChainT
 		return errors.NewInvalidAddressError(address)
 	}
 
-	wallet, err := s.repository.GetByAddress(ctx, chainType, address)
-	if err != nil {
-		return err
-	}
-
 	if err := s.repository.Delete(ctx, chainType, address); err != nil {
 		return err
-	}
-
-	// Unmonitor the wallet's address if transaction monitoring is active
-	if s.monitorCtx != nil {
-		s.unmonitorAddress(ctx, wallet.ChainType, wallet.Address)
 	}
 
 	return nil
@@ -476,4 +423,45 @@ func (s *walletService) FindWalletsByKeyID(ctx context.Context, keyID string) ([
 		logger.String("key_id", keyID),
 		logger.Int("count", len(wallets)))
 	return wallets, nil
+}
+
+// TransformTransaction implements transaction.TransactionTransformer interface.
+// It adds wallet information to transaction metadata if the transaction is associated with a wallet.
+func (s *walletService) TransformTransaction(ctx context.Context, tx *types.Transaction) error {
+	if tx == nil {
+		return errors.NewInvalidInputError("Transaction cannot be nil", "transaction", nil)
+	}
+
+	// Skip if there's no wallet address in the transaction
+	if tx.From == "" && tx.To == "" {
+		return nil
+	}
+
+	// If successful, add wallet ID to metadata
+	if tx.Metadata == nil {
+		tx.Metadata = make(map[string]interface{})
+	}
+
+	// Check if the from address is one of our wallets
+	if tx.From != "" {
+		wallet, err := s.repository.GetByAddress(ctx, tx.ChainType, tx.From)
+		if err != nil {
+			return err
+		}
+
+		tx.Metadata[txService.WalletIDMetadaKey] = wallet.ID
+	}
+
+	// Check if the to address is one of our wallets
+	if tx.To != "" {
+		wallet, err := s.repository.GetByAddress(ctx, tx.ChainType, tx.To)
+		if err != nil {
+			return err
+		}
+
+		tx.Metadata[txService.WalletIDMetadaKey] = wallet.ID
+	}
+
+	// If we reach here, the transaction didn't match any of our wallets
+	return nil
 }

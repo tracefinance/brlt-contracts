@@ -34,6 +34,9 @@ type Repository interface {
 
 	// Exists checks if a transaction exists by its hash
 	Exists(ctx context.Context, hash string) (bool, error)
+
+	// UpdateTransactionStatus updates only the status and updated_at fields of a transaction by its hash.
+	UpdateTransactionStatus(ctx context.Context, txHash string, status types.TransactionStatus) error
 }
 
 // repository implements Repository interface for SQLite
@@ -56,6 +59,18 @@ func NewRepository(db *db.DB, log logger.Logger) Repository {
 
 // Create inserts a new transaction into the database
 func (r *repository) Create(ctx context.Context, tx *Transaction) error {
+	if tx.Hash == "" {
+		return errors.NewInvalidInputError("Transaction hash cannot be empty for existence check", "hash", "")
+	}
+
+	exists, err := r.Exists(ctx, tx.Hash)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.NewAlreadyExistsError(fmt.Sprintf("transaction with hash %s", tx.Hash))
+	}
+
 	if tx.ID == 0 {
 		id, err := r.db.GenerateID()
 		if err != nil {
@@ -88,7 +103,7 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 
 	sql, args := insertBuilder.Build()
 
-	_, err := r.db.ExecuteStatementContext(ctx, sql, args...)
+	_, err = r.db.ExecuteStatementContext(ctx, sql, args...)
 	if err != nil {
 		return err
 	}
@@ -175,6 +190,10 @@ func (r *repository) List(ctx context.Context, filter *Filter, limit int, nextTo
 
 		if filter.Type != nil {
 			sb.Where(sb.E("type", *filter.Type))
+		}
+
+		if filter.TokenAddress != nil {
+			sb.Where(sb.E("token_address", *filter.TokenAddress))
 		}
 
 		if filter.BlockNumber != nil {
@@ -312,6 +331,41 @@ func (r *repository) Update(ctx context.Context, tx *Transaction) error {
 			hashOrID = fmt.Sprintf("hash %s", tx.Hash)
 		}
 		return errors.NewTransactionNotFoundError(hashOrID)
+	}
+
+	return nil
+}
+
+// UpdateTransactionStatus updates only the status and updated_at fields of a transaction by its hash.
+func (r *repository) UpdateTransactionStatus(ctx context.Context, txHash string, status types.TransactionStatus) error {
+	if txHash == "" {
+		return errors.NewMissingParameterError("transaction hash")
+	}
+
+	ub := sqlbuilder.NewUpdateBuilder()
+	ub.Update("transactions")
+	ub.Set(
+		ub.Assign("status", status),
+		ub.Assign("updated_at", time.Now()),
+	)
+	ub.Where(ub.E("hash", txHash))
+
+	sql, args := ub.Build()
+	r.log.Debug("Updating transaction status", logger.String("sql", sql), logger.Any("args", args))
+
+	result, err := r.db.ExecuteStatementContext(ctx, sql, args...)
+	if err != nil {
+		return err // Already wrapped by db layer
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		r.log.Error("Failed to get rows affected after status update", logger.Error(err), logger.String("tx_hash", txHash))
+		return errors.NewDatabaseError(err)
+	}
+
+	if rowsAffected == 0 {
+		return errors.NewTransactionNotFoundError(txHash)
 	}
 
 	return nil

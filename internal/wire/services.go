@@ -13,22 +13,35 @@ import (
 	"vault0/internal/services/wallet"
 )
 
+type Transaction struct {
+	Service            transaction.Service
+	TransformerService transaction.TransformerService
+	PoolingService     transaction.PoolingService
+	MonitorService     transaction.MonitorService
+}
+
 // Services holds instances of all application services.
 type Services struct {
-	WalletService      wallet.Service
-	UserService        user.Service
-	TransactionService transaction.Service
-	TokenService       token.Service
-	SignerService      signer.Service
-	TokenPriceService  tokenprice.Service
-	KeystoreService    keystore.Service
-	VaultService       vault.Service
+	WalletService     wallet.Service
+	UserService       user.Service
+	Transaction       Transaction
+	TokenService      token.Service
+	SignerService     signer.Service
+	TokenPriceService tokenprice.Service
+	KeystoreService   keystore.Service
+	VaultService      vault.Service
 }
 
 // Define Wire provider sets for each service
 var WalletServiceSet = wire.NewSet(wallet.NewRepository, wallet.NewService)
 var UserServiceSet = wire.NewSet(user.NewRepository, user.NewService)
-var TransactionServiceSet = wire.NewSet(transaction.NewRepository, transaction.NewService)
+var TransactionServiceSet = wire.NewSet(
+	transaction.NewRepository,
+	transaction.NewService,
+	transaction.NewTransformerService,
+	transaction.NewPoolingService,
+	transaction.NewMonitorService,
+)
 var TokenServiceSet = wire.NewSet(token.NewService)
 var SignerServiceSet = wire.NewSet(signer.NewRepository, signer.NewService)
 var TokenPriceServiceSet = wire.NewSet(tokenprice.NewRepository, tokenprice.NewService)
@@ -53,6 +66,9 @@ func NewServices(
 	walletSvc wallet.Service,
 	userSvc user.Service,
 	transactionSvc transaction.Service,
+	transformerSvc transaction.TransformerService,
+	poolingSvc transaction.PoolingService,
+	monitorSvc transaction.MonitorService,
 	tokenSvc token.Service,
 	signerSvc signer.Service,
 	tokenPriceSvc tokenprice.Service,
@@ -60,13 +76,19 @@ func NewServices(
 	vaultSvc vault.Service,
 ) *Services {
 	return &Services{
-		WalletService:      walletSvc,
-		UserService:        userSvc,
-		TransactionService: transactionSvc,
-		TokenService:       tokenSvc,
-		SignerService:      signerSvc,
-		TokenPriceService:  tokenPriceSvc,
-		KeystoreService:    keystoreSvc,
-		VaultService:       vaultSvc,
+		Transaction: Transaction{
+			Service:            transactionSvc,
+			TransformerService: transformerSvc,
+			PoolingService:     poolingSvc,
+			MonitorService:     monitorSvc,
+		},
+		WalletService: walletSvc,
+		UserService:   userSvc,
+
+		TokenService:      tokenSvc,
+		SignerService:     signerSvc,
+		TokenPriceService: tokenPriceSvc,
+		KeystoreService:   keystoreSvc,
+		VaultService:      vaultSvc,
 	}
 }

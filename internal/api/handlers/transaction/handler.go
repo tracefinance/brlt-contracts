@@ -36,17 +36,17 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	// Wallet-scoped transaction routes
 	walletRoutes := router.Group("/wallets/:chain_type/:address/transactions")
 	walletRoutes.Use(errorHandler.Middleware())
-	walletRoutes.GET("", h.GetTransactionsByAddress)
-	walletRoutes.GET("/:hash", h.GetTransaction)
+	walletRoutes.GET("", h.GetTransactionsByWalletAddress)
+	walletRoutes.GET("/:hash", h.GetTransactionByHash)
 
 	// Direct transaction routes
 	transactionRoutes := router.Group("/transactions")
 	transactionRoutes.Use(errorHandler.Middleware())
-	transactionRoutes.GET("/:hash", h.GetTransaction)
+	transactionRoutes.GET("/:hash", h.GetTransactionByHash)
 	transactionRoutes.GET("", h.FilterTransactions)
 }
 
-// GetTransaction handles GET /wallets/:chain_type/:address/transactions/:hash
+// GetTransactionByHash handles GET /wallets/:chain_type/:address/transactions/:hash
 // or GET /transactions/:hash
 // @Summary Get a transaction
 // @Description Get transaction details by hash
@@ -60,7 +60,7 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /transactions/{hash} [get]
 // @Router /wallets/{chain_type}/{address}/transactions/{hash} [get]
-func (h *Handler) GetTransaction(c *gin.Context) {
+func (h *Handler) GetTransactionByHash(c *gin.Context) {
 	hash := c.Param("hash")
 
 	tx, err := h.transactionService.GetTransactionByHash(c.Request.Context(), hash)
@@ -69,17 +69,14 @@ func (h *Handler) GetTransaction(c *gin.Context) {
 		return
 	}
 
-	// Get token from tx.TokenAddress
-	token, err := h.tokenService.GetToken(c.Request.Context(), tx.TokenAddress)
-	if err != nil {
-		c.Error(err)
-		return
-	}
+	// Get the appropriate token for this transaction
+	tokenAddress := GetTokenAddressFromTransaction(tx)
+	token := GetTokenForTransaction(c.Request.Context(), tx, h.tokenService, tokenAddress)
 
 	c.JSON(http.StatusOK, ToResponse(tx, token))
 }
 
-// GetTransactionsByAddress handles GET /wallets/:chain_type/:address/transactions
+// GetTransactionsByWalletAddress handles GET /wallets/:chain_type/:address/transactions
 // @Summary List transactions for an address
 // @Description Get a paginated list of transactions for a specific wallet address
 // @Tags transactions
@@ -94,7 +91,7 @@ func (h *Handler) GetTransaction(c *gin.Context) {
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /wallets/{chain_type}/{address}/transactions [get]
-func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
+func (h *Handler) GetTransactionsByWalletAddress(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")
 
@@ -136,7 +133,10 @@ func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 	// Get all tokenAddresses from transactions
 	tokenAddresses := make([]string, 0, len(page.Items))
 	for _, tx := range page.Items {
-		tokenAddresses = append(tokenAddresses, tx.TokenAddress)
+		tokenAddr := GetTokenAddressFromTransaction(tx)
+		if tokenAddr != "" {
+			tokenAddresses = append(tokenAddresses, tokenAddr)
+		}
 	}
 
 	// Get all tokens for the addresses
@@ -153,13 +153,17 @@ func (h *Handler) GetTransactionsByAddress(c *gin.Context) {
 	}
 
 	// Create a transform function for the paged response
-	transformFunc := func(tx *transaction.Transaction) TransactionResponse {
-		// Get the token from the map or use a default
-		token, ok := tokensMap[tx.TokenAddress]
+	transformFunc := func(tx types.CoreTransaction) TransactionResponse {
+		// Get token from transaction
+		tokenAddr := GetTokenAddressFromTransaction(tx)
+
+		// Get the token from the map or use GetTokenForTransaction
+		token, ok := tokensMap[tokenAddr]
 		if !ok {
-			// Fallback to direct conversion if token not found
-			token = &types.Token{Decimals: 18} // Default to 18 decimals
+			// If token not in map, get it via our utility function
+			token = GetTokenForTransaction(c.Request.Context(), tx, h.tokenService, tokenAddr)
 		}
+
 		return ToResponse(tx, token)
 	}
 
@@ -216,7 +220,8 @@ func (h *Handler) FilterTransactions(c *gin.Context) {
 
 	// Apply status filter if provided
 	if req.Status != "" {
-		filter.Status = &req.Status
+		status := types.TransactionStatus(req.Status)
+		filter.Status = &status
 	}
 
 	// Get transactions with the applied filters
@@ -229,27 +234,39 @@ func (h *Handler) FilterTransactions(c *gin.Context) {
 	// Get all chain types to prepare for token lookup
 	chainTypes := make(map[types.ChainType]bool)
 	for _, tx := range page.Items {
-		chainTypes[types.ChainType(tx.ChainType)] = true
+		chainTypes[tx.GetChainType()] = true
 	}
 
-	// Get all addresses from transactions
+	// Get all token addresses from transactions
 	addressesByChain := make(map[types.ChainType][]string)
 	for chainType := range chainTypes {
 		addressesByChain[chainType] = []string{}
 	}
 
 	for _, tx := range page.Items {
-		chainType := types.ChainType(tx.ChainType)
+		chainType := tx.GetChainType()
+
+		// Extract token address
+		tokenAddr := GetTokenAddressFromTransaction(tx)
+		if tokenAddr != "" {
+			addressesByChain[chainType] = append(addressesByChain[chainType], tokenAddr)
+		}
+
+		// Also add from/to addresses for contract address detection
 		addressesByChain[chainType] = append(
 			addressesByChain[chainType],
-			tx.FromAddress,
-			tx.ToAddress,
+			tx.GetFrom(),
+			tx.GetTo(),
 		)
 	}
 
 	// Get tokens for each chain
 	tokensMap := make(map[string]*types.Token)
 	for chainType, addresses := range addressesByChain {
+		if len(addresses) == 0 {
+			continue
+		}
+
 		tokens, err := h.tokenService.GetTokensByAddresses(c.Request.Context(), chainType, addresses)
 		if err != nil {
 			c.Error(err)
@@ -263,13 +280,17 @@ func (h *Handler) FilterTransactions(c *gin.Context) {
 	}
 
 	// Create a transform function for the paged response
-	transformFunc := func(tx *transaction.Transaction) TransactionResponse {
-		// Get the token from the map or use a default
-		token, ok := tokensMap[tx.TokenAddress]
+	transformFunc := func(tx types.CoreTransaction) TransactionResponse {
+		// Get token from transaction
+		tokenAddr := GetTokenAddressFromTransaction(tx)
+
+		// Get the token from the map or use GetTokenForTransaction
+		token, ok := tokensMap[tokenAddr]
 		if !ok {
-			// Fallback to direct conversion if token not found
-			token = &types.Token{Decimals: 18} // Default to 18 decimals
+			// If token not in map, get it via our utility function
+			token = GetTokenForTransaction(c.Request.Context(), tx, h.tokenService, tokenAddr)
 		}
+
 		return ToResponse(tx, token)
 	}
 

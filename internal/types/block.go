@@ -8,6 +8,8 @@ import (
 // Block represents a block in a blockchain.
 // It contains common fields that are relevant across different blockchain implementations.
 type Block struct {
+	// ChainType is the type of blockchain this block belongs to
+	ChainType ChainType
 	// Hash is the block hash
 	Hash string
 

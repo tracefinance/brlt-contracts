@@ -12,11 +12,12 @@ import (
 // Transaction represents a transaction entity stored in the database.
 type Transaction struct {
 	// Service fields
-	ID        int64        `db:"id"`
-	WalletID  int64        `db:"wallet_id"`
-	CreatedAt time.Time    `db:"created_at"`
-	UpdatedAt time.Time    `db:"updated_at"`
-	DeletedAt sql.NullTime `db:"deleted_at"`
+	ID        int64         `db:"id"`
+	WalletID  sql.NullInt64 `db:"wallet_id"`
+	VaultID   sql.NullInt64 `db:"vault_id"`
+	CreatedAt time.Time     `db:"created_at"`
+	UpdatedAt time.Time     `db:"updated_at"`
+	DeletedAt sql.NullTime  `db:"deleted_at"`
 
 	// BaseTransaction
 	Chain    types.ChainType       `db:"chain_type"`
@@ -48,6 +49,7 @@ func ScanTransaction(row interface {
 	err := row.Scan(
 		&tx.ID,
 		&tx.WalletID,
+		&tx.VaultID,
 		&tx.CreatedAt,
 		&tx.UpdatedAt,
 		&tx.DeletedAt,
@@ -76,14 +78,34 @@ func ScanTransaction(row interface {
 // FromCoreTransaction converts a core transaction to a service transaction.
 // It maps fields from types.Transaction (including embedded BaseTransaction)
 // to the service layer's Transaction model.
-func FromCoreTransaction(coreTx *types.Transaction, walletID int64) *Transaction {
+// It attempts to extract WalletID and VaultID from the coreTx.Metadata if present.
+func FromCoreTransaction(coreTx *types.Transaction) *Transaction {
 	if coreTx == nil {
 		return nil
 	}
 
+	// Initialize WalletID and VaultID as invalid
+	var walletID sql.NullInt64
+	var vaultID sql.NullInt64
+
+	// Attempt to extract IDs from metadata if the map exists
+	if coreTx.Metadata != nil {
+		if idVal, ok := coreTx.Metadata[WalletIDMetadaKey]; ok {
+			if idInt64, ok := idVal.(int64); ok {
+				walletID = sql.NullInt64{Int64: idInt64, Valid: true}
+			}
+		}
+		if idVal, ok := coreTx.Metadata[VaultIDMetadaKey]; ok {
+			if idInt64, ok := idVal.(int64); ok {
+				vaultID = sql.NullInt64{Int64: idInt64, Valid: true}
+			}
+		}
+	}
+
 	tx := &Transaction{
 		WalletID: walletID,
-		Chain:    coreTx.BaseTransaction.Chain,
+		VaultID:  vaultID,
+		Chain:    coreTx.BaseTransaction.ChainType,
 		Hash:     coreTx.BaseTransaction.Hash,
 		From:     coreTx.BaseTransaction.From,
 		To:       coreTx.BaseTransaction.To,
@@ -135,14 +157,14 @@ func (t *Transaction) ToCoreTransaction() *types.Transaction {
 
 	coreTx := &types.Transaction{
 		BaseTransaction: types.BaseTransaction{
-			Chain:    t.Chain,
-			Hash:     t.Hash,
-			From:     t.From,
-			To:       t.To,
-			Data:     t.Data,
-			Nonce:    t.Nonce,
-			GasLimit: t.GasLimit,
-			Type:     t.Type,
+			ChainType: t.Chain,
+			Hash:      t.Hash,
+			From:      t.From,
+			To:        t.To,
+			Data:      t.Data,
+			Nonce:     t.Nonce,
+			GasLimit:  t.GasLimit,
+			Type:      t.Type,
 		},
 		Status: t.Status,
 	}
@@ -185,14 +207,16 @@ func (t *Transaction) IsERC20Transfer() bool {
 
 // Filter represents the criteria for filtering transactions in the service layer.
 type Filter struct {
-	Status      *types.TransactionStatus
-	ChainType   *types.ChainType
-	WalletID    *int64
-	Address     *string
-	Type        *types.TransactionType
-	BlockNumber *big.Int
-	MinBlock    *big.Int
-	MaxBlock    *big.Int
+	Status       *types.TransactionStatus
+	ChainType    *types.ChainType
+	WalletID     *sql.NullInt64
+	VaultID      *sql.NullInt64
+	Address      *string
+	Type         *types.TransactionType
+	BlockNumber  *big.Int
+	MinBlock     *big.Int
+	MaxBlock     *big.Int
+	TokenAddress *string // For filtering by token address
 }
 
 // Helper method to check if any filter criteria are set
@@ -200,9 +224,11 @@ func (f *Filter) IsEmpty() bool {
 	return f == nil || (f.Status == nil &&
 		f.ChainType == nil &&
 		f.WalletID == nil &&
+		f.VaultID == nil &&
 		f.Address == nil &&
 		f.Type == nil &&
 		f.BlockNumber == nil &&
 		f.MinBlock == nil &&
-		f.MaxBlock == nil)
+		f.MaxBlock == nil &&
+		f.TokenAddress == nil)
 }

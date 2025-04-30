@@ -41,7 +41,7 @@ type BalanceService interface {
 // isOutgoingTransaction returns (isOutgoingTransaction, error)
 // isOutgoingTransaction is true if the wallet is the sender (tx.From), false if receiver (tx.To)
 func (s *walletService) isOutgoingTransaction(ctx context.Context, tx *types.Transaction) (bool, error) {
-	exists, err := s.repository.Exists(ctx, tx.Chain, tx.From)
+	exists, err := s.repository.Exists(ctx, tx.ChainType, tx.From)
 	if err != nil {
 		return false, err
 	}
@@ -49,7 +49,7 @@ func (s *walletService) isOutgoingTransaction(ctx context.Context, tx *types.Tra
 		return true, nil // Sender
 	}
 
-	exists, err = s.repository.Exists(ctx, tx.Chain, tx.To)
+	exists, err = s.repository.Exists(ctx, tx.ChainType, tx.To)
 	if err != nil {
 		return false, err
 	}
@@ -77,9 +77,9 @@ func (s *walletService) UpdateWalletBalance(ctx context.Context, tx *types.Trans
 
 	var wallet *Wallet
 	if isOutgoing {
-		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.From)
+		wallet, err = s.repository.GetByAddress(ctx, tx.ChainType, tx.From)
 	} else {
-		wallet, err = s.repository.GetByAddress(ctx, tx.Chain, tx.To)
+		wallet, err = s.repository.GetByAddress(ctx, tx.ChainType, tx.To)
 	}
 	if err != nil {
 		return err
@@ -109,14 +109,14 @@ func (s *walletService) UpdateTokenBalance(ctx context.Context, transfer *types.
 	}
 
 	// Determine if the transaction involves a monitored wallet as sender or receiver
-	walletIsSender, senderWallet, err := s.findWalletForAddress(ctx, transfer.Chain, transfer.From)
+	walletIsSender, senderWallet, err := s.findWalletForAddress(ctx, transfer.ChainType, transfer.From)
 	if err != nil {
 		appErr, ok := err.(*errors.Vault0Error)
 		if !ok || appErr.Code != errors.ErrCodeNotFound {
 			return fmt.Errorf("error checking sender wallet: %w", err)
 		}
 	}
-	walletIsReceiver, receiverWallet, err := s.findWalletForAddress(ctx, transfer.Chain, transfer.Recipient)
+	walletIsReceiver, receiverWallet, err := s.findWalletForAddress(ctx, transfer.ChainType, transfer.Recipient)
 	if err != nil {
 		appErr, ok := err.(*errors.Vault0Error)
 		if !ok || appErr.Code != errors.ErrCodeNotFound {

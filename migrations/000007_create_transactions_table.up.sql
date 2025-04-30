@@ -1,7 +1,8 @@
 CREATE TABLE transactions (
     -- Service Layer Fields
     id BIGINT PRIMARY KEY NOT NULL,
-    wallet_id BIGINT NOT NULL,
+    wallet_id BIGINT DEFAULT NULL,
+    vault_id BIGINT DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP DEFAULT NULL,
@@ -24,7 +25,8 @@ CREATE TABLE transactions (
     timestamp BIGINT DEFAULT NULL,
     block_number DECIMAL(36, 0) DEFAULT NULL,
 
-    FOREIGN KEY(wallet_id) REFERENCES wallets(id)
+    FOREIGN KEY(wallet_id) REFERENCES wallets(id),
+    FOREIGN KEY(vault_id) REFERENCES vaults(id)
 );
 
 -- Recreate necessary indexes
@@ -38,3 +40,4 @@ CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
 CREATE INDEX IF NOT EXISTS idx_transactions_from_address ON transactions(from_address);
 CREATE INDEX IF NOT EXISTS idx_transactions_to_address ON transactions(to_address);
 CREATE INDEX IF NOT EXISTS idx_transactions_deleted_at ON transactions(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_transactions_vault_id ON transactions(vault_id);

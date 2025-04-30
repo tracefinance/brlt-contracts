@@ -5,11 +5,13 @@ import "fmt"
 // Service module error codes
 const (
 	// Common service errors
-	ErrCodeInvalidInput    = "invalid_input"
-	ErrCodeNotFound        = "not_found"
-	ErrCodeAlreadyExists   = "already_exists"
-	ErrCodeOperationFailed = "operation_failed"
-	ErrCodeNotImplemented  = "not_implemented"
+	ErrCodeInvalidInput                 = "invalid_input"
+	ErrCodeNotFound                     = "not_found"
+	ErrCodeAlreadyExists                = "already_exists"
+	ErrCodeOperationFailed              = "operation_failed"
+	ErrCodeNotImplemented               = "not_implemented"
+	ErrCodeTransformerAlreadyRegistered = "transformer_already_registered"
+	ErrCodeTransformerNotFound          = "transformer_not_found"
 
 	// Wallet service errors
 	ErrCodeWalletNotFound        = "wallet_not_found"
@@ -295,5 +297,27 @@ func NewInvalidStateTransitionError(from, to string) *Vault0Error {
 	return &Vault0Error{
 		Code:    ErrCodeInvalidStateTransition,
 		Message: fmt.Sprintf("Invalid state transition from '%s' to '%s'", from, to),
+	}
+}
+
+// NewTransformerAlreadyRegisteredError creates an error for duplicate transformer key
+func NewTransformerAlreadyRegisteredError(key string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeTransformerAlreadyRegistered,
+		Message: fmt.Sprintf("Transformer with key '%s' already registered", key),
+		Details: map[string]any{
+			"key": key,
+		},
+	}
+}
+
+// NewTransformerNotFoundError creates an error for missing transformer key
+func NewTransformerNotFoundError(key string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeTransformerNotFound,
+		Message: fmt.Sprintf("Transformer with key '%s' not found", key),
+		Details: map[string]any{
+			"key": key,
+		},
 	}
 }
