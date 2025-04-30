@@ -178,7 +178,7 @@ func (s *walletService) UpdateTokenBalance(ctx context.Context, transfer *types.
 			logger.Int64("wallet_id", involvedWallet.ID),
 			logger.String("token_address", normalizedTokenAddress),
 			logger.Error(err))
-		return err // Return the error to the caller
+		return err
 	}
 
 	// Deduct native gas cost ONLY if the wallet was the sender
@@ -197,7 +197,6 @@ func (s *walletService) UpdateTokenBalance(ctx context.Context, transfer *types.
 					logger.Int64("wallet_id", involvedWallet.ID),
 					logger.String("tx_hash", transfer.Hash),
 					logger.Error(err))
-				// Do not return error here, token balance update succeeded.
 			}
 		} else {
 			s.log.Warn("Missing gas details in ERC20Transfer, cannot deduct native gas cost",

@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"vault0/internal/core/abiutils"
 	"vault0/internal/core/tokenstore"
-	"vault0/internal/core/transaction"
 	"vault0/internal/logger"
 	"vault0/internal/types"
 )
@@ -303,15 +301,9 @@ func (s *walletService) handleTransaction(ctx context.Context, tx *types.Transac
 		logger.String("type", string(tx.Type)), // Original type from monitor
 	)
 
-	abiUtils, err := abiutils.NewABIUtils(tx.Chain, s.config, s.blockExplorerFactory)
+	txMapper, err := s.getTransactionMapper(tx.Chain)
 	if err != nil {
-		s.log.Error("Failed to create ABI utils", logger.Error(err))
-		return
-	}
-
-	txMapper, err := transaction.NewMapper(tx.Chain, s.tokenStore, s.log, abiUtils)
-	if err != nil {
-		s.log.Error("Failed to create transaction mapper", logger.Error(err))
+		s.log.Error("Failed to create transaction mapper", logger.Error(err), logger.String("chain", string(tx.Chain)))
 		return
 	}
 

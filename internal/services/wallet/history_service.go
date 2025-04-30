@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"vault0/internal/core/blockexplorer"
@@ -89,10 +90,10 @@ func (s *walletService) SyncWallet(ctx context.Context, walletID int64) (int, er
 	highestBlockNumber := wallet.LastBlockNumber
 
 	// First, sync normal (native) transactions
-	totalSynced += s.syncTransactionsByType(ctx, explorer, wallet, baseOptions, blockexplorer.TxTypeNormal, &highestBlockNumber)
+	totalSynced += s.syncNativeTransactions(ctx, explorer, wallet, baseOptions, &highestBlockNumber)
 
 	// Then, sync ERC20 token transactions
-	totalSynced += s.syncTransactionsByType(ctx, explorer, wallet, baseOptions, blockexplorer.TxTypeERC20, &highestBlockNumber)
+	totalSynced += s.syncERC20Transactions(ctx, explorer, wallet, baseOptions, &highestBlockNumber)
 
 	// Only update the last block number if we've found a higher block
 	if highestBlockNumber > wallet.LastBlockNumber {
@@ -113,23 +114,22 @@ func (s *walletService) SyncWallet(ctx context.Context, walletID int64) (int, er
 	return totalSynced, nil
 }
 
-// syncTransactionsByType fetches and processes transactions of a specific type
-func (s *walletService) syncTransactionsByType(
+// syncNativeTransactions fetches and processes native transactions
+func (s *walletService) syncNativeTransactions(
 	ctx context.Context,
 	explorer blockexplorer.BlockExplorer,
 	wallet *Wallet,
 	baseOptions blockexplorer.TransactionHistoryOptions,
-	txType blockexplorer.TransactionType,
 	highestBlockNumber *int64,
 ) int {
-	// Create options specific to this transaction type
+	// Create options specific to native transactions
 	options := baseOptions
-	options.TransactionType = txType
+	options.TransactionType = blockexplorer.TxTypeNormal
 
-	s.log.Info("Syncing transactions",
+	s.log.Info("Syncing native transactions",
 		logger.Int64("wallet_id", wallet.ID),
 		logger.String("address", wallet.Address),
-		logger.String("transaction_type", string(txType)))
+		logger.String("transaction_type", string(blockexplorer.TxTypeNormal)))
 
 	totalSynced := 0
 	nextToken := ""
@@ -145,63 +145,32 @@ func (s *walletService) syncTransactionsByType(
 		// Fetch transaction history from the explorer
 		txPage, err := explorer.GetTransactionHistory(ctx, wallet.Address, options, nextToken)
 		if err != nil {
-			s.log.Error("Failed to fetch transaction history",
+			s.log.Error("Failed to fetch native transaction history page",
 				logger.Int64("wallet_id", wallet.ID),
 				logger.String("address", wallet.Address),
-				logger.String("transaction_type", string(txType)),
+				logger.String("transaction_type", string(blockexplorer.TxTypeNormal)),
 				logger.Error(err))
-
 			return totalSynced
 		}
 
 		if len(txPage.Items) == 0 {
-			// No more transactions to process
 			break
 		}
 
-		// Process each transaction
-		for _, tx := range txPage.Items {
-			// Update the highest block number we've seen
-			if tx.BlockNumber != nil && tx.BlockNumber.Int64() > *highestBlockNumber {
-				*highestBlockNumber = tx.BlockNumber.Int64()
-			}
-
-			// Check if transaction already exists
-			exists, err := s.txService.GetTransactionByHash(ctx, tx.Hash)
-			if err == nil && exists != nil {
-				// Transaction already exists, skip
+		for _, item := range txPage.Items {
+			// Explicitly assert the type from the block explorer response
+			rawTx, ok := item.(*types.Transaction)
+			if !ok || rawTx == nil {
+				s.log.Warn("Received non-transaction item or nil transaction from block explorer",
+					logger.Int64("wallet_id", wallet.ID),
+					logger.String("address", wallet.Address),
+					logger.String("transaction_type", string(blockexplorer.TxTypeNormal)),
+					logger.Any("item_type", fmt.Sprintf("%T", item)))
 				continue
 			}
 
-			// Save the transaction to the database
-			err = s.txService.CreateWalletTransaction(ctx, wallet.ID, tx)
-			if err != nil {
-				s.log.Error("Failed to save transaction",
-					logger.String("tx_hash", tx.Hash),
-					logger.Error(err))
-				continue
-			}
-
-			totalSynced++
-
-			// If transaction was successful, update balances
-			if tx.Status == types.TransactionStatusSuccess {
-				switch tx.Type {
-				case types.TransactionTypeNative:
-					if err := s.UpdateWalletBalance(ctx, tx); err != nil {
-						s.log.Error("Failed to update native balance from transaction",
-							logger.String("tx_hash", tx.Hash),
-							logger.Error(err))
-					}
-				case types.TransactionTypeERC20:
-					if err := s.UpdateTokenBalance(ctx, tx); err != nil {
-						s.log.Error("Failed to update token balance from transaction",
-							logger.String("tx_hash", tx.Hash),
-							logger.String("token_address", tx.TokenAddress),
-							logger.Error(err))
-					}
-				}
-			}
+			// Process the transaction using the shared method
+			s.processTransaction(ctx, rawTx, wallet, highestBlockNumber, &totalSynced)
 		}
 
 		// Check if we need to fetch more pages
@@ -213,13 +182,193 @@ func (s *walletService) syncTransactionsByType(
 		}
 	}
 
-	s.log.Info("Completed syncing transactions",
+	s.log.Info("Completed syncing native transactions",
 		logger.Int64("wallet_id", wallet.ID),
 		logger.String("address", wallet.Address),
-		logger.String("transaction_type", string(txType)),
+		logger.String("transaction_type", string(blockexplorer.TxTypeNormal)),
 		logger.Int("transactions_synced", totalSynced))
 
 	return totalSynced
+}
+
+// syncERC20Transactions fetches and processes ERC20 token transactions
+func (s *walletService) syncERC20Transactions(
+	ctx context.Context,
+	explorer blockexplorer.BlockExplorer,
+	wallet *Wallet,
+	baseOptions blockexplorer.TransactionHistoryOptions,
+	highestBlockNumber *int64,
+) int {
+	// Create options specific to ERC20 transactions
+	options := baseOptions
+	options.TransactionType = blockexplorer.TxTypeERC20
+
+	s.log.Info("Syncing ERC20 transactions",
+		logger.Int64("wallet_id", wallet.ID),
+		logger.String("address", wallet.Address),
+		logger.String("transaction_type", string(blockexplorer.TxTypeERC20)))
+
+	totalSynced := 0
+	nextToken := ""
+	hasMore := true
+
+	// Loop until we have no more transactions to fetch
+	for hasMore && totalSynced < 10000 { // Limit to 10000 transactions per type as a safety measure
+		// Check if context has been canceled
+		if ctx.Err() != nil {
+			return totalSynced
+		}
+
+		// Fetch transaction history from the explorer
+		txPage, err := explorer.GetTransactionHistory(ctx, wallet.Address, options, nextToken)
+		if err != nil {
+			s.log.Error("Failed to fetch ERC20 transaction history page",
+				logger.Int64("wallet_id", wallet.ID),
+				logger.String("address", wallet.Address),
+				logger.String("transaction_type", string(blockexplorer.TxTypeERC20)),
+				logger.Error(err))
+			return totalSynced
+		}
+
+		if len(txPage.Items) == 0 {
+			break
+		}
+
+		for _, item := range txPage.Items {
+			if item == nil {
+				s.log.Warn("Received nil item from block explorer",
+					logger.Int64("wallet_id", wallet.ID),
+					logger.String("address", wallet.Address),
+					logger.String("transaction_type", string(blockexplorer.TxTypeERC20)))
+				continue
+			}
+
+			// Handle ERC20TxHistoryEntry case
+			if erc20Entry, ok := item.(*blockexplorer.ERC20TxHistoryEntry); ok {
+				s.processERC20HistoryEntry(ctx, erc20Entry, wallet, highestBlockNumber, &totalSynced)
+				continue
+			}
+
+			// Handle basic Transaction case
+			if rawTx, ok := item.(*types.Transaction); ok {
+				s.processTransaction(ctx, rawTx, wallet, highestBlockNumber, &totalSynced)
+				continue
+			}
+
+			// If we reach here, we have an unexpected type
+			s.log.Warn("Received unexpected item type from block explorer",
+				logger.Int64("wallet_id", wallet.ID),
+				logger.String("address", wallet.Address),
+				logger.String("transaction_type", string(blockexplorer.TxTypeERC20)),
+				logger.Any("item_type", fmt.Sprintf("%T", item)))
+		}
+
+		// Check if we need to fetch more pages
+		if txPage.NextToken != "" {
+			nextToken = txPage.NextToken
+			hasMore = true
+		} else {
+			hasMore = false
+		}
+	}
+
+	s.log.Info("Completed syncing ERC20 transactions",
+		logger.Int64("wallet_id", wallet.ID),
+		logger.String("address", wallet.Address),
+		logger.String("transaction_type", string(blockexplorer.TxTypeERC20)),
+		logger.Int("transactions_synced", totalSynced))
+
+	return totalSynced
+}
+
+// processERC20HistoryEntry processes an ERC20TxHistoryEntry and updates token balances
+func (s *walletService) processERC20HistoryEntry(
+	ctx context.Context,
+	erc20Entry *blockexplorer.ERC20TxHistoryEntry,
+	wallet *Wallet,
+	highestBlockNumber *int64,
+	totalSynced *int,
+) {
+	// Convert to ERC20Transfer
+	erc20Transfer := erc20Entry.ToErc20Transfer()
+
+	// Update highest block number if needed
+	if erc20Transfer.BlockNumber != nil && erc20Transfer.BlockNumber.Int64() > *highestBlockNumber {
+		*highestBlockNumber = erc20Transfer.BlockNumber.Int64()
+	}
+
+	// Check if transaction already exists
+	existingTx, _ := s.txService.GetTransactionByHash(ctx, erc20Transfer.Hash)
+	if existingTx != nil {
+		return
+	}
+
+	// Save the transaction
+	err := s.txService.CreateWalletTransaction(ctx, wallet.ID, &erc20Transfer.Transaction)
+	if err != nil {
+		s.log.Error("Failed to save ERC20 transaction",
+			logger.String("tx_hash", erc20Transfer.Hash),
+			logger.Error(err))
+		return
+	}
+
+	// Increment counter
+	*totalSynced++
+
+	// Skip balance update for failed transactions
+	if erc20Transfer.Status != types.TransactionStatusSuccess {
+		return
+	}
+
+	// Update token balance
+	if err := s.UpdateTokenBalance(ctx, erc20Transfer); err != nil {
+		s.log.Error("Failed to update token balance from ERC20 transfer",
+			logger.String("tx_hash", erc20Transfer.Hash),
+			logger.String("token_address", erc20Transfer.TokenAddress),
+			logger.Error(err))
+	}
+}
+
+// processTransaction processes a Transaction that might be an ERC20 transfer
+func (s *walletService) processTransaction(
+	ctx context.Context,
+	rawTx *types.Transaction,
+	wallet *Wallet,
+	highestBlockNumber *int64,
+	totalSynced *int,
+) {
+	// Update highest block number if needed
+	if rawTx.BlockNumber != nil && rawTx.BlockNumber.Int64() > *highestBlockNumber {
+		*highestBlockNumber = rawTx.BlockNumber.Int64()
+	}
+
+	// Check if transaction already exists
+	existingTx, _ := s.txService.GetTransactionByHash(ctx, rawTx.Hash)
+	if existingTx != nil {
+		return
+	}
+
+	// Save the transaction
+	err := s.txService.CreateWalletTransaction(ctx, wallet.ID, rawTx)
+	if err != nil {
+		s.log.Error("Failed to save transaction",
+			logger.String("tx_hash", rawTx.Hash),
+			logger.Error(err))
+		return
+	}
+
+	*totalSynced++
+
+	if rawTx.Status != types.TransactionStatusSuccess {
+		return
+	}
+
+	// Update balance
+	if err := s.UpdateWalletBalance(ctx, rawTx); err != nil {
+		s.log.Error("Failed to update wallet balance from transaction",
+			logger.String("tx_hash", rawTx.Hash),
+			logger.Error(err))
+	}
 }
 
 // SyncWalletByAddress fetches transaction history for a wallet by its address

@@ -85,11 +85,22 @@ type ERC20TxHistoryEntry struct {
 	TokenAmount    *big.Int
 }
 
+// ToErc20Transfer converts an ERC20TxHistoryEntry to a types.ERC20Transfer
+func (e *ERC20TxHistoryEntry) ToErc20Transfer() *types.ERC20Transfer {
+	return &types.ERC20Transfer{
+		Transaction:  e.Transaction,
+		TokenAddress: e.TokenAddress,
+		TokenSymbol:  e.TokenSymbol,
+		Recipient:    e.TokenRecipient,
+		Amount:       e.TokenAmount,
+	}
+}
+
 // ERC721TxHistoryEntry represents an ERC721 (NFT) token transfer event from history.
 type ERC721TxHistoryEntry struct {
 	types.Transaction
 	TokenAddress string
 	TokenSymbol  string
 	TokenName    string
-	TokenID      *big.Int // The specific ID of the NFT transferred
+	TokenID      *big.Int
 }

@@ -7,7 +7,6 @@ import (
 
 	"vault0/internal/config"
 	"vault0/internal/core/abiutils"
-	"vault0/internal/core/blockchain"
 	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/keystore"
 	"vault0/internal/core/tokenstore"
@@ -157,7 +156,6 @@ type walletService struct {
 	keystore             keystore.KeyStore
 	tokenStore           tokenstore.TokenStore
 	walletFactory        coreWallet.Factory
-	blockchainFactory    blockchain.Factory
 	abiUtilsFactory      abiutils.Factory
 	chains               *types.Chains
 	txMonitor            coreTx.Monitor
@@ -184,7 +182,6 @@ func NewService(
 	keyStore keystore.KeyStore,
 	tokenStore tokenstore.TokenStore,
 	walletFactory coreWallet.Factory,
-	blockchainFactory blockchain.Factory,
 	blockExplorerFactory blockexplorer.Factory,
 	abiUtilsFactory abiutils.Factory,
 	chains *types.Chains,
@@ -198,7 +195,6 @@ func NewService(
 		keystore:             keyStore,
 		tokenStore:           tokenStore,
 		walletFactory:        walletFactory,
-		blockchainFactory:    blockchainFactory,
 		blockExplorerFactory: blockExplorerFactory,
 		abiUtilsFactory:      abiUtilsFactory,
 		chains:               chains,
