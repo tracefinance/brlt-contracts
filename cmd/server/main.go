@@ -61,10 +61,17 @@ func main() {
 	container.Services.Transaction.PoolingService.StartPendingTransactionPolling(ctx)
 
 	// Start transaction monitoring
-	container.Services.Transaction.MonitorService.StartTransactionMonitoring(ctx)
+	if err := container.Services.Transaction.MonitorService.StartTransactionMonitoring(ctx); err != nil {
+		log.Error("Failed to start transaction monitoring", logger.Error(err))
+	}
+
+	// Start token transaction monitoring
+	if err := container.Services.Transaction.TokenMonitorService.StartTokenTransactionMonitoring(ctx); err != nil {
+		log.Error("Failed to start token transaction monitoring", logger.Error(err))
+	}
 
 	// Start token price update job
-	container.Services.TokenPriceService.StartPricePolling(ctx)
+	container.Services.TokenPricePollingService.StartPricePolling(ctx)
 
 	// Start vault recovery polling
 	container.Services.VaultService.StartRecoveryPolling(ctx)
@@ -102,6 +109,11 @@ func main() {
 	// before any services that might use it
 	container.Services.Transaction.MonitorService.StopTransactionMonitoring()
 
+	// Stop token transaction monitoring
+	if err := container.Services.Transaction.TokenMonitorService.StopTokenTransactionMonitoring(); err != nil {
+		log.Error("Failed to stop token transaction monitoring", logger.Error(err))
+	}
+
 	// Stop pending transaction polling
 	container.Services.Transaction.PoolingService.StopPendingTransactionPolling()
 
@@ -112,14 +124,16 @@ func main() {
 	container.Services.VaultService.StopDeploymentMonitoring()
 
 	// Stop token price update job
-	container.Services.TokenPriceService.StopPricePolling()
+	container.Services.TokenPricePollingService.StopPricePolling()
 
 	// Perform cleanup
 	container.Server.Shutdown()
 
 	// Close the database connection
 	if container.Core.DB != nil {
-		container.Core.DB.Close()
+		if err := container.Core.DB.Close(); err != nil {
+			log.Error("Failed to close database connection", logger.Error(err))
+		}
 	}
 
 	log.Info("Server gracefully stopped")

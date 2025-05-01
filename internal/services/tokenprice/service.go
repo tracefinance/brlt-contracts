@@ -13,16 +13,6 @@ import (
 
 // Service defines the interface for token price operations.
 type Service interface {
-	MonitorService
-
-	// RefreshTokenPrices fetches the latest token prices from the configured
-	// external provider and updates the local database.
-	//
-	// Returns:
-	//   - The number of tokens updated/inserted.
-	//   - An error if fetching or database update fails (e.g., ErrPriceFeedUpdateFailed).
-	RefreshTokenPrices(ctx context.Context) (int64, error)
-
 	// GetTokenPriceBySymbol retrieves the stored price data for a specific token symbol.
 	//
 	// Returns:
@@ -50,8 +40,6 @@ type service struct {
 	provider   pricefeed.PriceFeed
 	log        logger.Logger
 	config     *config.Config
-	jobCtx     context.Context
-	jobCancel  context.CancelFunc
 }
 
 // NewService creates a new token price service instance.
@@ -62,52 +50,6 @@ func NewService(repo Repository, provider pricefeed.PriceFeed, log logger.Logger
 		log:        log.With(logger.String("service", "tokenprice")),
 		config:     cfg,
 	}
-}
-
-// RefreshTokenPrices implements the Service interface.
-func (s *service) RefreshTokenPrices(ctx context.Context) (int64, error) {
-	s.log.Info("Refreshing token prices from provider")
-
-	providerData, err := s.provider.GetTokenPrices(ctx)
-	if err != nil {
-		s.log.Error("Failed to fetch token prices", logger.Error(err))
-		return 0, errors.NewPriceFeedUpdateFailed(err, "failed to fetch data from provider")
-	}
-
-	if len(providerData) == 0 {
-		s.log.Info("No token price data received from provider")
-		return 0, nil
-	}
-
-	var pricesToUpsert []*TokenPrice
-	for _, data := range providerData {
-		price, err := convertProviderDataToTokenPrice(data)
-		if err != nil {
-			s.log.Warn("Failed to convert price data",
-				logger.String("symbol", data.Symbol),
-				logger.Error(err))
-			continue
-		}
-		pricesToUpsert = append(pricesToUpsert, price)
-	}
-
-	if len(pricesToUpsert) == 0 {
-		s.log.Warn("No valid token prices to update")
-		return 0, nil
-	}
-
-	affected, err := s.repository.UpsertMany(ctx, pricesToUpsert)
-	if err != nil {
-		s.log.Error("Failed to update token prices", logger.Error(err))
-		return 0, err
-	}
-
-	s.log.Info("Successfully refreshed token prices",
-		logger.Int("total_fetched", len(providerData)),
-		logger.Int("total_valid", len(pricesToUpsert)),
-		logger.Int64("rows_affected", affected))
-
-	return affected, nil
 }
 
 // GetTokenPriceBySymbol implements the Service interface.
