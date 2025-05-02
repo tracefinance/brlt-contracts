@@ -47,8 +47,8 @@ type TransformerService interface {
 	// UnregisterTransformer removes a transaction transformer by its key.
 	UnregisterTransformer(key string) error
 
-	// TransformTransaction applies all registered transformers to a given transaction.
-	TransformTransaction(ctx context.Context, tx *types.Transaction) *types.Transaction
+	// Apply applies all registered transformers to a given transaction.
+	Apply(ctx context.Context, tx *types.Transaction) *types.Transaction
 }
 
 // RegisterTransformer adds a transaction transformer with a unique key.
@@ -90,10 +90,10 @@ func (s *transformerService) UnregisterTransformer(key string) error {
 	return nil
 }
 
-// TransformTransaction applies all registered transformers to a given transaction.
+// Apply applies all registered transformers to a given transaction.
 // Transformers are applied in the order determined by their sorted registration keys.
 // Errors during transformation are logged, but processing continues with the next transformer.
-func (s *transformerService) TransformTransaction(ctx context.Context, tx *types.Transaction) *types.Transaction {
+func (s *transformerService) Apply(ctx context.Context, tx *types.Transaction) *types.Transaction {
 	if tx == nil {
 		s.log.Warn("TransformTransaction called with nil transaction")
 		return nil

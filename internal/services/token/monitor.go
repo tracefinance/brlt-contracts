@@ -1,9 +1,10 @@
-package transaction
+package token
 
 import (
 	"context"
 	"vault0/internal/core/tokenstore"
 	"vault0/internal/logger"
+	"vault0/internal/services/transaction"
 	"vault0/internal/types"
 )
 
@@ -21,7 +22,7 @@ type TokenMonitorService interface {
 type tokenMonitorService struct {
 	log              logger.Logger
 	tokenStore       tokenstore.TokenStore
-	txMonitorService MonitorService
+	txMonitorService transaction.MonitorService
 	lifecycleCtx     context.Context
 	lifecycleCancel  context.CancelFunc
 	isMonitoring     bool
@@ -31,7 +32,7 @@ type tokenMonitorService struct {
 func NewTokenMonitorService(
 	log logger.Logger,
 	tokenStore tokenstore.TokenStore,
-	txMonitorService MonitorService,
+	txMonitorService transaction.MonitorService,
 ) TokenMonitorService {
 	return &tokenMonitorService{
 		log:              log,

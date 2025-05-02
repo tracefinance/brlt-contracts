@@ -57,6 +57,11 @@ func main() {
 		log.Error("Failed to register wallet transformer", logger.Error(err))
 	}
 
+	// Register history service as a transaction transformer for blockchain data enrichment
+	if err := container.Services.Transaction.TransformerService.RegisterTransformer("blockchain_data", container.Services.Transaction.HistoryService); err != nil {
+		log.Error("Failed to register history service transformer", logger.Error(err))
+	}
+
 	// Start pending transaction polling
 	container.Services.Transaction.PoolingService.StartPendingTransactionPolling(ctx)
 
@@ -66,8 +71,13 @@ func main() {
 	}
 
 	// Start token transaction monitoring
-	if err := container.Services.Transaction.TokenMonitorService.StartTokenTransactionMonitoring(ctx); err != nil {
+	if err := container.Services.TokenMonitorService.StartTokenTransactionMonitoring(ctx); err != nil {
 		log.Error("Failed to start token transaction monitoring", logger.Error(err))
+	}
+
+	// Start transaction history synchronization
+	if err := container.Services.Transaction.HistoryService.StartTransactionSyncing(ctx); err != nil {
+		log.Error("Failed to start transaction history syncing", logger.Error(err))
 	}
 
 	// Start token price update job
@@ -109,8 +119,11 @@ func main() {
 	// before any services that might use it
 	container.Services.Transaction.MonitorService.StopTransactionMonitoring()
 
+	// Stop transaction history synchronization
+	container.Services.Transaction.HistoryService.StopTransactionSyncing()
+
 	// Stop token transaction monitoring
-	if err := container.Services.Transaction.TokenMonitorService.StopTokenTransactionMonitoring(); err != nil {
+	if err := container.Services.TokenMonitorService.StopTokenTransactionMonitoring(); err != nil {
 		log.Error("Failed to stop token transaction monitoring", logger.Error(err))
 	}
 

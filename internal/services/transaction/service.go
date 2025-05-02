@@ -66,7 +66,7 @@ func NewService(
 
 // GetTransactionByHash retrieves a transaction and maps it to its specific type.
 func (s *transactionService) GetTransactionByHash(ctx context.Context, hash string) (types.CoreTransaction, error) {
-	serviceTx, err := s.repository.GetByTxHash(ctx, hash)
+	serviceTx, err := s.repository.GetByHash(ctx, hash)
 	if err != nil {
 		return nil, err
 	}

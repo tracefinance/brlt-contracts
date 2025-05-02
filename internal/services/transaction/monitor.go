@@ -307,7 +307,7 @@ func (s *monitorService) processRawTransactionEvents(ctx context.Context, chainT
 			}
 
 			// 1. Apply transformers
-			transformedTx := s.transformer.TransformTransaction(ctx, rawTx)
+			transformedTx := s.transformer.Apply(ctx, rawTx)
 
 			if transformedTx != nil {
 				s.saveTransactionInBackground(transformedTx)

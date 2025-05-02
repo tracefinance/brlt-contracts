@@ -20,7 +20,7 @@ type BlockExplorer interface {
 	//  - TxTypeInternal: *InternalTxHistoryEntry
 	//  - TxTypeERC20:    *ERC20TxHistoryEntry
 	//  - TxTypeERC721:   *ERC721TxHistoryEntry
-	GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, nextToken string) (*types.Page[any], error)
+	GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, nextToken string) (*types.Page[types.CoreTransaction], error)
 
 	// GetTransactionByHash retrieves detailed information about a specific transaction
 	// given its hash. This is useful for getting the current state of a transaction

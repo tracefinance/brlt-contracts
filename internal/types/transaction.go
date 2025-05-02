@@ -66,11 +66,15 @@ type CoreTransaction interface {
 	GetGasLimit() uint64
 	// GetType returns the general nature of the transaction
 	GetType() TransactionType
+	// GetTransaction returns the transaction
+	GetTransaction() *Transaction
 }
 
 // BaseTransaction holds the core, immutable fields of a blockchain transaction.
 // These fields are typically known before the transaction is executed.
 type BaseTransaction struct {
+	// Type indicates the general nature of the transaction (e.g., native transfer, deployment)
+	Type TransactionType
 	// ChainType is the blockchain type
 	ChainType ChainType
 	// Hash is the transaction hash
@@ -89,8 +93,6 @@ type BaseTransaction struct {
 	GasPrice *big.Int
 	// GasLimit is the maximum gas units the transaction can consume
 	GasLimit uint64
-	// Type indicates the general nature of the transaction (e.g., native transfer, deployment)
-	Type TransactionType
 }
 
 // Transaction represents a blockchain transaction including its execution outcome.
@@ -196,6 +198,11 @@ func (tx *BaseTransaction) GetGasLimit() uint64 {
 // GetType returns the general nature of the transaction
 func (tx *BaseTransaction) GetType() TransactionType {
 	return tx.Type
+}
+
+// GetTransaction returns the transaction
+func (tx *Transaction) GetTransaction() *Transaction {
+	return tx
 }
 
 // ParseAddressFromTopic extracts and validates an address from the topic at the given index.

@@ -618,7 +618,7 @@ func (e *EtherscanExplorer) getERC721TransactionHistory(ctx context.Context, add
 }
 
 // GetTransactionHistory retrieves transaction history for an address with pagination
-func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, nextToken string) (*types.Page[any], error) {
+func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address string, options TransactionHistoryOptions, nextToken string) (*types.Page[types.CoreTransaction], error) {
 	if !e.chain.IsValidAddress(address) {
 		return nil, errors.NewInvalidAddressError(address)
 	}
@@ -643,7 +643,7 @@ func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address s
 	}
 
 	// Fetch transactions based on the specified type
-	var fetchedItems []any // Use []any to hold results from different helpers
+	var fetchedItems []types.CoreTransaction
 	var itemLength int
 	var fetchErr error
 
@@ -651,7 +651,7 @@ func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address s
 	case TxTypeNormal:
 		txs, err := e.getNormalTransactionHistory(ctx, address, options, currentPage, limit)
 		if err == nil {
-			fetchedItems = make([]any, len(txs))
+			fetchedItems = make([]types.CoreTransaction, len(txs))
 			for i, tx := range txs {
 				fetchedItems[i] = tx
 			}
@@ -662,7 +662,7 @@ func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address s
 	case TxTypeInternal:
 		txs, err := e.getInternalTransactionHistory(ctx, address, options, currentPage, limit)
 		if err == nil {
-			fetchedItems = make([]any, len(txs))
+			fetchedItems = make([]types.CoreTransaction, len(txs))
 			for i, tx := range txs {
 				fetchedItems[i] = tx
 			}
@@ -673,7 +673,7 @@ func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address s
 	case TxTypeERC20:
 		erc20Txs, err := e.getERC20TransactionHistory(ctx, address, options, currentPage, limit)
 		if err == nil {
-			fetchedItems = make([]any, len(erc20Txs))
+			fetchedItems = make([]types.CoreTransaction, len(erc20Txs))
 			for i, tx := range erc20Txs {
 				fetchedItems[i] = tx
 			}
@@ -684,7 +684,7 @@ func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address s
 	case TxTypeERC721:
 		erc721Txs, err := e.getERC721TransactionHistory(ctx, address, options, currentPage, limit)
 		if err == nil {
-			fetchedItems = make([]any, len(erc721Txs))
+			fetchedItems = make([]types.CoreTransaction, len(erc721Txs))
 			for i, tx := range erc721Txs {
 				fetchedItems[i] = tx
 			}
@@ -711,7 +711,7 @@ func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address s
 	}
 
 	// Return page of type any
-	return &types.Page[any]{
+	return &types.Page[types.CoreTransaction]{
 		Items:     fetchedItems,
 		NextToken: nextPageToken,
 		Limit:     limit,

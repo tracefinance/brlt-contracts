@@ -21,8 +21,8 @@ type Repository interface {
 	// Update updates an existing transaction in the database
 	Update(ctx context.Context, tx *Transaction) error
 
-	// GetByTxHash retrieves a transaction by its hash
-	GetByTxHash(ctx context.Context, hash string) (*Transaction, error)
+	// GetByHash retrieves a transaction by its hash
+	GetByHash(ctx context.Context, hash string) (*Transaction, error)
 
 	// List retrieves transactions based on the provided filter criteria
 	// This is the primary method for retrieving transactions with different filters:
@@ -110,8 +110,8 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 	return nil
 }
 
-// GetByTxHash retrieves a transaction by its hash
-func (r *repository) GetByTxHash(ctx context.Context, hash string) (*Transaction, error) {
+// GetByHash retrieves a transaction by its hash
+func (r *repository) GetByHash(ctx context.Context, hash string) (*Transaction, error) {
 	sb := r.structMap.SelectFrom("transactions")
 	sb.Where(sb.E("hash", hash))
 	sb.Limit(1)

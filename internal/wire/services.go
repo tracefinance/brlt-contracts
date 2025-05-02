@@ -14,11 +14,11 @@ import (
 )
 
 type Transaction struct {
-	Service             transaction.Service
-	TransformerService  transaction.TransformerService
-	PoolingService      transaction.PoolingService
-	MonitorService      transaction.MonitorService
-	TokenMonitorService transaction.TokenMonitorService
+	Service            transaction.Service
+	TransformerService transaction.TransformerService
+	PoolingService     transaction.PoolingService
+	MonitorService     transaction.MonitorService
+	HistoryService     transaction.HistoryService
 }
 
 // Services holds instances of all application services.
@@ -27,6 +27,7 @@ type Services struct {
 	UserService              user.Service
 	Transaction              Transaction
 	TokenService             token.Service
+	TokenMonitorService      token.TokenMonitorService
 	SignerService            signer.Service
 	TokenPriceService        tokenprice.Service
 	TokenPricePollingService tokenprice.PricePoolingService
@@ -43,9 +44,9 @@ var TransactionServiceSet = wire.NewSet(
 	transaction.NewTransformerService,
 	transaction.NewPoolingService,
 	transaction.NewMonitorService,
-	transaction.NewTokenMonitorService,
+	transaction.NewHistoryService,
 )
-var TokenServiceSet = wire.NewSet(token.NewService)
+var TokenServiceSet = wire.NewSet(token.NewService, token.NewTokenMonitorService)
 var SignerServiceSet = wire.NewSet(signer.NewRepository, signer.NewService)
 var TokenPriceServiceSet = wire.NewSet(tokenprice.NewRepository, tokenprice.NewService, tokenprice.NewPollingService)
 var KeystoreServiceSet = wire.NewSet(keystore.NewService)
@@ -72,7 +73,8 @@ func NewServices(
 	transformerSvc transaction.TransformerService,
 	poolingSvc transaction.PoolingService,
 	monitorSvc transaction.MonitorService,
-	tokenMonitorSvc transaction.TokenMonitorService,
+	tokenMonitorSvc token.TokenMonitorService,
+	historySvc transaction.HistoryService,
 	tokenSvc token.Service,
 	signerSvc signer.Service,
 	tokenPriceSvc tokenprice.Service,
@@ -82,15 +84,15 @@ func NewServices(
 ) *Services {
 	return &Services{
 		Transaction: Transaction{
-			Service:             transactionSvc,
-			TransformerService:  transformerSvc,
-			PoolingService:      poolingSvc,
-			MonitorService:      monitorSvc,
-			TokenMonitorService: tokenMonitorSvc,
+			Service:            transactionSvc,
+			TransformerService: transformerSvc,
+			PoolingService:     poolingSvc,
+			MonitorService:     monitorSvc,
+			HistoryService:     historySvc,
 		},
-		WalletService: walletSvc,
-		UserService:   userSvc,
-
+		WalletService:            walletSvc,
+		UserService:              userSvc,
+		TokenMonitorService:      tokenMonitorSvc,
 		TokenService:             tokenSvc,
 		SignerService:            signerSvc,
 		TokenPriceService:        tokenPriceSvc,
