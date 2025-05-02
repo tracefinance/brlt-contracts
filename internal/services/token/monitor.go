@@ -82,7 +82,7 @@ func (s *tokenMonitorService) StartTokenTransactionMonitoring(ctx context.Contex
 			}
 
 			// Only monitor for the Transfer event
-			events := []string{string(types.ERC20TransferEventSignature)}
+			events := []string{string(types.ERC20TransferEvent)}
 
 			err = s.txMonitorService.MonitorContractAddress(*address, events)
 			if err != nil {
@@ -253,7 +253,7 @@ func (s *tokenMonitorService) handleTokenAdded(token *types.Token) {
 	}
 
 	// Only monitor for the Transfer event
-	events := []string{string(types.ERC20TransferEventSignature)}
+	events := []string{string(types.ERC20TransferEvent)}
 
 	err = s.txMonitorService.MonitorContractAddress(*address, events)
 	if err != nil {

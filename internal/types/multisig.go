@@ -29,21 +29,21 @@ const (
 
 // MultiSigWallet contract event signatures (hashed topics are used for filtering)
 const (
-	MultiSigDepositedEventSig                           MultiSigEventSignature = "Deposited(address,address,uint256)"
-	MultiSigWithdrawalRequestedEventSig                 MultiSigEventSignature = "WithdrawalRequested(bytes32,address,uint256,address,uint256)"
-	MultiSigWithdrawalSignedEventSig                    MultiSigEventSignature = "WithdrawalSigned(bytes32,address)"
-	MultiSigWithdrawalExecutedEventSig                  MultiSigEventSignature = "WithdrawalExecuted(bytes32,address,uint256,address)"
-	MultiSigRecoveryRequestedEventSig                   MultiSigEventSignature = "RecoveryRequested(uint256)"
-	MultiSigRecoveryCancelledEventSig                   MultiSigEventSignature = "RecoveryCancelled()"
-	MultiSigRecoveryExecutedEventSig                    MultiSigEventSignature = "RecoveryExecuted(address,uint256)"
-	MultiSigRecoveryCompletedEventSig                   MultiSigEventSignature = "RecoveryCompleted()"
-	MultiSigTokenSupportedEventSig                      MultiSigEventSignature = "TokenSupported(address)"
-	MultiSigTokenRemovedEventSig                        MultiSigEventSignature = "TokenRemoved(address)"
-	MultiSigNonSupportedTokenRecoveredEventSig          MultiSigEventSignature = "NonSupportedTokenRecovered(address,uint256,address)"
-	MultiSigTokenWhitelistedEventSig                    MultiSigEventSignature = "TokenWhitelisted(address)"
-	MultiSigRecoveryAddressChangeProposedEventSig       MultiSigEventSignature = "RecoveryAddressChangeProposed(address,address,bytes32)"
-	MultiSigRecoveryAddressChangeSignatureAddedEventSig MultiSigEventSignature = "RecoveryAddressChangeSignatureAdded(address,bytes32)"
-	MultiSigRecoveryAddressChangedEventSig              MultiSigEventSignature = "RecoveryAddressChanged(address,address,bytes32)"
+	MultiSigDepositedEvent                           MultiSigEventSignature = "Deposited(address,address,uint256)"
+	MultiSigWithdrawalRequestedEvent                 MultiSigEventSignature = "WithdrawalRequested(bytes32,address,uint256,address,uint256)"
+	MultiSigWithdrawalSignedEvent                    MultiSigEventSignature = "WithdrawalSigned(bytes32,address)"
+	MultiSigWithdrawalExecutedEvent                  MultiSigEventSignature = "WithdrawalExecuted(bytes32,address,uint256,address)"
+	MultiSigRecoveryRequestedEvent                   MultiSigEventSignature = "RecoveryRequested(uint256)"
+	MultiSigRecoveryCancelledEvent                   MultiSigEventSignature = "RecoveryCancelled()"
+	MultiSigRecoveryExecutedEvent                    MultiSigEventSignature = "RecoveryExecuted(address,uint256)"
+	MultiSigRecoveryCompletedEvent                   MultiSigEventSignature = "RecoveryCompleted()"
+	MultiSigTokenSupportedEvent                      MultiSigEventSignature = "TokenSupported(address)"
+	MultiSigTokenRemovedEvent                        MultiSigEventSignature = "TokenRemoved(address)"
+	MultiSigNonSupportedTokenRecoveredEvent          MultiSigEventSignature = "NonSupportedTokenRecovered(address,uint256,address)"
+	MultiSigTokenWhitelistedEvent                    MultiSigEventSignature = "TokenWhitelisted(address)"
+	MultiSigRecoveryAddressChangeProposedEvent       MultiSigEventSignature = "RecoveryAddressChangeProposed(address,address,bytes32)"
+	MultiSigRecoveryAddressChangeSignatureAddedEvent MultiSigEventSignature = "RecoveryAddressChangeSignatureAdded(address,bytes32)"
+	MultiSigRecoveryAddressChangedEvent              MultiSigEventSignature = "RecoveryAddressChanged(address,address,bytes32)"
 )
 
 // MultiSig transaction type constants

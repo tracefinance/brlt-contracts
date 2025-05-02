@@ -505,39 +505,39 @@ func (s *evmMonitor) processContractEventLog(ctx context.Context, log types.Log,
 
 	// Process based on event signature
 	switch eventSig {
-	case string(types.ERC20TransferEventSignature):
+	case string(types.ERC20TransferEvent):
 		s.processERC20TransferLog(ctx, log)
-	case string(types.ERC20ApprovalEventSignature):
+	case string(types.ERC20ApprovalEvent):
 		// Process ERC20 Approval event if needed
 		s.log.Debug("Received ERC20 Approval event",
 			logger.String("tx_hash", log.TransactionHash),
 			logger.String("contract", log.Address))
 
 	// Add cases for MultiSig events
-	case string(types.MultiSigDepositedEventSig):
+	case string(types.MultiSigDepositedEvent):
 		s.log.Debug("Received MultiSig Deposited event",
 			logger.String("tx_hash", log.TransactionHash),
 			logger.String("contract", log.Address))
 
-	case string(types.MultiSigWithdrawalRequestedEventSig):
+	case string(types.MultiSigWithdrawalRequestedEvent):
 		s.log.Debug("Received MultiSig WithdrawalRequested event",
 			logger.String("tx_hash", log.TransactionHash),
 			logger.String("contract", log.Address))
 
 	// Add other MultiSig event cases
-	case string(types.MultiSigWithdrawalSignedEventSig),
-		string(types.MultiSigWithdrawalExecutedEventSig),
-		string(types.MultiSigRecoveryRequestedEventSig),
-		string(types.MultiSigRecoveryCancelledEventSig),
-		string(types.MultiSigRecoveryExecutedEventSig),
-		string(types.MultiSigRecoveryCompletedEventSig),
-		string(types.MultiSigTokenSupportedEventSig),
-		string(types.MultiSigTokenRemovedEventSig),
-		string(types.MultiSigNonSupportedTokenRecoveredEventSig),
-		string(types.MultiSigTokenWhitelistedEventSig),
-		string(types.MultiSigRecoveryAddressChangeProposedEventSig),
-		string(types.MultiSigRecoveryAddressChangeSignatureAddedEventSig),
-		string(types.MultiSigRecoveryAddressChangedEventSig):
+	case string(types.MultiSigWithdrawalSignedEvent),
+		string(types.MultiSigWithdrawalExecutedEvent),
+		string(types.MultiSigRecoveryRequestedEvent),
+		string(types.MultiSigRecoveryCancelledEvent),
+		string(types.MultiSigRecoveryExecutedEvent),
+		string(types.MultiSigRecoveryCompletedEvent),
+		string(types.MultiSigTokenSupportedEvent),
+		string(types.MultiSigTokenRemovedEvent),
+		string(types.MultiSigNonSupportedTokenRecoveredEvent),
+		string(types.MultiSigTokenWhitelistedEvent),
+		string(types.MultiSigRecoveryAddressChangeProposedEvent),
+		string(types.MultiSigRecoveryAddressChangeSignatureAddedEvent),
+		string(types.MultiSigRecoveryAddressChangedEvent):
 		// Log basic info for now - these would be processed according to their specific logic
 		s.log.Debug("Received MultiSig event",
 			logger.String("event", eventSig),

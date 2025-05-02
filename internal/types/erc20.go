@@ -6,11 +6,11 @@ type ERC20EventSignature string
 
 // ERC20 event signatures
 const (
-	// ERC20TransferEventSignature is the standard ERC20 Transfer event signature
-	ERC20TransferEventSignature ERC20EventSignature = "Transfer(address,address,uint256)"
+	// ERC20TransferEvent is the standard ERC20 Transfer event signature
+	ERC20TransferEvent ERC20EventSignature = "Transfer(address,address,uint256)"
 
-	// ERC20ApprovalEventSignature is the standard ERC20 Approval event signature
-	ERC20ApprovalEventSignature ERC20EventSignature = "Approval(address,address,uint256)"
+	// ERC20ApprovalEvent is the standard ERC20 Approval event signature
+	ERC20ApprovalEvent ERC20EventSignature = "Approval(address,address,uint256)"
 )
 
 type ERC20MethodSignature string

@@ -243,8 +243,8 @@ func (s *historyService) syncTransactions(ctx context.Context) {
 	s.log.Info("Completed transaction history sync cycle")
 }
 
-// syncTransactionsForAddress immediately syncs transaction history for a specific address
-func (s *historyService) syncTransactionsForAddress(ctx context.Context, address types.Address) error {
+// syncTransactionsForAddressByType fetches and processes transactions of a specific type for an address
+func (s *historyService) syncTransactionsForAddressByType(ctx context.Context, address types.Address, txType blockexplorer.TransactionType) error {
 	// Get explorer for this chain
 	explorer, err := s.blockExplorerFactory.NewExplorer(address.ChainType)
 	if err != nil {
@@ -259,7 +259,7 @@ func (s *historyService) syncTransactionsForAddress(ctx context.Context, address
 
 	// Configure options for transaction history
 	options := blockexplorer.TransactionHistoryOptions{
-		TransactionType: blockexplorer.TxTypeNormal,
+		TransactionType: txType,
 		StartBlock:      startBlock.Int64(),
 		Limit:           10000,
 	}
@@ -267,6 +267,7 @@ func (s *historyService) syncTransactionsForAddress(ctx context.Context, address
 	s.log.Info("Fetching transaction history",
 		logger.String("address", address.String()),
 		logger.String("chain", string(address.ChainType)),
+		logger.String("tx_type", string(txType)),
 		logger.Int64("start_block", startBlock.Int64()))
 
 	// Fetch transaction history from explorer
@@ -274,18 +275,21 @@ func (s *historyService) syncTransactionsForAddress(ctx context.Context, address
 	if err != nil {
 		s.log.Error("Failed to get transaction history",
 			logger.String("address", address.String()),
+			logger.String("tx_type", string(txType)),
 			logger.Error(err))
 		return errors.NewOperationFailedError("get transaction history", err)
 	}
 
 	if len(page.Items) == 0 {
 		s.log.Info("No transactions found for address",
-			logger.String("address", address.String()))
+			logger.String("address", address.String()),
+			logger.String("tx_type", string(txType)))
 		return nil
 	}
 
 	s.log.Info("Found transactions for address",
 		logger.String("address", address.String()),
+		logger.String("tx_type", string(txType)),
 		logger.Int("count", len(page.Items)))
 
 	// Process and save transactions
@@ -355,6 +359,30 @@ func (s *historyService) syncTransactionsForAddress(ctx context.Context, address
 	// Update start block number to the latest block processed using setStartBlock
 	latestBlockNumber := page.Items[len(page.Items)-1].GetTransaction().BlockNumber
 	s.setStartBlock(address, latestBlockNumber)
+
+	return nil
+}
+
+// syncTransactionsForAddress immediately syncs transaction history for a specific address
+func (s *historyService) syncTransactionsForAddress(ctx context.Context, address types.Address) error {
+	// First sync normal transactions
+	if err := s.syncTransactionsForAddressByType(ctx, address, blockexplorer.TxTypeNormal); err != nil {
+		s.log.Error("Failed to sync normal transactions for address",
+			logger.String("address", address.String()),
+			logger.Error(err))
+		// Continue with other transaction types despite error
+	}
+
+	// Then sync ERC20 transactions
+	if err := s.syncTransactionsForAddressByType(ctx, address, blockexplorer.TxTypeERC20); err != nil {
+		s.log.Error("Failed to sync ERC20 transactions for address",
+			logger.String("address", address.String()),
+			logger.Error(err))
+		// Continue with other transaction types despite error
+	}
+
+	// Could add support for other transaction types in the future
+	// such as blockexplorer.TxTypeInternal, blockexplorer.TxTypeERC721
 
 	return nil
 }
