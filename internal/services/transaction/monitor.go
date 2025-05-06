@@ -322,12 +322,12 @@ func (s *monitorService) processRawTransactionEvents(ctx context.Context, chainT
 			// 2. Map the transformed transaction
 			// Note: Use the parent context (s.monitorCtx) for mapping? Or pass the specific processor ctx?
 			// Using the passed ctx seems more correct for cancellation propagation.
-			mapper, err := s.txFactory.NewMapper(chainType)
+			mapper, err := s.txFactory.NewDecoder(chainType)
 			if err != nil {
 				continue
 			}
 
-			mappedTx, mapErr := mapper.ToTypedTransaction(ctx, transformedTx)
+			mappedTx, mapErr := mapper.DecodeTransaction(ctx, transformedTx)
 
 			// 3. Determine what to emit
 			var eventToEmit any = transformedTx // Default to transformed tx

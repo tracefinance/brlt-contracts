@@ -16,15 +16,17 @@ import (
 
 // Handler handles wallet API requests
 type Handler struct {
-	walletService walletService.Service
-	tokenService  token.Service
+	walletService  walletService.Service
+	balanceService walletService.BalanceService
+	tokenService   token.Service
 }
 
 // NewHandler creates a new wallet handler
-func NewHandler(walletService walletService.Service, tokenService token.Service) *Handler {
+func NewHandler(walletService walletService.Service, balanceService walletService.BalanceService, tokenService token.Service) *Handler {
 	return &Handler{
-		walletService: walletService,
-		tokenService:  tokenService,
+		walletService:  walletService,
+		balanceService: balanceService,
+		tokenService:   tokenService,
 	}
 }
 
@@ -227,7 +229,7 @@ func (h *Handler) GetWalletBalance(c *gin.Context) {
 	address := c.Param("address")
 
 	// Get the wallet balances
-	balances, err := h.walletService.GetWalletBalancesByAddress(c.Request.Context(), chainType, address)
+	balances, err := h.balanceService.GetWalletBalancesByAddress(c.Request.Context(), chainType, address)
 	if err != nil {
 		c.Error(err)
 		return

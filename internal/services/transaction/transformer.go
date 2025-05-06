@@ -16,15 +16,6 @@ type TransactionTransformer interface {
 	TransformTransaction(ctx context.Context, tx *types.Transaction) error
 }
 
-// Metadata keys for built-in transformers
-const (
-	// WalletIDMetadaKey is the key for the transformer that extracts wallet ID from metadata
-	WalletIDMetadaKey = "wallet_id"
-
-	// VaultIDMetadaKey is the key for the transformer that extracts vault ID from metadata
-	VaultIDMetadaKey = "vault_id"
-)
-
 type transformerService struct {
 	log              logger.Logger
 	transformers     map[string]TransactionTransformer // Registered transformers

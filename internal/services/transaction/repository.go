@@ -193,7 +193,7 @@ func (r *repository) List(ctx context.Context, filter *Filter, limit int, nextTo
 		}
 
 		if filter.TokenAddress != nil {
-			sb.Where(sb.E("token_address", *filter.TokenAddress))
+			sb.Where(sb.E("contract_address", *filter.TokenAddress))
 		}
 
 		if filter.BlockNumber != nil {

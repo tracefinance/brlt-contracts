@@ -52,7 +52,7 @@ func (b BigInt) String() string {
 }
 
 // Scan implements the sql.Scanner interface for database deserialization.
-func (b *BigInt) Scan(value interface{}) error {
+func (b *BigInt) Scan(value any) error {
 	if value == nil {
 		b.Int = nil
 		return nil
@@ -84,6 +84,12 @@ func (b *BigInt) Scan(value interface{}) error {
 		if !ok {
 			return fmt.Errorf("failed to parse %q as big.Int", string(v))
 		}
+		return nil
+	case int64:
+		if b.Int == nil {
+			b.Int = new(big.Int)
+		}
+		b.Int.SetInt64(v)
 		return nil
 	default:
 		return fmt.Errorf("unsupported Scan type: %T", value)

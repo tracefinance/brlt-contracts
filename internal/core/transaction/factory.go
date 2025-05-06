@@ -10,8 +10,8 @@ import (
 
 // Factory creates and manages Mapper instances
 type Factory interface {
-	// NewMapper returns a Mapper instance for the specified chain type
-	NewMapper(chainType types.ChainType) (Mapper, error)
+	// NewDecoder returns a Decoder instance for the specified chain type
+	NewDecoder(chainType types.ChainType) (Decoder, error)
 }
 
 // NewFactory creates a new transaction Mapper factory
@@ -20,7 +20,7 @@ func NewFactory(tokenStore tokenstore.TokenStore, log logger.Logger, abiUtilsFac
 		tokenStore:      tokenStore,
 		log:             log,
 		abiUtilsFactory: abiUtilsFactory,
-		mappers:         make(map[types.ChainType]Mapper),
+		mappers:         make(map[types.ChainType]Decoder),
 	}
 }
 
@@ -28,11 +28,11 @@ type factory struct {
 	tokenStore      tokenstore.TokenStore
 	log             logger.Logger
 	abiUtilsFactory abiutils.Factory
-	mappers         map[types.ChainType]Mapper
+	mappers         map[types.ChainType]Decoder
 }
 
-// NewMapper returns a Mapper instance for the specified chain type
-func (f *factory) NewMapper(chainType types.ChainType) (Mapper, error) {
+// NewDecoder returns a Mapper instance for the specified chain type
+func (f *factory) NewDecoder(chainType types.ChainType) (Decoder, error) {
 	// Check if we already have an instance for this chain
 	if mapper, ok := f.mappers[chainType]; ok {
 		return mapper, nil
@@ -45,11 +45,11 @@ func (f *factory) NewMapper(chainType types.ChainType) (Mapper, error) {
 	}
 
 	// Create a new mapper instance based on chain type
-	var mapper Mapper
+	var mapper Decoder
 
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
-		mapper = NewEvmMapper(f.tokenStore, f.log, abiUtils)
+		mapper = NewEvmDecoder(f.tokenStore, f.log, abiUtils)
 	default:
 		return nil, errors.NewChainNotSupportedError(string(chainType))
 	}

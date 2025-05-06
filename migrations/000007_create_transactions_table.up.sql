@@ -20,6 +20,7 @@ CREATE TABLE transactions (
     type TEXT NOT NULL,
 
     -- Mirrored Transaction Execution Fields
+    metadata JSON DEFAULT NULL,
     gas_used BIGINT UNSIGNED DEFAULT NULL,
     status TEXT NOT NULL,
     timestamp BIGINT DEFAULT NULL,

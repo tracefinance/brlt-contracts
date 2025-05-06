@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"strings"
 
+	"slices"
 	"vault0/internal/errors"
 )
 
@@ -68,6 +69,8 @@ type CoreTransaction interface {
 	GetType() TransactionType
 	// GetTransaction returns the transaction
 	GetTransaction() *Transaction
+	// GetMetadata returns the metadata of the transaction
+	GetMetadata() TxMetadata
 }
 
 // BaseTransaction holds the core, immutable fields of a blockchain transaction.
@@ -108,8 +111,9 @@ type Transaction struct {
 	Timestamp int64
 	// BlockNumber is the number of the block containing the transaction
 	BlockNumber *big.Int
-	// Metadata is a flexible field for transformers to add contextual information.
-	Metadata map[string]any
+	// Metadata holds additional context about the transaction, potentially added
+	// during mapping or enrichment.
+	Metadata TxMetadata
 }
 
 // TransactionOptions represents optional parameters for constructing a transaction
@@ -203,6 +207,40 @@ func (tx *BaseTransaction) GetType() TransactionType {
 // GetTransaction returns the transaction
 func (tx *Transaction) GetTransaction() *Transaction {
 	return tx
+}
+
+// GetMetadata returns the metadata of the transaction
+func (tx *Transaction) GetMetadata() TxMetadata {
+	return tx.Metadata
+}
+
+// Copy creates a deep copy of the Transaction
+func (tx *Transaction) Copy() *Transaction {
+	if tx == nil {
+		return nil
+	}
+
+	copied := &Transaction{
+		BaseTransaction: BaseTransaction{
+			Type:      tx.Type,
+			ChainType: tx.ChainType,
+			Hash:      tx.Hash,
+			From:      tx.From,
+			To:        tx.To,
+			Value:     new(big.Int).Set(tx.Value),
+			Data:      slices.Clone(tx.Data),
+			Nonce:     tx.Nonce,
+			GasPrice:  new(big.Int).Set(tx.GasPrice),
+			GasLimit:  tx.GasLimit,
+		},
+		GasUsed:     tx.GasUsed,
+		Status:      tx.Status,
+		Timestamp:   tx.Timestamp,
+		BlockNumber: new(big.Int).Set(tx.BlockNumber),
+		Metadata:    tx.Metadata.Copy(),
+	}
+
+	return copied
 }
 
 // ParseAddressFromTopic extracts and validates an address from the topic at the given index.

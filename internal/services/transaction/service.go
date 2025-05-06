@@ -76,12 +76,12 @@ func (s *transactionService) GetTransactionByHash(ctx context.Context, hash stri
 		return nil, errors.NewInternalError(fmt.Errorf("failed to convert service transaction %s back to core type", hash))
 	}
 
-	mapper, err := s.txFactory.NewMapper(coreTx.ChainType)
+	mapper, err := s.txFactory.NewDecoder(coreTx.ChainType)
 	if err != nil {
 		return nil, err
 	}
 
-	mappedTx, err := mapper.ToTypedTransaction(ctx, coreTx)
+	mappedTx, err := mapper.DecodeTransaction(ctx, coreTx)
 	if err != nil {
 		s.log.Warn("Failed to map transaction to specific type, returning generic transaction",
 			logger.String("tx_hash", hash),
@@ -90,16 +90,7 @@ func (s *transactionService) GetTransactionByHash(ctx context.Context, hash stri
 		return coreTx, nil
 	}
 
-	// Ensure the mapped transaction implements CoreTransaction interface
-	coreTransaction, ok := mappedTx.(types.CoreTransaction)
-	if !ok {
-		s.log.Warn("Mapped transaction does not implement CoreTransaction interface, returning generic transaction",
-			logger.String("tx_hash", hash),
-		)
-		return coreTx, nil
-	}
-
-	return coreTransaction, nil
+	return mappedTx, nil
 }
 
 // FilterTransactions retrieves transactions based on filter criteria and maps each to its specific type
@@ -128,7 +119,7 @@ func (s *transactionService) FilterTransactions(ctx context.Context, filter *Fil
 			continue
 		}
 
-		mapper, err := s.txFactory.NewMapper(coreTx.ChainType)
+		mapper, err := s.txFactory.NewDecoder(coreTx.ChainType)
 		if err != nil {
 			s.log.Warn("Failed to create mapper for transaction",
 				logger.String("tx_hash", tx.Hash),
@@ -140,7 +131,7 @@ func (s *transactionService) FilterTransactions(ctx context.Context, filter *Fil
 			continue
 		}
 
-		mappedTx, err := mapper.ToTypedTransaction(ctx, coreTx)
+		mappedTx, err := mapper.DecodeTransaction(ctx, coreTx)
 		if err != nil {
 			s.log.Warn("Failed to map transaction to specific type",
 				logger.String("tx_hash", tx.Hash),

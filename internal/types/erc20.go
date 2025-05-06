@@ -60,6 +60,8 @@ type ERC20Transfer struct {
 	TokenAddress string
 	// TokenSymbol is the symbol of the ERC20 token
 	TokenSymbol string
+	// TokenDecimals is the number of decimals of the ERC20 token
+	TokenDecimals uint8
 	// Recipient is the address receiving the tokens
 	Recipient string
 	// Amount is the amount of tokens transferred

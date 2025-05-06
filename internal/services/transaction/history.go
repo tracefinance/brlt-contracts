@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 	"vault0/internal/config"
@@ -30,10 +31,6 @@ type HistoryService interface {
 
 	// HistoryEvents returns a channel that emits processed historical transactions
 	HistoryEvents() <-chan *types.Transaction
-
-	// TransformTransaction implements the TransactionTransformer interface
-	// to enrich transactions with blockchain data
-	TransformTransaction(ctx context.Context, tx *types.Transaction) error
 }
 
 // NewHistoryService creates a new transaction history service
@@ -87,7 +84,7 @@ type addressSyncInfo struct {
 
 // deriveAddressKey creates a unique key for the address map combining chain and address
 func (s *historyService) deriveAddressKey(address types.Address) string {
-	return fmt.Sprintf("%s:%s", string(address.ChainType), address.String())
+	return fmt.Sprintf("%s:%s", string(address.ChainType), strings.ToLower(address.ToChecksum()))
 }
 
 // MonitorAddress adds an address to be monitored for transaction history
@@ -261,7 +258,7 @@ func (s *historyService) syncTransactionsForAddressByType(ctx context.Context, a
 	options := blockexplorer.TransactionHistoryOptions{
 		TransactionType: txType,
 		StartBlock:      startBlock.Int64(),
-		Limit:           10000,
+		Limit:           9000,
 	}
 
 	s.log.Info("Fetching transaction history",
@@ -271,7 +268,7 @@ func (s *historyService) syncTransactionsForAddressByType(ctx context.Context, a
 		logger.Int64("start_block", startBlock.Int64()))
 
 	// Fetch transaction history from explorer
-	page, err := explorer.GetTransactionHistory(ctx, address.String(), options, "")
+	page, err := explorer.GetTransactionHistory(ctx, address.ToChecksum(), options, "")
 	if err != nil {
 		s.log.Error("Failed to get transaction history",
 			logger.String("address", address.String()),
@@ -315,7 +312,7 @@ func (s *historyService) syncTransactionsForAddressByType(ctx context.Context, a
 
 		// Save or update transaction
 		existingTx, err := s.repository.GetByHash(ctx, serviceTx.Hash)
-		if err != nil && !errors.IsError(err, errors.ErrCodeNotFound) {
+		if err != nil && !errors.IsError(err, errors.ErrCodeTransactionNotFound) {
 			s.log.Error("Error checking for existing transaction",
 				logger.String("tx_hash", serviceTx.Hash),
 				logger.Error(err))
@@ -383,61 +380,6 @@ func (s *historyService) syncTransactionsForAddress(ctx context.Context, address
 
 	// Could add support for other transaction types in the future
 	// such as blockexplorer.TxTypeInternal, blockexplorer.TxTypeERC721
-
-	return nil
-}
-
-// TransformTransaction implements TransactionTransformer interface
-func (t *historyService) TransformTransaction(ctx context.Context, tx *types.Transaction) error {
-	if tx == nil {
-		return errors.NewInvalidInputError("Transaction cannot be nil", "transaction", nil)
-	}
-
-	// Get blockchain client for this chain
-	client, err := t.blockchainFactory.NewClient(tx.ChainType)
-	if err != nil {
-		return errors.NewOperationFailedError("get blockchain client", err)
-	}
-
-	// Get transaction receipt for additional data
-	receipt, err := client.GetTransactionReceipt(ctx, tx.Hash)
-	if err != nil {
-		return errors.NewOperationFailedError("get transaction receipt", err)
-	}
-
-	// Enrich transaction with receipt data
-	if receipt != nil {
-		// Convert uint64 status to TransactionStatus
-		if receipt.Status == 1 {
-			tx.Status = types.TransactionStatusSuccess
-		} else {
-			tx.Status = types.TransactionStatusFailed
-		}
-		tx.GasUsed = receipt.GasUsed
-	}
-
-	// Load transaction input data for contract calls
-	if tx.Type == types.TransactionTypeContractCall {
-		// If Data is empty or nil, fetch full transaction to get input data
-		if len(tx.Data) == 0 {
-			t.log.Debug("Loading transaction input data for contract call",
-				logger.String("tx_hash", tx.Hash))
-
-			// Get full transaction data from client
-			fullTx, err := client.GetTransaction(ctx, tx.Hash)
-			if err != nil {
-				t.log.Warn("Failed to load transaction input data",
-					logger.String("tx_hash", tx.Hash),
-					logger.Error(err))
-				// Continue with existing data, don't return error
-			} else if fullTx != nil && fullTx.Data != nil {
-				tx.Data = fullTx.Data
-				t.log.Debug("Loaded transaction input data",
-					logger.String("tx_hash", tx.Hash),
-					logger.Int("data_length", len(tx.Data)))
-			}
-		}
-	}
 
 	return nil
 }

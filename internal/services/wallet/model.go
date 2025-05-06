@@ -44,7 +44,6 @@ func ScanWallet(row interface {
 }) (*Wallet, error) {
 	wallet := &Wallet{}
 	var tagsJSON sql.NullString
-	var balanceStr sql.NullString
 
 	err := row.Scan(
 		&wallet.ID,
@@ -53,7 +52,7 @@ func ScanWallet(row interface {
 		&wallet.Address,
 		&wallet.Name,
 		&tagsJSON,
-		&balanceStr,
+		&wallet.Balance,
 		&wallet.LastBlockNumber,
 		&wallet.CreatedAt,
 		&wallet.UpdatedAt,
@@ -71,19 +70,6 @@ func ScanWallet(row interface {
 		}
 	}
 
-	// Parse the balance as BigInt
-	if balanceStr.Valid {
-		balance, err := types.NewBigIntFromString(balanceStr.String)
-		if err != nil {
-			// If there's an error parsing, use zero
-			wallet.Balance = types.NewBigInt(big.NewInt(0))
-		} else {
-			wallet.Balance = balance
-		}
-	} else {
-		wallet.Balance = types.NewBigInt(big.NewInt(0))
-	}
-
 	return wallet, nil
 }
 
@@ -92,29 +78,15 @@ func ScanTokenBalance(row interface {
 	Scan(dest ...any) error
 }) (*TokenBalance, error) {
 	tokenBalance := &TokenBalance{}
-	var balanceStr sql.NullString
 
 	err := row.Scan(
 		&tokenBalance.WalletID,
 		&tokenBalance.TokenAddress,
-		&balanceStr,
+		&tokenBalance.Balance,
 		&tokenBalance.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
-	}
-
-	// Parse the balance as BigInt
-	if balanceStr.Valid {
-		balance, err := types.NewBigIntFromString(balanceStr.String)
-		if err != nil {
-			// If there's an error parsing, use zero
-			tokenBalance.Balance = types.NewBigInt(big.NewInt(0))
-		} else {
-			tokenBalance.Balance = balance
-		}
-	} else {
-		tokenBalance.Balance = types.NewBigInt(big.NewInt(0))
 	}
 
 	return tokenBalance, nil

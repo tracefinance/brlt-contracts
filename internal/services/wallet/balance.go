@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"vault0/internal/core/tokenstore"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
 	"vault0/internal/types"
@@ -38,9 +39,23 @@ type BalanceService interface {
 	GetWalletBalancesByAddress(ctx context.Context, chainType types.ChainType, address string) ([]*TokenBalanceData, error)
 }
 
+type balanceService struct {
+	repository Repository
+	log        logger.Logger
+	tokenStore tokenstore.TokenStore
+}
+
+func NewBalanceService(
+	repository Repository,
+	log logger.Logger,
+	tokenStore tokenstore.TokenStore,
+) BalanceService {
+	return &balanceService{repository, log, tokenStore}
+}
+
 // isOutgoingTransaction returns (isOutgoingTransaction, error)
 // isOutgoingTransaction is true if the wallet is the sender (tx.From), false if receiver (tx.To)
-func (s *walletService) isOutgoingTransaction(ctx context.Context, tx *types.Transaction) (bool, error) {
+func (s *balanceService) isOutgoingTransaction(ctx context.Context, tx *types.Transaction) (bool, error) {
 	exists, err := s.repository.Exists(ctx, tx.ChainType, tx.From)
 	if err != nil {
 		return false, err
@@ -61,7 +76,7 @@ func (s *walletService) isOutgoingTransaction(ctx context.Context, tx *types.Tra
 }
 
 // UpdateWalletBalance updates the native balance for a wallet based on a transaction
-func (s *walletService) UpdateWalletBalance(ctx context.Context, tx *types.Transaction) error {
+func (s *balanceService) UpdateWalletBalance(ctx context.Context, tx *types.Transaction) error {
 	if tx == nil {
 		return errors.NewInvalidInputError("Transaction is required", "tx", nil)
 	}
@@ -103,7 +118,7 @@ func (s *walletService) UpdateWalletBalance(ctx context.Context, tx *types.Trans
 }
 
 // UpdateTokenBalance updates the token balance for a wallet based on an ERC20 transfer
-func (s *walletService) UpdateTokenBalance(ctx context.Context, transfer *types.ERC20Transfer) error {
+func (s *balanceService) UpdateTokenBalance(ctx context.Context, transfer *types.ERC20Transfer) error {
 	if transfer == nil {
 		return errors.NewInvalidInputError("ERC20 Transfer data is required", "transfer", nil)
 	}
@@ -210,7 +225,7 @@ func (s *walletService) UpdateTokenBalance(ctx context.Context, transfer *types.
 
 // findWalletForAddress is a helper to check if an address belongs to a managed wallet.
 // Returns (found bool, *Wallet, error).
-func (s *walletService) findWalletForAddress(ctx context.Context, chain types.ChainType, address string) (bool, *Wallet, error) {
+func (s *balanceService) findWalletForAddress(ctx context.Context, chain types.ChainType, address string) (bool, *Wallet, error) {
 	if address == "" {
 		return false, nil, nil // Empty address cannot be a wallet
 	}
@@ -226,7 +241,7 @@ func (s *walletService) findWalletForAddress(ctx context.Context, chain types.Ch
 }
 
 // GetWalletBalances retrieves the native and token balances for a wallet
-func (s *walletService) GetWalletBalances(ctx context.Context, id int64) ([]*TokenBalanceData, error) {
+func (s *balanceService) GetWalletBalances(ctx context.Context, id int64) ([]*TokenBalanceData, error) {
 	if id == 0 {
 		return nil, errors.NewInvalidInputError("ID is required", "id", "0")
 	}
@@ -286,7 +301,7 @@ func (s *walletService) GetWalletBalances(ctx context.Context, id int64) ([]*Tok
 }
 
 // GetWalletBalancesByAddress retrieves the native and token balances for a wallet by its address
-func (s *walletService) GetWalletBalancesByAddress(ctx context.Context, chainType types.ChainType, address string) ([]*TokenBalanceData, error) {
+func (s *balanceService) GetWalletBalancesByAddress(ctx context.Context, chainType types.ChainType, address string) ([]*TokenBalanceData, error) {
 	if chainType == "" {
 		return nil, errors.NewInvalidInputError("Chain type is required", "chain_type", "")
 	}

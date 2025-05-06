@@ -73,8 +73,7 @@ const handleDeleteConfirm = async () => {
 
 <template>
   <div>
-    <UserTableSkeleton v-if="isLoading && !users.length" />
-    <div v-else-if="error">
+    <div v-if="error">
       <Alert variant="destructive">
         <Icon name="lucide:alert-triangle" class="w-4 h-4" />
         <AlertTitle>Error Loading Users</AlertTitle>

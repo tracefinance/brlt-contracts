@@ -57,22 +57,27 @@ func main() {
 		log.Error("Failed to register wallet transformer", logger.Error(err))
 	}
 
-	// Register history service as a transaction transformer for blockchain data enrichment
-	if err := container.Services.Transaction.TransformerService.RegisterTransformer("blockchain_data", container.Services.Transaction.HistoryService); err != nil {
-		log.Error("Failed to register history service transformer", logger.Error(err))
+	// Register blockchain transformer for blockchain data enrichment
+	if err := container.Services.Transaction.TransformerService.RegisterTransformer("blockchain_data", container.Services.Transaction.BlockchainTransformer); err != nil {
+		log.Error("Failed to register blockchain transformer", logger.Error(err))
 	}
 
 	// Start pending transaction polling
 	container.Services.Transaction.PoolingService.StartPendingTransactionPolling(ctx)
 
-	// Start transaction monitoring
-	if err := container.Services.Transaction.MonitorService.StartTransactionMonitoring(ctx); err != nil {
-		log.Error("Failed to start transaction monitoring", logger.Error(err))
+	// Start wallet monitoring to track balances and transactions
+	if err := container.Services.WalletMonitorService.StartWalletMonitoring(ctx); err != nil {
+		log.Error("Failed to start wallet monitoring", logger.Error(err))
 	}
 
 	// Start token transaction monitoring
 	if err := container.Services.TokenMonitorService.StartTokenTransactionMonitoring(ctx); err != nil {
 		log.Error("Failed to start token transaction monitoring", logger.Error(err))
+	}
+
+	// Start transaction monitoring
+	if err := container.Services.Transaction.MonitorService.StartTransactionMonitoring(ctx); err != nil {
+		log.Error("Failed to start transaction monitoring", logger.Error(err))
 	}
 
 	// Start transaction history synchronization
@@ -115,17 +120,22 @@ func main() {
 	// Cancel the root context
 	cancel()
 
+	// Stop wallet monitoring
+	if err := container.Services.WalletMonitorService.StopWalletMonitoring(ctx); err != nil {
+		log.Error("Failed to stop wallet monitoring", logger.Error(err))
+	}
+
+	// Stop token transaction monitoring
+	if err := container.Services.TokenMonitorService.StopTokenTransactionMonitoring(); err != nil {
+		log.Error("Failed to stop token transaction monitoring", logger.Error(err))
+	}
+
 	// Unsubscribe from transaction events first to close the channel
 	// before any services that might use it
 	container.Services.Transaction.MonitorService.StopTransactionMonitoring()
 
 	// Stop transaction history synchronization
 	container.Services.Transaction.HistoryService.StopTransactionSyncing()
-
-	// Stop token transaction monitoring
-	if err := container.Services.TokenMonitorService.StopTokenTransactionMonitoring(); err != nil {
-		log.Error("Failed to stop token transaction monitoring", logger.Error(err))
-	}
 
 	// Stop pending transaction polling
 	container.Services.Transaction.PoolingService.StopPendingTransactionPolling()

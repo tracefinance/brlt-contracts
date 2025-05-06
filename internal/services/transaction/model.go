@@ -32,10 +32,11 @@ type Transaction struct {
 	Type     types.TransactionType `db:"type"`
 
 	// Execution details
-	GasUsed     sql.NullInt64           `db:"gas_used"`
-	Status      types.TransactionStatus `db:"status"`
-	Timestamp   sql.NullInt64           `db:"timestamp"`
-	BlockNumber *types.BigInt           `db:"block_number"`
+	ContractAddress sql.NullString          `db:"contract_address"`
+	GasUsed         sql.NullInt64           `db:"gas_used"`
+	Status          types.TransactionStatus `db:"status"`
+	Timestamp       sql.NullInt64           `db:"timestamp"`
+	BlockNumber     *types.BigInt           `db:"block_number"`
 }
 
 // ScanTransaction scans a database row into a Transaction struct.
@@ -63,6 +64,7 @@ func ScanTransaction(row interface {
 		&tx.GasPrice,
 		&tx.GasLimit,
 		&tx.Type,
+		&tx.ContractAddress,
 		&tx.GasUsed,
 		&tx.Status,
 		&tx.Timestamp,
@@ -90,15 +92,11 @@ func FromCoreTransaction(coreTx *types.Transaction) *Transaction {
 
 	// Attempt to extract IDs from metadata if the map exists
 	if coreTx.Metadata != nil {
-		if idVal, ok := coreTx.Metadata[WalletIDMetadaKey]; ok {
-			if idInt64, ok := idVal.(int64); ok {
-				walletID = sql.NullInt64{Int64: idInt64, Valid: true}
-			}
+		if idVal, ok := coreTx.Metadata.GetInt64(types.WalletIDMetadaKey); ok {
+			walletID = sql.NullInt64{Int64: idVal, Valid: true}
 		}
-		if idVal, ok := coreTx.Metadata[VaultIDMetadaKey]; ok {
-			if idInt64, ok := idVal.(int64); ok {
-				vaultID = sql.NullInt64{Int64: idInt64, Valid: true}
-			}
+		if idVal, ok := coreTx.Metadata.GetInt64(types.VaultIDMetadaKey); ok {
+			vaultID = sql.NullInt64{Int64: idVal, Valid: true}
 		}
 	}
 
@@ -216,7 +214,7 @@ type Filter struct {
 	BlockNumber  *big.Int
 	MinBlock     *big.Int
 	MaxBlock     *big.Int
-	TokenAddress *string // For filtering by token address
+	TokenAddress *string // For filtering by contract address
 }
 
 // Helper method to check if any filter criteria are set

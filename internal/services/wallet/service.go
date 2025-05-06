@@ -9,14 +9,11 @@ import (
 	coreWallet "vault0/internal/core/wallet"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
-	txService "vault0/internal/services/transaction"
 	"vault0/internal/types"
 )
 
 // Service defines the wallet service interface
 type Service interface {
-	BalanceService
-
 	// CreateWallet creates a new wallet with a key and derives its address.
 	// It performs the following steps:
 	// 1. Creates a new key in the keystore with the specified name and tags
@@ -439,27 +436,33 @@ func (s *walletService) TransformTransaction(ctx context.Context, tx *types.Tran
 
 	// If successful, add wallet ID to metadata
 	if tx.Metadata == nil {
-		tx.Metadata = make(map[string]interface{})
+		tx.Metadata = make(types.TxMetadata)
 	}
 
 	// Check if the from address is one of our wallets
 	if tx.From != "" {
 		wallet, err := s.repository.GetByAddress(ctx, tx.ChainType, tx.From)
-		if err != nil {
-			return err
+		if wallet != nil && err == nil {
+			if err := tx.Metadata.Set(types.WalletIDMetadaKey, wallet.ID); err != nil {
+				s.log.Warn("Failed to set wallet ID in metadata for 'from' address",
+					logger.Error(err),
+					logger.String("tx_hash", tx.Hash),
+					logger.Int64("wallet_id", wallet.ID))
+			}
 		}
-
-		tx.Metadata[txService.WalletIDMetadaKey] = wallet.ID
 	}
 
 	// Check if the to address is one of our wallets
 	if tx.To != "" {
 		wallet, err := s.repository.GetByAddress(ctx, tx.ChainType, tx.To)
-		if err != nil {
-			return err
+		if wallet != nil && err == nil {
+			if err := tx.Metadata.Set(types.WalletIDMetadaKey, wallet.ID); err != nil {
+				s.log.Warn("Failed to set wallet ID in metadata for 'to' address",
+					logger.Error(err),
+					logger.String("tx_hash", tx.Hash),
+					logger.Int64("wallet_id", wallet.ID))
+			}
 		}
-
-		tx.Metadata[txService.WalletIDMetadaKey] = wallet.ID
 	}
 
 	// If we reach here, the transaction didn't match any of our wallets

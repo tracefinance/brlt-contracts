@@ -46,8 +46,7 @@ export const API_ENDPOINTS = {
   // User endpoints
   USERS: {
     BASE: '/users',
-    BY_ID: (id: string) => `/users/${id}`,
-    PROFILE: '/users/profile',
+    BY_ID: (id: string) => `/users/${id}`
   },
 
   // Reference data endpoints

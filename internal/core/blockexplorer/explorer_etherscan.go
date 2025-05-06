@@ -256,7 +256,7 @@ func (e *EtherscanExplorer) GetContract(ctx context.Context, address string) (*C
 	params := url.Values{}
 	params.Set("module", "contract")
 	params.Set("action", "getabi")
-	params.Set("address", address)
+	params.Set("address", strings.ToLower(address))
 
 	abiData, err := e.makeRequest(ctx, params)
 	if err != nil {
@@ -722,7 +722,7 @@ func (e *EtherscanExplorer) GetTransactionHistory(ctx context.Context, address s
 func (e *EtherscanExplorer) setTransactionHistoryParams(params url.Values, address string, options TransactionHistoryOptions, action string, page, limit int) {
 	params.Set("module", "account")
 	params.Set("action", action)
-	params.Set("address", address)
+	params.Set("address", strings.ToLower(address))
 	params.Set("startblock", strconv.FormatInt(options.StartBlock, 10))
 	if options.EndBlock != 0 {
 		params.Set("endblock", strconv.FormatInt(options.EndBlock, 10))
