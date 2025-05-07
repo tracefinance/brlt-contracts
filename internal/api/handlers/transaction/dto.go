@@ -30,19 +30,19 @@ type TransactionResponse struct {
 
 // ListTransactionsRequest defines the query parameters for listing transactions
 type ListTransactionsRequest struct {
-	NextToken       string `form:"next_token"`
-	Limit           *int   `form:"limit" binding:"omitempty,min=1"`
-	ChainType       string `form:"chain_type"`
-	Address         string `form:"address"`
-	ContractAddress string `form:"contract_address"`
-	Status          string `form:"status"`
+	NextToken    string `form:"next_token"`
+	Limit        *int   `form:"limit" binding:"omitempty,min=1"`
+	ChainType    string `form:"chain_type"`
+	Address      string `form:"address"`
+	TokenAddress string `form:"token_address"`
+	Status       string `form:"status"`
 }
 
 // ListTransactionsByAddressRequest defines query parameters for listing transactions by address
 type ListTransactionsByAddressRequest struct {
-	NextToken       string `form:"next_token"`
-	Limit           *int   `form:"limit" binding:"omitempty,min=1"`
-	ContractAddress string `form:"contract_address"`
+	NextToken    string `form:"next_token"`
+	Limit        *int   `form:"limit" binding:"omitempty,min=1"`
+	TokenAddress string `form:"token_address"`
 }
 
 // SyncTransactionsResponse represents the response for a transaction sync operation

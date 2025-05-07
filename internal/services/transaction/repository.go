@@ -3,6 +3,7 @@ package transaction
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/huandu/go-sqlbuilder"
@@ -193,7 +194,7 @@ func (r *repository) List(ctx context.Context, filter *Filter, limit int, nextTo
 		}
 
 		if filter.TokenAddress != nil {
-			sb.Where(sb.E("contract_address", *filter.TokenAddress))
+			sb.Where(sb.E("LOWER(metadata->'token_address')", strings.ToLower(*filter.TokenAddress)))
 		}
 
 		if filter.BlockNumber != nil {

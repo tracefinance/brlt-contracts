@@ -3,7 +3,9 @@ package transaction
 import (
 	"bytes"
 	"context"
+	"encoding/hex" // For logging method ID
 	"fmt"
+	"strings" // For getMethodNameFromSignature
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto" // Need crypto for Keccak256
@@ -17,6 +19,46 @@ import (
 
 // Precompute ERC20 transfer method ID locally for dispatcher logic
 var erc20TransferMethodID = crypto.Keccak256([]byte("transfer(address,uint256)"))[:4]
+
+// Precomputed MultiSig method IDs
+var (
+	multiSigRequestWithdrawalMethodID            []byte
+	multiSigSignWithdrawalMethodID               []byte
+	multiSigExecuteWithdrawalMethodID            []byte // Placeholder, assuming "executeWithdrawal(bytes32)"
+	multiSigAddSupportedTokenMethodID            []byte
+	multiSigRequestRecoveryMethodID              []byte
+	multiSigCancelRecoveryMethodID               []byte
+	multiSigExecuteRecoveryMethodID              []byte
+	multiSigProposeRecoveryAddressChangeMethodID []byte
+	multiSigSignRecoveryAddressChangeMethodID    []byte
+)
+
+// assumedMultiSigExecuteWithdrawalSignature is used if a method like "executeWithdrawal(bytes32)"
+// is part of the MultiSig ABI for TransactionTypeMultiSigExecuteWithdrawal.
+const assumedMultiSigExecuteWithdrawalSignature = "executeWithdrawal(bytes32)"
+
+func init() {
+	multiSigRequestWithdrawalMethodID = crypto.Keccak256([]byte(types.MultiSigRequestWithdrawalMethod))[:4]
+	multiSigSignWithdrawalMethodID = crypto.Keccak256([]byte(types.MultiSigSignWithdrawalMethod))[:4]
+	multiSigExecuteWithdrawalMethodID = crypto.Keccak256([]byte(assumedMultiSigExecuteWithdrawalSignature))[:4]
+	multiSigAddSupportedTokenMethodID = crypto.Keccak256([]byte(types.MultiSigAddSupportedTokenMethod))[:4]
+	multiSigRequestRecoveryMethodID = crypto.Keccak256([]byte(types.MultiSigRequestRecoveryMethod))[:4]
+	multiSigCancelRecoveryMethodID = crypto.Keccak256([]byte(types.MultiSigCancelRecoveryMethod))[:4]
+	multiSigExecuteRecoveryMethodID = crypto.Keccak256([]byte(types.MultiSigExecuteRecoveryMethod))[:4]
+	multiSigProposeRecoveryAddressChangeMethodID = crypto.Keccak256([]byte(types.MultiSigProposeRecoveryAddressChangeMethod))[:4]
+	multiSigSignRecoveryAddressChangeMethodID = crypto.Keccak256([]byte(types.MultiSigSignRecoveryAddressChangeMethod))[:4]
+}
+
+// getMethodNameFromSignature extracts the method name (e.g., "transfer")
+// from a full signature string (e.g., "transfer(address,uint256)").
+func getMethodNameFromSignature(fullSignature string) string {
+	if idx := strings.Index(fullSignature, "("); idx != -1 {
+		return fullSignature[:idx]
+	}
+	// Fallback, though valid Solidity signatures should contain '('.
+	// Log or handle error if this is critical.
+	return fullSignature
+}
 
 // evmDecoder implements the Decoder interface for EVM-based transactions.
 type evmDecoder struct {
@@ -263,13 +305,16 @@ func (m *evmDecoder) parseAndPopulateERC20Metadata(ctx context.Context, tx *type
 	// Basic validation for parsing
 	if tx.BaseTransaction.To == "" {
 		m.logger.Debug("Skipping ERC20 parse: tx.To is empty", logger.String("tx_hash", tx.Hash))
-		return false, nil // Not an error, just not parsable as this type
+		return false, nil
 	}
 	if len(tx.Data) < 4 {
-		m.logger.Debug("Skipping ERC20 parse: tx.Data too short", logger.String("tx_hash", tx.Hash), logger.Int("data_len", len(tx.Data)))
-		return false, nil // Not an error, just not parsable
+		m.logger.Debug("Skipping ERC20 parse: tx.Data too short",
+			logger.String("tx_hash", tx.Hash),
+			logger.Int("data_len", len(tx.Data)))
+		return false, nil
 	}
 
+	// Extract the method ID using abiutils
 	methodID := m.abiUtils.ExtractMethodID(tx.Data)
 
 	// Optimization: Check against precomputed standard ERC20 transfer ID.
@@ -281,53 +326,51 @@ func (m *evmDecoder) parseAndPopulateERC20Metadata(ctx context.Context, tx *type
 	m.logger.Debug("Method ID matches ERC20 transfer, attempting parse", logger.String("tx_hash", tx.Hash))
 
 	// Load ABI specifically for the target contract address.
-	contractAddr := common.HexToAddress(tx.BaseTransaction.To)
-	erc20ABI, err := m.abiUtils.LoadABIByAddress(ctx, contractAddr)
+	contractAddrEth := common.HexToAddress(tx.BaseTransaction.To)
+	// Convert to types.Address
+	contractAddr, err := types.NewAddress(tx.BaseTransaction.ChainType, contractAddrEth.Hex())
+	if err != nil {
+		m.logger.Warn("Failed to convert address for ERC20 transfer parse",
+			logger.String("address", contractAddrEth.Hex()),
+			logger.String("tx_hash", tx.Hash),
+			logger.Error(err),
+		)
+		return false, fmt.Errorf("failed to convert address %s: %w", contractAddrEth.Hex(), err)
+	}
+
+	erc20ABI, err := m.abiUtils.LoadABIByAddress(ctx, *contractAddr)
 	if err != nil {
 		m.logger.Warn("Failed to load ABI by address for potential ERC20 transfer parse",
-			logger.String("address", contractAddr.Hex()),
+			logger.String("address", contractAddr.String()),
 			logger.String("tx_hash", tx.Hash),
 			logger.Error(err),
 		)
 		// Cannot proceed without ABI, but don't return error, just indicate parsing failed.
 		// The caller (ToTypedTransaction) might handle this gracefully.
-		return false, fmt.Errorf("failed to load ABI for address %s: %w", contractAddr.Hex(), err) // Return error to indicate ABI load failure
+		return false, fmt.Errorf("failed to load ABI for address %s: %w", contractAddr.String(), err) // Return error to indicate ABI load failure
 	}
 
-	// Verify the method signature in the loaded ABI matches "transfer".
-	transferMethod, err := m.abiUtils.GetMethodFromABI(erc20ABI, methodID)
-	if err != nil || transferMethod.Name != "transfer" {
-		m.logger.Warn("Method ID matched standard, but not 'transfer' in loaded ABI",
-			logger.String("tx_hash", tx.Hash),
-			logger.String("address", contractAddr.Hex()),
-			logger.String("method_id", common.Bytes2Hex(methodID)),
-			logger.Error(err), // Log potential GetMethodFromABI error
-		)
-		// ABI structure mismatch, not a standard transfer. Indicate parsing failed.
-		return false, nil
-	}
-
-	// Parse the input data (excluding the 4-byte method ID).
-	parsedArgs, err := m.abiUtils.ParseContractInput(transferMethod, tx.Data[4:])
+	// Parse the input data with the "transfer" method name
+	parsedArgs, err := m.abiUtils.ParseContractInput(erc20ABI, "transfer", tx.Data)
 	if err != nil {
 		m.logger.Warn("Failed to parse ERC20 transfer input data",
 			logger.String("tx_hash", tx.Hash),
-			logger.String("address", contractAddr.Hex()),
+			logger.String("address", contractAddr.String()),
 			logger.Error(err),
 		)
 		// Parsing failed, return error.
 		return false, fmt.Errorf("failed to parse ERC20 transfer input: %w", err)
 	}
 
-	// Extract recipient address ('to') and amount ('value').
-	recipientAddr, err := m.abiUtils.GetAddressFromArgs(parsedArgs, "to")
+	// Extract recipient address ('recipient') and amount ('amount').
+	recipientAddr, err := m.abiUtils.GetAddressFromArgs(parsedArgs, types.ERC20RecipientMetadataKey)
 	if err != nil {
-		return false, fmt.Errorf("failed to get recipient address ('to') from parsed args: %w", err)
+		return false, fmt.Errorf("failed to get recipient address ('recipient') from parsed args: %w", err)
 	}
 
-	amountBigIntParsed, err := m.abiUtils.GetBigIntFromArgs(parsedArgs, "value")
+	amountBigIntParsed, err := m.abiUtils.GetBigIntFromArgs(parsedArgs, types.ERC20AmountMetadataKey)
 	if err != nil {
-		return false, fmt.Errorf("failed to get transfer amount ('value') from parsed args: %w", err)
+		return false, fmt.Errorf("failed to get transfer amount ('amount') from parsed args: %w", err)
 	}
 
 	// Resolve token details (symbol, decimals) using the token store.
@@ -378,184 +421,224 @@ func (m *evmDecoder) parseAndPopulateMultiSigMetadata(ctx context.Context, tx *t
 	if tx == nil {
 		return false, errors.NewInvalidParameterError("transaction cannot be nil", "tx")
 	}
-
-	// Basic validation, but allow short data for specific recovery methods
+	if tx.BaseTransaction.To == "" {
+		m.logger.Debug("Skipping MultiSig parse: tx.To is empty", logger.String("tx_hash", tx.Hash))
+		return false, nil
+	}
 	if len(tx.Data) < 4 {
-		// Check later if it's a known short-data method like requestRecovery
-		m.logger.Debug("MultiSig parse: tx.Data potentially too short, will check method", logger.String("tx_hash", tx.Hash), logger.Int("data_len", len(tx.Data)))
-		// Don't return yet
-	}
-
-	methodID := m.abiUtils.ExtractMethodID(tx.Data) // Works even if len(tx.Data) < 4, returns empty slice
-
-	// Load the MultiSig ABI
-	multiSigABI, err := m.abiUtils.LoadABIByName(ctx, abiutils.ABITypeMultiSig)
-	if err != nil {
-		m.logger.Error("Failed to load MultiSig ABI for parsing", logger.String("tx_hash", tx.Hash), logger.Error(err))
-		// Critical error, cannot proceed with MultiSig parsing
-		return false, fmt.Errorf("failed to load MultiSig ABI: %w", err)
-	}
-
-	// Get the method from the ABI
-	method, err := m.abiUtils.GetMethodFromABI(multiSigABI, methodID)
-	if err != nil {
-		// Method ID not found in the MultiSig ABI, this isn't a known MultiSig call. Not an error.
-		m.logger.Debug("Method ID not found in MultiSig ABI", logger.String("tx_hash", tx.Hash), logger.String("method_id", common.Bytes2Hex(methodID)))
+		m.logger.Debug("Skipping MultiSig parse: tx.Data too short for method ID",
+			logger.String("tx_hash", tx.Hash),
+			logger.Int("data_len", len(tx.Data)))
 		return false, nil
 	}
 
-	m.logger.Debug("Method ID matches MultiSig method, attempting parse",
-		logger.String("tx_hash", tx.Hash),
-		logger.String("method_name", method.Name),
-		logger.String("method_id", common.Bytes2Hex(methodID)),
-	)
-
-	// Handle methods potentially having short data
-	isShortDataAllowed := method.Name == "requestRecovery" || method.Name == "cancelRecovery" || method.Name == "executeRecovery"
-	if len(tx.Data) < 4 && !isShortDataAllowed {
-		m.logger.Warn("MultiSig parse: tx.Data too short for non-recovery method",
+	multiSigABIString, err := m.abiUtils.LoadABIByName(ctx, abiutils.ABITypeMultiSig)
+	if err != nil {
+		m.logger.Error("Failed to load MultiSig ABI for parsing",
 			logger.String("tx_hash", tx.Hash),
-			logger.String("method_name", method.Name),
-		)
-		return false, fmt.Errorf("transaction data too short for MultiSig method %s", method.Name)
+			logger.Error(err))
+		// This is a critical failure for any attempt to parse as MultiSig.
+		return false, fmt.Errorf("failed to load MultiSig ABI: %w", err)
 	}
+
+	methodID := m.abiUtils.ExtractMethodID(tx.Data)
+	// ExtractMethodID returns nil if len(data) < 4, already checked.
 
 	var parsedArgs map[string]any
-	// Only parse if data is long enough (or method allows short data and has no inputs expected)
-	if len(tx.Data) >= 4 {
-		parsedArgs, err = m.abiUtils.ParseContractInput(method, tx.Data[4:])
-		if err != nil {
-			m.logger.Warn("Failed to parse MultiSig input data",
-				logger.String("tx_hash", tx.Hash),
-				logger.String("method_name", method.Name),
-				logger.Error(err),
-			)
-			return false, fmt.Errorf("failed to parse MultiSig %s input: %w", method.Name, err)
+	var currentMethodNameForParsing string
+	var specificTxType types.TransactionType
+	metadataToSet := make(map[string]any)
+	var parsingErr error // To capture errors from ABI parsing or argument extraction
+
+	switch {
+	case bytes.Equal(methodID, multiSigRequestWithdrawalMethodID):
+		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigRequestWithdrawalMethod))
+		parsedArgs, parsingErr = m.abiUtils.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		if parsingErr != nil {
+			break
 		}
-	} else {
-		// Handle case for short-data methods (e.g. recovery methods) that have no inputs
-		if len(method.Inputs) > 0 {
-			// This case should ideally be caught by the len(tx.Data) < 4 check above, but double-check
-			return false, fmt.Errorf("transaction data too short for MultiSig method %s which expects inputs", method.Name)
+		// Argument names ("token", "amount", "to") must match the MultiSig contract's ABI definition.
+		tokenAddr, errExtract := m.abiUtils.GetAddressFromArgs(parsedArgs, "token")
+		if errExtract != nil {
+			parsingErr = errExtract
+			break
 		}
-		// No inputs expected, initialize parsedArgs to avoid nil map issues later
-		parsedArgs = make(map[string]any)
+		amountBigInt, errExtract := m.abiUtils.GetBigIntFromArgs(parsedArgs, "amount")
+		if errExtract != nil {
+			parsingErr = errExtract
+			break
+		}
+		recipientAddr, errExtract := m.abiUtils.GetAddressFromArgs(parsedArgs, "to")
+		if errExtract != nil {
+			parsingErr = errExtract
+			break
+		}
+
+		metadataToSet[types.MultiSigTokenMetadataKey] = tokenAddr.String()
+		metadataToSet[types.MultiSigAmountMetadataKey] = amountBigInt
+		metadataToSet[types.MultiSigRecipientMetadataKey] = recipientAddr.String()
+		specificTxType = types.TransactionTypeMultiSigWithdrawalRequest
+
+	case bytes.Equal(methodID, multiSigSignWithdrawalMethodID):
+		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigSignWithdrawalMethod))
+		parsedArgs, parsingErr = m.abiUtils.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		if parsingErr != nil {
+			break
+		}
+		// Argument name "requestId" must match the ABI.
+		requestIDBytes, errExtract := m.abiUtils.GetBytes32FromArgs(parsedArgs, "requestId")
+		if errExtract != nil {
+			parsingErr = errExtract
+			break
+		}
+
+		metadataToSet[types.MultiSigRequestIDMetadataKey] = requestIDBytes
+		specificTxType = types.TransactionTypeMultiSigSignWithdrawal
+
+	case bytes.Equal(methodID, multiSigExecuteWithdrawalMethodID):
+		currentMethodNameForParsing = getMethodNameFromSignature(assumedMultiSigExecuteWithdrawalSignature)
+		parsedArgs, parsingErr = m.abiUtils.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		if parsingErr != nil {
+			break
+		}
+		// Argument name "requestId" must match the ABI.
+		requestIDBytes, errExtract := m.abiUtils.GetBytes32FromArgs(parsedArgs, "requestId")
+		if errExtract != nil {
+			parsingErr = errExtract
+			break
+		}
+
+		metadataToSet[types.MultiSigRequestIDMetadataKey] = requestIDBytes
+		specificTxType = types.TransactionTypeMultiSigExecuteWithdrawal
+
+	case bytes.Equal(methodID, multiSigAddSupportedTokenMethodID):
+		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigAddSupportedTokenMethod))
+		parsedArgs, parsingErr = m.abiUtils.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		if parsingErr != nil {
+			break
+		}
+		// Argument name "token" must match the ABI.
+		tokenAddr, errExtract := m.abiUtils.GetAddressFromArgs(parsedArgs, "token")
+		if errExtract != nil {
+			parsingErr = errExtract
+			break
+		}
+
+		metadataToSet[types.MultiSigTokenMetadataKey] = tokenAddr.String()
+		specificTxType = types.TransactionTypeMultiSigAddSupportedToken
+
+	case bytes.Equal(methodID, multiSigRequestRecoveryMethodID):
+		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigRequestRecoveryMethod))
+		_, parsingErr = m.abiUtils.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data) // No args to extract
+		if parsingErr != nil {
+			break
+		}
+		specificTxType = types.TransactionTypeMultiSigRecoveryRequest
+
+	case bytes.Equal(methodID, multiSigCancelRecoveryMethodID):
+		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigCancelRecoveryMethod))
+		_, parsingErr = m.abiUtils.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data) // No args
+		if parsingErr != nil {
+			break
+		}
+		specificTxType = types.TransactionTypeMultiSigCancelRecovery
+
+	case bytes.Equal(methodID, multiSigExecuteRecoveryMethodID):
+		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigExecuteRecoveryMethod))
+		_, parsingErr = m.abiUtils.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data) // No args
+		if parsingErr != nil {
+			break
+		}
+		specificTxType = types.TransactionTypeMultiSigExecuteRecovery
+
+	case bytes.Equal(methodID, multiSigProposeRecoveryAddressChangeMethodID):
+		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigProposeRecoveryAddressChangeMethod))
+		parsedArgs, parsingErr = m.abiUtils.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		if parsingErr != nil {
+			break
+		}
+		// Argument name "newRecoveryAddress" must match the ABI.
+		newAddr, errExtract := m.abiUtils.GetAddressFromArgs(parsedArgs, "newRecoveryAddress")
+		if errExtract != nil {
+			parsingErr = errExtract
+			break
+		}
+
+		metadataToSet[types.MultiSigNewRecoveryAddressMetadataKey] = newAddr.String()
+		specificTxType = types.TransactionTypeMultiSigProposeRecoveryAddressChange
+
+	case bytes.Equal(methodID, multiSigSignRecoveryAddressChangeMethodID):
+		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigSignRecoveryAddressChangeMethod))
+		parsedArgs, parsingErr = m.abiUtils.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		if parsingErr != nil {
+			break
+		}
+		// Argument name "proposalId" must match the ABI.
+		proposalIDBytes, errExtract := m.abiUtils.GetBytes32FromArgs(parsedArgs, "proposalId")
+		if errExtract != nil {
+			parsingErr = errExtract
+			break
+		}
+
+		metadataToSet[types.MultiSigProposalIDMetadataKey] = proposalIDBytes
+		specificTxType = types.TransactionTypeMultiSigSignRecoveryAddressChange
+
+	default:
+		m.logger.Debug("Transaction data method ID does not match any known MultiSig methods for detailed parsing.",
+			logger.String("tx_hash", tx.Hash),
+			logger.String("method_id_hex", hex.EncodeToString(methodID)))
+		return false, nil // Not an error, just not a MultiSig call we're decoding this way.
 	}
 
-	// Prepare metadata map
+	if parsingErr != nil {
+		m.logger.Warn("Failed to parse MultiSig transaction input or extract arguments for a recognized method.",
+			logger.String("tx_hash", tx.Hash),
+			logger.String("method_name_attempted", currentMethodNameForParsing), // Will be empty if methodID didn't match any case
+			logger.String("method_id_hex", hex.EncodeToString(methodID)),
+			logger.Error(parsingErr),
+		)
+		// Return error because we identified a method but couldn't parse its details.
+		return false, fmt.Errorf("failed to parse args for known MultiSig method %s (ID: %s): %w", currentMethodNameForParsing, hex.EncodeToString(methodID), parsingErr)
+	}
+
+	// If specificTxType is not set here, it means a case was matched, parsingErr was nil,
+	// but logic didn't set the type. This indicates an issue in the switch case itself.
+	// Or, no case matched, which is handled by the `default` path returning (false, nil).
+	if specificTxType == "" {
+		// This condition implies that a methodID matched a case, parsingErr was nil, but specificTxType was not set.
+		// This should not happen if all switch cases that don't `break` due to `parsingErr` set `specificTxType`.
+		// The `default` case already returned `false, nil`.
+		// `parsingErr != nil` case already returned `false, parsingErr`.
+		// So if we are here, it's an unexpected state, likely a logic error in one of the switch cases.
+		m.logger.Error("Internal logic error: MultiSig method processed but specificTxType not set, despite no parsing error.",
+			logger.String("tx_hash", tx.Hash),
+			logger.String("method_name_parsed", currentMethodNameForParsing),
+			logger.String("method_id_hex", hex.EncodeToString(methodID)))
+		return false, fmt.Errorf("internal logic error determining MultiSig tx type for method ID %s", hex.EncodeToString(methodID))
+	}
+
 	if tx.Metadata == nil {
 		tx.Metadata = make(types.TxMetadata)
 	}
 
-	// Switch on the method name to extract specific args, populate metadata, and set type
-	var specificTxType types.TransactionType
-	metadataToSet := make(map[string]any)
-
-	switch method.Name {
-	case "requestWithdrawal":
-		specificTxType = types.TransactionTypeMultiSigWithdrawalRequest
-		tokenAddr, err := m.abiUtils.GetAddressFromArgs(parsedArgs, "token")
-		if err != nil {
-			return false, fmt.Errorf("requestWithdrawal: %w", err)
-		}
-		recipientAddr, err := m.abiUtils.GetAddressFromArgs(parsedArgs, "recipient")
-		if err != nil {
-			return false, fmt.Errorf("requestWithdrawal: %w", err)
-		}
-		amountBigInt, err := m.abiUtils.GetBigIntFromArgs(parsedArgs, "amount")
-		if err != nil {
-			return false, fmt.Errorf("requestWithdrawal: %w", err)
-		}
-		withdrawalNonce, err := m.abiUtils.GetUint64FromArgs(parsedArgs, "withdrawalNonce")
-		if err != nil {
-			return false, fmt.Errorf("requestWithdrawal: %w", err)
-		}
-
-		metadataToSet[types.MultiSigTokenMetadataKey] = tokenAddr
-		metadataToSet[types.MultiSigRecipientMetadataKey] = recipientAddr
-		metadataToSet[types.MultiSigAmountMetadataKey] = amountBigInt.ToBigInt()
-		metadataToSet[types.MultiSigWithdrawalNonceMetadataKey] = withdrawalNonce
-
-	case "signWithdrawal", "executeWithdrawal":
-		if method.Name == "signWithdrawal" {
-			specificTxType = types.TransactionTypeMultiSigSignWithdrawal
-		} else {
-			specificTxType = types.TransactionTypeMultiSigExecuteWithdrawal
-		}
-		requestIDBytes32, err := m.abiUtils.GetBytes32FromArgs(parsedArgs, "requestID")
-		if err != nil {
-			return false, fmt.Errorf("%s: %w", method.Name, err)
-		}
-		metadataToSet[types.MultiSigRequestIDMetadataKey] = requestIDBytes32
-
-	case "addSupportedToken":
-		specificTxType = types.TransactionTypeMultiSigAddSupportedToken
-		tokenAddr, err := m.abiUtils.GetAddressFromArgs(parsedArgs, "token")
-		if err != nil {
-			return false, fmt.Errorf("addSupportedToken: %w", err)
-		}
-		metadataToSet[types.MultiSigTokenMetadataKey] = tokenAddr
-
-	case "requestRecovery":
-		specificTxType = types.TransactionTypeMultiSigRecoveryRequest
-		// No arguments
-
-	case "cancelRecovery":
-		specificTxType = types.TransactionTypeMultiSigCancelRecovery
-		// No arguments
-
-	case "executeRecovery":
-		specificTxType = types.TransactionTypeMultiSigExecuteRecovery
-		// No arguments
-
-	case "proposeRecoveryAddressChange":
-		specificTxType = types.TransactionTypeMultiSigProposeRecoveryAddressChange
-		newRecoveryAddr, err := m.abiUtils.GetAddressFromArgs(parsedArgs, "newRecoveryAddress")
-		if err != nil {
-			return false, fmt.Errorf("proposeRecoveryAddressChange: %w", err)
-		}
-		metadataToSet[types.MultiSigNewRecoveryAddressMetadataKey] = newRecoveryAddr
-
-	case "signRecoveryAddressChange":
-		specificTxType = types.TransactionTypeMultiSigSignRecoveryAddressChange
-		proposalIDBytes32, err := m.abiUtils.GetBytes32FromArgs(parsedArgs, "proposalId")
-		if err != nil {
-			return false, fmt.Errorf("signRecoveryAddressChange: %w", err)
-		}
-		metadataToSet[types.MultiSigProposalIDMetadataKey] = proposalIDBytes32
-
-	default:
-		// Should not happen if GetMethodFromABI succeeded, but handle defensively
-		m.logger.Warn("Parsed MultiSig method name not handled in switch",
-			logger.String("tx_hash", tx.Hash),
-			logger.String("method_name", method.Name),
-		)
-		return false, nil // Not a supported MultiSig type for mapping
-	}
-
-	// Set the common type metadata key
+	// Also store the determined type in the metadata itself for consistency.
 	metadataToSet[types.TransactionTypeMetadaKey] = string(specificTxType)
 
-	// Set all collected metadata
 	err = tx.Metadata.SetAll(metadataToSet)
 	if err != nil {
-		m.logger.Error("Failed to set MultiSig metadata after parsing",
+		m.logger.Error("Failed to set MultiSig metadata map after parsing",
 			logger.String("tx_hash", tx.Hash),
-			logger.String("method_name", method.Name),
-			logger.Error(err),
-		)
-		return false, fmt.Errorf("failed to set MultiSig metadata for %s: %w", method.Name, err)
+			logger.String("type", string(specificTxType)),
+			logger.Error(err))
+		return false, fmt.Errorf("failed to set MultiSig metadata values: %w", err)
 	}
 
-	// Update transaction type
 	tx.Type = specificTxType
 
-	m.logger.Info("Successfully parsed and populated MultiSig transaction metadata",
+	m.logger.Info("Successfully parsed and populated MultiSig transaction metadata.",
 		logger.String("tx_hash", tx.Hash),
-		logger.String("method_name", method.Name),
-		logger.String("new_type", string(tx.Type)),
-	)
-	return true, nil // Parsing successful
+		logger.String("parsed_type", string(specificTxType)))
+	return true, nil
 }
 
 // --- Interface Implementation ---

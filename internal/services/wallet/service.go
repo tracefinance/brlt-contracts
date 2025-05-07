@@ -456,15 +456,34 @@ func (s *walletService) TransformTransaction(ctx context.Context, tx *types.Tran
 	if tx.To != "" {
 		wallet, err := s.repository.GetByAddress(ctx, tx.ChainType, tx.To)
 		if wallet != nil && err == nil {
+			// Only set if not already set by 'from' address or ERC20 recipient check
+			if _, exists := tx.Metadata.GetString(types.WalletIDMetadaKey); !exists {
+				if err := tx.Metadata.Set(types.WalletIDMetadaKey, wallet.ID); err != nil {
+					s.log.Warn("Failed to set wallet ID in metadata for 'to' address",
+						logger.Error(err),
+						logger.String("tx_hash", tx.Hash),
+						logger.Int64("wallet_id", wallet.ID))
+				}
+			}
+		}
+	}
+
+	// Check if metadata contains ERC20RecipientMetadataKey and associate wallet ID
+	recipientAddress, ok := tx.Metadata.GetString(types.ERC20RecipientMetadataKey)
+	if ok && recipientAddress != "" {
+		wallet, err := s.repository.GetByAddress(ctx, tx.ChainType, recipientAddress)
+		if wallet != nil && err == nil {
+			// This will overwrite if 'from' or 'to' already set it,
+			// assuming ERC20 recipient is more specific or intended.
 			if err := tx.Metadata.Set(types.WalletIDMetadaKey, wallet.ID); err != nil {
-				s.log.Warn("Failed to set wallet ID in metadata for 'to' address",
+				s.log.Warn("Failed to set wallet ID in metadata for 'ERC20 recipient' address",
 					logger.Error(err),
 					logger.String("tx_hash", tx.Hash),
+					logger.String("recipient_address", recipientAddress),
 					logger.Int64("wallet_id", wallet.ID))
 			}
 		}
 	}
 
-	// If we reach here, the transaction didn't match any of our wallets
 	return nil
 }

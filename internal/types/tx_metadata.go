@@ -1,7 +1,9 @@
 package types
 
 import (
+	"database/sql/driver"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -14,6 +16,53 @@ import (
 // TxMetadata represents the metadata associated with a transaction.
 // It uses string values to store various data points extracted during mapping or enrichment.
 type TxMetadata map[string]string
+
+// Scan implements the sql.Scanner interface for database deserialization.
+func (m *TxMetadata) Scan(value any) error {
+	if value == nil {
+		*m = TxMetadata{}
+		return nil
+	}
+
+	var jsonStr string
+	switch v := value.(type) {
+	case string:
+		jsonStr = v
+	case []byte:
+		jsonStr = string(v)
+	default:
+		return fmt.Errorf("unsupported Scan type for TxMetadata: %T", value)
+	}
+
+	if jsonStr == "" {
+		*m = TxMetadata{}
+		return nil
+	}
+
+	// Unmarshal JSON into the map
+	var result map[string]string
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return err
+	}
+
+	*m = TxMetadata(result)
+	return nil
+}
+
+// Value implements the driver.Valuer interface for database serialization.
+func (m TxMetadata) Value() (driver.Value, error) {
+	if len(m) == 0 {
+		return "", nil
+	}
+
+	// Marshal the map to JSON
+	jsonData, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+
+	return string(jsonData), nil
+}
 
 // GetString safely retrieves a string value for the given key.
 // Returns the string value and true if the key exists, otherwise returns an empty string and false.

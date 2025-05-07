@@ -85,7 +85,7 @@ func (h *Handler) GetTransactionByHash(c *gin.Context) {
 // @Param address path string true "Wallet address"
 // @Param limit query int false "Number of items to return (default: 10)" default(10)
 // @Param next_token query string false "Token for fetching the next page"
-// @Param contract_address query string false "Filter transactions by contract address (use 'native' for native transactions)"
+// @Param token_address query string false "Filter transactions by token address"
 // @Success 200 {object} docs.TransactionPagedResponse
 // @Failure 400 {object} errors.Vault0Error "Invalid request"
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
@@ -118,8 +118,8 @@ func (h *Handler) GetTransactionsByWalletAddress(c *gin.Context) {
 	}
 
 	// Add token address filter if provided
-	if req.ContractAddress != "" {
-		tokenAddressVal := req.ContractAddress
+	if req.TokenAddress != "" {
+		tokenAddressVal := req.TokenAddress
 		filter.TokenAddress = &tokenAddressVal
 	}
 
@@ -177,7 +177,7 @@ func (h *Handler) GetTransactionsByWalletAddress(c *gin.Context) {
 // @Produce json
 // @Param chain_type query string false "Filter by chain type"
 // @Param address query string false "Filter by wallet address (from or to)"
-// @Param contract_address query string false "Filter by contract address (use 'native' for native transactions)"
+// @Param token_address query string false "Filter by token address"
 // @Param status query string false "Filter by transaction status"
 // @Param limit query int false "Number of items to return (default: 10)" default(10)
 // @Param next_token query string false "Token for fetching the next page"
@@ -214,8 +214,8 @@ func (h *Handler) FilterTransactions(c *gin.Context) {
 	}
 
 	// Apply token address filter if provided
-	if req.ContractAddress != "" {
-		filter.TokenAddress = &req.ContractAddress
+	if req.TokenAddress != "" {
+		filter.TokenAddress = &req.TokenAddress
 	}
 
 	// Apply status filter if provided

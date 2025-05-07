@@ -105,6 +105,33 @@ const (
 	// ABI errors
 	ErrCodeABIError     = "abi_error"
 	ErrCodeMappingError = "mapping_error"
+
+	// ABI Proxy errors
+	ErrCodeABIProxyParseFailed             = "abi_proxy_parse_failed"
+	ErrCodeABIProxyMethodNotFound          = "abi_proxy_method_not_found"
+	ErrCodeABIProxyMethodSignatureInvalid  = "abi_proxy_method_signature_invalid"
+	ErrCodeABIProxyPackFailed              = "abi_proxy_pack_failed"
+	ErrCodeABIProxyCallFailed              = "abi_proxy_call_failed"
+	ErrCodeABIProxyEmptyResult             = "abi_proxy_empty_result"
+	ErrCodeABIProxyUnpackFailed            = "abi_proxy_unpack_failed"
+	ErrCodeABIProxyAddressConversionFailed = "abi_proxy_address_conversion_failed"
+
+	// General ABI processing errors (extending existing ErrCodeABIError context)
+	ErrCodeABIParseFailed              = "abi_parse_failed"
+	ErrCodeABIMethodNotFound           = "abi_method_not_found" // Can be used for both by name and by ID
+	ErrCodeABIMethodSelectorMismatch   = "abi_method_selector_mismatch"
+	ErrCodeABIInputDataTooShort        = "abi_input_data_too_short"
+	ErrCodeABIInputDataEmpty           = "abi_input_data_empty"
+	ErrCodeABIInputDataInvalidLength   = "abi_input_data_invalid_length"
+	ErrCodeABIUnpackFailed             = "abi_unpack_failed"
+	ErrCodeABIPackFailed               = "abi_pack_failed"
+	ErrCodeABIArgumentNotFound         = "abi_argument_not_found"
+	ErrCodeABIArgumentConversionFailed = "abi_argument_conversion_failed"
+	ErrCodeABIArgumentInvalidType      = "abi_argument_invalid_type"
+	ErrCodeABIArgumentNilValue         = "abi_argument_nil_value"
+
+	// ABI availability errors
+	ErrCodeABIUnavailableOrUnverified = "abi_unavailable_or_unverified"
 )
 
 // NewConfigurationError creates an error for configuration issues.
@@ -780,6 +807,269 @@ func NewMappingError(txHashStr string, reason string) *Vault0Error {
 		Details: map[string]any{
 			"transaction_hash": txHashStr,
 			"reason":           reason,
+		},
+	}
+}
+
+// NewABIProxyParseError creates an error for proxy ABI parsing failures.
+func NewABIProxyParseError(err error, proxyAddress string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIProxyParseFailed,
+		Message: fmt.Sprintf("Failed to parse ABI for proxy contract %s", proxyAddress),
+		Err:     err,
+		Details: map[string]any{
+			"proxy_address": proxyAddress,
+		},
+	}
+}
+
+// NewABIProxyMethodNotFoundError creates an error when the proxy implementation method is not found.
+func NewABIProxyMethodNotFoundError(proxyAddress string, methodName string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIProxyMethodNotFound,
+		Message: fmt.Sprintf("Method '%s' not found in ABI for proxy contract %s", methodName, proxyAddress),
+		Details: map[string]any{
+			"proxy_address": proxyAddress,
+			"method_name":   methodName,
+		},
+	}
+}
+
+// NewABIProxyMethodSignatureInvalidError creates an error for invalid proxy method signatures.
+func NewABIProxyMethodSignatureInvalidError(proxyAddress string, methodName string, expectedSignature string, actualSignature string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIProxyMethodSignatureInvalid,
+		Message: fmt.Sprintf("Proxy contract %s method '%s' has invalid signature. Expected '%s', got '%s'", proxyAddress, methodName, expectedSignature, actualSignature),
+		Details: map[string]any{
+			"proxy_address":      proxyAddress,
+			"method_name":        methodName,
+			"expected_signature": expectedSignature,
+			"actual_signature":   actualSignature,
+		},
+	}
+}
+
+// NewABIProxyPackError creates an error for failures when packing data for a proxy method call.
+func NewABIProxyPackError(err error, proxyAddress string, methodName string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIProxyPackFailed,
+		Message: fmt.Sprintf("Failed to pack call data for method '%s' on proxy %s", methodName, proxyAddress),
+		Err:     err,
+		Details: map[string]any{
+			"proxy_address": proxyAddress,
+			"method_name":   methodName,
+		},
+	}
+}
+
+// NewABIProxyCallError creates an error for failures when calling a proxy contract method.
+func NewABIProxyCallError(err error, proxyAddress string, methodName string, chainType string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIProxyCallFailed,
+		Message: fmt.Sprintf("Failed to call method '%s' on proxy %s (chain: %s)", methodName, proxyAddress, chainType),
+		Err:     err,
+		Details: map[string]any{
+			"proxy_address": proxyAddress,
+			"method_name":   methodName,
+			"chain_type":    chainType,
+		},
+	}
+}
+
+// NewABIProxyEmptyResultError creates an error when a proxy method call returns empty data.
+func NewABIProxyEmptyResultError(proxyAddress string, methodName string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIProxyEmptyResult,
+		Message: fmt.Sprintf("Call to method '%s' on proxy %s returned empty data", methodName, proxyAddress),
+		Details: map[string]any{
+			"proxy_address": proxyAddress,
+			"method_name":   methodName,
+		},
+	}
+}
+
+// NewABIProxyUnpackError creates an error for failures when unpacking results from a proxy method call.
+func NewABIProxyUnpackError(err error, proxyAddress string, methodName string, detail string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIProxyUnpackFailed,
+		Message: fmt.Sprintf("Failed to unpack result from '%s' call on proxy %s: %s", methodName, proxyAddress, detail),
+		Err:     err,
+		Details: map[string]any{
+			"proxy_address": proxyAddress,
+			"method_name":   methodName,
+			"detail":        detail,
+		},
+	}
+}
+
+// NewABIProxyAddressConversionError creates an error for failures converting an address from a proxy call.
+func NewABIProxyAddressConversionError(err error, invalidAddress string, chainType string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIProxyAddressConversionFailed,
+		Message: fmt.Sprintf("Failed to convert implementation address '%s' to types.Address for chain %s", invalidAddress, chainType),
+		Err:     err,
+		Details: map[string]any{
+			"invalid_address": invalidAddress,
+			"chain_type":      chainType,
+		},
+	}
+}
+
+// NewABIParseError creates an error for ABI string parsing failures.
+func NewABIParseError(err error) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIParseFailed,
+		Message: "Failed to parse ABI string",
+		Err:     err,
+	}
+}
+
+// NewABIMethodNotFoundError creates an error when a method is not found in an ABI.
+// Can specify if lookup was by name or ID.
+func NewABIMethodNotFoundError(identifier string, byName bool) *Vault0Error {
+	lookupType := "ID"
+	if byName {
+		lookupType = "name"
+	}
+	return &Vault0Error{
+		Code:    ErrCodeABIMethodNotFound,
+		Message: fmt.Sprintf("Method with %s '%s' not found in ABI", lookupType, identifier),
+		Details: map[string]any{
+			"identifier":  identifier,
+			"lookup_type": lookupType,
+		},
+	}
+}
+
+// NewABIMethodSelectorMismatchError creates an error for method selector mismatches.
+func NewABIMethodSelectorMismatchError(methodName string, expectedSelector []byte, actualSelector []byte) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIMethodSelectorMismatch,
+		Message: fmt.Sprintf("Method selector mismatch for method '%s': expected %x, got %x", methodName, expectedSelector, actualSelector),
+		Details: map[string]any{
+			"method_name":       methodName,
+			"expected_selector": fmt.Sprintf("%x", expectedSelector),
+			"actual_selector":   fmt.Sprintf("%x", actualSelector),
+		},
+	}
+}
+
+// NewABIInputDataTooShortError creates an error when input data is too short.
+func NewABIInputDataTooShortError(length int, requiredLength int) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIInputDataTooShort,
+		Message: fmt.Sprintf("Input data is too short (length %d) to contain a method selector (requires %d bytes)", length, requiredLength),
+		Details: map[string]any{
+			"length":          length,
+			"required_length": requiredLength,
+		},
+	}
+}
+
+// NewABIInputDataEmptyError creates an error for empty input data when arguments are required.
+func NewABIInputDataEmptyError(methodName string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIInputDataEmpty,
+		Message: fmt.Sprintf("Input data is empty for method %s which requires arguments", methodName),
+		Details: map[string]any{
+			"method_name": methodName,
+		},
+	}
+}
+
+// NewABIInputDataInvalidLengthError creates an error for input data with invalid length.
+func NewABIInputDataInvalidLengthError(methodName string, length int) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIInputDataInvalidLength,
+		Message: fmt.Sprintf("Input data length %d is not a multiple of 32 bytes for method %s", length, methodName),
+		Details: map[string]any{
+			"method_name": methodName,
+			"length":      length,
+		},
+	}
+}
+
+// NewABIUnpackFailedError creates an error for failures when unpacking ABI data.
+func NewABIUnpackFailedError(err error, methodName string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIUnpackFailed,
+		Message: fmt.Sprintf("Failed to unpack input/output for method %s", methodName),
+		Err:     err,
+		Details: map[string]any{
+			"method_name": methodName,
+		},
+	}
+}
+
+// NewABIPackFailedError creates an error for failures when packing ABI data.
+func NewABIPackFailedError(err error, methodName string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIPackFailed,
+		Message: fmt.Sprintf("Failed to pack arguments for method '%s'", methodName),
+		Err:     err,
+		Details: map[string]any{
+			"method_name": methodName,
+		},
+	}
+}
+
+// NewABIArgumentNotFoundError creates an error when an argument is not found.
+func NewABIArgumentNotFoundError(argName string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIArgumentNotFound,
+		Message: fmt.Sprintf("Argument '%s' not found", argName),
+		Details: map[string]any{
+			"argument_name": argName,
+		},
+	}
+}
+
+// NewABIArgumentConversionError creates an error for argument type conversion failures.
+func NewABIArgumentConversionError(err error, argName string, targetType string, valueAttempted any) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIArgumentConversionFailed,
+		Message: fmt.Sprintf("Failed to convert argument '%s' to type '%s'", argName, targetType),
+		Err:     err,
+		Details: map[string]any{
+			"argument_name":   argName,
+			"target_type":     targetType,
+			"value_attempted": fmt.Sprintf("%v", valueAttempted), // Be cautious with logging raw values
+		},
+	}
+}
+
+// NewABIArgumentInvalidTypeError creates an error for invalid argument types.
+func NewABIArgumentInvalidTypeError(argName string, expectedType string, actualType string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIArgumentInvalidType,
+		Message: fmt.Sprintf("Argument '%s' has invalid type: expected %s, got %s", argName, expectedType, actualType),
+		Details: map[string]any{
+			"argument_name": argName,
+			"expected_type": expectedType,
+			"actual_type":   actualType,
+		},
+	}
+}
+
+// NewABIArgumentNilValueError creates an error when an argument expected to be non-nil is nil.
+func NewABIArgumentNilValueError(argName string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIArgumentNilValue,
+		Message: fmt.Sprintf("Argument '%s' resolved to a nil value where a non-nil value was expected", argName),
+		Details: map[string]any{
+			"argument_name": argName,
+		},
+	}
+}
+
+// NewABIUnavailableOrUnverifiedError creates an error for when an ABI is not available from the explorer or the contract is not verified.
+func NewABIUnavailableOrUnverifiedError(contractAddress string, chainType string) *Vault0Error {
+	return &Vault0Error{
+		Code:    ErrCodeABIUnavailableOrUnverified,
+		Message: fmt.Sprintf("ABI for contract %s on chain %s is unavailable or contract is not verified", contractAddress, chainType),
+		Details: map[string]any{
+			"contract_address": contractAddress,
+			"chain_type":       chainType,
 		},
 	}
 }

@@ -32,11 +32,11 @@ type Transaction struct {
 	Type     types.TransactionType `db:"type"`
 
 	// Execution details
-	ContractAddress sql.NullString          `db:"contract_address"`
-	GasUsed         sql.NullInt64           `db:"gas_used"`
-	Status          types.TransactionStatus `db:"status"`
-	Timestamp       sql.NullInt64           `db:"timestamp"`
-	BlockNumber     *types.BigInt           `db:"block_number"`
+	GasUsed     sql.NullInt64           `db:"gas_used"`
+	Status      types.TransactionStatus `db:"status"`
+	Timestamp   sql.NullInt64           `db:"timestamp"`
+	BlockNumber *types.BigInt           `db:"block_number"`
+	Metadata    types.TxMetadata        `db:"metadata"`
 }
 
 // ScanTransaction scans a database row into a Transaction struct.
@@ -64,11 +64,11 @@ func ScanTransaction(row interface {
 		&tx.GasPrice,
 		&tx.GasLimit,
 		&tx.Type,
-		&tx.ContractAddress,
 		&tx.GasUsed,
 		&tx.Status,
 		&tx.Timestamp,
 		&tx.BlockNumber,
+		&tx.Metadata,
 	)
 	if err != nil {
 		return nil, errors.NewDatabaseError(err)
@@ -112,6 +112,7 @@ func FromCoreTransaction(coreTx *types.Transaction) *Transaction {
 		GasLimit: coreTx.BaseTransaction.GasLimit,
 		Type:     coreTx.BaseTransaction.Type,
 		Status:   coreTx.Status,
+		Metadata: coreTx.Metadata,
 	}
 
 	// Handle *big.Int to *types.BigInt conversion (checking for nil)
@@ -164,7 +165,8 @@ func (t *Transaction) ToCoreTransaction() *types.Transaction {
 			GasLimit:  t.GasLimit,
 			Type:      t.Type,
 		},
-		Status: t.Status,
+		Status:   t.Status,
+		Metadata: t.Metadata,
 	}
 
 	// Handle *types.BigInt to *big.Int conversion (checking for nil)

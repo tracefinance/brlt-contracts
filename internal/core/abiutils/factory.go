@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"vault0/internal/config"
+	"vault0/internal/core/blockchain"
 	"vault0/internal/core/blockexplorer"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
@@ -20,20 +21,26 @@ type Factory interface {
 
 // factory implements the Factory interface.
 type factory struct {
-	cfg             *config.Config
-	log             logger.Logger
-	explorerFactory blockexplorer.Factory
-	utilsCache      map[types.ChainType]ABIUtils
-	utilsMux        sync.RWMutex
+	cfg               *config.Config
+	log               logger.Logger
+	explorerFactory   blockexplorer.Factory
+	blockchainFactory blockchain.Factory
+	utilsCache        map[types.ChainType]ABIUtils
+	utilsMux          sync.RWMutex
 }
 
 // NewFactory creates a new ABIUtils factory.
-func NewFactory(cfg *config.Config, log logger.Logger, explorerFactory blockexplorer.Factory) Factory {
+func NewFactory(cfg *config.Config,
+	log logger.Logger,
+	explorerFactory blockexplorer.Factory,
+	blockchainFactory blockchain.Factory,
+) Factory {
 	return &factory{
-		cfg:             cfg,
-		log:             log,
-		explorerFactory: explorerFactory,
-		utilsCache:      make(map[types.ChainType]ABIUtils),
+		cfg:               cfg,
+		log:               log,
+		explorerFactory:   explorerFactory,
+		blockchainFactory: blockchainFactory,
+		utilsCache:        make(map[types.ChainType]ABIUtils),
 	}
 }
 
@@ -60,9 +67,19 @@ func (f *factory) NewABIUtils(chainType types.ChainType) (ABIUtils, error) {
 	var newUtil ABIUtils
 	var err error
 
+	blockchainClient, err := f.blockchainFactory.NewClient(chainType)
+	if err != nil {
+		return nil, err
+	}
+
+	explorer, err := f.explorerFactory.NewExplorer(chainType)
+	if err != nil {
+		return nil, err
+	}
+
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
-		newUtil, err = NewEvmAbiUtils(chainType, f.cfg, f.explorerFactory)
+		newUtil, err = NewEvmAbiUtils(chainType, f.cfg, f.log, explorer, blockchainClient)
 		if err != nil {
 			return nil, err
 		}

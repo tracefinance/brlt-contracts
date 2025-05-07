@@ -263,6 +263,12 @@ func (e *EtherscanExplorer) GetContract(ctx context.Context, address string) (*C
 		return nil, err
 	}
 
+	// Unescape the ABI JSON string
+	var unescapedABI string
+	if err := json.Unmarshal(abiData, &unescapedABI); err != nil {
+		return nil, errors.NewInvalidExplorerResponseError(err, string(abiData))
+	}
+
 	// Get contract source code
 	params.Set("action", "getsourcecode")
 	sourceData, err := e.makeRequest(ctx, params)
@@ -285,7 +291,7 @@ func (e *EtherscanExplorer) GetContract(ctx context.Context, address string) (*C
 	}
 
 	return &ContractInfo{
-		ABI:          string(abiData),
+		ABI:          unescapedABI,
 		ContractName: sourceInfo[0].ContractName,
 		SourceCode:   sourceInfo[0].SourceCode,
 		IsVerified:   sourceInfo[0].SourceCode != "",
@@ -491,6 +497,7 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 		nonce, _ := strconv.ParseUint(tx.Nonce, 10, 64)
 		tokenAmount := new(big.Int)
 		tokenAmount.SetString(tx.Value, 10)
+		tokenDecimals, _ := strconv.ParseUint(tx.TokenDecimal, 10, 8)
 		timestamp, _ := strconv.ParseInt(tx.Timestamp, 10, 64)
 
 		// ERC20 transfers are contract calls
@@ -526,6 +533,7 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 			TokenSymbol:    tx.TokenSymbol,
 			TokenRecipient: tx.To, // Actual recipient of tokens
 			TokenAmount:    tokenAmount,
+			TokenDecimals:  uint8(tokenDecimals),
 		}
 		result = append(result, erc20Entry)
 	}
