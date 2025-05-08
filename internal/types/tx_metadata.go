@@ -254,6 +254,17 @@ const (
 	ERC20RecipientMetadataKey     = "recipient"
 	ERC20AmountMetadataKey        = "amount"
 
+	// ERC721 Specific Metadata Keys
+	ERC721TokenAddressMetadataKey = "token_address" // Can be the same as ERC20 as it's generic
+	ERC721TokenSymbolMetadataKey  = "token_symbol"
+	ERC721TokenNameMetadataKey    = "token_name"
+	ERC721TokenIDMetadataKey      = "token_id"
+	ERC721RecipientMetadataKey    = "recipient" // Can be the same as ERC20
+	ERC721TokenURIMetadataKey     = "token_uri"
+
+	// General EVM Metadata (can be shared or have specific prefixes if needed)
+	EVMBlockNumberMetadataKey = "block_number" // Example, if needed more broadly
+
 	// MultiSig specific metadata keys
 	MultiSigTokenMetadataKey              = "token"
 	MultiSigAmountMetadataKey             = "amount"

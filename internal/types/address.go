@@ -111,3 +111,28 @@ func normalizeAddress(address string, chainType ChainType) string {
 func IsZeroAddress(address string) bool {
 	return address == ZeroAddress || address == "0x0"
 }
+
+// NormalizeAddress normalizes a blockchain address string based on its chain type.
+// It handles empty or zero addresses by returning them as is.
+// If normalization via types.NewAddress fails (e.g., invalid format for the chain type),
+// it returns the original address string.
+func NormalizeAddress(chainType ChainType, addressToNormalize string) string {
+	// Avoid processing empty or zero addresses if they are not valid for normalization
+	// or if they have special meaning that normalization might alter unexpectedly.
+	if addressToNormalize == "" || IsZeroAddress(addressToNormalize) {
+		return addressToNormalize
+	}
+
+	// types.NewAddress handles validation and normalization (like checksumming for EVM).
+	// We attempt to use it to get the canonical form.
+	addr, err := NewAddress(chainType, addressToNormalize)
+	if err != nil {
+		// If NewAddress fails (e.g., invalid format for the chain type),
+		// return the original address as a fallback.
+		// Logging of this failure would typically happen in the calling package
+		// if specific error handling beyond returning the original is needed.
+		return addressToNormalize
+	}
+	// Return the checksummed address if successful.
+	return addr.ToChecksum()
+}

@@ -38,7 +38,7 @@ type Decoder interface {
 
 	// DecodeTransaction acts as the primary dispatcher.
 	// It attempts to identify the contract method from the transaction data
-	// and calls the appropriate specific conversion method (e.g., ToERC20Transfer).
+	// and calls the appropriate specific conversion method (e.g., DecodeERC20Transfer).
 	// It returns the specific transaction struct (as `any`) or an error if identification
 	// or parsing fails, or if the method is unknown.
 	DecodeTransaction(ctx context.Context, tx *types.Transaction) (types.CoreTransaction, error)

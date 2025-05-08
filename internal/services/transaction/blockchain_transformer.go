@@ -46,6 +46,11 @@ func (t *blockchainTransformer) TransformTransaction(ctx context.Context, tx *ty
 		return errors.NewOperationFailedError("get blockchain client", err)
 	}
 
+	decoder, err := t.transactionFactory.NewDecoder(tx.ChainType)
+	if err != nil {
+		return errors.NewOperationFailedError("create transaction decoder", err)
+	}
+
 	// Get transaction receipt for additional data
 	receipt, err := client.GetTransactionReceipt(ctx, tx.Hash)
 	if err != nil {
@@ -82,16 +87,13 @@ func (t *blockchainTransformer) TransformTransaction(ctx context.Context, tx *ty
 				logger.Int("data_length", len(tx.Data)))
 		}
 	}
-	mapper, err := t.transactionFactory.NewDecoder(tx.ChainType)
+
+	typedTx, err := decoder.DecodeTransaction(ctx, tx)
 	if err != nil {
-		return errors.NewOperationFailedError("create transaction mapper", err)
+		return err
 	}
 
-	typedTx, err := mapper.DecodeTransaction(ctx, tx)
-	if err != nil {
-		return errors.NewOperationFailedError("map transaction", err)
-	}
-
+	tx.Type = typedTx.GetType()
 	tx.Metadata = typedTx.GetMetadata()
 
 	return nil

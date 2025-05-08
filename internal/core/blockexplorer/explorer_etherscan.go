@@ -500,38 +500,46 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 		tokenDecimals, _ := strconv.ParseUint(tx.TokenDecimal, 10, 8)
 		timestamp, _ := strconv.ParseInt(tx.Timestamp, 10, 64)
 
-		// ERC20 transfers are contract calls
-		txType := types.TransactionTypeContractCall
+		// Normalize addresses
+		normalizedFrom := types.NormalizeAddress(e.chain.Type, tx.From)
+		normalizedTo := types.NormalizeAddress(e.chain.Type, tx.To)
+		normalizedContractAddress := types.NormalizeAddress(e.chain.Type, tx.ContractAddress)
 
-		// Status is assumed success for token transfers listed here
-		status := types.TransactionStatusSuccess
+		metadata := types.TxMetadata{}
+		_ = metadata.Set(types.ERC20TokenAddressMetadataKey, normalizedContractAddress)
+		_ = metadata.Set(types.ERC20TokenSymbolMetadataKey, tx.TokenSymbol)
+		_ = metadata.Set(types.ERC20TokenDecimalsMetadataKey, tx.TokenDecimal)
+		_ = metadata.Set(types.ERC20RecipientMetadataKey, normalizedTo)
+		_ = metadata.Set(types.ERC20AmountMetadataKey, tokenAmount)
+		_ = metadata.Set(types.TransactionTypeMetadaKey, string(types.TransactionTypeERC20Transfer))
 
 		baseTx := types.BaseTransaction{
 			ChainType: e.chain.Type,
 			Hash:      tx.Hash,
-			From:      tx.From,
-			To:        tx.ContractAddress, // Tx interacts with token contract
-			Value:     big.NewInt(0),      // Native value likely 0
-			Data:      nil,                // Not provided
+			From:      normalizedFrom,
+			To:        normalizedContractAddress, // Tx interacts with token contract
+			Value:     big.NewInt(0),             // Native value likely 0
+			Data:      nil,                       // Not provided
 			Nonce:     nonce,
 			GasPrice:  gasPrice,
 			GasLimit:  gasLimit,
-			Type:      txType,
+			Type:      types.TransactionTypeERC20Transfer,
 		}
 
 		txEntry := types.Transaction{
 			BaseTransaction: baseTx,
-			Status:          status,
+			Status:          types.TransactionStatusSuccess,
 			Timestamp:       timestamp,
 			BlockNumber:     blockNumber,
+			Metadata:        metadata,
 			// GasUsed not provided by tokentx endpoint
 		}
 
 		erc20Entry := &ERC20TxHistoryEntry{
 			Transaction:    txEntry,
-			TokenAddress:   tx.ContractAddress,
+			TokenAddress:   normalizedContractAddress,
 			TokenSymbol:    tx.TokenSymbol,
-			TokenRecipient: tx.To, // Actual recipient of tokens
+			TokenRecipient: normalizedTo, // Actual recipient of tokens
 			TokenAmount:    tokenAmount,
 			TokenDecimals:  uint8(tokenDecimals),
 		}
@@ -585,30 +593,38 @@ func (e *EtherscanExplorer) getERC721TransactionHistory(ctx context.Context, add
 		tokenID.SetString(tx.TokenID, 10)
 		timestamp, _ := strconv.ParseInt(tx.Timestamp, 10, 64)
 
-		// ERC721 transfers are contract calls
-		txType := types.TransactionTypeContractCall
+		// Normalize addresses
+		normalizedFrom := types.NormalizeAddress(e.chain.Type, tx.From)
+		normalizedTo := types.NormalizeAddress(e.chain.Type, tx.To) // This is the recipient of the NFT
+		normalizedContractAddress := types.NormalizeAddress(e.chain.Type, tx.ContractAddress)
 
-		// Status is assumed success for token transfers listed here
-		status := types.TransactionStatusSuccess
+		metadata := types.TxMetadata{}
+		_ = metadata.Set(types.ERC721TokenAddressMetadataKey, normalizedContractAddress)
+		_ = metadata.Set(types.ERC721TokenSymbolMetadataKey, tx.TokenSymbol)
+		_ = metadata.Set(types.ERC721TokenNameMetadataKey, tx.TokenName)
+		_ = metadata.Set(types.ERC721TokenIDMetadataKey, tokenID.String()) // Store as string, consistent with ERC20 amount
+		_ = metadata.Set(types.ERC721RecipientMetadataKey, normalizedTo)
+		_ = metadata.Set(types.TransactionTypeMetadaKey, string(types.TransactionTypeERC721Transfer))
 
 		baseTx := types.BaseTransaction{
 			ChainType: e.chain.Type,
 			Hash:      tx.Hash,
-			From:      tx.From,
-			To:        tx.ContractAddress, // Tx interacts with NFT contract
-			Value:     big.NewInt(0),      // Native value likely 0
-			Data:      nil,                // Not provided
+			From:      normalizedFrom,
+			To:        normalizedContractAddress, // Tx interacts with NFT contract
+			Value:     big.NewInt(0),             // Native value likely 0
+			Data:      nil,                       // Not provided
 			Nonce:     nonce,
 			GasPrice:  gasPrice,
 			GasLimit:  gasLimit,
-			Type:      txType,
+			Type:      types.TransactionTypeERC721Transfer,
 		}
 
 		txEntry := types.Transaction{
 			BaseTransaction: baseTx,
-			Status:          status,
+			Status:          types.TransactionStatusSuccess,
 			Timestamp:       timestamp,
 			BlockNumber:     blockNumber,
+			Metadata:        metadata,
 			// GasUsed not provided by tokenfttx endpoint
 		}
 

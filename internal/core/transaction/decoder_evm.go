@@ -676,6 +676,10 @@ func (m *evmDecoder) DecodeTransaction(ctx context.Context, tx *types.Transactio
 		m.logger.Debug("Transaction already has a specific type, returning as is", logger.String("tx_hash", tx.Hash), logger.String("type", string(tx.Type)))
 		// Directly use the existing specific creation functions which validate metadata
 		switch tx.Type {
+		case types.TransactionTypeNative:
+			return tx, nil
+		case types.TransactionTypeDeploy:
+			return tx, nil
 		case types.TransactionTypeERC20Transfer:
 			return m.DecodeERC20Transfer(ctx, tx)
 		case types.TransactionTypeMultiSigWithdrawalRequest:
@@ -698,7 +702,9 @@ func (m *evmDecoder) DecodeTransaction(ctx context.Context, tx *types.Transactio
 			return m.ToMultiSigSignRecoveryAddressChange(ctx, tx)
 		default:
 			// This case shouldn't be reached given the initial check, but return original tx if it does
-			m.logger.Warn("Transaction has unrecognized specific type", logger.String("tx_hash", tx.Hash), logger.String("type", string(tx.Type)))
+			m.logger.Warn("Transaction has unrecognized specific type",
+				logger.String("tx_hash", tx.Hash),
+				logger.String("type", string(tx.Type)))
 			return tx, nil
 		}
 	}
@@ -729,7 +735,7 @@ func (m *evmDecoder) DecodeTransaction(ctx context.Context, tx *types.Transactio
 	} else if parsedAsERC20 {
 		m.logger.Debug("Successfully parsed as ERC20Transfer", logger.String("tx_hash", txCopy.Hash))
 		// Parsing succeeded, create the typed object from the populated metadata in the copy
-		// Use the specific ToERC20Transfer which now uses createERC20TransferFromMetadata
+		// Use the specific DecodeERC20Transfer which now uses createERC20TransferFromMetadata
 		return m.DecodeERC20Transfer(ctx, txCopy)
 	}
 

@@ -86,45 +86,12 @@ type ERC20TxHistoryEntry struct {
 	TokenAmount    *big.Int
 }
 
-// ToErc20Transfer converts an ERC20TxHistoryEntry to a types.ERC20Transfer
-func (e *ERC20TxHistoryEntry) ToErc20Transfer() *types.ERC20Transfer {
-	// Ensure metadata map exists
-	if e.Transaction.Metadata == nil {
-		e.Transaction.Metadata = make(types.TxMetadata)
-	}
-
-	// Populate metadata
-	// Note: Not all block explorers provide all source transaction details (e.g. From, Gas, etc.)
-	// The base e.Transaction might be partially populated.
-	// We are primarily concerned with adding the ERC20-specific details here.
-	_ = e.Transaction.Metadata.Set(types.ERC20TokenAddressMetadataKey, e.TokenAddress)
-	_ = e.Transaction.Metadata.Set(types.ERC20TokenSymbolMetadataKey, e.TokenSymbol)
-	_ = e.Transaction.Metadata.Set(types.ERC20TokenDecimalsMetadataKey, e.TokenDecimals)
-	_ = e.Transaction.Metadata.Set(types.ERC20RecipientMetadataKey, e.TokenRecipient)
-	_ = e.Transaction.Metadata.Set(types.ERC20AmountMetadataKey, e.TokenAmount)
-	_ = e.Transaction.Metadata.Set(types.TransactionTypeMetadaKey, string(types.TransactionTypeERC20Transfer))
-
-	// Create the ERC20Transfer, ensuring its embedded Transaction also has the metadata.
-	// The e.Transaction (which now has metadata) is copied by value into the new struct.
-	erc20Transfer := &types.ERC20Transfer{
-		Transaction:   e.Transaction, // This carries over the populated Metadata
-		TokenAddress:  e.TokenAddress,
-		TokenSymbol:   e.TokenSymbol,
-		TokenDecimals: e.TokenDecimals,
-		Recipient:     e.TokenRecipient,
-		Amount:        e.TokenAmount,
-	}
-	// Ensure the specific type is also set on the resulting ERC20Transfer's embedded transaction
-	erc20Transfer.Transaction.Type = types.TransactionTypeERC20Transfer
-
-	return erc20Transfer
-}
-
 // ERC721TxHistoryEntry represents an ERC721 (NFT) token transfer event from history.
 type ERC721TxHistoryEntry struct {
 	types.Transaction
-	TokenAddress string
-	TokenSymbol  string
-	TokenName    string
-	TokenID      *big.Int
+	TokenAddress   string
+	TokenSymbol    string
+	TokenName      string
+	TokenRecipient string
+	TokenID        *big.Int
 }
