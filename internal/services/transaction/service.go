@@ -142,18 +142,7 @@ func (s *transactionService) FilterTransactions(ctx context.Context, filter *Fil
 			continue
 		}
 
-		// Ensure the mapped transaction implements CoreTransaction interface
-		coreTransaction, ok := mappedTx.(types.CoreTransaction)
-		if !ok {
-			s.log.Warn("Mapped transaction does not implement CoreTransaction interface, returning generic transaction",
-				logger.String("tx_hash", tx.Hash),
-			)
-			// Include the original coreTx which implements CoreTransaction
-			mappedItems = append(mappedItems, coreTx)
-			continue
-		}
-
-		mappedItems = append(mappedItems, coreTransaction)
+		mappedItems = append(mappedItems, mappedTx)
 	}
 
 	// Create a new page with mapped items
