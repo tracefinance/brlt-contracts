@@ -97,12 +97,9 @@ func ToResponse(tx types.CoreTransaction) TransactionResponse {
 	}
 
 	// Check if transaction is a concrete Transaction with more fields
-	if concreteTx, ok := tx.(*types.Transaction); ok {
+	if concreteTx := tx.GetTransaction(); concreteTx != nil {
 		response.Status = string(concreteTx.Status)
 		response.Timestamp = concreteTx.Timestamp
-		// Note: ID, WalletID, CreatedAt, UpdatedAt are part of TransactionResponse struct,
-		// but are not populated here from types.Transaction as it may not have them.
-		// They would typically be set by the calling service if available from a data store.
 	}
 
 	// Handle specific transaction types
@@ -115,21 +112,18 @@ func ToResponse(tx types.CoreTransaction) TransactionResponse {
 		response.TokenDecimals = &decimals
 		// Override value formatting using ERC20's own decimals
 		if amount != nil && amount.Sign() > 0 {
-			// Create a temporary token struct with the correct decimals for formatting
 			tempTokenForFormatting := &types.Token{Decimals: typedTx.TokenDecimals}
 			response.Value = tempTokenForFormatting.ToBigFloat(amount).Text('f', int(typedTx.TokenDecimals))
 		}
 	case *types.MultiSigWithdrawalRequest:
 		amount := typedTx.Amount
 		response.TokenAddress = typedTx.TokenAddress
-		response.TokenSymbol = typedTx.TokenSymbol // Use symbol from MultiSigWithdrawalRequest
-		decimals := typedTx.TokenDecimals          // Use decimals from MultiSigWithdrawalRequest
+		response.TokenSymbol = typedTx.TokenSymbol
+		decimals := typedTx.TokenDecimals
 		response.TokenDecimals = &decimals
 		response.WithdrawalNonce = &typedTx.WithdrawalNonce
 		// Override value formatting using the token's own decimals for this multisig op
-		// tx.GetValue() should correspond to typedTx.Amount for this transaction type
 		if amount != nil && amount.Sign() > 0 {
-			// Create a temporary token struct with the correct decimals for formatting
 			tempTokenForFormatting := &types.Token{Decimals: typedTx.TokenDecimals}
 			response.Value = tempTokenForFormatting.ToBigFloat(amount).Text('f', int(typedTx.TokenDecimals))
 		}
@@ -138,7 +132,9 @@ func ToResponse(tx types.CoreTransaction) TransactionResponse {
 	case *types.MultiSigExecuteWithdrawal:
 		response.RequestID = hex.EncodeToString(typedTx.RequestID[:])
 	case *types.MultiSigAddSupportedToken:
-		response.TargetTokenAddress = typedTx.Token
+		response.TargetTokenAddress = typedTx.TokenAddress
+	case *types.MultiSigRemoveSupportedToken:
+		response.TargetTokenAddress = typedTx.TokenAddress
 	case *types.MultiSigProposeRecoveryAddressChange:
 		response.NewRecoveryAddress = typedTx.NewRecoveryAddress
 	case *types.MultiSigSignRecoveryAddressChange:

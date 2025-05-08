@@ -120,7 +120,7 @@ func (h *Handler) GetTransactionsByWalletAddress(c *gin.Context) {
 	}
 
 	// Use filter-based transaction retrieval
-	page, err := h.transactionService.FilterTransactions(c.Request.Context(), filter, limit, req.NextToken)
+	page, err := h.transactionService.ListTransactions(c.Request.Context(), filter, limit, req.NextToken)
 	if err != nil {
 		c.Error(err)
 		return
@@ -189,7 +189,7 @@ func (h *Handler) FilterTransactions(c *gin.Context) {
 	}
 
 	// Get transactions with the applied filters
-	page, err := h.transactionService.FilterTransactions(c.Request.Context(), filter, limit, req.NextToken)
+	page, err := h.transactionService.ListTransactions(c.Request.Context(), filter, limit, req.NextToken)
 	if err != nil {
 		c.Error(err)
 		return

@@ -21,9 +21,9 @@ type Service interface {
 	// Returns the specific typed transaction as a CoreTransaction interface.
 	GetTransactionByHash(ctx context.Context, hash string) (types.CoreTransaction, error)
 
-	// FilterTransactions retrieves transactions based on filter criteria and maps each to its specific type
+	// ListTransactions retrieves transactions based on filter criteria and maps each to its specific type
 	// Returns a page of mapped transactions as CoreTransaction interfaces
-	FilterTransactions(ctx context.Context, filter *Filter, limit int, nextToken string) (*types.Page[types.CoreTransaction], error)
+	ListTransactions(ctx context.Context, filter *Filter, limit int, nextToken string) (*types.Page[types.CoreTransaction], error)
 }
 
 // transactionService implements the Service interface
@@ -93,8 +93,8 @@ func (s *transactionService) GetTransactionByHash(ctx context.Context, hash stri
 	return mappedTx, nil
 }
 
-// FilterTransactions retrieves transactions based on filter criteria and maps each to its specific type
-func (s *transactionService) FilterTransactions(ctx context.Context, filter *Filter, limit int, nextToken string) (*types.Page[types.CoreTransaction], error) {
+// ListTransactions retrieves transactions based on filter criteria and maps each to its specific type
+func (s *transactionService) ListTransactions(ctx context.Context, filter *Filter, limit int, nextToken string) (*types.Page[types.CoreTransaction], error) {
 	if limit <= 0 {
 		limit = 10
 	}

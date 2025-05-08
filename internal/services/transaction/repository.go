@@ -3,7 +3,6 @@ package transaction
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/huandu/go-sqlbuilder"
@@ -178,14 +177,12 @@ func (r *repository) List(ctx context.Context, filter *Filter, limit int, nextTo
 				return nil, errors.NewInvalidInputError("ChainType is required when filtering by Address", "chain_type", "")
 			}
 
-			addrNorm, err := types.NewAddress(*filter.ChainType, *filter.Address)
-			if err != nil {
-				return nil, err
-			}
+			addrNorm := types.NormalizeAddress(*filter.ChainType, *filter.Address)
 
 			sb.Where(sb.Or(
-				sb.E("from_address", addrNorm.Address),
-				sb.E("to_address", addrNorm.Address),
+				sb.E("from_address", addrNorm),
+				sb.E("to_address", addrNorm),
+				sb.E("metadata->>'recipient'", addrNorm),
 			))
 		}
 
@@ -194,19 +191,19 @@ func (r *repository) List(ctx context.Context, filter *Filter, limit int, nextTo
 		}
 
 		if filter.TokenAddress != nil {
-			sb.Where(sb.E("LOWER(metadata->'token_address')", strings.ToLower(*filter.TokenAddress)))
+			sb.Where(sb.E("metadata->>'token_address'", types.NormalizeAddress(*filter.ChainType, *filter.TokenAddress)))
 		}
 
 		if filter.BlockNumber != nil {
-			sb.Where(sb.E("block_number", filter.BlockNumber.String())) // Compare as string due to DECIMAL storage
+			sb.Where(sb.E("block_number", filter.BlockNumber.String()))
 		}
 
 		if filter.MinBlock != nil {
-			sb.Where(sb.GE("block_number", filter.MinBlock.String())) // Compare as string
+			sb.Where(sb.GE("block_number", filter.MinBlock.String()))
 		}
 
 		if filter.MaxBlock != nil {
-			sb.Where(sb.LE("block_number", filter.MaxBlock.String())) // Compare as string
+			sb.Where(sb.LE("block_number", filter.MaxBlock.String()))
 		}
 	}
 
@@ -235,7 +232,7 @@ func (r *repository) List(ctx context.Context, filter *Filter, limit int, nextTo
 
 	// Add pagination if limit > 0
 	if limit > 0 {
-		sb.Limit(limit + 1) // Fetch one extra item to check for HasMore
+		sb.Limit(limit + 1)
 	}
 
 	sql, args := sb.Build()

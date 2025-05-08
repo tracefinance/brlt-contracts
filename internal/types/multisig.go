@@ -58,7 +58,10 @@ const (
 	TransactionTypeMultiSigExecuteWithdrawal TransactionType = "multisig_execute_withdrawal"
 
 	// TransactionTypeMultiSigAddSupportedToken indicates a transaction is adding a supported token to the MultiSig
-	TransactionTypeMultiSigAddSupportedToken TransactionType = "multisig_add_token"
+	TransactionTypeMultiSigAddSupportedToken TransactionType = "multisig_add_supported_token"
+
+	// TransactionTypeMultiSigRemoveSupportedToken indicates a transaction is removing a supported token from the MultiSig
+	TransactionTypeMultiSigRemoveSupportedToken TransactionType = "multisig_remove_supported_token"
 
 	// TransactionTypeMultiSigRecoveryRequest indicates a transaction is a MultiSig recovery request
 	TransactionTypeMultiSigRecoveryRequest TransactionType = "multisig_recovery_request"
@@ -114,8 +117,16 @@ type MultiSigExecuteWithdrawal struct {
 type MultiSigAddSupportedToken struct {
 	// Embeds the core transaction details
 	Transaction
-	// Token is the address of the token being added as supported
-	Token string
+	// TokenAddress is the address of the token being added as supported
+	TokenAddress string
+}
+
+// MultiSigRemoveSupportedToken represents a transaction removing a supported token from the MultiSig wallet
+type MultiSigRemoveSupportedToken struct {
+	// Embeds the core transaction details
+	Transaction
+	// TokenAddress is the address of the token being removed as supported
+	TokenAddress string
 }
 
 // MultiSigRecoveryRequest represents a transaction requesting recovery of the MultiSig wallet

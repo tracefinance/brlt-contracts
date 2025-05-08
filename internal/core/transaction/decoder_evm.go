@@ -26,6 +26,7 @@ var (
 	multiSigSignWithdrawalMethodID               []byte
 	multiSigExecuteWithdrawalMethodID            []byte // Placeholder, assuming "executeWithdrawal(bytes32)"
 	multiSigAddSupportedTokenMethodID            []byte
+	multiSigRemoveSupportedTokenMethodID         []byte
 	multiSigRequestRecoveryMethodID              []byte
 	multiSigCancelRecoveryMethodID               []byte
 	multiSigExecuteRecoveryMethodID              []byte
@@ -42,6 +43,7 @@ func init() {
 	multiSigSignWithdrawalMethodID = crypto.Keccak256([]byte(types.MultiSigSignWithdrawalMethod))[:4]
 	multiSigExecuteWithdrawalMethodID = crypto.Keccak256([]byte(assumedMultiSigExecuteWithdrawalSignature))[:4]
 	multiSigAddSupportedTokenMethodID = crypto.Keccak256([]byte(types.MultiSigAddSupportedTokenMethod))[:4]
+	multiSigRemoveSupportedTokenMethodID = crypto.Keccak256([]byte(types.MultiSigRemoveSupportedTokenMethod))[:4]
 	multiSigRequestRecoveryMethodID = crypto.Keccak256([]byte(types.MultiSigRequestRecoveryMethod))[:4]
 	multiSigCancelRecoveryMethodID = crypto.Keccak256([]byte(types.MultiSigCancelRecoveryMethod))[:4]
 	multiSigExecuteRecoveryMethodID = crypto.Keccak256([]byte(types.MultiSigExecuteRecoveryMethod))[:4]
@@ -207,10 +209,30 @@ func createMultiSigAddSupportedTokenFromMetadata(tx *types.Transaction) (*types.
 	}
 
 	msTx := &types.MultiSigAddSupportedToken{
-		Transaction: *tx.Copy(),
-		Token:       token,
+		Transaction:  *tx.Copy(),
+		TokenAddress: token,
 	}
 	msTx.Type = types.TransactionTypeMultiSigAddSupportedToken
+
+	return msTx, nil
+}
+
+// createMultiSigRemoveSupportedTokenFromMetadata constructs a MultiSigRemoveSupportedToken from metadata.
+func createMultiSigRemoveSupportedTokenFromMetadata(tx *types.Transaction) (*types.MultiSigRemoveSupportedToken, error) {
+	if tx == nil || tx.Metadata == nil {
+		return nil, errors.NewInvalidParameterError("transaction or metadata cannot be nil", "tx")
+	}
+
+	token, ok := tx.Metadata.GetString(types.MultiSigTokenAddressMetadataKey)
+	if !ok {
+		return nil, errors.NewMappingError(tx.Hash, "missing metadata: "+types.MultiSigTokenAddressMetadataKey)
+	}
+
+	msTx := &types.MultiSigRemoveSupportedToken{
+		Transaction:  *tx.Copy(),
+		TokenAddress: token,
+	}
+	msTx.Type = types.TransactionTypeMultiSigRemoveSupportedToken
 
 	return msTx, nil
 }
@@ -547,6 +569,22 @@ func (m *evmDecoder) parseAndPopulateMultiSigMetadata(ctx context.Context, tx *t
 		metadataToSet[types.MultiSigTokenAddressMetadataKey] = tokenAddr.String()
 		specificTxType = types.TransactionTypeMultiSigAddSupportedToken
 
+	case bytes.Equal(methodID, multiSigRemoveSupportedTokenMethodID):
+		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigRemoveSupportedTokenMethod))
+		parsedArgs, parsingErr = m.abiUtils.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		if parsingErr != nil {
+			break
+		}
+		// Argument name "token" must match the ABI.
+		tokenAddr, errExtract := m.abiUtils.GetAddressFromArgs(parsedArgs, "token")
+		if errExtract != nil {
+			parsingErr = errExtract
+			break
+		}
+
+		metadataToSet[types.MultiSigTokenAddressMetadataKey] = tokenAddr.String()
+		specificTxType = types.TransactionTypeMultiSigRemoveSupportedToken
+
 	case bytes.Equal(methodID, multiSigRequestRecoveryMethodID):
 		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigRequestRecoveryMethod))
 		_, parsingErr = m.abiUtils.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data) // No args to extract
@@ -707,6 +745,8 @@ func (m *evmDecoder) DecodeTransaction(ctx context.Context, tx *types.Transactio
 			return m.DecodeMultiSigExecuteWithdrawal(ctx, tx)
 		case types.TransactionTypeMultiSigAddSupportedToken:
 			return m.DecodeMultiSigAddSupportedToken(ctx, tx)
+		case types.TransactionTypeMultiSigRemoveSupportedToken:
+			return m.DecodeMultiSigRemoveSupportedToken(ctx, tx)
 		case types.TransactionTypeMultiSigRecoveryRequest:
 			return m.DecodeMultiSigRecoveryRequest(ctx, tx)
 		case types.TransactionTypeMultiSigCancelRecovery:
@@ -779,6 +819,8 @@ func (m *evmDecoder) DecodeTransaction(ctx context.Context, tx *types.Transactio
 			return m.DecodeMultiSigExecuteWithdrawal(ctx, txCopy)
 		case types.TransactionTypeMultiSigAddSupportedToken:
 			return m.DecodeMultiSigAddSupportedToken(ctx, txCopy)
+		case types.TransactionTypeMultiSigRemoveSupportedToken:
+			return m.DecodeMultiSigRemoveSupportedToken(ctx, txCopy)
 		case types.TransactionTypeMultiSigRecoveryRequest:
 			return m.DecodeMultiSigRecoveryRequest(ctx, txCopy)
 		case types.TransactionTypeMultiSigCancelRecovery:
@@ -866,6 +908,22 @@ func (m *evmDecoder) DecodeMultiSigAddSupportedToken(ctx context.Context, tx *ty
 	}
 
 	return createMultiSigAddSupportedTokenFromMetadata(tx)
+}
+
+// DecodeMultiSigRemoveSupportedToken implements Mapper.
+func (m *evmDecoder) DecodeMultiSigRemoveSupportedToken(ctx context.Context, tx *types.Transaction) (*types.MultiSigRemoveSupportedToken, error) {
+	if tx == nil {
+		return nil, errors.NewInvalidParameterError("transaction cannot be nil", "tx")
+	}
+
+	if tx.Type != types.TransactionTypeMultiSigRemoveSupportedToken {
+		return nil, errors.NewMappingError(tx.Hash, fmt.Sprintf("invalid transaction type %s, expected %s", tx.Type, types.TransactionTypeMultiSigRemoveSupportedToken))
+	}
+	if tx.Metadata == nil {
+		return nil, errors.NewMappingError(tx.Hash, "metadata is required to map to MultiSigRemoveSupportedToken")
+	}
+
+	return createMultiSigRemoveSupportedTokenFromMetadata(tx)
 }
 
 // DecodeMultiSigRecoveryRequest implements Mapper.
