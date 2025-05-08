@@ -109,7 +109,7 @@ func normalizeAddress(address string, chainType ChainType) string {
 
 // IsZeroAddress checks if the address is the zero address
 func IsZeroAddress(address string) bool {
-	return address == ZeroAddress || address == "0x0"
+	return address == ZeroAddress || address == "0x0" || address == "0" || address == ""
 }
 
 // NormalizeAddress normalizes a blockchain address string based on its chain type.
