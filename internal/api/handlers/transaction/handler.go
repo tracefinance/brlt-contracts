@@ -114,7 +114,7 @@ func (h *Handler) GetTransactionsByWalletAddress(c *gin.Context) {
 	}
 
 	// Add token address filter if provided
-	if req.TokenAddress != "" {
+	if !types.IsZeroAddress(req.TokenAddress) {
 		tokenAddressVal := req.TokenAddress
 		filter.TokenAddress = &tokenAddressVal
 	}
@@ -178,7 +178,7 @@ func (h *Handler) FilterTransactions(c *gin.Context) {
 	}
 
 	// Apply token address filter if provided
-	if req.TokenAddress != "" {
+	if !types.IsZeroAddress(req.TokenAddress) {
 		filter.TokenAddress = &req.TokenAddress
 	}
 

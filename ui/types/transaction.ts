@@ -14,24 +14,28 @@ export enum TransactionType {
  * Interface representing a transaction
  */
 export interface ITransaction {
-  id: number;
   chainType: string;
-  walletId?: number;
   hash: string;
   fromAddress: string;
   toAddress: string;
   value: string;
-  gasPrice: string;
-  gasLimit: number;
+  data?: string;
   nonce: number;
-  type?: string;
+  gasPrice?: string;
+  gasLimit?: number;
+  type: string;
+  tokenAddress?: string;
+  tokenSymbol?: string;
+  tokenDecimals?: number;
   status: string;
   timestamp: number;
-  data?: string;
-  tokenSymbol?: string;
-  tokenAddress?: string;
-  createdAt: string;
-  updatedAt: string;
+
+  // MultiSig specific fields from DTO (ensure camelCase matches fromJson logic)
+  withdrawalNonce?: number;
+  requestId?: string;
+  proposalId?: string;
+  targetTokenAddress?: string;
+  newRecoveryAddress?: string;
 }
 
 /**
