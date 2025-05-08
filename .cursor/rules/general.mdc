@@ -58,7 +58,10 @@ vault0/
 - Use `git status` and `git diff` to understand what was modified. This information should be used to provide a detailed commit body, explaining the *why* of the changes.
 - Follow Angular commit convention (e.g., `feat: add user login`, `fix: correct validation bug`).
 - Use a proper branching strategy (e.g., feature branches).
-- **Do not use multi-line commit messages (`\n`)**. Use additional `-m` parameters if needed (e.g., `git commit -m "feat: subject" -m "Detailed description..."`).
+- **Do not use multi-line commit messages (e.g., `\n`) within a single `-m` argument.** For commit bodies spanning multiple lines, provide each line as a separate `-m` parameter.
+  - **Correct:** `git commit -m "feat: subject" -m "This is the first line of the body." -m "This is the second line."`
+  - **Incorrect:** `git commit -m "feat: subject\nThis is the first line of the body.\nThis is the second line."`
+  - **Incorrect:** `git commit -m "feat: subject" -m "This is the first line of the body.\nThis is the second line."`
 
 ### Git Commit Format
 
@@ -108,7 +111,7 @@ chore(deps): update dependencies
 1. Keep commits focused on a single change or related set of changes.
 2. Write descriptive messages that explain WHY, not just WHAT. Utilize `git status` and `git diff` to gather details for the commit body.
 3. Reference issue numbers when applicable: `fix(user): correct login validation (fixes #123)`.
-4. Use additional `-m` parameters for longer descriptions, not multi-line commit messages.
+4. For commit bodies that require multiple lines, use a separate `-m` parameter for *each line* of the body. Do not embed newline characters (e.g., `\n`) within a single `-m` argument.
 5. Ensure code passes all tests before committing.
 6. Follow the team's branching strategy.
 7. Never commit directly to main branches.
