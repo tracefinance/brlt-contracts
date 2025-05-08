@@ -511,7 +511,6 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 		_ = metadata.Set(types.ERC20TokenDecimalsMetadataKey, tx.TokenDecimal)
 		_ = metadata.Set(types.ERC20RecipientMetadataKey, normalizedTo)
 		_ = metadata.Set(types.ERC20AmountMetadataKey, tokenAmount)
-		_ = metadata.Set(types.TransactionTypeMetadaKey, string(types.TransactionTypeERC20Transfer))
 
 		baseTx := types.BaseTransaction{
 			ChainType: e.chain.Type,
@@ -604,7 +603,6 @@ func (e *EtherscanExplorer) getERC721TransactionHistory(ctx context.Context, add
 		_ = metadata.Set(types.ERC721TokenNameMetadataKey, tx.TokenName)
 		_ = metadata.Set(types.ERC721TokenIDMetadataKey, tokenID.String()) // Store as string, consistent with ERC20 amount
 		_ = metadata.Set(types.ERC721RecipientMetadataKey, normalizedTo)
-		_ = metadata.Set(types.TransactionTypeMetadaKey, string(types.TransactionTypeERC721Transfer))
 
 		baseTx := types.BaseTransaction{
 			ChainType: e.chain.Type,

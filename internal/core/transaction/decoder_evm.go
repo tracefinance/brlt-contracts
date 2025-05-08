@@ -399,7 +399,6 @@ func (m *evmDecoder) parseAndPopulateERC20Metadata(ctx context.Context, tx *type
 		types.ERC20TokenDecimalsMetadataKey: tokenInfo.Decimals,
 		types.ERC20RecipientMetadataKey:     recipientAddr.String(),
 		types.ERC20AmountMetadataKey:        amountBigIntParsed.ToBigInt(), // Convert from abiutils type
-		types.TransactionTypeMetadaKey:      string(types.TransactionTypeERC20Transfer),
 	})
 	if err != nil {
 		// This should ideally not happen if types are correct, but handle defensively
@@ -620,9 +619,6 @@ func (m *evmDecoder) parseAndPopulateMultiSigMetadata(ctx context.Context, tx *t
 	if tx.Metadata == nil {
 		tx.Metadata = make(types.TxMetadata)
 	}
-
-	// Also store the determined type in the metadata itself for consistency.
-	metadataToSet[types.TransactionTypeMetadaKey] = string(specificTxType)
 
 	err = tx.Metadata.SetAll(metadataToSet)
 	if err != nil {

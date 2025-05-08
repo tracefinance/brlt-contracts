@@ -30,7 +30,13 @@ type HistoryService interface {
 	StopTransactionSyncing()
 
 	// HistoryEvents returns a channel that emits processed historical transactions
-	HistoryEvents() <-chan *types.Transaction
+	HistoryEvents() <-chan *TransactionHistoryEvent
+}
+
+// TransactionHistoryEvent represents a transaction event with its status
+type TransactionHistoryEvent struct {
+	Transaction *types.Transaction
+	IsNew       bool
 }
 
 // NewHistoryService creates a new transaction history service
@@ -51,7 +57,7 @@ func NewHistoryService(
 		repository:           repository,
 		syncMutex:            sync.RWMutex{},
 		syncAddresses:        make(map[string]addressSyncInfo),
-		historyEventsChan:    make(chan *types.Transaction, 100),
+		historyEventsChan:    make(chan *TransactionHistoryEvent, 100),
 	}
 
 	return service
@@ -65,7 +71,7 @@ type historyService struct {
 	syncAddresses map[string]addressSyncInfo
 
 	// Channel for emitting history events
-	historyEventsChan chan *types.Transaction
+	historyEventsChan chan *TransactionHistoryEvent
 
 	// Dependencies
 	config               *config.Config
@@ -129,7 +135,7 @@ func (s *historyService) UnmonitorAddress(address types.Address) error {
 }
 
 // HistoryEvents returns a channel that emits processed historical transactions
-func (s *historyService) HistoryEvents() <-chan *types.Transaction {
+func (s *historyService) HistoryEvents() <-chan *TransactionHistoryEvent {
 	return s.historyEventsChan
 }
 
@@ -319,6 +325,7 @@ func (s *historyService) syncTransactionsForAddressByType(ctx context.Context, a
 			continue
 		}
 
+		var isNewTransaction bool
 		if existingTx != nil {
 			// Update existing transaction with new data
 			serviceTx.ID = existingTx.ID
@@ -330,6 +337,7 @@ func (s *historyService) syncTransactionsForAddressByType(ctx context.Context, a
 			}
 			s.log.Debug("Updated existing transaction",
 				logger.String("tx_hash", serviceTx.Hash))
+			isNewTransaction = false
 		} else {
 			// Create new transaction
 			if err := s.repository.Create(ctx, serviceTx); err != nil {
@@ -340,13 +348,19 @@ func (s *historyService) syncTransactionsForAddressByType(ctx context.Context, a
 			}
 			s.log.Debug("Created new transaction",
 				logger.String("tx_hash", serviceTx.Hash))
+			isNewTransaction = true
 		}
 
 		// Emit transaction event
+		event := &TransactionHistoryEvent{
+			Transaction: transformedTx,
+			IsNew:       isNewTransaction,
+		}
 		select {
-		case s.historyEventsChan <- transformedTx:
+		case s.historyEventsChan <- event:
 			s.log.Debug("Emitted history transaction event",
-				logger.String("tx_hash", transformedTx.Hash))
+				logger.String("tx_hash", transformedTx.Hash),
+				logger.Bool("is_new", isNewTransaction))
 		default:
 			s.log.Warn("History events channel is full, dropping event",
 				logger.String("tx_hash", transformedTx.Hash))

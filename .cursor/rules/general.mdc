@@ -15,7 +15,6 @@ Vault0 is a full-stack web3 application combining blockchain technology with mod
 - Implement comprehensive testing.
 - Prioritize security and performance.
 - Maintain consistent code style.
-- Focus on accessibility and user experience.
 - **Avoid Automatic Comments:** Do **not** add comments to generated or modified code unless explicitly requested by the user for specific sections or explanations. Focus on writing clear, self-documenting code.
 - Avoid deep if nesting and adopt a fail-fast design pattern.
 - Handle errors and invalid states as early as possible, returning or exiting immediately to keep code flat and readable.
@@ -55,12 +54,10 @@ vault0/
 
 ## Git Workflow
 - **NEVER COMMIT THE CODE UNLESS YOU'RE ASKED TO DO IT.**
+- All git messages **must** follow the specified "Git Commit Format" below.
+- Use `git status` and `git diff` to understand what was modified. This information should be used to provide a detailed commit body, explaining the *why* of the changes.
 - Follow Angular commit convention (e.g., `feat: add user login`, `fix: correct validation bug`).
-- Check `git status` and `git diff` to create meaningful commit messages.
-- Keep commits focused and atomic.
 - Use a proper branching strategy (e.g., feature branches).
-- Review code before merging.
-- Maintain a clean git history.
 - **Do not use multi-line commit messages (`\n`)**. Use additional `-m` parameters if needed (e.g., `git commit -m "feat: subject" -m "Detailed description..."`).
 
 ### Git Commit Format
@@ -109,7 +106,7 @@ chore(deps): update dependencies
 ### Commit Rules
 
 1. Keep commits focused on a single change or related set of changes.
-2. Write descriptive messages that explain WHY, not just WHAT.
+2. Write descriptive messages that explain WHY, not just WHAT. Utilize `git status` and `git diff` to gather details for the commit body.
 3. Reference issue numbers when applicable: `fix(user): correct login validation (fixes #123)`.
 4. Use additional `-m` parameters for longer descriptions, not multi-line commit messages.
 5. Ensure code passes all tests before committing.

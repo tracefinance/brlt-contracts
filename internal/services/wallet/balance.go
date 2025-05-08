@@ -104,12 +104,13 @@ func (s *balanceService) UpdateWalletBalance(ctx context.Context, tx *types.Tran
 	var newBalance *big.Int
 
 	if isOutgoing {
-		gasUsed := new(big.Int).SetUint64(tx.GasUsed)
-		totalSpent := new(big.Int).Add(tx.Value, new(big.Int).Mul(tx.GasPrice, gasUsed))
-		newBalance = new(big.Int).Sub(currentBalance, totalSpent)
-		if newBalance.Sign() < 0 {
-			newBalance = big.NewInt(0)
+		// Subtract value first
+		balanceAfterValue := new(big.Int).Sub(currentBalance, tx.Value)
+		if balanceAfterValue.Sign() < 0 {
+			balanceAfterValue = big.NewInt(0)
 		}
+		// Then subtract gas from this adjusted balance
+		newBalance = s.calculateNewBalanceAfterGas(balanceAfterValue, tx.GasUsed, tx.GasPrice)
 	} else {
 		newBalance = new(big.Int).Add(currentBalance, tx.Value)
 	}
@@ -124,18 +125,40 @@ func (s *balanceService) UpdateTokenBalance(ctx context.Context, transfer *types
 	}
 
 	// Determine if the transaction involves a monitored wallet as sender or receiver
-	walletIsSender, senderWallet, err := s.findWalletForAddress(ctx, transfer.ChainType, transfer.From)
-	if err != nil {
-		appErr, ok := err.(*errors.Vault0Error)
-		if !ok || appErr.Code != errors.ErrCodeNotFound {
-			return fmt.Errorf("error checking sender wallet: %w", err)
+	var senderWallet *Wallet
+	var walletIsSender bool
+	if transfer.From != "" {
+		sw, err := s.repository.GetByAddress(ctx, transfer.ChainType, transfer.From)
+		if err != nil {
+			if errors.IsError(err, errors.ErrCodeWalletNotFound) {
+				// Not found is not an error here, just means address isn't ours
+				walletIsSender = false
+				senderWallet = nil
+			} else {
+				return err
+			}
+		} else {
+			walletIsSender = true
+			senderWallet = sw
 		}
 	}
-	walletIsReceiver, receiverWallet, err := s.findWalletForAddress(ctx, transfer.ChainType, transfer.Recipient)
-	if err != nil {
-		appErr, ok := err.(*errors.Vault0Error)
-		if !ok || appErr.Code != errors.ErrCodeNotFound {
-			return fmt.Errorf("error checking receiver wallet: %w", err)
+
+	var receiverWallet *Wallet
+	var walletIsReceiver bool
+	if transfer.Recipient != "" {
+		rw, err := s.repository.GetByAddress(ctx, transfer.ChainType, transfer.Recipient)
+		if err != nil {
+			if errors.IsError(err, errors.ErrCodeWalletNotFound) {
+				// Not found is not an error here, just means address isn't ours
+				walletIsReceiver = false
+				receiverWallet = nil
+			} else {
+				// Propagate other errors
+				return fmt.Errorf("error checking receiver wallet: %w", err)
+			}
+		} else {
+			walletIsReceiver = true
+			receiverWallet = rw
 		}
 	}
 
@@ -201,12 +224,7 @@ func (s *balanceService) UpdateTokenBalance(ctx context.Context, transfer *types
 		// Use GasUsed and GasPrice from the embedded BaseTransaction
 		if transfer.GasUsed > 0 && transfer.GasPrice != nil && transfer.GasPrice.Sign() > 0 {
 			currentNativeBalance := involvedWallet.Balance.ToBigInt()
-			gasUsed := new(big.Int).SetUint64(transfer.GasUsed)
-			gasCost := new(big.Int).Mul(transfer.GasPrice, gasUsed)
-			newNativeBalance := new(big.Int).Sub(currentNativeBalance, gasCost)
-			if newNativeBalance.Sign() < 0 {
-				newNativeBalance = big.NewInt(0)
-			}
+			newNativeBalance := s.calculateNewBalanceAfterGas(currentNativeBalance, transfer.GasUsed, transfer.GasPrice)
 			if err := s.repository.UpdateBalance(ctx, involvedWallet, newNativeBalance); err != nil {
 				s.log.Error("Failed to update sender native balance for gas during token transfer",
 					logger.Int64("wallet_id", involvedWallet.ID),
@@ -223,21 +241,19 @@ func (s *balanceService) UpdateTokenBalance(ctx context.Context, transfer *types
 	return nil
 }
 
-// findWalletForAddress is a helper to check if an address belongs to a managed wallet.
-// Returns (found bool, *Wallet, error).
-func (s *balanceService) findWalletForAddress(ctx context.Context, chain types.ChainType, address string) (bool, *Wallet, error) {
-	if address == "" {
-		return false, nil, nil // Empty address cannot be a wallet
+// calculateNewBalanceAfterGas calculates the new balance after deducting gas costs.
+// It ensures the balance does not go below zero.
+func (s *balanceService) calculateNewBalanceAfterGas(balanceToAdjust *big.Int, gasAmountUsed uint64, gasPriceValue *big.Int) *big.Int {
+	if gasAmountUsed == 0 || gasPriceValue == nil || gasPriceValue.Sign() <= 0 {
+		return balanceToAdjust // No gas cost to deduct, return original balance
 	}
-	wallet, err := s.repository.GetByAddress(ctx, chain, address)
-	if err != nil {
-		appErr, ok := err.(*errors.Vault0Error)
-		if ok && appErr.Code == errors.ErrCodeNotFound {
-			return false, nil, nil // Not found is not an error here, just means address isn't ours
-		}
-		return false, nil, err
+	gasUsedBig := new(big.Int).SetUint64(gasAmountUsed)
+	gasCost := new(big.Int).Mul(gasPriceValue, gasUsedBig)
+	newBalance := new(big.Int).Sub(balanceToAdjust, gasCost)
+	if newBalance.Sign() < 0 {
+		newBalance = big.NewInt(0)
 	}
-	return true, wallet, nil
+	return newBalance
 }
 
 // GetWalletBalances retrieves the native and token balances for a wallet

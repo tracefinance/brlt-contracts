@@ -103,13 +103,15 @@ func (s *walletMonitorService) StartWalletMonitoring(ctx context.Context) error 
 
 		// Monitor in transaction history service
 		// Convert LastBlockNumber (int64) to *big.Int
-		startBlockNumber := big.NewInt(wallet.LastBlockNumber)
+		startBlockNumber := big.NewInt(wallet.LastBlockNumber + 1)
 
 		if err := s.txHistory.MonitorAddress(*address, startBlockNumber); err != nil {
 			s.log.Error("Failed to set up transaction history monitoring for wallet",
 				logger.Error(err),
 				logger.Int64("wallet_id", wallet.ID),
-				logger.String("address", wallet.Address))
+				logger.String("address", wallet.Address),
+				logger.String("chain_type", string(wallet.ChainType)),
+				logger.Int64("from_block", wallet.LastBlockNumber+1))
 			monitorErrors = append(monitorErrors, err)
 			continue
 		}
@@ -118,7 +120,7 @@ func (s *walletMonitorService) StartWalletMonitoring(ctx context.Context) error 
 			logger.Int64("wallet_id", wallet.ID),
 			logger.String("address", wallet.Address),
 			logger.String("chain_type", string(wallet.ChainType)),
-			logger.Int64("from_block", wallet.LastBlockNumber))
+			logger.Int64("from_block", wallet.LastBlockNumber+1))
 	}
 
 	if len(monitorErrors) > 0 {
@@ -183,19 +185,19 @@ func (s *walletMonitorService) subscribeToHistoryEvents(ctx context.Context) {
 			s.log.Info("Stopping history events subscription due to context cancellation")
 			return
 
-		case tx, ok := <-historyEvents:
+		case event, ok := <-historyEvents:
 			if !ok {
 				s.log.Warn("History events channel closed, stopping subscription")
 				return
 			}
 
-			if tx == nil {
-				s.log.Warn("Received nil transaction from history events channel")
+			if event == nil || event.Transaction == nil {
+				s.log.Warn("Received nil event or transaction from history events channel")
 				continue
 			}
 
 			// Process history event
-			s.processHistoryEvent(ctx, tx)
+			s.processHistoryEvent(ctx, event.Transaction, event.IsNew)
 		}
 	}
 }
@@ -270,7 +272,7 @@ func (s *walletMonitorService) processTransactionEvent(ctx context.Context, tx *
 }
 
 // processHistoryEvent updates wallet balances and LastBlockNumber based on a history event
-func (s *walletMonitorService) processHistoryEvent(ctx context.Context, tx *types.Transaction) {
+func (s *walletMonitorService) processHistoryEvent(ctx context.Context, tx *types.Transaction, isNewTransaction bool) {
 	if tx == nil {
 		return
 	}
@@ -279,7 +281,8 @@ func (s *walletMonitorService) processHistoryEvent(ctx context.Context, tx *type
 		logger.String("tx_hash", tx.Hash),
 		logger.String("from", tx.From),
 		logger.String("to", tx.To),
-		logger.Int64("block_number", tx.BlockNumber.Int64()))
+		logger.Int64("block_number", tx.BlockNumber.Int64()),
+		logger.Bool("is_new_transaction", isNewTransaction))
 
 	// Check if this transaction affects any of our wallets
 	if !tx.Metadata.Contains(types.WalletIDMetadaKey) {
@@ -301,40 +304,42 @@ func (s *walletMonitorService) processHistoryEvent(ctx context.Context, tx *type
 		return
 	}
 
-	// Update balances based on transaction type using balanceService
-	switch tx.Type {
-	case types.TransactionTypeNative:
-		// Update native token balance using balanceService
-		if err := s.balanceService.UpdateWalletBalance(ctx, tx); err != nil {
-			s.log.Error("Failed to update native wallet balance",
-				logger.Error(err),
-				logger.Int64("wallet_id", walletID),
-				logger.String("tx_hash", tx.Hash))
-		}
-	case types.TransactionTypeERC20Transfer:
-		// For ERC20 transfers, we need to convert the transaction to an ERC20Transfer
-		erc20Transfer, err := mapper.DecodeERC20Transfer(ctx, tx)
-		if err != nil {
-			s.log.Error("Failed to convert transaction to ERC20Transfer",
-				logger.Error(err),
-				logger.String("tx_hash", tx.Hash))
-			return
-		}
+	// Update balances based on transaction type using balanceService only if it's a new transaction
+	if isNewTransaction {
+		switch tx.Type {
+		case types.TransactionTypeNative:
+			// Update native token balance using balanceService
+			if err := s.balanceService.UpdateWalletBalance(ctx, tx); err != nil {
+				s.log.Error("Failed to update native wallet balance",
+					logger.Error(err),
+					logger.Int64("wallet_id", walletID),
+					logger.String("tx_hash", tx.Hash))
+			}
+		case types.TransactionTypeERC20Transfer:
+			// For ERC20 transfers, we need to convert the transaction to an ERC20Transfer
+			erc20Transfer, err := mapper.DecodeERC20Transfer(ctx, tx)
+			if err != nil {
+				s.log.Error("Failed to convert transaction to ERC20Transfer",
+					logger.Error(err),
+					logger.String("tx_hash", tx.Hash))
+				return
+			}
 
-		if err := s.balanceService.UpdateTokenBalance(ctx, erc20Transfer); err != nil {
-			s.log.Error("Failed to update token balance",
-				logger.Error(err),
-				logger.Int64("wallet_id", walletID),
-				logger.String("tx_hash", tx.Hash),
-				logger.String("token_address", erc20Transfer.TokenAddress))
-		}
-	default:
-		// For other transaction types, just update native balance
-		if err := s.balanceService.UpdateWalletBalance(ctx, tx); err != nil {
-			s.log.Error("Failed to update native wallet balance",
-				logger.Error(err),
-				logger.Int64("wallet_id", walletID),
-				logger.String("tx_hash", tx.Hash))
+			if err := s.balanceService.UpdateTokenBalance(ctx, erc20Transfer); err != nil {
+				s.log.Error("Failed to update token balance",
+					logger.Error(err),
+					logger.Int64("wallet_id", walletID),
+					logger.String("tx_hash", tx.Hash),
+					logger.String("token_address", erc20Transfer.TokenAddress))
+			}
+		default:
+			// For other transaction types, just update native balance
+			if err := s.balanceService.UpdateWalletBalance(ctx, tx); err != nil {
+				s.log.Error("Failed to update native wallet balance",
+					logger.Error(err),
+					logger.Int64("wallet_id", walletID),
+					logger.String("tx_hash", tx.Hash))
+			}
 		}
 	}
 

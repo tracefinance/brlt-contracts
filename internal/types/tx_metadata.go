@@ -244,9 +244,6 @@ const (
 	// VaultIDMetadaKey is the key for the transformer that extracts vault ID from metadata
 	VaultIDMetadaKey = "vault_id"
 
-	// TransactionTypeMetadaKey is the key for the transformer that extracts transaction type from metadata
-	TransactionTypeMetadaKey = "type"
-
 	// ERC20 specific metadata keys
 	ERC20TokenAddressMetadataKey  = "token_address"
 	ERC20TokenSymbolMetadataKey   = "token_symbol"
