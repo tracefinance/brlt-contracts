@@ -369,7 +369,7 @@ func (s *historyService) syncTransactionsForAddressByType(ctx context.Context, a
 
 	// Update start block number to the latest block processed using setStartBlock
 	latestBlockNumber := page.Items[len(page.Items)-1].GetTransaction().BlockNumber
-	s.setStartBlock(address, latestBlockNumber)
+	s.setStartBlock(address, new(big.Int).Add(latestBlockNumber, big.NewInt(1)))
 
 	return nil
 }
