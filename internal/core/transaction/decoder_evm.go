@@ -120,9 +120,9 @@ func createMultiSigWithdrawalRequestFromMetadata(tx *types.Transaction) (*types.
 		return nil, errors.NewInvalidParameterError("transaction or metadata cannot be nil", "tx")
 	}
 
-	token, ok := tx.Metadata.GetString(types.MultiSigTokenMetadataKey)
+	token, ok := tx.Metadata.GetString(types.MultiSigTokenAddressMetadataKey)
 	if !ok {
-		return nil, errors.NewMappingError(tx.Hash, "missing metadata: "+types.MultiSigTokenMetadataKey)
+		return nil, errors.NewMappingError(tx.Hash, "missing metadata: "+types.MultiSigTokenAddressMetadataKey)
 	}
 	recipient, ok := tx.Metadata.GetString(types.MultiSigRecipientMetadataKey)
 	if !ok {
@@ -137,9 +137,15 @@ func createMultiSigWithdrawalRequestFromMetadata(tx *types.Transaction) (*types.
 		return nil, errors.NewMappingError(tx.Hash, "missing or invalid metadata: "+types.MultiSigWithdrawalNonceMetadataKey)
 	}
 
+	// Retrieve token symbol and decimals from metadata
+	tokenSymbol, _ := tx.Metadata.GetString(types.MultiSigTokenSymbolMetadataKey)    // Default to empty string if not found
+	tokenDecimals, _ := tx.Metadata.GetUint8(types.MultiSigTokenDecimalsMetadataKey) // Default to 0 if not found or wrong type
+
 	msTx := &types.MultiSigWithdrawalRequest{
 		Transaction:     *tx.Copy(),
-		Token:           token,
+		TokenAddress:    token,
+		TokenSymbol:     tokenSymbol,
+		TokenDecimals:   tokenDecimals,
 		Amount:          amount.ToBigInt(),
 		Recipient:       recipient,
 		WithdrawalNonce: withdrawalNonce,
@@ -195,9 +201,9 @@ func createMultiSigAddSupportedTokenFromMetadata(tx *types.Transaction) (*types.
 		return nil, errors.NewInvalidParameterError("transaction or metadata cannot be nil", "tx")
 	}
 
-	token, ok := tx.Metadata.GetString(types.MultiSigTokenMetadataKey)
+	token, ok := tx.Metadata.GetString(types.MultiSigTokenAddressMetadataKey)
 	if !ok {
-		return nil, errors.NewMappingError(tx.Hash, "missing metadata: "+types.MultiSigTokenMetadataKey)
+		return nil, errors.NewMappingError(tx.Hash, "missing metadata: "+types.MultiSigTokenAddressMetadataKey)
 	}
 
 	msTx := &types.MultiSigAddSupportedToken{
@@ -473,9 +479,24 @@ func (m *evmDecoder) parseAndPopulateMultiSigMetadata(ctx context.Context, tx *t
 			break
 		}
 
-		metadataToSet[types.MultiSigTokenMetadataKey] = tokenAddr.String()
+		// Fetch token details from tokenStore
+		tokenInfo, tokenErr := m.tokenStore.GetToken(ctx, tokenAddr.String())
+		if tokenErr != nil {
+			m.logger.Warn("Failed to resolve token details for MultiSig withdrawal request",
+				logger.String("tx_hash", tx.Hash),
+				logger.String("token_address", tokenAddr.String()),
+				logger.Error(tokenErr),
+			)
+			// Use fallback details if token is not registered or error occurs
+			tokenInfo = &types.Token{Symbol: "UNKNOWN", Decimals: 0} // Default to 0 for decimals as it's safer
+		}
+
+		metadataToSet[types.MultiSigTokenAddressMetadataKey] = tokenAddr.String()
 		metadataToSet[types.MultiSigAmountMetadataKey] = amountBigInt
 		metadataToSet[types.MultiSigRecipientMetadataKey] = recipientAddr.String()
+		// Add symbol and decimals to metadata
+		metadataToSet[types.MultiSigTokenSymbolMetadataKey] = tokenInfo.Symbol
+		metadataToSet[types.MultiSigTokenDecimalsMetadataKey] = tokenInfo.Decimals
 		specificTxType = types.TransactionTypeMultiSigWithdrawalRequest
 
 	case bytes.Equal(methodID, multiSigSignWithdrawalMethodID):
@@ -523,7 +544,7 @@ func (m *evmDecoder) parseAndPopulateMultiSigMetadata(ctx context.Context, tx *t
 			break
 		}
 
-		metadataToSet[types.MultiSigTokenMetadataKey] = tokenAddr.String()
+		metadataToSet[types.MultiSigTokenAddressMetadataKey] = tokenAddr.String()
 		specificTxType = types.TransactionTypeMultiSigAddSupportedToken
 
 	case bytes.Equal(methodID, multiSigRequestRecoveryMethodID):

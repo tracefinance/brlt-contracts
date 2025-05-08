@@ -22,7 +22,7 @@ func GetTokenAddressFromTransaction(tx types.CoreTransaction) string {
 	case *types.ERC20Transfer:
 		return typedTx.TokenAddress
 	case *types.MultiSigWithdrawalRequest:
-		return typedTx.Token
+		return typedTx.TokenAddress
 	case *types.MultiSigExecuteWithdrawal:
 		// If we can extract token from execute withdrawal, add it here
 		return ""

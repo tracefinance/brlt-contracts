@@ -69,11 +69,7 @@ func (h *Handler) GetTransactionByHash(c *gin.Context) {
 		return
 	}
 
-	// Get the appropriate token for this transaction
-	tokenAddress := GetTokenAddressFromTransaction(tx)
-	token := GetTokenForTransaction(c.Request.Context(), tx, h.tokenService, tokenAddress)
-
-	c.JSON(http.StatusOK, ToResponse(tx, token))
+	c.JSON(http.StatusOK, ToResponse(tx))
 }
 
 // GetTransactionsByWalletAddress handles GET /wallets/:chain_type/:address/transactions
@@ -130,41 +126,9 @@ func (h *Handler) GetTransactionsByWalletAddress(c *gin.Context) {
 		return
 	}
 
-	// Get all tokenAddresses from transactions
-	tokenAddresses := make([]string, 0, len(page.Items))
-	for _, tx := range page.Items {
-		tokenAddr := GetTokenAddressFromTransaction(tx)
-		if tokenAddr != "" {
-			tokenAddresses = append(tokenAddresses, tokenAddr)
-		}
-	}
-
-	// Get all tokens for the addresses
-	tokens, err := h.tokenService.GetTokensByAddresses(c.Request.Context(), chainType, tokenAddresses)
-	if err != nil {
-		c.Error(err)
-		return
-	}
-
-	// Create a map of tokens by address for efficient lookup
-	tokensMap := make(map[string]*types.Token)
-	for i := range tokens {
-		tokensMap[tokens[i].Address] = &tokens[i]
-	}
-
 	// Create a transform function for the paged response
 	transformFunc := func(tx types.CoreTransaction) TransactionResponse {
-		// Get token from transaction
-		tokenAddr := GetTokenAddressFromTransaction(tx)
-
-		// Get the token from the map or use GetTokenForTransaction
-		token, ok := tokensMap[tokenAddr]
-		if !ok {
-			// If token not in map, get it via our utility function
-			token = GetTokenForTransaction(c.Request.Context(), tx, h.tokenService, tokenAddr)
-		}
-
-		return ToResponse(tx, token)
+		return ToResponse(tx)
 	}
 
 	c.JSON(http.StatusOK, utils.NewPagedResponse(page, transformFunc))
@@ -281,17 +245,9 @@ func (h *Handler) FilterTransactions(c *gin.Context) {
 
 	// Create a transform function for the paged response
 	transformFunc := func(tx types.CoreTransaction) TransactionResponse {
-		// Get token from transaction
-		tokenAddr := GetTokenAddressFromTransaction(tx)
-
-		// Get the token from the map or use GetTokenForTransaction
-		token, ok := tokensMap[tokenAddr]
-		if !ok {
-			// If token not in map, get it via our utility function
-			token = GetTokenForTransaction(c.Request.Context(), tx, h.tokenService, tokenAddr)
-		}
-
-		return ToResponse(tx, token)
+		// The token fetching logic previously here is no longer needed
+		// as ToResponse handles token details internally from the transaction type.
+		return ToResponse(tx)
 	}
 
 	c.JSON(http.StatusOK, utils.NewPagedResponse(page, transformFunc))

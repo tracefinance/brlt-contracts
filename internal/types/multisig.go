@@ -80,8 +80,12 @@ const (
 type MultiSigWithdrawalRequest struct {
 	// Embeds the core transaction details
 	Transaction
-	// Token is the address of the token to withdraw
-	Token string
+	// TokenAddress is the address of the token to withdraw
+	TokenAddress string
+	// TokenSymbol is the symbol of the token to withdraw
+	TokenSymbol string
+	// TokenDecimals is the number of decimals of the token to withdraw
+	TokenDecimals uint8
 	// Amount is the amount of tokens to withdraw
 	Amount *big.Int
 	// Recipient is the address to receive the withdrawn tokens
