@@ -25,6 +25,7 @@ const (
 	MultiSigRecoverNonSupportedTokenMethod     MultiSigMethodSignature = "recoverNonSupportedToken(address,address)"
 	MultiSigGetSupportedTokensMethod           MultiSigMethodSignature = "getSupportedTokens()"
 	MultiSigGetSignersMethod                   MultiSigMethodSignature = "getSigners()"
+	MultiSigExecuteWithdrawalMethod            MultiSigMethodSignature = "_executeWithdrawal(bytes32)"
 )
 
 // MultiSigWallet contract event signatures (hashed topics are used for filtering)
