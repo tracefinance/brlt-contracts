@@ -21,18 +21,18 @@ Guidelines for creating and managing task lists in markdown files to track proje
    
    ## Completed Tasks
    
-   - [x] Task 1 that has been completed
-   - [x] Task 2 that has been completed
+   1. [x] Task 1 that has been completed
+   2. [x] Task 2 that has been completed
    
    ## In Progress Tasks
    
-   - [ ] Task 3 currently being worked on
-   - [ ] Task 4 to be completed soon
+   3. [ ] Task 3 currently being worked on
+   4. [ ] Task 4 to be completed soon
    
    ## Future Tasks
    
-   - [ ] Task 5 planned for future implementation
-   - [ ] Task 6 planned for future implementation
+   5. [ ] Task 5 planned for future implementation
+   6. [ ] Task 6 planned for future implementation
    
    ## Implementation Plan
    
@@ -81,13 +81,13 @@ When updating a task from "In Progress" to "Completed":
 ```markdown
 ## In Progress Tasks
 
-- [ ] Implement database schema
-- [ ] Create API endpoints for data access
+3. [ ] Implement database schema
+4. [ ] Create API endpoints for data access
 
 ## Completed Tasks
 
-- [x] Set up project structure
-- [x] Configure environment variables
+1. [x] Set up project structure
+2. [x] Configure environment variables
 ```
 
 Should become:
@@ -95,11 +95,11 @@ Should become:
 ```markdown
 ## In Progress Tasks
 
-- [ ] Create API endpoints for data access
+4. [ ] Create API endpoints for data access
 
 ## Completed Tasks
 
-- [x] Set up project structure
-- [x] Configure environment variables
-- [x] Implement database schema
+1. [x] Set up project structure
+2. [x] Configure environment variables
+3. [x] Implement database schema
 ```

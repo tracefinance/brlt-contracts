@@ -12,30 +12,6 @@ import (
 // Decoder defines the interface for converting generic transactions
 // into specific, type-safe transaction structs by parsing ABI data.
 type Decoder interface {
-	// DecodeERC20Transfer attempts to convert a Transaction into an ERC20Transfer.
-	// Returns an error if the transaction is not a valid ERC20 transfer call.
-	DecodeERC20Transfer(ctx context.Context, tx *types.Transaction) (*types.ERC20Transfer, error)
-
-	// DecodeMultiSigWithdrawalRequest attempts to convert a Transaction into a MultiSigWithdrawalRequest.
-	// Returns an error if the transaction is not a valid MultiSig withdrawal request call.
-	DecodeMultiSigWithdrawalRequest(ctx context.Context, tx *types.Transaction) (*types.MultiSigWithdrawalRequest, error)
-
-	// DecodeMultiSigSignWithdrawal attempts to convert a Transaction into a MultiSigSignWithdrawal.
-	// Returns an error if the transaction is not a valid MultiSig sign withdrawal call.
-	DecodeMultiSigSignWithdrawal(ctx context.Context, tx *types.Transaction) (*types.MultiSigSignWithdrawal, error)
-
-	// DecodeMultiSigExecuteWithdrawal attempts to convert a Transaction into a MultiSigExecuteWithdrawal.
-	// Returns an error if the transaction is not a valid MultiSig execute withdrawal call.
-	DecodeMultiSigExecuteWithdrawal(ctx context.Context, tx *types.Transaction) (*types.MultiSigExecuteWithdrawal, error)
-
-	// DecodeMultiSigAddSupportedToken attempts to convert a Transaction into a MultiSigAddSupportedToken.
-	// Returns an error if the transaction is not a valid MultiSig add token call.
-	DecodeMultiSigAddSupportedToken(ctx context.Context, tx *types.Transaction) (*types.MultiSigAddSupportedToken, error)
-
-	// DecodeMultiSigRecoveryRequest attempts to convert a Transaction into a MultiSigRecoveryRequest.
-	// Returns an error if the transaction is not a valid MultiSig recovery request call.
-	DecodeMultiSigRecoveryRequest(ctx context.Context, tx *types.Transaction) (*types.MultiSigRecoveryRequest, error)
-
 	// DecodeTransaction acts as the primary dispatcher.
 	// It attempts to identify the contract method from the transaction data
 	// and calls the appropriate specific conversion method (e.g., DecodeERC20Transfer).

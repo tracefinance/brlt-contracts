@@ -233,26 +233,24 @@ func (s *walletMonitorService) processTransactionEvent(ctx context.Context, tx *
 		return
 	}
 
+	decodedTx, err := mapper.DecodeTransaction(ctx, tx)
+	if err != nil {
+		s.log.Error("Failed to decode transaction",
+			logger.Error(err),
+			logger.String("tx_hash", tx.Hash))
+		return
+	}
+
 	// Update balances based on transaction type using balanceService
-	switch tx.Type {
-	case types.TransactionTypeNative:
-		// Update native token balance using balanceService
-		if err := s.balanceService.UpdateWalletBalance(ctx, tx); err != nil {
-			s.log.Error("Failed to update native wallet balance",
-				logger.Error(err),
-				logger.Int64("wallet_id", walletID),
-				logger.String("tx_hash", tx.Hash))
-		}
+	switch decodedTx.GetType() {
 	case types.TransactionTypeERC20Transfer:
-		// For ERC20 transfers, we need to convert the transaction to an ERC20Transfer
-		erc20Transfer, err := mapper.DecodeERC20Transfer(ctx, tx)
-		if err != nil {
+		erc20Transfer, ok := decodedTx.(*types.ERC20Transfer)
+		if !ok {
 			s.log.Error("Failed to convert transaction to ERC20Transfer",
-				logger.Error(err),
 				logger.String("tx_hash", tx.Hash))
 			return
 		}
-
+		// For ERC20 transfers, we need to convert the transaction to an ERC20Transfer
 		if err := s.balanceService.UpdateTokenBalance(ctx, erc20Transfer); err != nil {
 			s.log.Error("Failed to update token balance",
 				logger.Error(err),
@@ -297,30 +295,29 @@ func (s *walletMonitorService) processHistoryEvent(ctx context.Context, tx *type
 		return
 	}
 
-	mapper, err := s.txFactory.NewDecoder(tx.ChainType)
+	decoder, err := s.txFactory.NewDecoder(tx.ChainType)
 	if err != nil {
 		s.log.Error("Failed to create transaction mapper",
 			logger.Error(err))
 		return
 	}
 
+	decodedTx, err := decoder.DecodeTransaction(ctx, tx)
+	if err != nil {
+		s.log.Error("Failed to decode transaction",
+			logger.Error(err),
+			logger.String("tx_hash", tx.Hash))
+		return
+	}
+
 	// Update balances based on transaction type using balanceService only if it's a new transaction
 	if isNewTransaction {
-		switch tx.Type {
-		case types.TransactionTypeNative:
-			// Update native token balance using balanceService
-			if err := s.balanceService.UpdateWalletBalance(ctx, tx); err != nil {
-				s.log.Error("Failed to update native wallet balance",
-					logger.Error(err),
-					logger.Int64("wallet_id", walletID),
-					logger.String("tx_hash", tx.Hash))
-			}
+		switch decodedTx.GetType() {
 		case types.TransactionTypeERC20Transfer:
 			// For ERC20 transfers, we need to convert the transaction to an ERC20Transfer
-			erc20Transfer, err := mapper.DecodeERC20Transfer(ctx, tx)
-			if err != nil {
+			erc20Transfer, ok := decodedTx.(*types.ERC20Transfer)
+			if !ok {
 				s.log.Error("Failed to convert transaction to ERC20Transfer",
-					logger.Error(err),
 					logger.String("tx_hash", tx.Hash))
 				return
 			}
