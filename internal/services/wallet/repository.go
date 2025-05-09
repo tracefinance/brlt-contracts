@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
@@ -292,7 +293,12 @@ func (r *repository) List(ctx context.Context, limit int, nextToken string) (*ty
 
 	// If there is a next token, add the condition to start after the token value
 	if token != nil {
-		sb.Where(sb.GreaterThan(paginationColumn, token.Value))
+		idVal, ok := token.GetValueInt64()
+		if !ok {
+			return nil, errors.NewInvalidPaginationTokenError(nextToken,
+				fmt.Errorf("expected integer ID in token, got %T", token.Value))
+		}
+		sb.Where(sb.GreaterThan(paginationColumn, idVal))
 	}
 
 	// Ensure consistent ordering

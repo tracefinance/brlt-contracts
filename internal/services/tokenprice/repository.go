@@ -333,7 +333,7 @@ func (r *repository) List(ctx context.Context, filter *TokenPriceFilter, limit i
 	// Apply pagination only if token is not nil
 	if token != nil {
 		// Get rank value as an integer
-		rankInt, ok := token.Value.(int)
+		rankInt, ok := token.GetValueInt64()
 		if !ok {
 			return nil, errors.NewInvalidPaginationTokenError(nextToken,
 				fmt.Errorf("rank value must be an integer, got %T", token.Value))

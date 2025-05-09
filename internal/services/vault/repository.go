@@ -265,7 +265,12 @@ func (r *repository) List(ctx context.Context, filter VaultFilter, limit int, ne
 	// Apply pagination condition
 	if token != nil {
 		// Assuming ID is always increasing for simplicity
-		sb.Where(sb.GreaterThan(paginationColumn, token.Value))
+		idVal, ok := token.GetValueInt64()
+		if !ok {
+			return nil, errors.NewInvalidPaginationTokenError(nextToken,
+				fmt.Errorf("expected integer ID in token, got %T", token.Value))
+		}
+		sb.Where(sb.GreaterThan(paginationColumn, idVal))
 	}
 
 	// Ensure consistent ordering
