@@ -40,6 +40,7 @@ type ListTransactionsRequest struct {
 	Address      string `form:"address"`
 	TokenAddress string `form:"token_address"`
 	Status       string `form:"status"`
+	Type         string `form:"type"`
 }
 
 // ListTransactionsByAddressRequest defines query parameters for listing transactions by address
@@ -47,6 +48,7 @@ type ListTransactionsByAddressRequest struct {
 	NextToken    string `form:"next_token"`
 	Limit        *int   `form:"limit" binding:"omitempty,min=1"`
 	TokenAddress string `form:"token_address"`
+	Type         string `form:"type"`
 }
 
 // SyncTransactionsResponse represents the response for a transaction sync operation

@@ -219,7 +219,7 @@ func (r *repository) List(ctx context.Context, filter *Filter, limit int, nextTo
 	}
 
 	if token != nil {
-		idVal, ok := token.Value.(int64)
+		idVal, ok := token.GetValueInt64()
 		if !ok {
 			return nil, errors.NewInvalidParameterError("next_token",
 				fmt.Errorf("unexpected token value type: %T", token.Value).Error())

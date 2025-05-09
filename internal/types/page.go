@@ -16,6 +16,34 @@ type NextPageToken struct {
 	Value any `json:"v"`
 }
 
+// GetValueInt64 attempts to assert the Value field to an int64.
+// It handles cases where JSON unmarshalling might store numbers as float64.
+// It returns the int64 value and true if successful, otherwise zero and false.
+func (t *NextPageToken) GetValueInt64() (int64, bool) {
+	if t == nil || t.Value == nil {
+		return 0, false
+	}
+
+	switch v := t.Value.(type) {
+	case int64:
+		return v, true
+	case float64:
+		return int64(v), true
+	case json.Number:
+		i, err := v.Int64()
+		if err == nil {
+			return i, true
+		}
+		f, err := v.Float64()
+		if err == nil {
+			return int64(f), true
+		}
+		return 0, false
+	default:
+		return 0, false
+	}
+}
+
 // EncodeNextPageToken converts a NextPageToken to an encoded string
 func EncodeNextPageToken(token NextPageToken) (string, error) {
 	data, err := json.Marshal(token)

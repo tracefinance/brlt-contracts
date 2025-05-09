@@ -115,8 +115,12 @@ func (h *Handler) GetTransactionsByWalletAddress(c *gin.Context) {
 
 	// Add token address filter if provided
 	if !types.IsZeroAddress(req.TokenAddress) {
-		tokenAddressVal := req.TokenAddress
-		filter.TokenAddress = &tokenAddressVal
+		filter.TokenAddress = &req.TokenAddress
+	}
+
+	if req.Type != "" {
+		txType := types.TransactionType(req.Type)
+		filter.Type = &txType
 	}
 
 	// Use filter-based transaction retrieval
@@ -165,7 +169,6 @@ func (h *Handler) FilterTransactions(c *gin.Context) {
 
 	// Create a filter with the provided parameters
 	filter := &transaction.Filter{}
-
 	// Apply chain type filter if provided
 	if req.ChainType != "" {
 		chainType := types.ChainType(req.ChainType)
@@ -182,6 +185,12 @@ func (h *Handler) FilterTransactions(c *gin.Context) {
 		filter.TokenAddress = &req.TokenAddress
 	}
 
+	// Apply type filter if provided
+	if req.Type != "" {
+		txType := types.TransactionType(req.Type)
+		filter.Type = &txType
+	}
+
 	// Apply status filter if provided
 	if req.Status != "" {
 		status := types.TransactionStatus(req.Status)
@@ -195,58 +204,8 @@ func (h *Handler) FilterTransactions(c *gin.Context) {
 		return
 	}
 
-	// Get all chain types to prepare for token lookup
-	chainTypes := make(map[types.ChainType]bool)
-	for _, tx := range page.Items {
-		chainTypes[tx.GetChainType()] = true
-	}
-
-	// Get all token addresses from transactions
-	addressesByChain := make(map[types.ChainType][]string)
-	for chainType := range chainTypes {
-		addressesByChain[chainType] = []string{}
-	}
-
-	for _, tx := range page.Items {
-		chainType := tx.GetChainType()
-
-		// Extract token address
-		tokenAddr := GetTokenAddressFromTransaction(tx)
-		if tokenAddr != "" {
-			addressesByChain[chainType] = append(addressesByChain[chainType], tokenAddr)
-		}
-
-		// Also add from/to addresses for contract address detection
-		addressesByChain[chainType] = append(
-			addressesByChain[chainType],
-			tx.GetFrom(),
-			tx.GetTo(),
-		)
-	}
-
-	// Get tokens for each chain
-	tokensMap := make(map[string]*types.Token)
-	for chainType, addresses := range addressesByChain {
-		if len(addresses) == 0 {
-			continue
-		}
-
-		tokens, err := h.tokenService.GetTokensByAddresses(c.Request.Context(), chainType, addresses)
-		if err != nil {
-			c.Error(err)
-			return
-		}
-
-		// Add tokens to the map
-		for i := range tokens {
-			tokensMap[tokens[i].Address] = &tokens[i]
-		}
-	}
-
 	// Create a transform function for the paged response
 	transformFunc := func(tx types.CoreTransaction) TransactionResponse {
-		// The token fetching logic previously here is no longer needed
-		// as ToResponse handles token details internally from the transaction type.
 		return ToResponse(tx)
 	}
 
