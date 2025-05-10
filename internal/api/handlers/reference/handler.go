@@ -25,6 +25,7 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	refRoutes := router.Group("/references")
 	{
 		refRoutes.GET("/chains", h.ListChains)
+		refRoutes.GET("/native-tokens", h.ListNativeTokens)
 	}
 }
 
@@ -53,6 +54,41 @@ func (h *Handler) ListChains(c *gin.Context) {
 	// Sort the response by ID for consistent ordering
 	sort.Slice(response, func(i, j int) bool {
 		return response[i].ID < response[j].ID
+	})
+
+	c.JSON(http.StatusOK, response)
+}
+
+// ListNativeTokens godoc
+// @Summary      List native tokens
+// @Description  Retrieves a list of native tokens for all supported blockchain networks.
+// @Tags         Reference
+// @Produce      json
+// @Success      200  {array}  TokenResponse  "A list of native tokens for supported blockchains"
+// @Router       /references/native-tokens [get]
+func (h *Handler) ListNativeTokens(c *gin.Context) {
+	chainList := h.chains.List()
+	response := make([]TokenResponse, 0, len(chainList))
+
+	for _, chain := range chainList {
+		token, err := types.NewNativeToken(chain.Type)
+		if err != nil {
+			// Skip chains with errors creating native tokens
+			continue
+		}
+
+		response = append(response, TokenResponse{
+			Address:   token.Address,
+			ChainType: token.ChainType,
+			Symbol:    token.Symbol,
+			Decimals:  token.Decimals,
+			Type:      token.Type,
+		})
+	}
+
+	// Sort the response by chain type for consistent ordering
+	sort.Slice(response, func(i, j int) bool {
+		return string(response[i].ChainType) < string(response[j].ChainType)
 	})
 
 	c.JSON(http.StatusOK, response)
