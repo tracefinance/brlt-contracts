@@ -1,9 +1,6 @@
 <script setup lang="ts">
-import { formatDistanceToNow } from 'date-fns'
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { formatCurrency, shortenAddress } from '~/lib/utils'
-import { getTransactionExplorerUrl, getAddressExplorerUrl } from '~/lib/explorers'
 import type { IChain } from '~/types'
 
 // Define page metadata
@@ -75,10 +72,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- Show loading state only before the first load completes -->
-  <TransactionTableSkeleton v-if="isLoading && !hasInitiallyLoaded" />
   <!-- Show error state -->
-  <div v-else-if="error">
+  <div v-if="error">
     <Alert variant="destructive">
       <Icon name="lucide:alert-triangle" class="w-4 h-4" />
       <AlertTitle>Error</AlertTitle>
@@ -89,75 +84,19 @@ onUnmounted(() => {
   </div>
 
   <!-- Show content only after initial load attempt -->
-  <div v-else-if="hasInitiallyLoaded && currentChain">
-    <!-- Table (both empty and populated states) -->
-    <div class="overflow-auto rounded-lg border">
-      <Table>
-        <TableHeader>
-          <TableRow class="bg-muted hover:bg-muted">
-            <TableHead class="w-auto">Hash</TableHead>
-            <TableHead class="w-[10%]">Type</TableHead>
-            <TableHead class="w-[10%]">From</TableHead>
-            <TableHead class="w-[10%]">To</TableHead>
-            <TableHead class="w-[8%]">Token</TableHead>
-            <TableHead class="w-[10%] text-right">Value</TableHead>
-            <TableHead class="w-[15%]">Age</TableHead>
-            <TableHead class="w-[110px]">Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <!-- Empty State Table Body -->
-        <TableBody v-if="transactions.length === 0">
-          <TableRow>
-            <TableCell colSpan="8" class="text-center py-3">
-              <div class="flex items-center justify-center gap-1.5">
-                <Icon name="lucide:inbox" class="size-5 text-primary" />
-                <span>No transactions found for this token.</span>
-              </div>
-            </TableCell>
-          </TableRow>
-        </TableBody>
-        <!-- Populated Table Body -->
-        <TableBody v-else>
-          <TableRow v-for="tx in transactions" :key="tx.hash">
-            <TableCell>
-              <a :href="getTransactionExplorerUrl(explorerBaseUrl, tx.hash)" target="_blank" rel="noopener noreferrer" class="hover:underline">
-                {{ shortenAddress(tx.hash) }}
-              </a>
-            </TableCell>
-            <TableCell>
-              <TransactionTypeBadge :wallet-address="address" :from-address="tx.fromAddress" />
-            </TableCell>
-            <TableCell>
-              <a :href="getAddressExplorerUrl(explorerBaseUrl, tx.fromAddress)" target="_blank" rel="noopener noreferrer" class="hover:underline">
-                {{ shortenAddress(tx.fromAddress) }}
-              </a>
-            </TableCell>
-            <TableCell>
-              <a :href="getAddressExplorerUrl(explorerBaseUrl, tx.toAddress)" target="_blank" rel="noopener noreferrer" class="hover:underline">
-                {{ shortenAddress(tx.toAddress) }}
-              </a>
-            </TableCell>
-            <TableCell class="flex items-center">
-              <div class="flex items-center gap-2">
-                <!-- Show token symbol if available, otherwise use native token if it's a native transaction -->
-                <Web3Icon v-if="tx.tokenSymbol" :symbol="tx.tokenSymbol" class="size-5" />
-                <Web3Icon v-else-if="nativeToken" :symbol="nativeToken.symbol" class="size-5" />
-                <Icon v-else name="lucide:help-circle" class="size-5 text-muted-foreground" />
-                {{ tx.tokenSymbol || (nativeToken ? nativeToken.symbol : 'N/A') }}
-              </div>
-            </TableCell>
-            <TableCell class="text-right font-mono">{{ formatCurrency(tx.value) }}</TableCell>
-            <TableCell>
-              {{ formatDistanceToNow(new Date(tx.timestamp * 1000), { addSuffix: true }) }}
-            </TableCell>
-            <TableCell>
-              <TransactionStatusBadge :status="tx.status" />
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
-    </div>
-    <div class="flex items-center gap-2 mt-2">
+  <div v-else-if="currentChain">
+    <TransactionListTable
+      :transactions="transactions"
+      :is-loading="isLoading"
+      :has-initially-loaded="hasInitiallyLoaded"
+      :wallet-address="address"
+      :explorer-base-url="explorerBaseUrl"
+      :native-token-symbol="nativeToken?.symbol"
+      :rows="3"
+    />
+    
+    <!-- Only show pagination controls when not in loading state or after initial load -->
+    <div v-if="!isLoading || hasInitiallyLoaded" class="flex items-center gap-2 mt-2">
       <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
       <PaginationControls 
         :next-token="nextPageToken" 
