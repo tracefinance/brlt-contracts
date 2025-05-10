@@ -1,5 +1,5 @@
-import type { IChain } from '~/types';
-import { Chain } from '~/types';
+import type { IChain, IToken } from '~/types';
+import { Chain, Token } from '~/types';
 import type { ApiClient } from './client';
 import { API_ENDPOINTS } from './endpoints';
 
@@ -24,5 +24,14 @@ export class ReferenceClient {
   async listChains(): Promise<IChain[]> {
     const data = await this.client.get<any[]>(API_ENDPOINTS.REFERENCES.CHAINS);
     return Chain.fromJsonArray(data);
+  }
+
+  /**
+   * Lists native tokens for all supported blockchains
+   * @returns Array of native tokens
+   */
+  async listNativeTokens(): Promise<IToken[]> {
+    const data = await this.client.get<any[]>(API_ENDPOINTS.REFERENCES.NATIVE_TOKENS);
+    return Token.fromJsonArray(data);
   }
 } 

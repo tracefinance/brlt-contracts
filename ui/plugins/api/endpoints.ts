@@ -52,6 +52,7 @@ export const API_ENDPOINTS = {
   // Reference data endpoints
   REFERENCES: {
     CHAINS: '/references/chains',
+    NATIVE_TOKENS: '/references/native-tokens',
   },
   
   // Keystore endpoints
