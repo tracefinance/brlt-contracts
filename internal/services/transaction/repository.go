@@ -190,7 +190,7 @@ func (r *repository) List(ctx context.Context, filter *Filter, limit int, nextTo
 			sb.Where(sb.E("type", *filter.Type))
 		}
 
-		if filter.TokenAddress != nil {
+		if filter.TokenAddress != nil && *filter.TokenAddress != "" {
 			sb.Where(sb.E("metadata->>'token_address'", types.NormalizeAddress(*filter.ChainType, *filter.TokenAddress)))
 		}
 

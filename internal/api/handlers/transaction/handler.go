@@ -36,14 +36,14 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	// Wallet-scoped transaction routes
 	walletRoutes := router.Group("/wallets/:chain_type/:address/transactions")
 	walletRoutes.Use(errorHandler.Middleware())
-	walletRoutes.GET("", h.GetTransactionsByWalletAddress)
+	walletRoutes.GET("", h.ListTransactionsByWalletAddress)
 	walletRoutes.GET("/:hash", h.GetTransactionByHash)
 
 	// Direct transaction routes
 	transactionRoutes := router.Group("/transactions")
 	transactionRoutes.Use(errorHandler.Middleware())
 	transactionRoutes.GET("/:hash", h.GetTransactionByHash)
-	transactionRoutes.GET("", h.FilterTransactions)
+	transactionRoutes.GET("", h.ListTransactions)
 }
 
 // GetTransactionByHash handles GET /wallets/:chain_type/:address/transactions/:hash
@@ -72,7 +72,7 @@ func (h *Handler) GetTransactionByHash(c *gin.Context) {
 	c.JSON(http.StatusOK, ToResponse(tx))
 }
 
-// GetTransactionsByWalletAddress handles GET /wallets/:chain_type/:address/transactions
+// ListTransactionsByWalletAddress handles GET /wallets/:chain_type/:address/transactions
 // @Summary List transactions for an address
 // @Description Get a paginated list of transactions for a specific wallet address
 // @Tags transactions
@@ -87,7 +87,7 @@ func (h *Handler) GetTransactionByHash(c *gin.Context) {
 // @Failure 404 {object} errors.Vault0Error "Wallet not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /wallets/{chain_type}/{address}/transactions [get]
-func (h *Handler) GetTransactionsByWalletAddress(c *gin.Context) {
+func (h *Handler) ListTransactionsByWalletAddress(c *gin.Context) {
 	chainType := types.ChainType(c.Param("chain_type"))
 	address := c.Param("address")
 
@@ -114,8 +114,13 @@ func (h *Handler) GetTransactionsByWalletAddress(c *gin.Context) {
 	}
 
 	// Add token address filter if provided
-	if !types.IsZeroAddress(req.TokenAddress) {
-		filter.TokenAddress = &req.TokenAddress
+	if req.TokenAddress != "" {
+		if types.IsZeroAddress(req.TokenAddress) {
+			txType := types.TransactionTypeNative
+			filter.Type = &txType
+		} else {
+			filter.TokenAddress = &req.TokenAddress
+		}
 	}
 
 	if req.Type != "" {
@@ -138,7 +143,7 @@ func (h *Handler) GetTransactionsByWalletAddress(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.NewPagedResponse(page, transformFunc))
 }
 
-// FilterTransactions handles GET /transactions
+// ListTransactions handles GET /transactions
 // @Summary Filter transactions
 // @Description Get a paginated list of transactions based on filter criteria
 // @Tags transactions
@@ -153,7 +158,7 @@ func (h *Handler) GetTransactionsByWalletAddress(c *gin.Context) {
 // @Failure 400 {object} errors.Vault0Error "Invalid request"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
 // @Router /transactions [get]
-func (h *Handler) FilterTransactions(c *gin.Context) {
+func (h *Handler) ListTransactions(c *gin.Context) {
 	// Parse pagination and filter parameters
 	var req ListTransactionsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -181,8 +186,13 @@ func (h *Handler) FilterTransactions(c *gin.Context) {
 	}
 
 	// Apply token address filter if provided
-	if !types.IsZeroAddress(req.TokenAddress) {
-		filter.TokenAddress = &req.TokenAddress
+	if req.TokenAddress != "" {
+		if types.IsZeroAddress(req.TokenAddress) {
+			txType := types.TransactionTypeNative
+			filter.Type = &txType
+		} else {
+			filter.TokenAddress = &req.TokenAddress
+		}
 	}
 
 	// Apply type filter if provided
