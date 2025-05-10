@@ -52,14 +52,19 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Register wallet service as a transaction transformer
-	if err := container.Services.Transaction.TransformerService.RegisterTransformer("wallet", container.Services.WalletService); err != nil {
-		log.Error("Failed to register wallet transformer", logger.Error(err))
+	// Register blockchain transformer for blockchain data enrichment
+	if err := container.Services.Transaction.TransformerService.RegisterTransformer("0_blockchain_data", container.Services.Transaction.BlockchainTransformer); err != nil {
+		log.Error("Failed to register blockchain transformer", logger.Error(err))
 	}
 
-	// Register blockchain transformer for blockchain data enrichment
-	if err := container.Services.Transaction.TransformerService.RegisterTransformer("blockchain_data", container.Services.Transaction.BlockchainTransformer); err != nil {
-		log.Error("Failed to register blockchain transformer", logger.Error(err))
+	// Register token transformer for token data enrichment
+	if err := container.Services.Transaction.TransformerService.RegisterTransformer("1_token_data", container.Services.Transaction.TokenTransformer); err != nil {
+		log.Error("Failed to register token transformer", logger.Error(err))
+	}
+
+	// Register wallet service as a transaction transformer
+	if err := container.Services.Transaction.TransformerService.RegisterTransformer("2_wallet_id", container.Services.WalletService); err != nil {
+		log.Error("Failed to register wallet transformer", logger.Error(err))
 	}
 
 	// Start pending transaction polling

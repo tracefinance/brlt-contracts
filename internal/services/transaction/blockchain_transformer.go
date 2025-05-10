@@ -40,6 +40,10 @@ func (t *blockchainTransformer) TransformTransaction(ctx context.Context, tx *ty
 		return errors.NewInvalidInputError("Transaction cannot be nil", "transaction", nil)
 	}
 
+	if tx.Type != types.TransactionTypeContractCall {
+		return nil
+	}
+
 	// Get blockchain client for this chain
 	client, err := t.blockchainFactory.NewClient(tx.ChainType)
 	if err != nil {

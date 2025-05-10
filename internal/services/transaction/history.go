@@ -10,6 +10,7 @@ import (
 	"vault0/internal/config"
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/blockexplorer"
+	"vault0/internal/core/tokenstore"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
 	"vault0/internal/types"
@@ -47,6 +48,7 @@ func NewHistoryService(
 	blockchainFactory blockchain.Factory,
 	transformer TransformerService,
 	repository Repository,
+	tokenStore tokenstore.TokenStore,
 ) HistoryService {
 	service := &historyService{
 		config:               config,
@@ -55,6 +57,7 @@ func NewHistoryService(
 		blockchainFactory:    blockchainFactory,
 		transformerService:   transformer,
 		repository:           repository,
+		tokenStore:           tokenStore,
 		syncMutex:            sync.RWMutex{},
 		syncAddresses:        make(map[string]addressSyncInfo),
 		historyEventsChan:    make(chan *TransactionHistoryEvent, 100),
@@ -80,6 +83,7 @@ type historyService struct {
 	blockchainFactory    blockchain.Factory
 	transformerService   TransformerService
 	repository           Repository
+	tokenStore           tokenstore.TokenStore
 }
 
 // addressSyncInfo holds the address and start block number for syncing
@@ -308,6 +312,13 @@ func (s *historyService) syncTransactionsForAddressByType(ctx context.Context, a
 			continue
 		}
 
+		// For ERC20 transactions, verify that the token address exists in the token store
+		if txType == blockexplorer.TxTypeERC20 {
+			if !s.isValidERC20Token(ctx, transformedTx) {
+				continue
+			}
+		}
+
 		// Convert to service transaction
 		serviceTx := FromCoreTransaction(transformedTx)
 		if serviceTx == nil {
@@ -372,6 +383,40 @@ func (s *historyService) syncTransactionsForAddressByType(ctx context.Context, a
 	s.setStartBlock(address, new(big.Int).Add(latestBlockNumber, big.NewInt(1)))
 
 	return nil
+}
+
+// isValidERC20Token checks if the ERC20 token in the transaction exists in the token store
+// Returns true if the token is valid, false otherwise
+func (s *historyService) isValidERC20Token(ctx context.Context, tx *types.Transaction) bool {
+	tokenAddress, exists := tx.Metadata.GetAddress(types.ERC20TokenAddressMetadataKey)
+	if !exists {
+		s.log.Warn("ERC20 token address not found in metadata, skipping",
+			logger.String("tx_hash", tx.Hash))
+		return false
+	}
+
+	// Check if the token exists in the token store
+	token, err := s.tokenStore.GetToken(ctx, tokenAddress.Hex())
+	if token != nil && err == nil {
+		s.log.Debug("Found token in token store",
+			logger.String("tx_hash", tx.Hash),
+			logger.String("token_address", tokenAddress.Hex()),
+			logger.String("token_symbol", token.Symbol))
+		return true
+	}
+
+	if errors.IsError(err, errors.ErrCodeResourceNotFound) {
+		s.log.Warn("Token not found in token store, skipping",
+			logger.String("tx_hash", tx.Hash),
+			logger.String("token_address", tokenAddress.Hex()))
+	} else {
+		s.log.Error("Failed to get token from token store",
+			logger.String("tx_hash", tx.Hash),
+			logger.String("token_address", tokenAddress.Hex()),
+			logger.Error(err))
+	}
+
+	return false
 }
 
 // syncTransactionsForAddress immediately syncs transaction history for a specific address

@@ -20,6 +20,7 @@ type Transaction struct {
 	MonitorService        transaction.MonitorService
 	HistoryService        transaction.HistoryService
 	BlockchainTransformer transaction.BlockchainTransformer
+	TokenTransformer      transaction.TokenTransformer
 }
 
 // Services holds instances of all application services.
@@ -53,6 +54,7 @@ var TransactionServiceSet = wire.NewSet(
 	transaction.NewMonitorService,
 	transaction.NewHistoryService,
 	transaction.NewBlockchainTransformer,
+	transaction.NewTokenTransformer,
 )
 var TokenServiceSet = wire.NewSet(token.NewService, token.NewTokenMonitorService)
 var SignerServiceSet = wire.NewSet(signer.NewRepository, signer.NewService)
@@ -91,6 +93,7 @@ func NewServices(
 	keystoreSvc keystore.Service,
 	vaultSvc vault.Service,
 	blockchainTransformer transaction.BlockchainTransformer,
+	tokenTransformer transaction.TokenTransformer,
 ) *Services {
 	return &Services{
 		Transaction: Transaction{
@@ -100,6 +103,7 @@ func NewServices(
 			MonitorService:        monitorSvc,
 			HistoryService:        historySvc,
 			BlockchainTransformer: blockchainTransformer,
+			TokenTransformer:      tokenTransformer,
 		},
 		WalletService:            walletSvc,
 		WalletMonitorService:     walletMonitorSvc,
