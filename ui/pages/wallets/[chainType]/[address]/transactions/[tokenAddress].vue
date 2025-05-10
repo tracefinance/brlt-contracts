@@ -35,10 +35,19 @@ const {
 // Use the useChains composable
 const { chains, isLoading: isLoadingChains, error: chainsError } = useChains()
 
+// Use the useNativeTokens composable
+const { nativeTokens, isLoading: isLoadingNativeTokens, error: nativeTokensError } = useNativeTokens()
+
 // Find the current chain based on the route parameter
 const currentChain = computed(() => {
   if (isLoadingChains.value || chainsError.value) return null // Guard against loading/error state
   return chains.value.find((chain: IChain) => chain.type?.toLowerCase() === chainType.value?.toLowerCase())
+})
+
+// Find native token for current chain
+const nativeToken = computed(() => {
+  if (isLoadingNativeTokens.value || !currentChain.value) return null
+  return nativeTokens.value.find(token => token.chainType?.toLowerCase() === chainType.value?.toLowerCase())
 })
 
 // Computed property for the base explorer URL
@@ -47,7 +56,7 @@ const explorerBaseUrl = computed(() => {
 })
 
 // Combine loading and error states
-const error = computed(() => walletTransactionsError.value || chainsError.value)
+const error = computed(() => walletTransactionsError.value || chainsError.value || nativeTokensError.value)
 
 // Set up auto-refresh interval
 let refreshInterval: ReturnType<typeof setInterval> | null = null
@@ -130,9 +139,11 @@ onUnmounted(() => {
             </TableCell>
             <TableCell class="flex items-center">
               <div class="flex items-center gap-2">
+                <!-- Show token symbol if available, otherwise use native token if it's a native transaction -->
                 <Web3Icon v-if="tx.tokenSymbol" :symbol="tx.tokenSymbol" class="size-5" />
+                <Web3Icon v-else-if="nativeToken" :symbol="nativeToken.symbol" class="size-5" />
                 <Icon v-else name="lucide:help-circle" class="size-5 text-muted-foreground" />
-                {{ tx.tokenSymbol || 'N/A' }}
+                {{ tx.tokenSymbol || (nativeToken ? nativeToken.symbol : 'N/A') }}
               </div>
             </TableCell>
             <TableCell class="text-right font-mono">{{ formatCurrency(tx.value) }}</TableCell>
