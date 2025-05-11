@@ -31,13 +31,7 @@ type HistoryService interface {
 	StopTransactionSyncing()
 
 	// HistoryEvents returns a channel that emits processed historical transactions
-	HistoryEvents() <-chan *TransactionHistoryEvent
-}
-
-// TransactionHistoryEvent represents a transaction event with its status
-type TransactionHistoryEvent struct {
-	Transaction *types.Transaction
-	IsNew       bool
+	HistoryEvents() <-chan *TransactionEvent
 }
 
 // NewHistoryService creates a new transaction history service
@@ -60,7 +54,7 @@ func NewHistoryService(
 		tokenStore:           tokenStore,
 		syncMutex:            sync.RWMutex{},
 		syncAddresses:        make(map[string]addressSyncInfo),
-		historyEventsChan:    make(chan *TransactionHistoryEvent, 100),
+		historyEventsChan:    make(chan *TransactionEvent, 100),
 	}
 
 	return service
@@ -74,7 +68,7 @@ type historyService struct {
 	syncAddresses map[string]addressSyncInfo
 
 	// Channel for emitting history events
-	historyEventsChan chan *TransactionHistoryEvent
+	historyEventsChan chan *TransactionEvent
 
 	// Dependencies
 	config               *config.Config
@@ -139,7 +133,7 @@ func (s *historyService) UnmonitorAddress(address types.Address) error {
 }
 
 // HistoryEvents returns a channel that emits processed historical transactions
-func (s *historyService) HistoryEvents() <-chan *TransactionHistoryEvent {
+func (s *historyService) HistoryEvents() <-chan *TransactionEvent {
 	return s.historyEventsChan
 }
 
@@ -363,7 +357,7 @@ func (s *historyService) syncTransactionsForAddressByType(ctx context.Context, a
 		}
 
 		// Emit transaction event
-		event := &TransactionHistoryEvent{
+		event := &TransactionEvent{
 			Transaction: transformedTx,
 			IsNew:       isNewTransaction,
 		}

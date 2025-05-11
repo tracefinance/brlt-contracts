@@ -2,8 +2,10 @@ package transaction
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sync"
+	"time"
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/transaction"
 	"vault0/internal/errors"
@@ -34,7 +36,13 @@ type MonitorService interface {
 	StopTransactionMonitoring()
 
 	// TransactionEvents returns a channel that emits processed transactions
-	TransactionEvents() <-chan any
+	TransactionEvents() <-chan *TransactionEvent
+}
+
+// TransactionEvent represents a transaction event with its status
+type TransactionEvent struct {
+	Transaction types.CoreTransaction
+	IsNew       bool
 }
 
 // NewMonitorService creates a new transaction monitoring service
@@ -48,7 +56,7 @@ func NewMonitorService(
 ) MonitorService {
 	return &monitorService{
 		monitorMutex:          sync.RWMutex{},
-		transactionEventsChan: make(chan any, 100), // Buffer size of 100 events
+		transactionEventsChan: make(chan *TransactionEvent, 100), // Buffer size of 100 events
 		log:                   log,
 		blockchainFactory:     blockchainFactory,
 		chains:                chains,
@@ -60,10 +68,10 @@ func NewMonitorService(
 
 type monitorService struct {
 	// Monitoring lifecycle management
-	monitorCtx            context.Context    // Context for monitoring goroutines
-	monitorCancel         context.CancelFunc // Function to cancel the monitoring context
-	monitorMutex          sync.RWMutex       // Mutex for concurrent access to monitor state
-	transactionEventsChan chan any           // Channel for emitting transformed/mapped transactions
+	monitorCtx            context.Context        // Context for monitoring goroutines
+	monitorCancel         context.CancelFunc     // Function to cancel the monitoring context
+	monitorMutex          sync.RWMutex           // Mutex for concurrent access to monitor state
+	transactionEventsChan chan *TransactionEvent // Channel for emitting transformed/mapped transactions
 
 	// Dependencies
 	log               logger.Logger       // Logger for service operations
@@ -278,8 +286,61 @@ func (s *monitorService) StopTransactionMonitoring() {
 }
 
 // TransactionEvents returns a channel that emits processed transactions (mapped type or transformed *types.Transaction).
-func (s *monitorService) TransactionEvents() <-chan any {
+func (s *monitorService) TransactionEvents() <-chan *TransactionEvent {
 	return s.transactionEventsChan
+}
+
+// Helper method to save transactions
+func (s *monitorService) saveTransaction(ctx context.Context, tx *types.Transaction) (bool, error) {
+	// Convert to service transaction before saving
+	serviceTx := FromCoreTransaction(tx)
+	if serviceTx == nil {
+		return false, fmt.Errorf("failed to convert transaction to service model")
+	}
+
+	// Check if transaction already exists
+	existingTx, err := s.repository.GetByHash(ctx, tx.Hash)
+	if err == nil && existingTx != nil {
+		// Transaction already exists, update it
+		existingTx.Status = serviceTx.Status
+		if serviceTx.BlockNumber != nil {
+			existingTx.BlockNumber = serviceTx.BlockNumber
+		}
+		if tx.GasUsed > 0 {
+			existingTx.GasUsed = sql.NullInt64{
+				Int64: int64(tx.GasUsed),
+				Valid: true,
+			}
+		}
+		if tx.Timestamp > 0 {
+			existingTx.Timestamp = sql.NullInt64{
+				Int64: tx.Timestamp,
+				Valid: true,
+			}
+		}
+		existingTx.UpdatedAt = time.Now()
+
+		err = s.repository.Update(ctx, existingTx)
+		if err != nil {
+			s.log.Error("Failed to update transaction",
+				logger.String("tx_hash", tx.Hash),
+				logger.Error(err),
+			)
+			return false, err
+		}
+		return false, nil
+	}
+
+	// Transaction doesn't exist, create it
+	err = s.repository.Create(ctx, serviceTx)
+	if err != nil {
+		s.log.Error("Failed to save transaction",
+			logger.String("tx_hash", tx.Hash),
+			logger.Error(err),
+		)
+		return false, err
+	}
+	return true, nil
 }
 
 // processRawTransactionEvents listens to raw events from a specific blockchain monitor,
@@ -288,6 +349,15 @@ func (s *monitorService) processRawTransactionEvents(ctx context.Context, chainT
 	// Get logger specific to this processor if needed, or use service logger
 	procLog := s.log.With(logger.String("processor_id", string(chainType)))
 	procLog.Info("Starting raw transaction event processor")
+
+	decoder, err := s.txFactory.NewDecoder(chainType)
+	if err != nil {
+		procLog.Warn("Failed to create transaction decoder",
+			logger.String("chain_type", string(chainType)),
+			logger.Error(err),
+		)
+		return
+	}
 
 	for {
 		select {
@@ -309,77 +379,53 @@ func (s *monitorService) processRawTransactionEvents(ctx context.Context, chainT
 			// 1. Apply transformers
 			transformedTx := s.transformer.Apply(ctx, rawTx)
 
-			if transformedTx != nil {
-				s.saveTransactionInBackground(transformedTx)
-			} else {
-				// This case should ideally not be reached if transformTransaction handles nil input,
-				// but log it just in case.
+			if transformedTx == nil {
 				procLog.Error("Transaction is nil after transformation, cannot save or process further",
 					logger.String("original_tx_hash", rawTx.Hash))
 				continue
 			}
 
-			// 2. Map the transformed transaction
-			// Note: Use the parent context (s.monitorCtx) for mapping? Or pass the specific processor ctx?
-			// Using the passed ctx seems more correct for cancellation propagation.
-			mapper, err := s.txFactory.NewDecoder(chainType)
+			// 2. Save or update transaction
+			isNew, err := s.saveTransaction(ctx, transformedTx)
 			if err != nil {
+				procLog.Error("Failed to save/update transaction",
+					logger.String("tx_hash", transformedTx.Hash),
+					logger.Error(err),
+				)
 				continue
 			}
 
-			mappedTx, mapErr := mapper.DecodeTransaction(ctx, transformedTx)
-
-			// 3. Determine what to emit
-			var eventToEmit any = transformedTx // Default to transformed tx
-			if mapErr != nil {
-				procLog.Warn("Failed to map transaction to specific type, emitting transformed transaction",
+			// 3. Map the transformed transaction
+			mappedTx, err := decoder.DecodeTransaction(ctx, transformedTx)
+			if err != nil {
+				procLog.Warn("Failed to map transaction to specific type",
 					logger.String("tx_hash", transformedTx.Hash),
-					logger.Error(mapErr),
+					logger.Error(err),
 				)
 			}
-			if mappedTx != nil {
-				eventToEmit = mappedTx
+
+			// 4. Create TransactionEvent
+			txEvent := &TransactionEvent{
+				Transaction: mappedTx,
+				IsNew:       isNew,
 			}
 
-			// 4. Emit the event (non-blocking)
+			// 5. Emit the event (non-blocking)
 			select {
-			case s.transactionEventsChan <- eventToEmit:
-				procLog.Debug("Emitted processed transaction event",
+			case s.transactionEventsChan <- txEvent:
+				procLog.Debug("Emitted transaction event",
 					logger.String("tx_hash", transformedTx.Hash),
-					logger.Any("emitted_type", fmt.Sprintf("%T", eventToEmit)), // Log the type actually emitted
+					logger.Bool("is_new", isNew),
 				)
 			case <-ctx.Done():
 				procLog.Info("Stopping emission due to context cancellation during send")
 				return
 			default:
 				// Channel buffer is full, log and drop the event
-				procLog.Warn("Transformed events channel is full, dropping event",
+				procLog.Warn("Transaction events channel is full, dropping event",
 					logger.String("tx_hash", transformedTx.Hash),
 				)
 			}
 		}
 	}
-}
-
-// Helper method to save transactions in background
-func (s *monitorService) saveTransactionInBackground(tx *types.Transaction) {
-	go func() {
-		ctx := context.Background()
-		// Convert to service transaction before saving
-		serviceTx := FromCoreTransaction(tx)
-		if serviceTx == nil {
-			s.log.Error("Failed to convert transaction to service model",
-				logger.String("tx_hash", tx.Hash),
-			)
-			return
-		}
-
-		err := s.repository.Create(ctx, serviceTx)
-		if err != nil {
-			s.log.Error("Failed to save transaction",
-				logger.String("tx_hash", tx.Hash),
-				logger.Error(err),
-			)
-		}
-	}()
 }
