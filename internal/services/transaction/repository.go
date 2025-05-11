@@ -225,10 +225,40 @@ func (r *repository) List(ctx context.Context, filter *Filter, limit int, nextTo
 				fmt.Errorf("unexpected token value type: %T", token.Value).Error())
 		}
 
-		sb.Where(sb.L(paginationColumn, idVal)) // Using less than because we're ordering by DESC
+		// Get the timestamp from the transaction with the token ID for proper pagination
+		var tokenTx *Transaction
+		if idVal > 0 {
+			txsb := r.structMap.SelectFrom("transactions")
+			txsb.Where(txsb.E("id", idVal))
+			txsql, txargs := txsb.Build()
+			txs, err := r.executeTransactionQuery(ctx, txsql, txargs...)
+			if err != nil {
+				return nil, err
+			}
+			if len(txs) > 0 {
+				tokenTx = txs[0]
+			}
+		}
+
+		if tokenTx != nil && tokenTx.Timestamp.Valid {
+			// If the token transaction has a timestamp, create a compound condition
+			sb.Where(sb.Or(
+				// Either: same timestamp but lower ID
+				sb.And(
+					sb.E("timestamp", tokenTx.Timestamp.Int64),
+					sb.L("id", idVal),
+				),
+				// Or: earlier timestamp
+				sb.L("timestamp", tokenTx.Timestamp.Int64),
+			))
+		} else {
+			// Fall back to just ID pagination if no timestamp available
+			sb.Where(sb.L(paginationColumn, idVal)) // Using less than because we're ordering by DESC
+		}
 	}
 
-	sb.OrderBy("id DESC")
+	// Order by timestamp with ID as fallback since ID is a snowflake with embedded timestamp
+	sb.OrderBy("timestamp DESC, id DESC")
 
 	// Add pagination if limit > 0
 	if limit > 0 {
