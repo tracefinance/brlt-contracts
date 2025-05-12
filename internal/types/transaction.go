@@ -14,10 +14,8 @@ type TransactionType string
 
 // Supported transaction types
 const (
-	TransactionTypeNative TransactionType = "native"
-	TransactionTypeDeploy TransactionType = "deploy"
-
-	// TransactionTypeContractCall indicates a transaction is a contract method call
+	TransactionTypeNative       TransactionType = "native"
+	TransactionTypeDeploy       TransactionType = "deploy"
 	TransactionTypeContractCall TransactionType = "contract_call"
 )
 
