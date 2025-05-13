@@ -4,28 +4,51 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"vault0/internal/logger"
 	"vault0/internal/types"
 )
+
+// EventSet represents a set of event signatures using a memory-efficient map implementation
+type EventSet map[string]struct{}
 
 // ContractSubscription represents an active subscription for a contract's events
 type ContractSubscription struct {
 	ChainType    types.ChainType
-	ContractAddr string              // Normalized (lowercase) contract address
-	Events       map[string]struct{} // Set of event signatures being monitored
-	CancelFunc   context.CancelFunc  // Function to cancel all subscriptions for this contract
+	ContractAddr string             // Normalized (lowercase) contract address
+	Events       EventSet           // Set of event signatures being monitored
+	CancelFunc   context.CancelFunc // Function to cancel all subscriptions for this contract
+}
+
+// AddEvent adds an event to the event set
+func (s *ContractSubscription) AddEvent(event string) {
+	s.Events[event] = struct{}{}
+}
+
+// RemoveEvent removes an event from the event set
+func (s *ContractSubscription) RemoveEvent(event string) {
+	delete(s.Events, event)
+}
+
+// Cancel cancels the subscription
+func (s *ContractSubscription) Cancel() {
+	if s.CancelFunc != nil {
+		s.CancelFunc()
+	}
 }
 
 // ContractMonitor manages contract event subscriptions across different chains
 // It provides thread-safe access to subscription data and operations
 type ContractMonitor struct {
-	// Map of chain -> contract address -> subscription
+	log logger.Logger
+	// Map of chain type to map of contract address to subscription
 	subscriptions map[types.ChainType]map[string]*ContractSubscription
 	mutex         sync.RWMutex
 }
 
 // NewContractMonitor creates a new subscription manager
-func NewContractMonitor() *ContractMonitor {
+func NewContractMonitor(log logger.Logger) *ContractMonitor {
 	return &ContractMonitor{
+		log:           log,
 		subscriptions: make(map[types.ChainType]map[string]*ContractSubscription),
 	}
 }
@@ -44,12 +67,19 @@ func (m *ContractMonitor) GetSubscription(chainType types.ChainType, contractAdd
 	return nil
 }
 
-// AddOrUpdateSubscription adds or updates a subscription
+// Add adds or updates a subscription
 // If a subscription already exists for the given chain and contract address,
 // it will be replaced with the new subscription
-func (m *ContractMonitor) AddOrUpdateSubscription(sub *ContractSubscription) {
+func (m *ContractMonitor) Add(chainType types.ChainType, contractAddr string, events EventSet) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
+
+	sub := &ContractSubscription{
+		ChainType:    chainType,
+		ContractAddr: strings.ToLower(contractAddr),
+		Events:       events,
+		CancelFunc:   nil,
+	}
 
 	// Ensure chain map exists
 	if _, exists := m.subscriptions[sub.ChainType]; !exists {
@@ -60,9 +90,9 @@ func (m *ContractMonitor) AddOrUpdateSubscription(sub *ContractSubscription) {
 	m.subscriptions[sub.ChainType][sub.ContractAddr] = sub
 }
 
-// RemoveSubscription removes a subscription
+// Remove removes a subscription
 // If the subscription doesn't exist, this is a no-op
-func (m *ContractMonitor) RemoveSubscription(chainType types.ChainType, contractAddr string) {
+func (m *ContractMonitor) Remove(chainType types.ChainType, contractAddr string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -114,8 +144,8 @@ func (m *ContractMonitor) GetSubscriptionsForChain(chainType types.ChainType) []
 	return result
 }
 
-// HasEventSubscription checks if a contract has a subscription for a specific event
-func (m *ContractMonitor) HasEventSubscription(chainType types.ChainType, contractAddr string, eventSig string) bool {
+// IsMonitored checks if a contract has a subscription for a specific event
+func (m *ContractMonitor) IsMonitored(chainType types.ChainType, contractAddr string, eventSig string) bool {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 

@@ -9,18 +9,21 @@ import (
 	"vault0/internal/types"
 )
 
+// AddressSet represents a set of addresses using a memory-efficient map implementation
+type AddressSet map[string]struct{}
+
 // AddressMonitor manages a set of addresses being monitored across different chains
 type AddressMonitor struct {
-	// Map of chain type -> address -> struct{} (set implementation)
-	monitoredAddresses map[types.ChainType]map[string]struct{}
+	// Map of chain type to set of addresses
+	monitoredAddresses map[types.ChainType]AddressSet
 	mutex              sync.RWMutex
 	log                logger.Logger
 }
 
-// NewAddressSetMonitor creates a new address set monitor
-func NewAddressSetMonitor(log logger.Logger) *AddressMonitor {
+// NewAddressMonitor creates a new address set monitor
+func NewAddressMonitor(log logger.Logger) *AddressMonitor {
 	return &AddressMonitor{
-		monitoredAddresses: make(map[types.ChainType]map[string]struct{}),
+		monitoredAddresses: make(map[types.ChainType]AddressSet),
 		log:                log,
 	}
 }
@@ -40,7 +43,7 @@ func (m *AddressMonitor) Add(addr *types.Address) error {
 	defer m.mutex.Unlock()
 
 	if _, ok := m.monitoredAddresses[addr.ChainType]; !ok {
-		m.monitoredAddresses[addr.ChainType] = make(map[string]struct{})
+		m.monitoredAddresses[addr.ChainType] = make(AddressSet)
 	}
 
 	if _, exists := m.monitoredAddresses[addr.ChainType][normalizedAddr]; !exists {

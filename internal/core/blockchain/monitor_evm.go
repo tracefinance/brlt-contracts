@@ -2,7 +2,6 @@ package blockchain
 
 import (
 	"context"
-	"strings"
 
 	"vault0/internal/errors"
 	"vault0/internal/logger"
@@ -43,8 +42,8 @@ func NewEVMMonitor(
 		log:               log,
 		client:            client,
 		transactionEvents: make(chan *types.Transaction, 100), // Buffer size
-		addressMonitor:    NewAddressSetMonitor(log),
-		contractMonitor:   NewContractMonitor(),
+		addressMonitor:    NewAddressMonitor(log),
+		contractMonitor:   NewContractMonitor(log),
 		eventHandlers:     make(map[string]EventHandler),
 	}
 
@@ -116,28 +115,33 @@ func (s *evmMonitor) MonitorContractAddress(addr *types.Address, events []string
 		return errors.NewInvalidInputError("At least one event must be specified", "events", nil)
 	}
 
-	normalizedAddr := strings.ToLower(addr.Address) // Normalize for consistent lookup
 	chainType := addr.ChainType
 
 	// Get existing subscription or create a new one
-	existingSub := s.contractMonitor.GetSubscription(chainType, normalizedAddr)
+	existingSub := s.contractMonitor.GetSubscription(chainType, addr.Address)
 
-	// Create event map
-	eventMap := make(map[string]struct{})
-	if existingSub != nil {
-		// Copy existing events
-		for event := range existingSub.Events {
-			eventMap[event] = struct{}{}
-		}
-	}
-
-	// Add new events
 	updated := false
-	for _, event := range events {
-		if _, exists := eventMap[event]; !exists {
-			eventMap[event] = struct{}{}
-			updated = true
+	eventCount := 0
+
+	if existingSub != nil {
+		// Add new events to existing subscription
+		for _, event := range events {
+			if _, exists := existingSub.Events[event]; !exists {
+				existingSub.AddEvent(event)
+				updated = true
+			}
 		}
+		eventCount = len(existingSub.Events)
+	} else {
+		// Create new event set for new subscription
+		eventSet := make(EventSet)
+		for _, event := range events {
+			eventSet[event] = struct{}{}
+		}
+		// Store the new subscription
+		s.contractMonitor.Add(chainType, addr.Address, eventSet)
+		updated = true
+		eventCount = len(eventSet)
 	}
 
 	if !updated && existingSub != nil {
@@ -147,29 +151,19 @@ func (s *evmMonitor) MonitorContractAddress(addr *types.Address, events []string
 		return nil
 	}
 
-	// Create or update subscription
-	sub := &ContractSubscription{
-		ChainType:    chainType,
-		ContractAddr: normalizedAddr,
-		Events:       eventMap,
+	// Cancel existing subscription if needed
+	if updated && existingSub != nil {
+		existingSub.Cancel()
 	}
-
-	// Cancel existing subscription if any
-	if existingSub != nil && existingSub.CancelFunc != nil {
-		existingSub.CancelFunc()
-	}
-
-	// Store the new subscription
-	s.contractMonitor.AddOrUpdateSubscription(sub)
 
 	s.log.Info("Added contract to monitoring list with events",
 		logger.String("address", addr.Address),
 		logger.String("chain_type", string(chainType)),
-		logger.Int("event_count", len(eventMap)))
+		logger.Int("event_count", eventCount))
 
 	// Start new subscription if we have an active event context
 	if s.eventCtx != nil {
-		s.startContractSubscription(chainType, normalizedAddr)
+		s.startContractSubscription(chainType, addr.Address)
 	}
 
 	return nil
@@ -197,13 +191,11 @@ func (s *evmMonitor) UnmonitorContractAddress(addr *types.Address) error {
 	}
 
 	// Cancel subscription if active
-	if existingSub.CancelFunc != nil {
-		existingSub.CancelFunc()
-	}
+	existingSub.Cancel()
 
 	// Remove from registry
 	// The RemoveSubscription method handles normalization internally
-	s.contractMonitor.RemoveSubscription(chainType, addr.Address)
+	s.contractMonitor.Remove(chainType, addr.Address)
 
 	s.log.Info("Removed contract from monitoring list",
 		logger.String("address", addr.Address),
@@ -239,9 +231,6 @@ func (s *evmMonitor) startContractSubscription(chainType types.ChainType, contra
 	// Create a context for this subscription
 	subCtx, cancel := context.WithCancel(s.eventCtx)
 	sub.CancelFunc = cancel
-
-	// Update the subscription in registry with cancel function
-	s.contractMonitor.AddOrUpdateSubscription(sub)
 
 	s.log.Info("Starting contract event subscriptions",
 		logger.String("chain_type", string(chainType)),
@@ -361,7 +350,7 @@ func (s *evmMonitor) processBlock(block *types.Block) {
 				logger.String("chain", string(block.ChainType)),
 				logger.String("from_address", tx.From),
 				logger.String("to_address", tx.To))
-			return
+			continue
 		}
 
 		// Set the timestamp to the block timestamp if not already set
@@ -452,7 +441,7 @@ func (s *evmMonitor) emitTransactionEvent(tx *types.Transaction) {
 // processContractEventLog processes a contract event log based on its signature
 func (s *evmMonitor) processContractEventLog(ctx context.Context, log types.Log, eventSig string) {
 	// Check if this contract/event combination is monitored
-	if !s.contractMonitor.HasEventSubscription(log.ChainType, log.Address, eventSig) {
+	if !s.contractMonitor.IsMonitored(log.ChainType, log.Address, eventSig) {
 		return
 	}
 
