@@ -117,21 +117,18 @@ func (s *evmMonitor) MonitorContractAddress(addr *types.Address, events []string
 
 	chainType := addr.ChainType
 
-	// Get existing subscription or create a new one
-	existingSub := s.contractMonitor.GetSubscription(chainType, addr.Address)
+	// Get existing sub or create a new one
+	sub := s.contractMonitor.GetSubscription(chainType, addr.Address)
 
-	updated := false
-	eventCount := 0
-
-	if existingSub != nil {
+	if sub != nil {
 		// Add new events to existing subscription
 		for _, event := range events {
-			if _, exists := existingSub.Events[event]; !exists {
-				existingSub.AddEvent(event)
-				updated = true
+			if _, exists := sub.Events[event]; !exists {
+				sub.AddEvent(event)
 			}
 		}
-		eventCount = len(existingSub.Events)
+		// Cancel current subscription
+		sub.Cancel()
 	} else {
 		// Create new event set for new subscription
 		eventSet := make(EventSet)
@@ -140,26 +137,7 @@ func (s *evmMonitor) MonitorContractAddress(addr *types.Address, events []string
 		}
 		// Store the new subscription
 		s.contractMonitor.Add(chainType, addr.Address, eventSet)
-		updated = true
-		eventCount = len(eventSet)
 	}
-
-	if !updated && existingSub != nil {
-		s.log.Debug("Contract already monitored with these events",
-			logger.String("address", addr.Address),
-			logger.String("chain_type", string(chainType)))
-		return nil
-	}
-
-	// Cancel existing subscription if needed
-	if updated && existingSub != nil {
-		existingSub.Cancel()
-	}
-
-	s.log.Info("Added contract to monitoring list with events",
-		logger.String("address", addr.Address),
-		logger.String("chain_type", string(chainType)),
-		logger.Int("event_count", eventCount))
 
 	// Start new subscription if we have an active event context
 	if s.eventCtx != nil {
