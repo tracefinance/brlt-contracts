@@ -3,58 +3,44 @@ package wallet
 import (
 	"context"
 	"encoding/asn1"
-	"fmt"
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	coreCrypto "vault0/internal/core/crypto"
+	coreAbi "vault0/internal/core/abi"
 	"vault0/internal/core/keystore"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
 	"vault0/internal/types"
 )
 
-const (
-	// ERC20TransferMethodSignature is the ERC20 transfer method signature
-	ERC20TransferMethodSignature = "transfer(address,uint256)"
-)
-
 type EVMWallet struct {
-	chain    types.Chain
-	keyID    string
-	keyStore keystore.KeyStore
-	log      logger.Logger
+	chain     types.Chain
+	keyID     string
+	keyStore  keystore.KeyStore
+	log       logger.Logger
+	abiUtils  coreAbi.ABIUtils
+	abiLoader coreAbi.ABILoader
 }
 
-func NewEVMWallet(keyID string, chain types.Chain, keyStore keystore.KeyStore, log logger.Logger) (*EVMWallet, error) {
-	if keyStore == nil {
-		return nil, errors.NewInvalidWalletConfigError("keystore cannot be nil")
-	}
-
-	if keyID == "" {
-		return nil, errors.NewInvalidWalletConfigError("keyID cannot be empty")
-	}
-
-	// Validate that the chain has the correct crypto parameters for EVM wallets
-	if chain.KeyType != types.KeyTypeECDSA {
-		return nil, errors.NewInvalidKeyTypeError(string(types.KeyTypeECDSA), string(chain.KeyType))
-	}
-
-	// EVM chains require secp256k1 curve
-	if chain.Curve != coreCrypto.Secp256k1Curve {
-		return nil, errors.NewInvalidCurveError("secp256k1", chain.Curve.Params().Name)
-	}
-
+func NewEVMWallet(
+	keyID string,
+	chain types.Chain,
+	keyStore keystore.KeyStore,
+	abiUtils coreAbi.ABIUtils,
+	abiLoader coreAbi.ABILoader,
+	log logger.Logger,
+) (*EVMWallet, error) {
 	return &EVMWallet{
-		chain:    chain,
-		keyID:    keyID,
-		keyStore: keyStore,
-		log:      log,
+		chain:     chain,
+		keyID:     keyID,
+		keyStore:  keyStore,
+		log:       log,
+		abiUtils:  abiUtils,
+		abiLoader: abiLoader,
 	}, nil
 }
 
@@ -126,27 +112,36 @@ func (w *EVMWallet) CreateNativeTransaction(ctx context.Context, toAddress strin
 }
 
 func (w *EVMWallet) CreateTokenTransaction(ctx context.Context, tokenAddress, toAddress string, amount *big.Int, options types.TransactionOptions) (*types.Transaction, error) {
+	// Derive wallet address
 	fromAddress, err := w.DeriveAddress(ctx)
 	if err != nil {
-		return nil, err // Don't wrap errors from DeriveAddress
+		return nil, err
 	}
-
-	if !common.IsHexAddress(toAddress) {
-		return nil, errors.NewInvalidAddressError(toAddress)
+	// Validate toAddress and tokenAddress
+	_, err = types.NewAddress(w.chain.Type, toAddress)
+	if err != nil {
+		return nil, err
 	}
-
-	if !common.IsHexAddress(tokenAddress) {
-		return nil, errors.NewInvalidAddressError(tokenAddress)
+	_, err = types.NewAddress(w.chain.Type, tokenAddress)
+	if err != nil {
+		return nil, err
 	}
-
+	// Validate amount
 	if amount == nil || amount.Cmp(big.NewInt(0)) <= 0 {
 		return nil, errors.NewInvalidAmountError(amount.String())
 	}
 
-	methodID := crypto.Keccak256([]byte(ERC20TransferMethodSignature))[:4]
-	paddedAddress := common.LeftPadBytes(common.HexToAddress(toAddress).Bytes(), 32)
-	paddedAmount := common.LeftPadBytes(amount.Bytes(), 32)
-	data := append(methodID, append(paddedAddress, paddedAmount...)...)
+	// Get ERC20 transfer ABI by loading standard ERC20 ABI
+	erc20ABI, err := w.abiLoader.LoadABIByType(ctx, coreAbi.ABITypeERC20)
+	if err != nil {
+		return nil, err
+	}
+
+	// Pack transfer method data using abiUtils
+	data, err := w.abiUtils.Pack(erc20ABI, string(types.ERC20TransferMethod), common.HexToAddress(toAddress), amount)
+	if err != nil {
+		return nil, err
+	}
 
 	gasPrice := options.GasPrice
 	if gasPrice == nil || gasPrice.Cmp(big.NewInt(0)) == 0 {
@@ -261,10 +256,20 @@ func (w *EVMWallet) signEVMTransaction(ctx context.Context, tx *ethTypes.Transac
 
 		// Check if the recovered public key matches the expected one
 		if recoveredPubKey.Equal(publicKey) {
-			// Found the correct v value, now create the final signature
-			v := byte(recoveryID) + 27 + byte(w.chain.ID*2+35)
-			signature := append(rBytes, append(sBytes, v)...)
-			return signature, nil
+			// Found the correct v value, now create the final signature in the format expected by go-ethereum
+			signature := make([]byte, 65)
+			copy(signature[:32], rBytes)
+			copy(signature[32:64], sBytes)
+			signature[64] = byte(recoveryID)
+
+			// Create the signed transaction with the signature
+			signedTx, err := tx.WithSignature(signer, signature)
+			if err != nil {
+				return nil, errors.NewSignatureRecoveryError(err)
+			}
+
+			// Return the RLP-encoded transaction, ready for broadcasting
+			return signedTx.MarshalBinary()
 		}
 	}
 
@@ -289,19 +294,11 @@ func (w *EVMWallet) CreateContractCallTransaction(ctx context.Context, contractA
 		return nil, errors.NewInvalidAmountError("value cannot be negative")
 	}
 
-	// Parse the ABI string
-	parsedABI, err := abi.JSON(strings.NewReader(abiString))
+	// Use ABIUtils to pack the method call data
+	data, err := w.abiUtils.Pack(abiString, method, args...)
 	if err != nil {
-		// Use the error constructor correctly, passing the underlying error
-		return nil, errors.NewABIError(err, "failed to parse ABI JSON")
-	}
-
-	// Pack the arguments for the method call
-	data, err := parsedABI.Pack(method, args...)
-	if err != nil {
-		// Use the general ABI error, adding method context
-		context := fmt.Sprintf("failed to pack ABI arguments for method '%s'", method)
-		return nil, errors.NewABIError(err, context)
+		// Error handling is already done in the ABIUtils implementation
+		return nil, err
 	}
 
 	// Set gas price and limit, using defaults if not provided

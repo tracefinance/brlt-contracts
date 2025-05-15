@@ -4,8 +4,13 @@ port: 8080
 ui_path: ./ui/dist
 migrations_path: ./migrations
 db_encryption_key: ${DB_ENCRYPTION_KEY}  # No default for security-sensitive values
-smart_contracts_path: ./contracts/artifacts
+smart_contracts_path: ./contracts/artifacts/solidity
 key_store_type: db
+
+# Mapping for known ABI types to their artifact filenames (without .json)
+abi_mapping:
+  multisig: ./contracts/artifacts/solidity/MultiSigWallet.sol/MultiSigWallet.json
+  erc20: ./contracts/resources/erc20.json
 
 # Transaction configuration
 transaction:
@@ -24,7 +29,7 @@ snowflake:
 
 # Logging configuration
 log:
-  level: debug
+  level: info
   format: console
   output_path: ""  # Empty means stdout
   request_logging: true
@@ -32,17 +37,10 @@ log:
 
 # Price Feed configuration
 price_feed:
-  provider: coincap
-  api_url: https://rest.coincap.io/v3/assets
-  api_key: ${COINCAP_API_KEY}  # Keep as env var for security
-  limit: 500 # Max limit for coincap v2 API
-  refresh_interval: 300 # Refresh interval in seconds (e.g., 300 = 5 minutes)
-
-# provider: coinpaprika
-#   api_url: https://api.coinpaprika.com/v1/tickers
-#   api_key: ''
-#   limit: 150
-#   refresh_interval: 1800 # Refresh interval in seconds (default: 30 minutes)
+  provider: coinpaprika
+  api_url: https://api.coinpaprika.com/v1/tickers
+  limit: 150
+  refresh_interval: 1800 # Refresh interval in seconds (default: 30 minutes)
 
 # Blockchain configurations
 blockchains:

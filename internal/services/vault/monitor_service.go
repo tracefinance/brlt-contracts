@@ -228,7 +228,7 @@ func (s *service) checkDeploymentStatus(ctx context.Context, vault *Vault) error
 		return err
 	}
 
-	walletCore, err := s.walletFactory.NewWallet(ctx, associatedWallet.ChainType, associatedWallet.Address)
+	walletCore, err := s.walletFactory.NewManager(ctx, associatedWallet.ChainType, associatedWallet.Address)
 	if err != nil {
 		s.log.Error("polling: Failed to create core wallet for deployment check", logger.Int64("vault_id", vault.ID), logger.Error(err))
 		return err
@@ -407,7 +407,7 @@ func (s *service) checkAndExecuteRecoveryForVault(ctx context.Context, vault *Va
 		return "", errors.NewOperationFailedError("get_signing_wallet_for_recovery", err)
 	}
 
-	walletCore, err := s.walletFactory.NewWallet(ctx, walletInfo.ChainType, walletInfo.Address)
+	walletCore, err := s.walletFactory.NewManager(ctx, walletInfo.ChainType, walletInfo.Address)
 	if err != nil {
 		s.log.Error("Failed to create core wallet instance for execute recovery",
 			logger.Int64("vault_id", vault.ID),

@@ -10,10 +10,12 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	coreAbi "vault0/internal/core/abi"
 	coreCrypto "vault0/internal/core/crypto"
 	"vault0/internal/core/keystore"
 	"vault0/internal/errors"
@@ -24,6 +26,114 @@ import (
 // ecdsaSignature is used for marshalling ECDSA signatures in ASN.1 DER format
 type ecdsaSignature struct {
 	R, S *big.Int
+}
+
+// MockABIUtils implements the ABIUtils interface for testing
+type MockABIUtils struct {
+	UnpackFunc             func(contractABI string, methodName string, inputData []byte) (map[string]any, error)
+	PackFunc               func(contractABI string, methodName string, args ...any) ([]byte, error)
+	ExtractMethodIDFunc    func(data []byte) []byte
+	GetAddressFromArgsFunc func(args map[string]any, key string) (types.Address, error)
+	GetBytes32FromArgsFunc func(args map[string]any, key string) ([32]byte, error)
+	GetBigIntFromArgsFunc  func(args map[string]any, key string) (*types.BigInt, error)
+	GetUint64FromArgsFunc  func(args map[string]any, key string) (uint64, error)
+}
+
+func (m *MockABIUtils) Unpack(contractABI string, methodName string, inputData []byte) (map[string]any, error) {
+	if m.UnpackFunc != nil {
+		return m.UnpackFunc(contractABI, methodName, inputData)
+	}
+	return map[string]any{}, nil
+}
+
+func (m *MockABIUtils) Pack(contractABI string, methodName string, args ...any) ([]byte, error) {
+	if m.PackFunc != nil {
+		return m.PackFunc(contractABI, methodName, args...)
+	}
+	// Default implementation: for ERC20 transfer, create a simple encoded data format
+	if methodName == string(types.ERC20TransferMethod) && len(args) == 2 {
+		// For testing we just need a plausible result, not an accurate encoding
+		addr, ok := args[0].(common.Address)
+		if ok {
+			// Create method ID + placeholder data with some address bytes
+			// Method ID (0xa9059cbb = keccak256("transfer(address,uint256)")[:4])
+			result := []byte{0xa9, 0x05, 0x9c, 0xbb}
+			// Padding before address
+			padding := make([]byte, 12)
+			result = append(result, padding...)
+			// Append address bytes
+			result = append(result, addr.Bytes()...)
+			// Padding for amount parameter
+			amountPadding := make([]byte, 32)
+			// Just set the last byte to 1 for test purposes
+			amountPadding[31] = 0x01
+			result = append(result, amountPadding...)
+			return result, nil
+		}
+	}
+	return []byte{0x12, 0x34, 0x56, 0x78}, nil // Default mocked result
+}
+
+func (m *MockABIUtils) ExtractMethodID(data []byte) []byte {
+	if m.ExtractMethodIDFunc != nil {
+		return m.ExtractMethodIDFunc(data)
+	}
+	if len(data) >= 4 {
+		return data[:4]
+	}
+	return nil
+}
+
+func (m *MockABIUtils) GetAddressFromArgs(args map[string]any, key string) (types.Address, error) {
+	if m.GetAddressFromArgsFunc != nil {
+		return m.GetAddressFromArgsFunc(args, key)
+	}
+	return types.Address{}, nil
+}
+
+func (m *MockABIUtils) GetBytes32FromArgs(args map[string]any, key string) ([32]byte, error) {
+	if m.GetBytes32FromArgsFunc != nil {
+		return m.GetBytes32FromArgsFunc(args, key)
+	}
+	return [32]byte{}, nil
+}
+
+func (m *MockABIUtils) GetBigIntFromArgs(args map[string]any, key string) (*types.BigInt, error) {
+	if m.GetBigIntFromArgsFunc != nil {
+		return m.GetBigIntFromArgsFunc(args, key)
+	}
+	return &types.BigInt{}, nil
+}
+
+func (m *MockABIUtils) GetUint64FromArgs(args map[string]any, key string) (uint64, error) {
+	if m.GetUint64FromArgsFunc != nil {
+		return m.GetUint64FromArgsFunc(args, key)
+	}
+	return 0, nil
+}
+
+// MockABILoader implements the ABILoader interface for testing
+type MockABILoader struct {
+	LoadABIByTypeFunc    func(ctx context.Context, abiType coreAbi.SupportedABIType) (string, error)
+	LoadABIByAddressFunc func(ctx context.Context, contractAddress types.Address) (string, error)
+}
+
+func (m *MockABILoader) LoadABIByType(ctx context.Context, abiType coreAbi.SupportedABIType) (string, error) {
+	if m.LoadABIByTypeFunc != nil {
+		return m.LoadABIByTypeFunc(ctx, abiType)
+	}
+	// Default implementation for ERC20
+	if abiType == coreAbi.ABITypeERC20 {
+		return `[{"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_to","type":"address"},{"name":"_value","type":"uint256"}],"name":"transfer","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"}]`, nil
+	}
+	return "{}", nil
+}
+
+func (m *MockABILoader) LoadABIByAddress(ctx context.Context, contractAddress types.Address) (string, error) {
+	if m.LoadABIByAddressFunc != nil {
+		return m.LoadABIByAddressFunc(ctx, contractAddress)
+	}
+	return "{}", nil
 }
 
 // testChain is a test chain configuration
@@ -44,8 +154,10 @@ var testChain = types.Chain{
 func setupTest(t *testing.T) (*EVMWallet, *MockKeyStore) {
 	ks := &MockKeyStore{}
 	log := logger.NewNopLogger()
+	abiUtils := &MockABIUtils{}
+	abiLoader := &MockABILoader{}
 
-	wallet, err := NewEVMWallet("test", testChain, ks, log)
+	wallet, err := NewEVMWallet("test", testChain, ks, abiUtils, abiLoader, log)
 	require.NoError(t, err)
 	return wallet, ks
 }
@@ -96,7 +208,9 @@ func TestDeriveAddress(t *testing.T) {
 		// Setup
 		mockKeyStore := keystore.NewMockKeyStore()
 		log := logger.NewNopLogger()
-		wallet, err := NewEVMWallet("non-existent-key", testChain, mockKeyStore, log)
+		abiUtils := &MockABIUtils{}
+		abiLoader := &MockABILoader{}
+		wallet, err := NewEVMWallet("non-existent-key", testChain, mockKeyStore, abiUtils, abiLoader, log)
 		require.NoError(t, err)
 
 		// Execute
@@ -174,7 +288,9 @@ func TestCreateNativeTransaction(t *testing.T) {
 		// Setup
 		mockKeyStore := keystore.NewMockKeyStore()
 		log := logger.NewNopLogger()
-		wallet, err := NewEVMWallet("non-existent-key", testChain, mockKeyStore, log)
+		abiUtils := &MockABIUtils{}
+		abiLoader := &MockABILoader{}
+		wallet, err := NewEVMWallet("non-existent-key", testChain, mockKeyStore, abiUtils, abiLoader, log)
 		require.NoError(t, err)
 
 		// Execute
@@ -310,7 +426,9 @@ func TestSignTransaction(t *testing.T) {
 		// Setup
 		mockKeyStore := keystore.NewMockKeyStore()
 		log := logger.NewNopLogger()
-		wallet, err := NewEVMWallet("non-existent-key", testChain, mockKeyStore, log)
+		abiUtils := &MockABIUtils{}
+		abiLoader := &MockABILoader{}
+		wallet, err := NewEVMWallet("non-existent-key", testChain, mockKeyStore, abiUtils, abiLoader, log)
 		require.NoError(t, err)
 
 		tx := &types.Transaction{
@@ -339,22 +457,34 @@ func TestSignTransaction(t *testing.T) {
 func TestNewEVMWalletValidation(t *testing.T) {
 	ks := &MockKeyStore{}
 	log := logger.NewNopLogger()
+	abiUtils := &MockABIUtils{}
+	abiLoader := &MockABILoader{}
 
 	// Test with nil keystore
-	_, err := NewEVMWallet("test", types.Chain{}, nil, log)
+	_, err := NewEVMWallet("test", types.Chain{}, nil, abiUtils, abiLoader, log)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "Invalid wallet configuration: keystore cannot be nil")
 
 	// Test with empty keyID
-	_, err = NewEVMWallet("", types.Chain{}, ks, log)
+	_, err = NewEVMWallet("", types.Chain{}, ks, abiUtils, abiLoader, log)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "Invalid wallet configuration: keyID cannot be empty")
+
+	// Test with nil abiUtils
+	_, err = NewEVMWallet("test", types.Chain{}, ks, nil, abiLoader, log)
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "Invalid wallet configuration: abiUtils cannot be nil")
+
+	// Test with nil abiLoader
+	_, err = NewEVMWallet("test", types.Chain{}, ks, abiUtils, nil, log)
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "Invalid wallet configuration: abiLoader cannot be nil")
 
 	// Test with invalid key type
 	_, err = NewEVMWallet("test", types.Chain{
 		KeyType: types.KeyTypeRSA,
 		Curve:   coreCrypto.Secp256k1Curve,
-	}, ks, log)
+	}, ks, abiUtils, abiLoader, log)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "Invalid key type: expected ecdsa, got rsa")
 
@@ -362,7 +492,7 @@ func TestNewEVMWalletValidation(t *testing.T) {
 	_, err = NewEVMWallet("test", types.Chain{
 		KeyType: types.KeyTypeECDSA,
 		Curve:   elliptic.P256(),
-	}, ks, log)
+	}, ks, abiUtils, abiLoader, log)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "Invalid curve: expected secp256k1, got P-256")
 }

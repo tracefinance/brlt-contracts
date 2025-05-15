@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"vault0/internal/core/abiutils"   // Ensure abiutils is imported
-	"vault0/internal/core/tokenstore" // Ensure tokenstore is imported
+	"vault0/internal/core/abi"
+	"vault0/internal/core/tokenstore"
 	"vault0/internal/errors"
 	"vault0/internal/types"
 )
@@ -56,7 +56,7 @@ func createERC20TransferFromMetadata(tx *types.Transaction) (*types.ERC20Transfe
 // parseAndPopulateERC20Metadata attempts to parse tx data as an ERC20 transfer
 // and updates tx.Metadata and tx.Type if successful.
 // Returns true if parsing was successful and metadata was populated.
-func parseAndPopulateERC20Metadata(ctx context.Context, tx *types.Transaction, abiTools abiutils.ABIUtils, ts tokenstore.TokenStore) (bool, error) {
+func parseAndPopulateERC20Metadata(ctx context.Context, tx *types.Transaction, abiUtils abi.ABIUtils, abiLoader abi.ABILoader, ts tokenstore.TokenStore) (bool, error) {
 	if tx == nil {
 		return false, errors.NewInvalidParameterError("transaction cannot be nil", "tx")
 	}
@@ -70,7 +70,7 @@ func parseAndPopulateERC20Metadata(ctx context.Context, tx *types.Transaction, a
 	}
 
 	// Extract the method ID using abiutils
-	methodID := abiTools.ExtractMethodID(tx.Data)
+	methodID := abiUtils.ExtractMethodID(tx.Data)
 
 	// Optimization: Check against precomputed standard ERC20 transfer ID.
 	if !bytes.Equal(methodID, erc20TransferMethodID) {
@@ -86,26 +86,26 @@ func parseAndPopulateERC20Metadata(ctx context.Context, tx *types.Transaction, a
 		return false, fmt.Errorf("failed to convert address %s: %w", contractAddrEth.Hex(), err)
 	}
 
-	erc20ABI, err := abiTools.LoadABIByAddress(ctx, *contractAddr)
+	erc20ABI, err := abiLoader.LoadABIByType(ctx, abi.ABITypeERC20)
 	if err != nil {
 		// Cannot proceed without ABI, but don't return error, just indicate parsing failed.
 		return false, fmt.Errorf("failed to load ABI for address %s: %w", contractAddr.String(), err) // Return error to indicate ABI load failure
 	}
 
 	// Parse the input data with the "transfer" method name
-	parsedArgs, err := abiTools.ParseContractInput(erc20ABI, "transfer", tx.Data)
+	parsedArgs, err := abiUtils.Unpack(erc20ABI, "transfer", tx.Data)
 	if err != nil {
 		// Parsing failed, return error.
 		return false, fmt.Errorf("failed to parse ERC20 transfer input: %w", err)
 	}
 
 	// Extract recipient address ('recipient') and amount ('amount').
-	recipientAddr, err := abiTools.GetAddressFromArgs(parsedArgs, types.ERC20RecipientMetadataKey)
+	recipientAddr, err := abiUtils.GetAddressFromArgs(parsedArgs, "0")
 	if err != nil {
 		return false, fmt.Errorf("failed to get recipient address ('recipient') from parsed args: %w", err)
 	}
 
-	amountBigIntParsed, err := abiTools.GetBigIntFromArgs(parsedArgs, types.ERC20AmountMetadataKey)
+	amountBigIntParsed, err := abiUtils.GetBigIntFromArgs(parsedArgs, "1")
 	if err != nil {
 		return false, fmt.Errorf("failed to get transfer amount ('amount') from parsed args: %w", err)
 	}

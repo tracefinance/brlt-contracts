@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"vault0/internal/core/abiutils"
+	"vault0/internal/core/abi"
 	"vault0/internal/core/tokenstore"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
@@ -246,7 +246,7 @@ func createMultiSigSignRecoveryAddressChangeFromMetadata(tx *types.Transaction) 
 }
 
 // parseAndPopulateMultiSigMetadata attempts to parse tx data as a known MultiSig interaction
-func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction, log logger.Logger, abiTools abiutils.ABIUtils, ts tokenstore.TokenStore) (bool, error) {
+func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction, log logger.Logger, abiUtils abi.ABIUtils, abiLoader abi.ABILoader, ts tokenstore.TokenStore) (bool, error) {
 	if tx == nil {
 		return false, errors.NewInvalidParameterError("transaction cannot be nil", "tx")
 	}
@@ -261,7 +261,7 @@ func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction
 		return false, nil
 	}
 
-	multiSigABIString, err := abiTools.LoadABIByName(ctx, abiutils.ABITypeMultiSig)
+	multiSigABIString, err := abiLoader.LoadABIByType(ctx, abi.ABITypeMultiSig)
 	if err != nil {
 		log.Error("Failed to load MultiSig ABI for parsing",
 			logger.String("tx_hash", tx.Hash),
@@ -269,7 +269,7 @@ func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction
 		return false, fmt.Errorf("failed to load MultiSig ABI: %w", err)
 	}
 
-	methodID := abiTools.ExtractMethodID(tx.Data)
+	methodID := abiUtils.ExtractMethodID(tx.Data)
 
 	var parsedArgs map[string]any
 	var currentMethodNameForParsing string
@@ -280,22 +280,22 @@ func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction
 	switch {
 	case bytes.Equal(methodID, multiSigRequestWithdrawalMethodID):
 		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigRequestWithdrawalMethod))
-		parsedArgs, parsingErr = abiTools.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		parsedArgs, parsingErr = abiUtils.Unpack(multiSigABIString, currentMethodNameForParsing, tx.Data)
 		if parsingErr != nil {
 			break
 		}
 		// Argument names ("token", "amount", "to") must match the MultiSig contract's ABI definition.
-		tokenAddr, errExtract := abiTools.GetAddressFromArgs(parsedArgs, "token")
+		tokenAddr, errExtract := abiUtils.GetAddressFromArgs(parsedArgs, "token")
 		if errExtract != nil {
 			parsingErr = errExtract
 			break
 		}
-		amountBigInt, errExtract := abiTools.GetBigIntFromArgs(parsedArgs, "amount")
+		amountBigInt, errExtract := abiUtils.GetBigIntFromArgs(parsedArgs, "amount")
 		if errExtract != nil {
 			parsingErr = errExtract
 			break
 		}
-		recipientAddr, errExtract := abiTools.GetAddressFromArgs(parsedArgs, "to")
+		recipientAddr, errExtract := abiUtils.GetAddressFromArgs(parsedArgs, "to")
 		if errExtract != nil {
 			parsingErr = errExtract
 			break
@@ -323,12 +323,12 @@ func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction
 
 	case bytes.Equal(methodID, multiSigSignWithdrawalMethodID):
 		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigSignWithdrawalMethod))
-		parsedArgs, parsingErr = abiTools.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		parsedArgs, parsingErr = abiUtils.Unpack(multiSigABIString, currentMethodNameForParsing, tx.Data)
 		if parsingErr != nil {
 			break
 		}
 		// Argument name "requestId" must match the ABI.
-		requestIDBytes, errExtract := abiTools.GetBytes32FromArgs(parsedArgs, "requestId")
+		requestIDBytes, errExtract := abiUtils.GetBytes32FromArgs(parsedArgs, "requestId")
 		if errExtract != nil {
 			parsingErr = errExtract
 			break
@@ -339,12 +339,12 @@ func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction
 
 	case bytes.Equal(methodID, multiSigExecuteWithdrawalMethodID):
 		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigExecuteWithdrawalMethod))
-		parsedArgs, parsingErr = abiTools.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		parsedArgs, parsingErr = abiUtils.Unpack(multiSigABIString, currentMethodNameForParsing, tx.Data)
 		if parsingErr != nil {
 			break
 		}
 		// Argument name "requestId" must match the ABI.
-		requestIDBytes, errExtract := abiTools.GetBytes32FromArgs(parsedArgs, "requestId")
+		requestIDBytes, errExtract := abiUtils.GetBytes32FromArgs(parsedArgs, "requestId")
 		if errExtract != nil {
 			parsingErr = errExtract
 			break
@@ -355,12 +355,12 @@ func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction
 
 	case bytes.Equal(methodID, multiSigAddSupportedTokenMethodID):
 		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigAddSupportedTokenMethod))
-		parsedArgs, parsingErr = abiTools.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		parsedArgs, parsingErr = abiUtils.Unpack(multiSigABIString, currentMethodNameForParsing, tx.Data)
 		if parsingErr != nil {
 			break
 		}
 		// Argument name "token" must match the ABI.
-		tokenAddr, errExtract := abiTools.GetAddressFromArgs(parsedArgs, "token")
+		tokenAddr, errExtract := abiUtils.GetAddressFromArgs(parsedArgs, "token")
 		if errExtract != nil {
 			parsingErr = errExtract
 			break
@@ -371,12 +371,12 @@ func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction
 
 	case bytes.Equal(methodID, multiSigRemoveSupportedTokenMethodID):
 		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigRemoveSupportedTokenMethod))
-		parsedArgs, parsingErr = abiTools.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		parsedArgs, parsingErr = abiUtils.Unpack(multiSigABIString, currentMethodNameForParsing, tx.Data)
 		if parsingErr != nil {
 			break
 		}
 		// Argument name "token" must match the ABI.
-		tokenAddr, errExtract := abiTools.GetAddressFromArgs(parsedArgs, "token")
+		tokenAddr, errExtract := abiUtils.GetAddressFromArgs(parsedArgs, "token")
 		if errExtract != nil {
 			parsingErr = errExtract
 			break
@@ -387,7 +387,7 @@ func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction
 
 	case bytes.Equal(methodID, multiSigRequestRecoveryMethodID):
 		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigRequestRecoveryMethod))
-		_, parsingErr = abiTools.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data) // No args to extract
+		_, parsingErr = abiUtils.Unpack(multiSigABIString, currentMethodNameForParsing, tx.Data) // No args to extract
 		if parsingErr != nil {
 			break
 		}
@@ -395,7 +395,7 @@ func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction
 
 	case bytes.Equal(methodID, multiSigCancelRecoveryMethodID):
 		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigCancelRecoveryMethod))
-		_, parsingErr = abiTools.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data) // No args
+		_, parsingErr = abiUtils.Unpack(multiSigABIString, currentMethodNameForParsing, tx.Data) // No args
 		if parsingErr != nil {
 			break
 		}
@@ -403,7 +403,7 @@ func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction
 
 	case bytes.Equal(methodID, multiSigExecuteRecoveryMethodID):
 		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigExecuteRecoveryMethod))
-		_, parsingErr = abiTools.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data) // No args
+		_, parsingErr = abiUtils.Unpack(multiSigABIString, currentMethodNameForParsing, tx.Data) // No args
 		if parsingErr != nil {
 			break
 		}
@@ -411,12 +411,12 @@ func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction
 
 	case bytes.Equal(methodID, multiSigProposeRecoveryAddressChangeMethodID):
 		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigProposeRecoveryAddressChangeMethod))
-		parsedArgs, parsingErr = abiTools.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		parsedArgs, parsingErr = abiUtils.Unpack(multiSigABIString, currentMethodNameForParsing, tx.Data)
 		if parsingErr != nil {
 			break
 		}
 		// Argument name "newRecoveryAddress" must match the ABI.
-		newAddr, errExtract := abiTools.GetAddressFromArgs(parsedArgs, "newRecoveryAddress")
+		newAddr, errExtract := abiUtils.GetAddressFromArgs(parsedArgs, "newRecoveryAddress")
 		if errExtract != nil {
 			parsingErr = errExtract
 			break
@@ -427,12 +427,12 @@ func parseAndPopulateMultiSigMetadata(ctx context.Context, tx *types.Transaction
 
 	case bytes.Equal(methodID, multiSigSignRecoveryAddressChangeMethodID):
 		currentMethodNameForParsing = getMethodNameFromSignature(string(types.MultiSigSignRecoveryAddressChangeMethod))
-		parsedArgs, parsingErr = abiTools.ParseContractInput(multiSigABIString, currentMethodNameForParsing, tx.Data)
+		parsedArgs, parsingErr = abiUtils.Unpack(multiSigABIString, currentMethodNameForParsing, tx.Data)
 		if parsingErr != nil {
 			break
 		}
 		// Argument name "proposalId" must match the ABI.
-		proposalIDBytes, errExtract := abiTools.GetBytes32FromArgs(parsedArgs, "proposalId")
+		proposalIDBytes, errExtract := abiUtils.GetBytes32FromArgs(parsedArgs, "proposalId")
 		if errExtract != nil {
 			parsingErr = errExtract
 			break

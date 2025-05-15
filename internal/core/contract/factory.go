@@ -67,7 +67,7 @@ func (f *factory) NewManager(ctx context.Context, wallet wallet.WalletManager) (
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
 		// These are all EVM-compatible chains, so use EVMSmartContract
-		return NewEVMSmartContract(blockchainClient, wallet, f.cfg)
+		return NewEVMContractManager(blockchainClient, wallet, f.cfg)
 	default:
 		return nil, errors.NewChainNotSupportedError(string(chainType))
 	}

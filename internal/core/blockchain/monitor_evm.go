@@ -12,7 +12,7 @@ import (
 type EventHandler func(context.Context, types.Log)
 
 // EVMMonitor implements Monitor for EVM-compatible blockchains
-type evmMonitor struct {
+type EVMMonitor struct {
 	log    logger.Logger
 	client BlockchainClient
 
@@ -38,7 +38,7 @@ func NewEVMMonitor(
 	log logger.Logger,
 	client BlockchainClient,
 ) BLockchainEventMonitor {
-	monitor := &evmMonitor{
+	monitor := &EVMMonitor{
 		log:               log,
 		client:            client,
 		transactionEvents: make(chan *types.Transaction, 100), // Buffer size
@@ -54,7 +54,7 @@ func NewEVMMonitor(
 }
 
 // registerEventHandlers sets up the event handler map
-func (s *evmMonitor) registerEventHandlers() {
+func (s *EVMMonitor) registerEventHandlers() {
 	// ERC20 events
 	s.eventHandlers[string(types.ERC20TransferEvent)] = s.processERC20TransferLog
 	s.eventHandlers[string(types.ERC20ApprovalEvent)] = s.logBasicEvent("ERC20 Approval")
@@ -78,7 +78,7 @@ func (s *evmMonitor) registerEventHandlers() {
 }
 
 // logBasicEvent returns an event handler that just logs basic information about the event
-func (s *evmMonitor) logBasicEvent(eventName string) EventHandler {
+func (s *EVMMonitor) logBasicEvent(eventName string) EventHandler {
 	return func(ctx context.Context, log types.Log) {
 		s.log.Debug("Received "+eventName+" event",
 			logger.String("tx_hash", log.TransactionHash),
@@ -87,22 +87,22 @@ func (s *evmMonitor) logBasicEvent(eventName string) EventHandler {
 }
 
 // TransactionEvents returns a channel that emits raw blockchain transactions.
-func (s *evmMonitor) TransactionEvents() <-chan *types.Transaction {
+func (s *EVMMonitor) TransactionEvents() <-chan *types.Transaction {
 	return s.transactionEvents
 }
 
 // MonitorAddress adds an address to the monitoring list
-func (s *evmMonitor) MonitorAddress(addr *types.Address) error {
+func (s *EVMMonitor) MonitorAddress(addr *types.Address) error {
 	return s.addressMonitor.Add(addr)
 }
 
 // UnmonitorAddress removes an address from the monitoring list
-func (s *evmMonitor) UnmonitorAddress(addr *types.Address) error {
+func (s *EVMMonitor) UnmonitorAddress(addr *types.Address) error {
 	return s.addressMonitor.Remove(addr)
 }
 
 // MonitorContractAddress adds a contract address to monitor for specific events
-func (s *evmMonitor) MonitorContractAddress(addr *types.Address, events []string) error {
+func (s *EVMMonitor) MonitorContractAddress(addr *types.Address, events []string) error {
 	if addr == nil {
 		return errors.NewInvalidInputError("Address cannot be nil", "address", nil)
 	}
@@ -148,7 +148,7 @@ func (s *evmMonitor) MonitorContractAddress(addr *types.Address, events []string
 }
 
 // UnmonitorContractAddress removes a contract address from the monitoring list
-func (s *evmMonitor) UnmonitorContractAddress(addr *types.Address) error {
+func (s *EVMMonitor) UnmonitorContractAddress(addr *types.Address) error {
 	if addr == nil {
 		return errors.NewInvalidInputError("Address cannot be nil", "address", nil)
 	}
@@ -183,7 +183,7 @@ func (s *evmMonitor) UnmonitorContractAddress(addr *types.Address) error {
 }
 
 // startContractSubscription starts a new subscription for a contract
-func (s *evmMonitor) startContractSubscription(chainType types.ChainType, contractAddr string) {
+func (s *EVMMonitor) startContractSubscription(chainType types.ChainType, contractAddr string) {
 	// Get the subscription
 	sub := s.contractMonitor.GetSubscription(chainType, contractAddr)
 	if sub == nil {
@@ -261,7 +261,7 @@ func (s *evmMonitor) startContractSubscription(chainType types.ChainType, contra
 }
 
 // SubscribeToTransactionEvents starts listening for new blocks and processing transactions
-func (s *evmMonitor) SubscribeToTransactionEvents(ctx context.Context) {
+func (s *EVMMonitor) SubscribeToTransactionEvents(ctx context.Context) {
 	s.eventCtx, s.eventCancel = context.WithCancel(ctx)
 	go s.subscribeToChainBlocks(s.eventCtx)
 
@@ -272,7 +272,7 @@ func (s *evmMonitor) SubscribeToTransactionEvents(ctx context.Context) {
 }
 
 // UnsubscribeFromTransactionEvents stops listening for blockchain events
-func (s *evmMonitor) UnsubscribeFromTransactionEvents() {
+func (s *EVMMonitor) UnsubscribeFromTransactionEvents() {
 	// Cancel all contract subscriptions
 	s.contractMonitor.CancelAllSubscriptions()
 
@@ -287,7 +287,7 @@ func (s *evmMonitor) UnsubscribeFromTransactionEvents() {
 }
 
 // subscribeToChainBlocks subscribes to new blocks for a specific chain
-func (s *evmMonitor) subscribeToChainBlocks(ctx context.Context) {
+func (s *EVMMonitor) subscribeToChainBlocks(ctx context.Context) {
 	// Subscribe to new block headers
 	blockCh, errCh, err := s.client.SubscribeNewHead(ctx)
 	if err != nil {
@@ -313,7 +313,7 @@ func (s *evmMonitor) subscribeToChainBlocks(ctx context.Context) {
 }
 
 // processBlock processes a new block, emitting all transactions found
-func (s *evmMonitor) processBlock(block *types.Block) {
+func (s *EVMMonitor) processBlock(block *types.Block) {
 	s.log.Debug("Processing new block",
 		logger.Int64("block_number", block.Number.Int64()),
 		logger.String("block_hash", block.Hash),
@@ -341,7 +341,7 @@ func (s *evmMonitor) processBlock(block *types.Block) {
 }
 
 // processERC20TransferLog processes an ERC20 Transfer event log and emits the transaction
-func (s *evmMonitor) processERC20TransferLog(ctx context.Context, log types.Log) {
+func (s *EVMMonitor) processERC20TransferLog(ctx context.Context, log types.Log) {
 	// Check if we have enough topics (event signature + from + to)
 	if len(log.Topics) < 3 {
 		s.log.Warn("Invalid ERC20 transfer log format: insufficient topics",
@@ -403,7 +403,7 @@ func (s *evmMonitor) processERC20TransferLog(ctx context.Context, log types.Log)
 }
 
 // emitTransactionEvent sends a raw transaction to the transaction events channel.
-func (s *evmMonitor) emitTransactionEvent(tx *types.Transaction) {
+func (s *EVMMonitor) emitTransactionEvent(tx *types.Transaction) {
 	select {
 	case s.transactionEvents <- tx:
 		s.log.Debug("Emitted transaction event",
@@ -417,7 +417,7 @@ func (s *evmMonitor) emitTransactionEvent(tx *types.Transaction) {
 }
 
 // processContractEventLog processes a contract event log based on its signature
-func (s *evmMonitor) processContractEventLog(ctx context.Context, log types.Log, eventSig string) {
+func (s *EVMMonitor) processContractEventLog(ctx context.Context, log types.Log, eventSig string) {
 	// Check if this contract/event combination is monitored
 	if !s.contractMonitor.IsMonitored(log.ChainType, log.Address, eventSig) {
 		return

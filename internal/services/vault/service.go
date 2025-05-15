@@ -183,7 +183,7 @@ func (s *service) CreateVault(
 		return nil, err
 	}
 
-	wallet, err := s.walletFactory.NewWallet(ctx, walletInfo.ChainType, walletInfo.Address)
+	wallet, err := s.walletFactory.NewManager(ctx, walletInfo.ChainType, walletInfo.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +325,7 @@ func (s *service) ExecuteRecovery(ctx context.Context, vaultID int64) (string, e
 		return "", errors.NewOperationFailedError("get_signing_wallet", err)
 	}
 
-	walletCore, err := s.walletFactory.NewWallet(ctx, walletInfo.ChainType, walletInfo.Address)
+	walletCore, err := s.walletFactory.NewManager(ctx, walletInfo.ChainType, walletInfo.Address)
 	if err != nil {
 		s.log.Error("Failed to create core wallet instance for execute recovery",
 			logger.Int64("vault_id", vault.ID),
@@ -473,7 +473,7 @@ func (s *service) AddSupportedToken(ctx context.Context, vaultID int64, tokenAdd
 	}
 	vaultAddress := contractInfo.Address
 
-	walletCore, err := s.walletFactory.NewWallet(ctx, walletInfo.ChainType, walletInfo.Address)
+	walletCore, err := s.walletFactory.NewManager(ctx, walletInfo.ChainType, walletInfo.Address)
 	if err != nil {
 		s.log.Error("Failed to create core wallet instance for token add",
 			logger.Int64("vault_id", vaultID),
@@ -549,7 +549,7 @@ func (s *service) RemoveSupportedToken(ctx context.Context, vaultID int64, token
 		return "", errors.NewOperationFailedError("remove_token", fmt.Errorf("contract address is missing for vault %d", vaultID))
 	}
 
-	walletCore, err := s.walletFactory.NewWallet(ctx, walletInfo.ChainType, walletInfo.Address)
+	walletCore, err := s.walletFactory.NewManager(ctx, walletInfo.ChainType, walletInfo.Address)
 	if err != nil {
 		s.log.Error("Failed to create core wallet instance for token remove", logger.Int64("vault_id", vaultID), logger.Error(err))
 		return "", err
@@ -621,7 +621,7 @@ func (s *service) StartRecovery(ctx context.Context, vaultID int64) (string, err
 		return "", errors.NewOperationFailedError("get_signing_wallet", err)
 	}
 
-	walletCore, err := s.walletFactory.NewWallet(ctx, walletInfo.ChainType, walletInfo.Address)
+	walletCore, err := s.walletFactory.NewManager(ctx, walletInfo.ChainType, walletInfo.Address)
 	if err != nil {
 		s.log.Error("Failed to create core wallet instance for recovery",
 			logger.Int64("vault_id", vaultID),
@@ -716,7 +716,7 @@ func (s *service) CancelRecovery(ctx context.Context, vaultID int64) (string, er
 		return "", errors.NewOperationFailedError("get_signing_wallet", err)
 	}
 
-	walletCore, err := s.walletFactory.NewWallet(ctx, walletInfo.ChainType, walletInfo.Address)
+	walletCore, err := s.walletFactory.NewManager(ctx, walletInfo.ChainType, walletInfo.Address)
 	if err != nil {
 		s.log.Error("Failed to create core wallet instance for cancel recovery",
 			logger.Int64("vault_id", vaultID),

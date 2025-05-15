@@ -4,7 +4,7 @@ import (
 	"github.com/google/wire"
 
 	"vault0/internal/config"
-	"vault0/internal/core/abiutils"
+	"vault0/internal/core/abi"
 	"vault0/internal/core/blockchain"
 	"vault0/internal/core/blockexplorer"
 	"vault0/internal/core/contract"
@@ -30,13 +30,13 @@ var CoreSet = wire.NewSet(
 	logger.NewLogger,
 	keystore.NewKeyStore,
 	tokenstore.NewTokenStore,
+	types.NewChains,
+	pricefeed.NewPriceFeed,
 	blockchain.NewFactory,
 	wallet.NewFactory,
 	blockexplorer.NewFactory,
 	contract.NewFactory,
-	types.NewChains,
-	pricefeed.NewPriceFeed,
-	abiutils.NewFactory,
+	abi.NewFactory,
 	transaction.NewFactory,
 	NewCore,
 )
@@ -53,7 +53,7 @@ type Core struct {
 	BlockchainClientFactory blockchain.Factory
 	ContractManagerFactory  contract.Factory
 	BlockExplorerFactory    blockexplorer.Factory
-	ABIUtilsFactory         abiutils.Factory
+	ABIFactory              abi.Factory
 	PriceFeed               pricefeed.PriceFeed
 	TransactionFactory      transaction.Factory
 }
@@ -71,7 +71,7 @@ func NewCore(
 	blockchainClientFactory blockchain.Factory,
 	contractManagerFactory contract.Factory,
 	blockExplorerFactory blockexplorer.Factory,
-	abiUtilsFactory abiutils.Factory,
+	abiFactory abi.Factory,
 	transactionFactory transaction.Factory,
 ) *Core {
 	return &Core{
@@ -86,7 +86,7 @@ func NewCore(
 		BlockchainClientFactory: blockchainClientFactory,
 		ContractManagerFactory:  contractManagerFactory,
 		BlockExplorerFactory:    blockExplorerFactory,
-		ABIUtilsFactory:         abiUtilsFactory,
+		ABIFactory:              abiFactory,
 		TransactionFactory:      transactionFactory,
 	}
 }

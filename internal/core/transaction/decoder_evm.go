@@ -3,7 +3,7 @@ package transaction
 import (
 	"context"
 
-	"vault0/internal/core/abiutils"
+	"vault0/internal/core/abi"
 	"vault0/internal/core/tokenstore"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
@@ -14,15 +14,17 @@ import (
 type evmDecoder struct {
 	tokenStore tokenstore.TokenStore
 	logger     logger.Logger
-	abiUtils   abiutils.ABIUtils
+	abiUtils   abi.ABIUtils
+	abiLoader  abi.ABILoader
 }
 
 // NewEvmDecoder creates a new instance of the EVM transaction decoder.
-func NewEvmDecoder(tokenStore tokenstore.TokenStore, log logger.Logger, abiUtils abiutils.ABIUtils) Decoder {
+func NewEvmDecoder(tokenStore tokenstore.TokenStore, log logger.Logger, abiUtils abi.ABIUtils, abiLoader abi.ABILoader) Decoder {
 	return &evmDecoder{
 		tokenStore: tokenStore,
 		logger:     log.With(logger.String("component", "transaction_decoder")),
 		abiUtils:   abiUtils,
+		abiLoader:  abiLoader,
 	}
 }
 
@@ -30,10 +32,6 @@ func NewEvmDecoder(tokenStore tokenstore.TokenStore, log logger.Logger, abiUtils
 // and returns the appropriate CoreTransaction
 func decodeTransactionFromMetadata(tx *types.Transaction) (types.CoreTransaction, error) {
 	switch tx.Type {
-	case types.TransactionTypeNative:
-		return tx, nil
-	case types.TransactionTypeDeploy:
-		return tx, nil
 	case types.TransactionTypeERC20Transfer:
 		return decodeERC20Transfer(tx)
 	case types.TransactionTypeMultiSigWithdrawalRequest:
@@ -67,7 +65,7 @@ func (m *evmDecoder) DecodeTransaction(ctx context.Context, tx *types.Transactio
 		return nil, errors.NewInvalidParameterError("transaction cannot be nil", "tx")
 	}
 
-	if tx.Type != "" && tx.Type != types.TransactionTypeContractCall {
+	if tx.Type != types.TransactionTypeContractCall {
 		m.logger.Debug("Transaction already has a specific type, returning as is",
 			logger.String("tx_hash", tx.Hash),
 			logger.String("type", string(tx.Type)))
@@ -83,34 +81,34 @@ func (m *evmDecoder) DecodeTransaction(ctx context.Context, tx *types.Transactio
 		return result, err
 	}
 
-	m.logger.Debug("Transaction type is generic, attempting to parse data",
-		logger.String("tx_hash", tx.Hash),
-		logger.String("type", string(tx.Type)))
-
 	if tx.BaseTransaction.To == "" || len(tx.Data) < 4 {
 		m.logger.Debug("Transaction not eligible for parsing (missing To address or short data)",
 			logger.String("tx_hash", tx.Hash))
 		return tx, nil
 	}
 
+	m.logger.Debug("Transaction type is smart contract call, attempting to parse data",
+		logger.String("tx_hash", tx.Hash),
+		logger.String("type", string(tx.Type)))
+
 	txCopy := tx.Copy()
 
-	parsedAsERC20, errERC20 := parseAndPopulateERC20Metadata(ctx, txCopy, m.abiUtils, m.tokenStore)
-	if errERC20 != nil {
+	parsedAsERC20, err := parseAndPopulateERC20Metadata(ctx, txCopy, m.abiUtils, m.abiLoader, m.tokenStore)
+	if err != nil {
 		m.logger.Error("Error attempting to parse as ERC20 transfer, proceeding to check MultiSig",
 			logger.String("tx_hash", txCopy.Hash),
-			logger.Error(errERC20),
+			logger.Error(err),
 		)
 	} else if parsedAsERC20 {
 		m.logger.Debug("Successfully parsed as ERC20Transfer", logger.String("tx_hash", txCopy.Hash))
 		return decodeERC20Transfer(txCopy)
 	}
 
-	parsedAsMultiSig, errMultiSig := parseAndPopulateMultiSigMetadata(ctx, txCopy, m.logger, m.abiUtils, m.tokenStore)
-	if errMultiSig != nil {
+	parsedAsMultiSig, err := parseAndPopulateMultiSigMetadata(ctx, txCopy, m.logger, m.abiUtils, m.abiLoader, m.tokenStore)
+	if err != nil {
 		m.logger.Error("Error attempting to parse as MultiSig",
 			logger.String("tx_hash", txCopy.Hash),
-			logger.Error(errMultiSig),
+			logger.Error(err),
 		)
 		return tx, nil
 	} else if parsedAsMultiSig {

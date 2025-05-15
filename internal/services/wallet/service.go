@@ -187,7 +187,7 @@ func (s *walletService) CreateWallet(ctx context.Context, chainType types.ChainT
 		return nil, err
 	}
 
-	w, err := s.walletFactory.NewWallet(ctx, chainType, key.ID)
+	w, err := s.walletFactory.NewManager(ctx, chainType, key.ID)
 	if err != nil {
 		return nil, err
 	}

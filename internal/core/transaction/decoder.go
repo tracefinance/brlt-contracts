@@ -2,7 +2,7 @@ package transaction
 
 import (
 	"context"
-	"vault0/internal/core/abiutils"
+	"vault0/internal/core/abi"
 	"vault0/internal/core/tokenstore"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
@@ -21,10 +21,10 @@ type Decoder interface {
 }
 
 // NewDecoder creates a new instance of the EVM transaction mapper.
-func NewDecoder(chainType types.ChainType, tokenStore tokenstore.TokenStore, log logger.Logger, abiUtils abiutils.ABIUtils) (Decoder, error) {
+func NewDecoder(chainType types.ChainType, tokenStore tokenstore.TokenStore, log logger.Logger, abiUtils abi.ABIUtils, abiLoader abi.ABILoader) (Decoder, error) {
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
-		return NewEvmDecoder(tokenStore, log, abiUtils), nil
+		return NewEvmDecoder(tokenStore, log, abiUtils, abiLoader), nil
 	default:
 		return nil, errors.NewChainNotSupportedError(string(chainType))
 	}

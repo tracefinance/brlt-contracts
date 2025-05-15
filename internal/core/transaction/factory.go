@@ -1,7 +1,7 @@
 package transaction
 
 import (
-	"vault0/internal/core/abiutils"
+	"vault0/internal/core/abi"
 	"vault0/internal/core/tokenstore"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
@@ -15,20 +15,20 @@ type Factory interface {
 }
 
 // NewFactory creates a new transaction Mapper factory
-func NewFactory(tokenStore tokenstore.TokenStore, log logger.Logger, abiUtilsFactory abiutils.Factory) Factory {
+func NewFactory(tokenStore tokenstore.TokenStore, log logger.Logger, abiFactory abi.Factory) Factory {
 	return &factory{
-		tokenStore:      tokenStore,
-		log:             log,
-		abiUtilsFactory: abiUtilsFactory,
-		mappers:         make(map[types.ChainType]Decoder),
+		tokenStore: tokenStore,
+		log:        log,
+		abiFactory: abiFactory,
+		mappers:    make(map[types.ChainType]Decoder),
 	}
 }
 
 type factory struct {
-	tokenStore      tokenstore.TokenStore
-	log             logger.Logger
-	abiUtilsFactory abiutils.Factory
-	mappers         map[types.ChainType]Decoder
+	tokenStore tokenstore.TokenStore
+	log        logger.Logger
+	abiFactory abi.Factory
+	mappers    map[types.ChainType]Decoder
 }
 
 // NewDecoder returns a Mapper instance for the specified chain type
@@ -38,8 +38,12 @@ func (f *factory) NewDecoder(chainType types.ChainType) (Decoder, error) {
 		return mapper, nil
 	}
 
-	// Create a new ABI utils instance for the chain type
-	abiUtils, err := f.abiUtilsFactory.NewABIUtils(chainType)
+	// Create a new ABI utils and loader instances for the chain type
+	abiUtils, err := f.abiFactory.NewABIUtils(chainType)
+	if err != nil {
+		return nil, err
+	}
+	abiLoader, err := f.abiFactory.NewABILoader(chainType)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +53,7 @@ func (f *factory) NewDecoder(chainType types.ChainType) (Decoder, error) {
 
 	switch chainType {
 	case types.ChainTypeEthereum, types.ChainTypePolygon, types.ChainTypeBase:
-		mapper = NewEvmDecoder(f.tokenStore, f.log, abiUtils)
+		mapper = NewEvmDecoder(f.tokenStore, f.log, abiUtils, abiLoader)
 	default:
 		return nil, errors.NewChainNotSupportedError(string(chainType))
 	}

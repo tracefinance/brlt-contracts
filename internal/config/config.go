@@ -264,9 +264,9 @@ func (c *Config) GetSmartContractsPath() string {
 	return c.SmartContractsPath
 }
 
-// GetABIContractNameForType returns the configured contract name (artifact filename without extension)
+// GetArtifactPathForType returns the configured contract path
 // for a given supported ABI type string.
-func (c *Config) GetABIContractNameForType(abiType string) (string, error) {
+func (c *Config) GetArtifactPathForType(abiType string) (string, error) {
 	if c.ABIMapping == nil {
 		return "", fmt.Errorf("ABI mapping configuration is missing")
 	}
