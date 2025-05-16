@@ -72,38 +72,40 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- Show error state -->
-  <div v-if="error">
-    <Alert variant="destructive">
-      <Icon name="lucide:alert-triangle" class="w-4 h-4" />
-      <AlertTitle>Error</AlertTitle>
-      <AlertDescription>
-        {{ error.message || 'Failed to load data' }}
-      </AlertDescription>
-    </Alert>
-  </div>
+  <div>
+    <!-- Show error state -->
+    <div v-if="error">
+      <Alert variant="destructive">
+        <Icon name="lucide:alert-triangle" class="w-4 h-4" />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          {{ error.message || 'Failed to load data' }}
+        </AlertDescription>
+      </Alert>
+    </div>
 
-  <!-- Show content only after initial load attempt -->
-  <div v-else-if="currentChain">
-    <TransactionListTable
-      :transactions="transactions"
-      :is-loading="isLoading"
-      :has-initially-loaded="hasInitiallyLoaded"
-      :wallet-address="address"
-      :explorer-base-url="explorerBaseUrl"
-      :native-token-symbol="nativeToken?.symbol"
-      :rows="3"
-    />
-    
-    <!-- Only show pagination controls when not in loading state or after initial load -->
-    <div v-if="!isLoading || hasInitiallyLoaded" class="flex items-center gap-2 mt-2">
-      <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
-      <PaginationControls 
-        :next-token="nextPageToken" 
-        :current-token="nextToken"
-        @previous="previousPage"
-        @next="nextPage(nextPageToken)"
+    <!-- Show content only after initial load attempt -->
+    <div>
+      <TransactionListTable
+        :transactions="transactions"
+        :is-loading="isLoading"
+        :has-initially-loaded="hasInitiallyLoaded"
+        :wallet-address="address"
+        :explorer-base-url="explorerBaseUrl"
+        :native-token-symbol="nativeToken?.symbol"
+        :rows="3"
       />
+      
+      <!-- Only show pagination controls when not in loading state or after initial load -->
+      <div v-if="!isLoading || hasInitiallyLoaded" class="flex items-center gap-2 mt-2">
+        <PaginationSizeSelect :current-limit="limit" @update:limit="setLimit" />
+        <PaginationControls 
+          :next-token="nextPageToken" 
+          :current-token="nextToken"
+          @previous="previousPage"
+          @next="nextPage(nextPageToken)"
+        />
+      </div>
     </div>
   </div>
 </template>
