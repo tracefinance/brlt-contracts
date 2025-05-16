@@ -470,14 +470,15 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 	var txs []struct {
 		Hash            string `json:"hash"`
 		From            string `json:"from"`
-		To              string `json:"to"`    // This is the recipient of the transfer
-		Value           string `json:"value"` // This is the token amount
+		To              string `json:"to"`
+		Value           string `json:"value"`
 		Gas             string `json:"gas"`
 		GasPrice        string `json:"gasPrice"`
+		GasUsed         string `json:"gasUsed"`
 		Nonce           string `json:"nonce"`
 		BlockNumber     string `json:"blockNumber"`
 		Timestamp       string `json:"timeStamp"`
-		ContractAddress string `json:"contractAddress"` // This is the token address
+		ContractAddress string `json:"contractAddress"`
 		TokenName       string `json:"tokenName"`
 		TokenSymbol     string `json:"tokenSymbol"`
 		TokenDecimal    string `json:"tokenDecimal"`
@@ -494,6 +495,7 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 		gasLimit, _ := strconv.ParseUint(tx.Gas, 10, 64)
 		gasPrice := new(big.Int)
 		gasPrice.SetString(tx.GasPrice, 10)
+		gasUsed, _ := strconv.ParseUint(tx.GasUsed, 10, 64)
 		nonce, _ := strconv.ParseUint(tx.Nonce, 10, 64)
 		tokenAmount := new(big.Int)
 		tokenAmount.SetString(tx.Value, 10)
@@ -531,14 +533,14 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 			Timestamp:       timestamp,
 			BlockNumber:     blockNumber,
 			Metadata:        metadata,
-			// GasUsed not provided by tokentx endpoint
+			GasUsed:         gasUsed,
 		}
 
 		erc20Entry := &ERC20TxHistoryEntry{
 			Transaction:    txEntry,
 			TokenAddress:   normalizedContractAddress,
 			TokenSymbol:    tx.TokenSymbol,
-			TokenRecipient: normalizedTo, // Actual recipient of tokens
+			TokenRecipient: normalizedTo,
 			TokenAmount:    tokenAmount,
 			TokenDecimals:  uint8(tokenDecimals),
 		}

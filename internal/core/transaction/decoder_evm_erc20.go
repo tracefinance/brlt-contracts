@@ -100,12 +100,12 @@ func parseAndPopulateERC20Metadata(ctx context.Context, tx *types.Transaction, a
 	}
 
 	// Extract recipient address ('recipient') and amount ('amount').
-	recipientAddr, err := abiUtils.GetAddressFromArgs(parsedArgs, "0")
+	recipientAddr, err := abiUtils.GetAddressFromArgs(parsedArgs, "recipient")
 	if err != nil {
 		return false, fmt.Errorf("failed to get recipient address ('recipient') from parsed args: %w", err)
 	}
 
-	amountBigIntParsed, err := abiUtils.GetBigIntFromArgs(parsedArgs, "1")
+	amountBigIntParsed, err := abiUtils.GetBigIntFromArgs(parsedArgs, "amount")
 	if err != nil {
 		return false, fmt.Errorf("failed to get transfer amount ('amount') from parsed args: %w", err)
 	}

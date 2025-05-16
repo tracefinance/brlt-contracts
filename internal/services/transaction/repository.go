@@ -83,6 +83,10 @@ func (r *repository) Create(ctx context.Context, tx *Transaction) error {
 	tx.CreatedAt = now
 	tx.UpdatedAt = now
 
+	if tx.Metadata == nil {
+		tx.Metadata = types.TxMetadata{}
+	}
+
 	if tx.From != "" {
 		fromAddr, err := types.NewAddress(tx.Chain, tx.From)
 		if err != nil {

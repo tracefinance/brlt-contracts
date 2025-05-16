@@ -55,7 +55,9 @@ build/
 *.txt
 
 # Auto-generated Swagger documentation
-internal/api/docs/
+internal/api/docs/docs.go
+internal/api/docs/swagger.json
+internal/api/docs/swagger.yaml
 
 # Generated Wire files
 **/wire_gen.go
@@ -70,7 +72,6 @@ dev-debug.log
 node_modules/
 # Editor directories and files
 .idea
-.vscode
 *.suo
 *.ntvs*
 *.njsproj
@@ -78,7 +79,6 @@ node_modules/
 *.sw?
 
 # Task files
-tasks.json
 TASKS.md
 tasks/ 
 root_path.mdc

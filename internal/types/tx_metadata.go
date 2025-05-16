@@ -52,7 +52,7 @@ func (m *TxMetadata) Scan(value any) error {
 // Value implements the driver.Valuer interface for database serialization.
 func (m TxMetadata) Value() (driver.Value, error) {
 	if len(m) == 0 {
-		return "", nil
+		return "{}", nil
 	}
 
 	// Marshal the map to JSON

@@ -1,0 +1,20 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "server-build-debug",
+            "type": "shell",
+            "command": "make",
+            "args": ["server-build-debug"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": ["$go"]
+        }
+    ]
+} 

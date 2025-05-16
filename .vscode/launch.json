@@ -12,7 +12,8 @@
             "env": {
                 "VAULT0_LOG_LEVEL": "debug",
                 "VAULT0_DEBUG": "true"
-            }
+            },
+            "preLaunchTask": "server-build-debug"
         },
         {
             "type": "chrome",

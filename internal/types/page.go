@@ -83,11 +83,11 @@ func DecodeNextPageToken(tokenStr string, expectedColumn string) (*NextPageToken
 // Page represents a paginated response
 type Page[T any] struct {
 	// Items contains the page items
-	Items []T `json:"items"`
+	Items []T
 	// NextToken is used for fetching the next page. Empty string for the last page.
-	NextToken string `json:"next_token,omitempty"`
+	NextToken string
 	// Limit is the maximum number of items per page
-	Limit int `json:"limit"`
+	Limit int
 }
 
 // NewPage creates a new Page with token-based pagination
