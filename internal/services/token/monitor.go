@@ -58,7 +58,7 @@ func (s *tokenMonitorService) StartTokenTransactionMonitoring(ctx context.Contex
 
 	// Get all tokens from token store
 	// Using 0 as limit to get all tokens in one query
-	tokensPage, err := s.tokenStore.ListTokens(ctx, 0, "")
+	tokensPage, err := s.tokenStore.ListTokens(ctx, nil, 0, "")
 	if err != nil {
 		s.log.Error("Failed to retrieve tokens from token store", logger.Error(err))
 		return err
@@ -144,7 +144,7 @@ func (s *tokenMonitorService) StopTokenTransactionMonitoring() error {
 	ctx := context.Background()
 
 	// Get all tokens from token store
-	tokensPage, err := s.tokenStore.ListTokens(ctx, 0, "")
+	tokensPage, err := s.tokenStore.ListTokens(ctx, nil, 0, "")
 	if err != nil {
 		s.log.Error("Failed to retrieve tokens from token store", logger.Error(err))
 		return err

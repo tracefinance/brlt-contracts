@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"vault0/internal/core/tokenstore"
 	"vault0/internal/types"
 	"vault0/internal/wire"
 )
@@ -41,13 +42,21 @@ func main() {
 	// Get tokens for each chain
 	chainList := container.Core.Chains.List()
 	for _, chain := range chainList {
-		tokens, err := container.Core.TokenStore.ListTokensByChain(ctx, chain.Type, 0, "")
+		chainType := chain.Type
+
+		// Create a filter to get tokens only for this chain
+		filter := tokenstore.TokenFilter{
+			ChainType: &chainType,
+		}
+
+		// Use the new ListTokens method with filter
+		tokensPage, err := container.Core.TokenStore.ListTokens(ctx, &filter, 0, "")
 		if err != nil {
 			continue
 		}
 
 		wg.Add(1)
-		go verifyTokens(ctx, &wg, results, chain, tokens.Items, container)
+		go verifyTokens(ctx, &wg, results, chain, tokensPage.Items, container)
 	}
 
 	// Wait for all verifications to complete

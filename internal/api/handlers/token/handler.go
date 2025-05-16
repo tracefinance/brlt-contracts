@@ -8,6 +8,7 @@ import (
 	_ "vault0/internal/api/docs" // Required for Swagger documentation
 	"vault0/internal/api/middleares"
 	"vault0/internal/api/utils"
+	"vault0/internal/core/tokenstore"
 	"vault0/internal/errors"
 	"vault0/internal/logger"
 	"vault0/internal/services/token"
@@ -73,7 +74,7 @@ func (h *Handler) listTokens(c *gin.Context) {
 	}
 
 	// Build filter
-	filter := token.TokenFilter{}
+	filter := &tokenstore.TokenFilter{}
 
 	if req.ChainType != "" {
 		chainType := types.ChainType(req.ChainType)

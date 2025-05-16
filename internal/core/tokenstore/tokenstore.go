@@ -26,6 +26,12 @@ type TokenEvent struct {
 	Token     *types.Token
 }
 
+// TokenFilter contains filter criteria for listing tokens
+type TokenFilter struct {
+	ChainType *types.ChainType // Filter by blockchain type
+	TokenType *types.TokenType // Filter by token type
+}
+
 // TokenStore defines the interface for managing tokens
 type TokenStore interface {
 	// AddToken adds a new token to the store
@@ -40,15 +46,11 @@ type TokenStore interface {
 	// DeleteToken removes a token from the store by its address
 	DeleteToken(ctx context.Context, address string) error
 
-	// ListTokens retrieves tokens in the store with pagination
+	// ListTokens retrieves tokens in the store with pagination and filtering
 	// If limit is 0, returns all tokens without pagination
 	// nextToken is used for token-based pagination (empty string for first page)
-	ListTokens(ctx context.Context, limit int, nextToken string) (*types.Page[types.Token], error)
-
-	// ListTokensByChain retrieves tokens for a specific blockchain with pagination
-	// If limit is 0, returns all tokens without pagination
-	// nextToken is used for token-based pagination (empty string for first page)
-	ListTokensByChain(ctx context.Context, chainType types.ChainType, limit int, nextToken string) (*types.Page[types.Token], error)
+	// filter allows filtering tokens by chain type and token type
+	ListTokens(ctx context.Context, filter *TokenFilter, limit int, nextToken string) (*types.Page[types.Token], error)
 
 	// ListTokensByAddresses retrieves tokens by a list of token addresses for a specific chain
 	// Returns tokens in the same order as the input addresses
