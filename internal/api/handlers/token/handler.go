@@ -42,7 +42,7 @@ func (h *Handler) SetupRoutes(router *gin.RouterGroup) {
 	tokenRoutes.GET("", h.listTokens)
 	tokenRoutes.POST("", h.addToken)
 	tokenRoutes.GET("/verify/:address", h.verifyToken)
-	tokenRoutes.GET("/:chainType/:address", h.getToken)
+	tokenRoutes.GET("/:address", h.getToken)
 	tokenRoutes.DELETE("/:address", h.deleteToken)
 	tokenRoutes.PUT("/:address", h.updateToken)
 }
@@ -193,7 +193,7 @@ func (h *Handler) verifyToken(c *gin.Context) {
 // @Failure 400 {object} errors.Vault0Error "Invalid request"
 // @Failure 404 {object} errors.Vault0Error "Token not found"
 // @Failure 500 {object} errors.Vault0Error "Internal server error"
-// @Router /tokens/{chainType}/{address} [get]
+// @Router /tokens/{address} [get]
 func (h *Handler) getToken(c *gin.Context) {
 	address := c.Param("address")
 	if address == "" {
@@ -201,15 +201,7 @@ func (h *Handler) getToken(c *gin.Context) {
 		return
 	}
 
-	chainTypeStr := c.Param("chainType")
-	if chainTypeStr == "" {
-		c.Error(errors.NewMissingParameterError("chainType"))
-		return
-	}
-
-	chainType := types.ChainType(chainTypeStr)
-
-	token, err := h.service.GetTokenByChainAndAddress(c.Request.Context(), chainType, address)
+	token, err := h.service.GetToken(c.Request.Context(), address)
 	if err != nil {
 		c.Error(err)
 		return

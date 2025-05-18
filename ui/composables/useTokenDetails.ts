@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import type { Ref } from 'vue'
-import type { ChainType, IToken } from '~/types'
+import type { IToken } from '~/types'
 
 /**
  * Composable for fetching details of a specific token.
@@ -9,7 +9,7 @@ import type { ChainType, IToken } from '~/types'
  * @param tokenAddress - Reactive ref for the target token address.
  * @returns Reactive state including the token details, loading status, errors, and refresh function.
  */
-export default function (chainType: Ref<string | undefined>, tokenAddress: Ref<string | undefined>) {
+export default function (tokenAddress: Ref<string | undefined>) {
   const { $api } = useNuxtApp()
 
   const { 
@@ -20,15 +20,14 @@ export default function (chainType: Ref<string | undefined>, tokenAddress: Ref<s
   } = useAsyncData<IToken | null>(
     'currentToken',
     async () => {
-      const chainTypeValue = chainType.value
       const tokenAddressValue = tokenAddress.value
-      if (chainTypeValue && tokenAddressValue) {
-        return await $api.token.getToken(chainTypeValue as ChainType, tokenAddressValue)
+      if (tokenAddressValue) {
+        return await $api.token.getToken(tokenAddressValue)
       }
       return null
     },
     {
-      watch: [chainType, tokenAddress],
+      watch: [tokenAddress],
       default: () => null
     }
   )

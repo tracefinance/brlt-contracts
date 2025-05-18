@@ -72,7 +72,7 @@ function handleEditToken(token: IToken) {
     toast.error('Invalid token data. Cannot navigate to edit page.')
     return
   }
-  router.push(`/settings/tokens/${token.chainType}/${token.address}/edit`)
+  router.push(`/settings/tokens/${token.address}/edit`)
 }
 
 function handleDeleteToken(token: IToken) {

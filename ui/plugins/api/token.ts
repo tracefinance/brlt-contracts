@@ -2,7 +2,6 @@ import type {
   IAddTokenRequest,
   IToken,
   IListTokensRequest,
-  ChainType,
   IPagedResponse,
   IUpdateTokenRequest,
 } from '~/types'
@@ -86,11 +85,9 @@ export class TokenClient {
    * @returns The token details.
    */
   async getToken(
-    chainType: ChainType,
     address: string,
   ): Promise<IToken> {
-    // Assuming BY_ADDRESS endpoint needs chainType and address
-    const endpoint = API_ENDPOINTS.TOKENS.BY_ADDRESS(chainType, address)
+    const endpoint = API_ENDPOINTS.TOKENS.BY_ADDRESS(address)
     const data = await this.client.get<any>(endpoint)
     return Token.fromJson(data)
   }

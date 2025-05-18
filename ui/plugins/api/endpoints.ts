@@ -28,7 +28,7 @@ export const API_ENDPOINTS = {
   // Token endpoints
   TOKENS: {
     BASE: '/tokens',
-    BY_ADDRESS: (chainType: string, address: string) => `/tokens/${chainType}/${address}`,
+    BY_ADDRESS: (address: string) => `/tokens/${address}`,
     DELETE: (address: string) => `/tokens/${address}`,
     VERIFY: (address: string) => `/tokens/verify/${address}`,
     UPDATE: (address: string) => `/tokens/${address}`,

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"vault0/internal/core/tokenstore"
-	"vault0/internal/errors"
 	"vault0/internal/logger"
 	"vault0/internal/types"
 )
@@ -26,14 +25,6 @@ type Service interface {
 
 	// GetToken retrieves a token by address
 	GetToken(ctx context.Context, address string) (*types.Token, error)
-
-	// GetTokenByChainAndAddress retrieves a token by chain type and address
-	// If address is "native" or zero address, it returns the native token for the chain
-	GetTokenByChainAndAddress(ctx context.Context, chainType types.ChainType, address string) (*types.Token, error)
-
-	// GetTokensByAddresses retrieves tokens by a list of token addresses for a specific chain
-	// If an address is not found, it will be skipped in the result
-	GetTokensByAddresses(ctx context.Context, chainType types.ChainType, addresses []string) ([]types.Token, error)
 
 	// UpdateToken updates a token's symbol, type, and decimals by address
 	UpdateToken(ctx context.Context, address string, symbol string, tokenType types.TokenType, decimals uint8) error
@@ -165,57 +156,6 @@ func (s *service) VerifyToken(ctx context.Context, address string) (*types.Token
 	}
 
 	return token, nil
-}
-
-// GetTokenByChainAndAddress implements the Service interface
-func (s *service) GetTokenByChainAndAddress(ctx context.Context, chainType types.ChainType, address string) (*types.Token, error) {
-	// Check if address is "native" or zero address
-	if address == "native" || types.IsZeroAddress(address) {
-		// Create a native token for the specified chain
-		nativeToken, err := types.NewNativeToken(chainType)
-		if err != nil {
-			s.log.Error("Failed to create native token",
-				logger.Error(err),
-				logger.String("chain_type", string(chainType)))
-			return nil, err
-		}
-		return nativeToken, nil
-	}
-
-	// Get token by address from the token store
-	token, err := s.tokenStore.GetToken(ctx, address)
-	if err != nil {
-		s.log.Error("Failed to get token by address and chain",
-			logger.Error(err),
-			logger.String("address", address),
-			logger.String("chain_type", string(chainType)))
-		return nil, err
-	}
-
-	// Verify the chain type matches
-	if token.ChainType != chainType {
-		s.log.Error("Token chain type mismatch",
-			logger.String("requested_chain", string(chainType)),
-			logger.String("token_chain", string(token.ChainType)),
-			logger.String("address", address))
-		return nil, errors.NewTokenNotFoundError(address, string(chainType))
-	}
-
-	return token, nil
-}
-
-// GetTokensByAddresses implements the Service interface
-func (s *service) GetTokensByAddresses(ctx context.Context, chainType types.ChainType, addresses []string) ([]types.Token, error) {
-	tokens, err := s.tokenStore.ListTokensByAddresses(ctx, chainType, addresses)
-	if err != nil {
-		s.log.Error("Failed to list tokens by addresses",
-			logger.Error(err),
-			logger.String("chain_type", string(chainType)),
-			logger.Any("addresses", addresses))
-		return nil, err
-	}
-
-	return tokens, nil
 }
 
 // UpdateToken implements the Service interface

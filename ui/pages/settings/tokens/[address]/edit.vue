@@ -15,14 +15,13 @@ const route = useRoute()
 const router = useRouter()
 
 // Read chainType and address from route params
-const chainTypeParam = computed(() => route.params.chainType as ChainType | undefined)
 const addressParam = computed(() => route.params.address as string | undefined)
 
 const { 
   currentToken: fetchedToken,
   isLoading: isLoadingToken, 
   error: loadingError
-} = useTokenDetails(chainTypeParam, addressParam)
+} = useTokenDetails(addressParam)
 
 const { 
   updateToken: mutateUpdateToken, 
