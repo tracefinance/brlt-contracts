@@ -6,6 +6,9 @@ import (
 	"vault0/internal/errors"
 	"vault0/internal/logger"
 	"vault0/internal/types"
+
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // Factory is an interface for managing blockchain clients
@@ -58,10 +61,23 @@ func (f *factory) NewClient(chainType types.ChainType) (BlockchainClient, error)
 		if err != nil {
 			return nil, err
 		}
-		client, err := NewEVMBlockchainClient(chain, f.log)
+		if chain.RPCUrl == "" {
+			return nil, errors.NewInvalidBlockchainConfigError(string(chain.Type), "rpc_url")
+		}
+
+		// Create a new Ethereum RPC client
+		rpcClient, err := rpc.Dial(chain.RPCUrl)
+		if err != nil {
+			return nil, errors.NewRPCError(err)
+		}
+
+		// Create an Ethereum client from the RPC client
+		ethClient := ethclient.NewClient(rpcClient)
+		client, err := NewEVMBlockchainClient(chain, rpcClient, ethClient, f.log)
 		if err != nil {
 			return nil, err
 		}
+
 		f.clients[chainType] = client
 		return client, nil
 	default:

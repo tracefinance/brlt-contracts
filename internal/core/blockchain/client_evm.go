@@ -59,34 +59,18 @@ type EVMClient struct {
 }
 
 // NewEVMBlockchainClient creates a new EVM blockchain client
-func NewEVMBlockchainClient(chain types.Chain, log logger.Logger) (*EVMClient, error) {
-	if chain.RPCUrl == "" {
-		return nil, errors.NewInvalidBlockchainConfigError(string(chain.Type), "rpc_url")
-	}
-
-	// Create a new Ethereum RPC client
-	rpcClient, err := rpc.Dial(chain.RPCUrl)
-	if err != nil {
-		return nil, errors.NewRPCError(err)
-	}
-
-	// Create an Ethereum client from the RPC client
-	client := ethclient.NewClient(rpcClient)
-
+func NewEVMBlockchainClient(
+	chain types.Chain,
+	rpcClient *rpc.Client,
+	client *ethclient.Client,
+	log logger.Logger,
+) (*EVMClient, error) {
 	// Create the EVM blockchain client
 	evm := &EVMClient{
 		client:    client,
 		rpcClient: rpcClient,
 		chain:     chain,
 		log:       log,
-	}
-
-	// Try to get the chain ID to verify the connection
-	_, err = evm.GetChainID(context.Background())
-	if err != nil {
-		// Close the connections before returning
-		evm.Close()
-		return nil, errors.NewBlockchainError(err)
 	}
 
 	return evm, nil
