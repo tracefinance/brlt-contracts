@@ -157,6 +157,7 @@ chore(deps): update dependencies
 - Document setup procedures clearly.
 - Use consistent tooling (linters, formatters).
 - Maintain development/local testing scripts and databases.
+- **Cursor Rules Files:** All Cursor rules files are located in the `.cursor/rules` directory and must use the `.mdc` file extension.
 - **Maintain Rule Consistency:** When updating any `*.mdc` rule file, ensure the corresponding file in the `.cursor/rules/` directory is also updated. **Verify** that the changes have been successfully applied to the file in `.cursor/rules/` to ensure consistency for the AI assistant.
 
 ## Quality Assurance

@@ -37,6 +37,9 @@ vault0/
 │   ├── db/          # Database access
 │   ├── errors/      # Error types and handling
 │   ├── logger/      # Logging utilities
+│   ├── testing/     # Testing utilities and mocks
+│   │   ├── mocks/         # Mock implementations of interfaces for testing
+│   │   └── matchers/      # Custom argument matchers for testify/mock
 │   ├── types/       # Shared type definitions
 │   └── wire/        # Dependency injection (Google Wire)
 ├── migrations/      # Database migrations
@@ -584,7 +587,7 @@ func (m *MockRepository) Create(ctx context.Context, user *User) error {
 // TestUserService_GetByID tests the GetByID method of the user service.
 func TestUserService_GetByID(t *testing.T) {
 	mockRepo := new(MockRepository)
-	// Use a discard logger for tests unless specific log output is being tested
+	// Use a discard logger for tests unless specifically testing log output
 	testLogger := logger.NewDiscardLogger() 
 	userService := NewService(mockRepo, testLogger) // Assuming NewService takes Repository and Logger
 
@@ -770,3 +773,237 @@ When implementing a new feature, follow this sequence:
 
 7. **Implement unit and integration tests**
    - Create `_test.go` files for repository, service, and handler
+
+## Mocking Guidelines for Testing
+
+Testing effectively requires mocking dependencies. Vault0 uses the `github.com/stretchr/testify/mock` package for creating mocks. Follow these patterns:
+
+### Standard Mock Structure
+
+All mocks should be placed in `internal/testing/mocks/` directory with a clear naming convention:
+
+```go
+// internal/testing/mocks/your_interface.go
+package mocks
+
+import (
+	"github.com/stretchr/testify/mock"
+
+	"vault0/internal/types" // Import your needed packages
+)
+
+// Mock{InterfaceName} implements {InterfaceName} interface for testing
+type Mock{InterfaceName} struct {
+	mock.Mock
+}
+
+// Implement all interface methods
+func (m *Mock{InterfaceName}) MethodName(param1 string, param2 int) (ReturnType, error) {
+	args := m.Called(param1, param2)
+	
+	// Handle nil first return value case
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	
+	// Return properly type-casted values
+	return args.Get(0).(ReturnType), args.Error(1)
+}
+
+// NewMock{InterfaceName} creates a new instance with common expectations set
+func NewMock{InterfaceName}() *Mock{InterfaceName} {
+	mock := &Mock{InterfaceName}{}
+	
+	// Set up common expectations here
+	
+	return mock
+}
+```
+
+### Helper Methods for Common Mock Setup
+
+Add helper methods to your mock to simplify test setup:
+
+```go
+// WithSuccessfulResult configures the mock for a successful response
+func (m *Mock{InterfaceName}) WithSuccessfulResult(param1 string, result ReturnType) *Mock{InterfaceName} {
+	m.On("MethodName", param1, mock.Anything).Return(result, nil)
+	return m
+}
+
+// WithErrorResult configures the mock to return an error
+func (m *Mock{InterfaceName}) WithErrorResult(param1 string, err error) *Mock{InterfaceName} {
+	m.On("MethodName", param1, mock.Anything).Return(nil, err)
+	return m
+}
+```
+
+### Test Setup Helper Functions
+
+Create helper functions for setting up tests with multiple mocks:
+
+```go
+// setupTestService creates a test service with mocked dependencies
+func setupTestService() (*service, *mocks.MockRepository, *mocks.MockLogger) {
+	mockRepo := mocks.NewMockRepository()
+	mockLogger := mocks.NewNopLogger()
+	
+	testService := &service{
+		repository: mockRepo,
+		logger: mockLogger,
+	}
+	
+	return testService, mockRepo, mockLogger
+}
+```
+
+### Mock Matchers for Complex Arguments
+
+Use custom matchers for complex argument matching:
+
+```go
+// internal/testing/matchers/matchers.go
+package matchers
+
+import (
+	"github.com/stretchr/testify/mock"
+	"strings"
+)
+
+// AddressMatcher matches an address case-insensitively
+func AddressMatcher(addr string) interface{} {
+	return mock.MatchedBy(func(a string) bool {
+		return strings.EqualFold(a, addr)
+	})
+}
+
+// EmptyBytesMatcher matches an empty byte slice
+func EmptyBytesMatcher() interface{} {
+	return mock.MatchedBy(func(data []byte) bool {
+		return len(data) == 0
+	})
+}
+```
+
+### Example: Complete Test With Mocks
+
+```go
+func TestYourService_YourMethod(t *testing.T) {
+	// Test cases
+	tests := []struct {
+		name           string
+		mockSetup      func(*mocks.MockDependency1, *mocks.MockDependency2)
+		input          string
+		expectedResult Result
+		expectError    bool
+		errorCode      string
+	}{
+		{
+			name: "successful operation",
+			mockSetup: func(m1 *mocks.MockDependency1, m2 *mocks.MockDependency2) {
+				// Setup successful case mocks
+				m1.On("Method1", mock.Anything, "input").Return("result1", nil)
+				m2.On("Method2", mock.Anything, "result1").Return(Result{Value: "success"}, nil)
+			},
+			input: "input",
+			expectedResult: Result{Value: "success"},
+			expectError: false,
+		},
+		{
+			name: "dependency1 failure",
+			mockSetup: func(m1 *mocks.MockDependency1, m2 *mocks.MockDependency2) {
+				// Setup error case mock
+				m1.On("Method1", mock.Anything, "bad-input").Return(nil, 
+					coreerrors.NewValidationError("invalid input"))
+			},
+			input: "bad-input",
+			expectError: true,
+			errorCode: coreerrors.ErrCodeValidationFailed,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup mocks
+			mockDep1 := mocks.NewMockDependency1()
+			mockDep2 := mocks.NewMockDependency2()
+			tc.mockSetup(mockDep1, mockDep2)
+			
+			// Create service with mocks
+			service := NewService(mockDep1, mockDep2)
+			
+			// Call method under test
+			result, err := service.YourMethod(context.Background(), tc.input)
+			
+			// Check for expected error
+			if tc.expectError {
+				assert.Error(t, err)
+				if tc.errorCode != "" {
+					assert.True(t, coreerrors.IsError(err, tc.errorCode))
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedResult, result)
+			}
+			
+			// Verify all mock expectations were met
+			mockDep1.AssertExpectations(t)
+			mockDep2.AssertExpectations(t)
+		})
+	}
+}
+```
+
+### Chainable Mock Setup
+
+Use chainable mock configuration for more readable test setup:
+
+```go
+// Setup mocks with method chaining
+mockBlockExplorer := mocks.NewMockBlockExplorer().
+	WithSuccessfulContractFetch("0x1234...", contractABI).
+	WithTokenURL("0x5678...", "https://token.url")
+
+// Or for more complex cases:
+mockABIUtils := mocks.NewMockABIUtils()
+mockABIUtils.WithPackSuccess(contractABI, "transfer", []byte{1,2,3,4})
+mockABIUtils.WithUnpackSuccess(contractABI, "balanceOf", inputData, map[string]any{"balance": big.NewInt(1000)})
+```
+
+### Nop Logger for Testing
+
+Use a no-op logger in tests unless specifically testing logging behavior:
+
+```go
+// internal/testing/mocks/logger.go
+package mocks
+
+import "vault0/internal/logger"
+
+// NopLogger is a no-op logger that discards all logs
+type NopLogger struct{}
+
+func (l *NopLogger) Debug(msg string, fields ...logger.Field) {}
+func (l *NopLogger) Info(msg string, fields ...logger.Field) {}
+// ... other logger methods
+
+// NewNopLogger creates a new no-op logger
+func NewNopLogger() *NopLogger {
+	return &NopLogger{}
+}
+```
+
+### Testing Best Practices with Mocks
+
+1. **Configure expectations precisely**: Use `Once()` to ensure a mock method is called exactly once, or `Times(n)` for expected multiple calls.
+2. **Handle nil return values**: Always check for nil in mock method implementations to avoid panic.
+3. **Type assertion safety**: Use proper type assertions for return values.
+4. **Verify expectations**: Call `AssertExpectations(t)` on each mock to verify all expected calls were made.
+5. **Clean separation**: Each test case should have its own mock setup, completely independent from other test cases.
+6. **Use custom matchers**: For complex arguments like large structs or case-insensitive strings.
+7. **General-to-specific order**: Configure more general mock calls before more specific ones.
+
+### Performance
+*   Optimize database queries (indexing, query analysis).
+*   Implement caching where appropriate.
+*   Use efficient algorithms and data structures.
