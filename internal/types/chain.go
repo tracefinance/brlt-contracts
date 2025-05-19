@@ -3,8 +3,6 @@ package types
 import (
 	"crypto/elliptic"
 
-	"github.com/ethereum/go-ethereum/common"
-
 	"vault0/internal/config"
 	"vault0/internal/core/crypto"
 	"vault0/internal/errors"
@@ -144,28 +142,11 @@ func newChain(cfg *config.Config, chainType ChainType) (Chain, error) {
 //   - nil if the address is valid
 //   - ErrInvalidAddress with details if the address is invalid
 func (c *Chain) ValidateAddress(address string) error {
-	if address == "" {
-		return errors.NewInvalidAddressError("")
+	_, err := NewAddress(c.Type, address)
+	if err != nil {
+		return err
 	}
-
-	// For EVM-compatible chains (Ethereum, Polygon, Base)
-	switch c.Type {
-	case ChainTypeEthereum, ChainTypePolygon, ChainTypeBase:
-		// Check if the address has the correct format (0x followed by 40 hex characters)
-		if !common.IsHexAddress(address) {
-			return errors.NewInvalidAddressError(address)
-		}
-
-		// Convert to checksum address and verify
-		checksumAddr := common.HexToAddress(address).Hex()
-		if common.HexToAddress(address) != common.HexToAddress(checksumAddr) {
-			return errors.NewInvalidAddressError(address)
-		}
-
-		return nil
-	default:
-		return errors.NewChainNotSupportedError(string(c.Type))
-	}
+	return nil
 }
 
 // IsValidAddress validates if the given address is a valid blockchain address.

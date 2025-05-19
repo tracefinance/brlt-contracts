@@ -78,7 +78,7 @@ type EtherscanExplorer struct {
 	explorerURL string
 	apiKey      string
 	chain       *types.Chain
-	httpClient  *http.Client
+	HTTPClient  *http.Client // Exported for testing
 	log         logger.Logger
 
 	// Rate limiting
@@ -92,7 +92,7 @@ func NewEtherscanExplorer(chain types.Chain, apiURL, explorerURL, apiKey string,
 		explorerURL: explorerURL,
 		apiKey:      apiKey,
 		chain:       &chain,
-		httpClient: &http.Client{
+		HTTPClient: &http.Client{
 			Timeout: defaultTimeout,
 		},
 		log:     log,
@@ -102,8 +102,8 @@ func NewEtherscanExplorer(chain types.Chain, apiURL, explorerURL, apiKey string,
 	return e
 }
 
-// makeRequest performs an HTTP GET request to the Etherscan API
-func (e *EtherscanExplorer) makeRequest(ctx context.Context, params url.Values) ([]byte, error) {
+// MakeRequest performs an HTTP GET request to the Etherscan API
+func (e *EtherscanExplorer) MakeRequest(ctx context.Context, params url.Values) ([]byte, error) {
 	if params == nil {
 		params = url.Values{}
 	}
@@ -157,7 +157,7 @@ func (e *EtherscanExplorer) doRequest(ctx context.Context, params url.Values) ([
 			return nil, errors.NewExplorerRequestFailedError(err)
 		}
 
-		resp, err := e.httpClient.Do(req)
+		resp, err := e.HTTPClient.Do(req)
 		if err != nil {
 			lastErr = err
 			e.log.Warn("Request failed, will retry with backoff",
@@ -258,7 +258,7 @@ func (e *EtherscanExplorer) GetContract(ctx context.Context, address string) (*C
 	params.Set("action", "getabi")
 	params.Set("address", strings.ToLower(address))
 
-	abiData, err := e.makeRequest(ctx, params)
+	abiData, err := e.MakeRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +271,7 @@ func (e *EtherscanExplorer) GetContract(ctx context.Context, address string) (*C
 
 	// Get contract source code
 	params.Set("action", "getsourcecode")
-	sourceData, err := e.makeRequest(ctx, params)
+	sourceData, err := e.MakeRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +304,7 @@ func (e *EtherscanExplorer) getNormalTransactionHistory(ctx context.Context, add
 	// Request limit+1 items to determine if there's a next page
 	e.setTransactionHistoryParams(params, address, options, "txlist", page, limit+1)
 
-	data, err := e.makeRequest(ctx, params)
+	data, err := e.MakeRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +390,7 @@ func (e *EtherscanExplorer) getInternalTransactionHistory(ctx context.Context, a
 	// Request limit+1 items to determine if there's a next page
 	e.setTransactionHistoryParams(params, address, options, "txlistinternal", page, limit+1)
 
-	data, err := e.makeRequest(ctx, params)
+	data, err := e.MakeRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -462,7 +462,7 @@ func (e *EtherscanExplorer) getERC20TransactionHistory(ctx context.Context, addr
 	// Request limit+1 items to determine if there's a next page
 	e.setTransactionHistoryParams(params, address, options, "tokentx", page, limit+1)
 
-	data, err := e.makeRequest(ctx, params)
+	data, err := e.MakeRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -557,7 +557,7 @@ func (e *EtherscanExplorer) getERC721TransactionHistory(ctx context.Context, add
 	// Use "tokennfttx" action for ERC721
 	e.setTransactionHistoryParams(params, address, options, "tokennfttx", page, limit+1)
 
-	data, err := e.makeRequest(ctx, params)
+	data, err := e.MakeRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -763,7 +763,7 @@ func (e *EtherscanExplorer) GetTransactionReceiptByHash(ctx context.Context, has
 	params.Set("action", "eth_getTransactionReceipt")
 	params.Set("txhash", hash)
 
-	data, err := e.makeRequest(ctx, params)
+	data, err := e.MakeRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -845,7 +845,7 @@ func (e *EtherscanExplorer) GetTransactionByHash(ctx context.Context, hash strin
 	params.Set("action", "eth_getTransactionByHash")
 	params.Set("txhash", hash)
 
-	data, err := e.makeRequest(ctx, params)
+	data, err := e.MakeRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
