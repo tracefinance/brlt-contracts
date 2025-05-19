@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/mock"
 )
@@ -212,6 +211,11 @@ func (m *MockEthClient) SendTransaction(ctx context.Context, tx *types.Transacti
 	return args.Error(0)
 }
 
+// Close mocks the Close method of the EthCompatibleClient interface.
+func (m *MockEthClient) Close() {
+	m.Called()
+}
+
 // NewMockEthClient creates a new instance of MockEthClient
 func NewMockEthClient() *MockEthClient {
 	return &MockEthClient{}
@@ -283,29 +287,4 @@ func NewMockSubscription() *MockSubscription {
 	return &MockSubscription{
 		ErrChan: make(chan error),
 	}
-}
-
-// RpcClient returns the mock as an *rpc.Client interface
-func (m *MockRPCClient) RpcClient() *rpc.Client {
-	// To properly support mocking, we need to return a real client pointer
-	// This is complicated because rpc.Client doesn't have exported fields we can access
-	// For testing purposes, using an unsafe cast to the mock itself
-	// This works because our tests will only call methods we've mocked
-	type mockRPCClient struct {
-		*rpc.Client
-	}
-	clientPtr := &mockRPCClient{&rpc.Client{}}
-	return clientPtr.Client
-}
-
-// EthClient returns the mock as an *ethclient.Client interface
-func (m *MockEthClient) EthClient() *ethclient.Client {
-	// Similar approach as with RpcClient
-	// This forces Go to think our mock is an ethclient.Client
-	// This is only for testing and wouldn't be appropriate in production code
-	type mockEthClient struct {
-		*ethclient.Client
-	}
-	clientPtr := &mockEthClient{&ethclient.Client{}}
-	return clientPtr.Client
 }

@@ -15,8 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	"vault0/internal/errors"
 	"vault0/internal/logger"
@@ -50,27 +48,45 @@ const (
 	operationFetchBlock = "fetch block" // Operation name for block fetching
 )
 
+// EthereumClient defines the interface for an EVM-compatible client,
+// abstracting the concrete ethclient.Client. This facilitates testing and mocking.
+type EthereumClient interface {
+	ChainID(ctx context.Context) (*big.Int, error)
+	BalanceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
+	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
+	TransactionByHash(ctx context.Context, hash common.Hash) (tx *ethTypes.Transaction, isPending bool, err error)
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethTypes.Receipt, error)
+	BlockByNumber(ctx context.Context, number *big.Int) (*ethTypes.Block, error)
+	BlockByHash(ctx context.Context, hash common.Hash) (*ethTypes.Block, error)
+	EstimateGas(ctx context.Context, call ethereum.CallMsg) (uint64, error)
+	SuggestGasPrice(ctx context.Context) (*big.Int, error)
+	CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
+	SendTransaction(ctx context.Context, tx *ethTypes.Transaction) error
+	FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]ethTypes.Log, error)
+	BlockNumber(ctx context.Context) (uint64, error)
+	SubscribeFilterLogs(ctx context.Context, q ethereum.FilterQuery, ch chan<- ethTypes.Log) (ethereum.Subscription, error)
+	SubscribeNewHead(ctx context.Context, ch chan<- *ethTypes.Header) (ethereum.Subscription, error)
+	Close()
+}
+
 // EVMClient implements Blockchain for EVM compatible chains
 type EVMClient struct {
-	client    *ethclient.Client
-	rpcClient *rpc.Client
-	chain     types.Chain
-	log       logger.Logger
+	client EthereumClient
+	chain  types.Chain
+	log    logger.Logger
 }
 
 // NewEVMBlockchainClient creates a new EVM blockchain client
 func NewEVMBlockchainClient(
 	chain types.Chain,
-	rpcClient *rpc.Client,
-	client *ethclient.Client,
+	client EthereumClient,
 	log logger.Logger,
 ) (*EVMClient, error) {
 	// Create the EVM blockchain client
 	evm := &EVMClient{
-		client:    client,
-		rpcClient: rpcClient,
-		chain:     chain,
-		log:       log,
+		client: client,
+		chain:  chain,
+		log:    log,
 	}
 
 	return evm, nil
@@ -800,7 +816,7 @@ func (c *EVMClient) handleSubscription(
 
 // Close implements Blockchain.Close
 func (c *EVMClient) Close() {
-	c.rpcClient.Close()
+	c.client.Close()
 }
 
 // convertEthereumLogsToLogs converts Ethereum logs to our Log model

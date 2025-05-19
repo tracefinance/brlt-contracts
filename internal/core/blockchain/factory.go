@@ -73,7 +73,7 @@ func (f *factory) NewClient(chainType types.ChainType) (BlockchainClient, error)
 
 		// Create an Ethereum client from the RPC client
 		ethClient := ethclient.NewClient(rpcClient)
-		client, err := NewEVMBlockchainClient(chain, rpcClient, ethClient, f.log)
+		client, err := NewEVMBlockchainClient(chain, ethClient, f.log)
 		if err != nil {
 			return nil, err
 		}
