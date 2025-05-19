@@ -10,6 +10,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ABIConfigProvider defines the interface for retrieving ABI configuration
+type ABIConfigProvider interface {
+	// GetArtifactPathForType returns the configured contract path
+	// for a given supported ABI type string.
+	GetArtifactPathForType(abiType string) (string, error)
+}
+
 // LogLevel represents the logging level
 type LogLevel string
 

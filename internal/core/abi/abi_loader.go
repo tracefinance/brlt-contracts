@@ -36,7 +36,7 @@ type ABILoader interface {
 
 // abiLoader is responsible for loading ABI from files and addresses.
 type abiLoader struct {
-	config           *config.Config
+	config           config.ABIConfigProvider
 	explorer         blockexplorer.BlockExplorer
 	blockchainClient blockchain.BlockchainClient
 	log              logger.Logger
@@ -48,7 +48,7 @@ type abiLoader struct {
 // NewABILoader creates a new ABILoader instance.
 func NewABILoader(
 	chainType types.ChainType,
-	cfg *config.Config,
+	cfg config.ABIConfigProvider,
 	explorer blockexplorer.BlockExplorer,
 	blockchainClient blockchain.BlockchainClient,
 	abiUtils ABIUtils,

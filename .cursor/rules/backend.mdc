@@ -502,21 +502,192 @@ if err != nil {
 *   Document endpoints (e.g., using Swagger annotations).
 
 ### Testing (`_test.go` files)
-*   Write unit and integration tests.
-*   Use `testify/assert` and `testify/require`.
-*   **Use `assert.ErrorContains(t, err, expectedSubstring)` or `assert.ErrorIs(t, err, errors.ErrCodeSpecificError)`**. Do *not* create custom error-checking functions.
-*   Mock dependencies for unit tests.
+*   **Write unit and integration tests:** Ensure comprehensive coverage for all layers (`core`, `services`, `api`).
+*   **File and Naming Conventions**:
+    *   Test files (`_test.go`) reside in the same package as the code they test.
+    *   Test function names must start with `Test` (e.g., `TestUserService_CreateUser`).
+    *   Benchmark function names must start with `Benchmark` (e.g., `BenchmarkUserService_CreateUser`).
+*   **Table-Driven Tests**: This is the **idiomatic and preferred** way to write tests in Go for Vault0.
+    *   Define a slice of structs, where each struct is a test case (inputs, expected outputs/errors, descriptive name).
+    *   Iterate and use `t.Run(testCase.name, func(t *testing.T) { ... })` for subtests. This provides clear output and allows individual case execution.
+*   **`testing.T` Utilities**:
+    *   `t.Helper()`: Call this in test helper functions so error line numbers point to the calling test.
+    *   `t.Cleanup(func())`: Use for teardown logic, especially with subtests or complex setups.
+    *   `t.Parallel()`: Mark independent tests/subtests to run in parallel, speeding up execution.
+    *   `t.Errorf()` / `t.Fatalf()`: Use for clear failure messages. `Fatalf` stops the current test.
+*   **Assertions**:
+    *   Primarily use `testify/assert` and `testify/require` for expressive assertions.
+        *   `require` stops the test on failure (fail fast).
+        *   `assert` allows multiple failures to be reported.
+    *   **Error Checking**:
+        *   Use `assert.ErrorIs(t, err, errors.ErrCodeSpecificError)` to check for specific `Vault0Error` types by their code (e.g., `errors.ErrCodeUserNotFound`). This leverages the standard `errors.Is` via your helper `errors.IsError(err, code)`.
+        *   Use `assert.ErrorContains(t, err, "substring of expected error message")` for checking parts of an error message.
+        *   Avoid direct string comparison for error messages (`err.Error() == "..."`) if a more robust method like `ErrorIs` or `ErrorContains` is applicable.
+    *   **Complex Comparisons**:
+        *   For comparing structs or complex data structures, use `github.com/google/go-cmp/cmp`.
+        *   Example: `if diff := cmp.Diff(wantStruct, gotStruct); diff != "" { t.Errorf("struct mismatch (-want +got):\n%s", diff) }`
+        *   `cmp` provides clear, human-readable diffs of what changed.
+*   **Mocking Dependencies**:
+    *   Mock dependencies (repository interfaces, other service interfaces) for unit tests.
+    *   The `testify/mock` package is recommended. Ensure mocks are easy to set up and verify.
+*   **Avoid Testing `main` Directly**: Keep `cmd/` main functions minimal; focus testing on internal packages.
+*   **Integration Tests**:
+    *   Test interactions between layers (e.g., API handler -> service -> repository).
+    *   These may involve a real database instance (for repository integration tests) or a test server.
+    *   Consider using build tags (e.g., `//go:build integration`) to separate them from unit tests.
+
+**Example: Table-Driven Test for a Service Function using `testify` and `cmp`**
 
 ```go
-// Good assertion
-assert.ErrorIs(t, err, errors.ErrCodeUserNotFound) // Use errors.IsError for checking specific codes in logic
-assert.ErrorContains(t, err, "database connection refused")
+// File: internal/services/user/service_test.go
+package user 
 
-// Bad assertion (avoid string comparison if possible)
-// assert.Equal(t, "user not found", err.Error())
+// Assume user.Service, user.Repository, user.User, and user.NewService are defined
+// Assume project's error types (e.g., errors.NewUserNotFoundError(), errors.ErrCodeUserNotFound) are available
+// Assume project's logger (logger.Logger, logger.NewDiscardLogger()) is available
 
-// Bad practice: Custom check function
-// func isNotFoundError(err error) bool { return errors.Is(err, errors.ErrCodeNotFound) } // DON'T DO THIS IN TESTS
+import (
+	"context"
+	"testing"
+	"time" // For example timestamps
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	
+	"vault0/internal/errors" // Project's custom errors
+	"vault0/internal/logger" // Project's logger
+)
+
+// MockRepository is a mock for the user.Repository interface
+type MockRepository struct {
+	mock.Mock
+}
+
+// Implement repository interface methods for the mock
+func (m *MockRepository) FindByID(ctx context.Context, id string) (*User, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil { // If the first return argument (the User struct) is nil
+		return nil, args.Error(1) // Return nil and the error
+	}
+	return args.Get(0).(*User), args.Error(1) // Return the User struct and the error (which might be nil)
+}
+
+// Create is a mock method
+func (m *MockRepository) Create(ctx context.Context, user *User) error {
+	args := m.Called(ctx, user)
+	return args.Error(0)
+}
+// ... other mocked methods as needed by the service
+
+// TestUserService_GetByID tests the GetByID method of the user service.
+func TestUserService_GetByID(t *testing.T) {
+	mockRepo := new(MockRepository)
+	// Use a discard logger for tests unless specific log output is being tested
+	testLogger := logger.NewDiscardLogger() 
+	userService := NewService(mockRepo, testLogger) // Assuming NewService takes Repository and Logger
+
+	// Example user data for expected results
+	fixedTime := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
+	expectedUser := &User{
+		ID:        "user-123",
+		Email:     "test@example.com",
+		CreatedAt: fixedTime,
+		UpdatedAt: fixedTime,
+		// Other relevant fields for comparison
+	}
+
+	// Struct to define expected outcomes for each test case
+	type expectedResult struct {
+		user        *User  // The expected user object (can be nil)
+		errCode     string // Expected Vault0Error code (e.g., errors.ErrCodeUserNotFound)
+		errContains string // Substring expected in the error message
+	}
+
+	testCases := []struct {
+		name           string
+		userIDToGet    string
+		setupMock      func() // Function to set up mock expectations for this test case
+		expected       expectedResult
+	}{
+		{
+			name:        "success - user found",
+			userIDToGet: "user-123",
+			setupMock: func() {
+				mockRepo.On("FindByID", mock.Anything, "user-123").Return(expectedUser, nil).Once()
+			},
+			expected: expectedResult{
+				user:    expectedUser,
+				errCode: "", // No error expected
+			},
+		},
+		{
+			name:        "failure - user not found by repository",
+			userIDToGet: "unknown-user-id",
+			setupMock: func() {
+				// Simulate the repository returning a specific "not found" error
+				// This error would then be mapped by the service to errors.ErrCodeUserNotFound
+				mockRepo.On("FindByID", mock.Anything, "unknown-user-id").Return(nil, errors.NewDatabaseRecordNotFoundError("user")).Once()
+			},
+			expected: expectedResult{
+				user:    nil,
+				errCode: errors.ErrCodeUserNotFound, // Service should map the DB not found to this specific user not found code
+			},
+		},
+		{
+			name:        "failure - generic database error from repository",
+			userIDToGet: "user-db-error",
+			setupMock: func() {
+				// Simulate a generic DB error
+				mockRepo.On("FindByID", mock.Anything, "user-db-error").Return(nil, errors.NewDatabaseError(nil, "query execution failed for FindByID")).Once()
+			},
+			expected: expectedResult{
+				user:        nil,
+				errCode:     errors.ErrCodeOperationFailed, // Service should map to a generic operation failed error
+				errContains: "get user by id", // As per your error handling guideline: NewOperationFailedError("get user by id", err)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// t.Parallel() // Uncomment if test cases are independent
+
+			tc.setupMock() // Important: set up mock for this specific test case run
+
+			actualUser, err := userService.GetByID(context.Background(), tc.userIDToGet)
+
+			// 1. Check for expected error code
+			if tc.expected.errCode != "" {
+				require.Error(t, err, "Expected an error but got nil for test case: %s", tc.name)
+				// Use errors.IsError as defined in your project's error handling guidelines
+				isCorrectErrorType := errors.IsError(err, tc.expected.errCode)
+				assert.True(t, isCorrectErrorType, "Error code mismatch for test case: %s. Got error code: %s (full error: %v), Want error code: %s", tc.name, errors.GetErrorCode(err), err, tc.expected.errCode)
+			} else {
+				require.NoError(t, err, "Expected no error but got: %v for test case: %s", err, tc.name)
+			}
+			
+			// 2. Check for expected error message substring (if any)
+			if tc.expected.errContains != "" {
+				// Error should exist if we expect a substring
+				require.Error(t, err, "Expected an error containing substring but got nil for test case: %s", tc.name)
+				assert.ErrorContains(t, err, tc.expected.errContains, "Error message substring mismatch for test case: %s", tc.name)
+			}
+
+			// 3. Compare the actual user struct with the expected user struct using cmp.Diff
+			// Only do this if an error was not the primary expectation, or if a partial result might be returned with an error.
+			// For GetByID, usually, if an error occurs, actualUser will be nil.
+			if tc.expected.errCode == "" || (tc.expected.user != nil) { // Adjust condition based on service behavior
+				if diff := cmp.Diff(tc.expected.user, actualUser); diff != "" {
+					t.Errorf("User object mismatch for test case '%s' (-want +got):\n%s", tc.name, diff)
+				}
+			}
+			
+			mockRepo.AssertExpectations(t) // Verify that all expected mock calls were made for this test case
+		})
+	}
+}
 ```
 
 ### Security
