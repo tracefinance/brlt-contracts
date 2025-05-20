@@ -1,84 +1,49 @@
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+# Dependency directories
+node_modules/
+jspm_packages/
 
-# Binary output directory
-bin/
+# Hardhat files
+cache/
+artifacts/
+typechain/
+typechain-types/
 
-# Test binary, built with `go test -c`
-*.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
-coverage.*
-
-# Go workspace file
-go.work
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
+# Testing
+coverage/
+coverage.json
 
 # Environment variables
 .env
-.config.yaml
+.env.local
+.env.*.local
 
-# Dependency directories (remove the ones you don't need)
-vendor/
-
-# IDE specific files
+# IDE
 .idea/
+.vscode/
 *.swp
 *.swo
-.cursor/mcp.json
 
-# OS specific
-.DS_Store
-Thumbs.db
-
-# Logs
+# Debug logs
+logs/
 *.log
-
-# Debug files
-debug
-__debug_bin
-
-# Build artifacts
-dist/
-build/
-
-# Text files
-*.txt
-
-# Auto-generated Swagger documentation
-internal/api/docs/docs.go
-internal/api/docs/swagger.json
-internal/api/docs/swagger.yaml
-
-# Generated Wire files
-**/wire_gen.go
-
-# Added by Claude Task Master
-logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-dev-debug.log
-# Dependency directories
-node_modules/
-# Editor directories and files
-.idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
 
-# Task files
-TASKS.md
-tasks/ 
-root_path.mdc
+# Build files
+dist/
+build/
+out/
+
+# Ignition deployment files
+.ignition/deployments/
+
+# Local blockchain data
+.hardhat/
+
+# Miscellaneous
+.DS_Store
+.tmp/
+*.pid
+*.seed
+*.pid.lock

@@ -5,5 +5,8 @@
     "editor.fontFamily": "Fira Code",
     "editor.tabSize": 2,
     "editor.insertSpaces": true,
-    "editor.detectIndentation": false
+    "editor.detectIndentation": false,
+    "solidity.remappings": [
+        "@openzeppelin/=node_modules/@openzeppelin/"
+    ]
 }

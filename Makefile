@@ -1,220 +1,88 @@
-# Makefile for vault0 project
+# Trace Wallet - Smart Contract Project Makefile
+# This Makefile provides targets for building, testing, deploying, and cleaning the project.
 
-# Go parameters
-GOCMD = go
-GOBUILD = $(GOCMD) build
-GOTEST = $(GOCMD) test
-GOGET = $(GOCMD) get
-GOMOD = $(GOCMD) mod
-GOCLEAN = $(GOCMD) clean
-GOINSTALL = $(GOCMD) install
-
-# Build flags
-LDFLAGS = -ldflags="-s -w"
-DEBUGFLAGS = -gcflags="all=-N -l"
-
-# Binary names
-SERVER_BIN = vault0
-GENKEY_BIN = genkey
-VERIFY_TOKENS_BIN = verify-tokens
-
-# Build directory
-BUILD_DIR = bin
-
-# Source directories
-SERVER_SRC = ./cmd/server
-GENKEY_SRC = ./cmd/genkey
-VERIFY_TOKENS_SRC = ./cmd/verify-tokens
-
-# UI directory
-UI_DIR = ./ui
-
-# Contracts directory
-CONTRACTS_DIR = ./contracts
-
-# Package name
-PACKAGE = vault0
-
-.PHONY: all build clean server-build server-test server-test-coverage server-deps server-build-debug genkey-build genkey-install server server-clean git-reset git-status git-pull git-push ui-build ui-deps ui ui-start ui-lint ui-clean contracts contracts-deps contracts-test contracts-test-coverage contracts-lint contracts-clean contracts-deploy-base-test contracts-deploy-base contracts-deploy-polygon-test contracts-deploy-polygon count-lines count-lines-ui count-lines-backend count-lines-contracts count-lines-source count-lines-tests git-diff-setup verify-tokens verify-tokens-build swag-install server-docs delve-install wire-install wire server-install deps
-
-# Count lines of code in the project
-count-lines:
-	@./scripts/count_lines.sh
+.PHONY: all help build test test-coverage test-gas test-watch deploy-base-test deploy-base deploy-polygon-test deploy-polygon clean lint install
 
 # Default target
-all: clean build
+all: install build test
 
-# Build all binaries
-build: server-build genkey-build verify-tokens-build ui-build contracts-build
-
-# Build server binary
-server-build: wire
-	@echo "Building server binary..."
-	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(SERVER_BIN) $(SERVER_SRC)
-
-# Build server binary with debug symbols
-server-build-debug: wire
-	@echo "Building server binary with debug symbols..."
-	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) $(DEBUGFLAGS) -o $(BUILD_DIR)/$(SERVER_BIN) $(SERVER_SRC)
-
-# Build genkey binary
-genkey-build:
-	@echo "Building genkey binary..."
-	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) -o $(BUILD_DIR)/$(GENKEY_BIN) $(GENKEY_SRC)
-
-# Build verify-tokens binary
-verify-tokens-build:
-	@echo "Building verify-tokens binary..."
-	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) -o $(BUILD_DIR)/$(VERIFY_TOKENS_BIN) $(VERIFY_TOKENS_SRC)
-
-# Run verify-tokens
-verify-tokens: verify-tokens-build
-	@echo "Running verify-tokens..."
-	@$(BUILD_DIR)/$(VERIFY_TOKENS_BIN)
-
-# Run tests
-server-test:
-	$(GOTEST) -v ./...
-
-# Run tests with coverage
-server-test-coverage:
-	@echo "Running server tests with coverage..."
-	$(GOTEST) -v -cover ./...
-	@echo "For detailed coverage report:"
-	@echo "$(GOTEST) -coverprofile=coverage.out ./... && go tool cover -html=coverage.out"
+# Help message
+help:
+	@echo "Trace Wallet Makefile Commands:"
+	@echo "  make install            - Install project dependencies"
+	@echo "  make build              - Compile all smart contracts"
+	@echo "  make test               - Run all tests"
+	@echo "  make test-coverage      - Run tests with coverage report"
+	@echo "  make test-gas           - Run tests with gas reporting"
+	@echo "  make test-watch         - Run tests in watch mode"
+	@echo "  make lint               - Check code for style and best practices"
+	@echo "  make deploy-base-test   - Deploy to Base testnet"
+	@echo "  make deploy-base        - Deploy to Base mainnet"
+	@echo "  make deploy-polygon-test - Deploy to Polygon zkEVM testnet"
+	@echo "  make deploy-polygon     - Deploy to Polygon zkEVM mainnet"
+	@echo "  make clean              - Remove build artifacts and cache"
+	@echo "  make all                - Build and test the project"
+	@echo "  make help               - Display this help message"
 
 # Install dependencies
-server-deps:
-	$(GOMOD) download
-	$(GOMOD) tidy
+install:
+	@echo "Installing project dependencies..."
+	npm install
 
-# Install all project dependencies
-deps: contracts-deps ui-deps server-deps
-	@echo "All project dependencies installed."
-
-# Install all server development tools
-server-install: wire-install delve-install swag-install
-	@echo "All server development tools installed."
-	$(GOMOD) tidy
-
-# Run server
-server: server-build
-	@echo "Running server..."
-	@$(BUILD_DIR)/$(SERVER_BIN)
-
-# Clean build artifacts
-server-clean:
-	@echo "Cleaning build artifacts..."
-	@rm -rf $(BUILD_DIR)
-	$(GOCLEAN) -cache
-
-# Install Wire tool
-wire-install:
-	@echo "Installing Wire tool..."
-	$(GOINSTALL) github.com/google/wire/cmd/wire@latest
-
-# Install Delve debugger tool
-delve-install:
-	@echo "Installing Delve debugger tool..."
-	$(GOINSTALL) github.com/go-delve/delve/cmd/dlv@latest
-
-# Generate Wire code
-wire:
-	@echo "Generating Wire dependency injection code..."
-	cd internal/wire && wire
-
-# Install Swaggo tool
-swag-install:
-	@echo "Installing Swaggo tool..."
-	$(GOGET) github.com/swaggo/swag/cmd/swag
-
-# Generate server-docs documentation
-server-docs: 
-	@echo "Generating server-docs OpenAPI documentation..."
-	$$($(GOCMD) env GOPATH)/bin/swag init -g cmd/server/main.go -o internal/api/docs --parseDependency --parseInternal
-
-# Combined clean target
-clean: server-clean ui-clean
-	@echo "All artifacts cleaned"
-	
-# Git commands
-git-reset:
-	@echo "Resetting git repository to last commit..."
-	git reset --hard HEAD && git clean -fd
-
-# Setup git diff with cat to prevent terminal from getting stuck
-git-diff-setup:
-	@echo "Setting up git diff with cat as pager for the current repository..."
-	git config pager.diff cat
-	git config pager.show cat
-	@echo "Git diff is now set up to use cat instead of less. This prevents the terminal from getting stuck in pager mode."
-
-# UI commands
-ui-build:
-	@echo "Building UI for production..."
-	cd $(UI_DIR) && npm run build
-
-ui-deps:
-	@echo "Installing UI dependencies..."
-	cd $(UI_DIR) && npm install
-
-ui:
-	@echo "Starting UI development server..."
-	cd $(UI_DIR) && npm run dev
-
-ui-start:
-	@echo "Starting UI production server..."
-	cd $(UI_DIR) && npm run start
-
-ui-lint:
-	@echo "Linting UI code..."
-	cd $(UI_DIR) && npm run lint
-
-ui-clean:
-	@echo "Cleaning UI build artifacts..."
-	rm -rf $(UI_DIR)/.next $(UI_DIR)/dist $(UI_DIR)/.turbo $(UI_DIR)/.vercel
-
-# Contract commands
-contracts:
+# Build target
+build:
 	@echo "Building smart contracts..."
-	cd $(CONTRACTS_DIR) && npm run compile
+	npm run compile
 
-contracts-deps:
-	@echo "Installing contract dependencies..."
-	cd $(CONTRACTS_DIR) && npm install
+# Test targets
+test:
+	@echo "Running tests..."
+	npm run test
 
-contracts-test:
-	@echo "Running contract tests..."
-	cd $(CONTRACTS_DIR) && npm run test
+test-coverage:
+	@echo "Running tests with coverage..."
+	npm run test:coverage
 
-contracts-test-coverage:
-	@echo "Running contract tests with coverage..."
-	cd $(CONTRACTS_DIR) && npm run test:coverage
+test-gas:
+	@echo "Running tests with gas reporting..."
+	npm run test:gas
 
-contracts-lint:
-	@echo "Linting contract code..."
-	cd $(CONTRACTS_DIR) && npx solhint 'solidity/**/*.sol'
+test-watch:
+	@echo "Running tests in watch mode..."
+	npm run test:watch
 
-contracts-clean:
-	@echo "Cleaning contract build artifacts..."
-	cd $(CONTRACTS_DIR) && rm -rf artifacts cache coverage coverage.json typechain typechain-types
+# Lint target (add hardhat-solhint plugin to package.json if not already there)
+lint:
+	@echo "Linting solidity files..."
+	npx solhint 'solidity/**/*.sol'
 
-contracts-deploy-base-test:
-	@echo "Deploying contracts to Base testnet..."
-	cd $(CONTRACTS_DIR) && npm run deploy:base-test
+# Deployment targets
+deploy-base-test:
+	@echo "Deploying to Base testnet..."
+	npm run deploy:base-test
 
-contracts-deploy-base:
-	@echo "Deploying contracts to Base mainnet..."
-	cd $(CONTRACTS_DIR) && npm run deploy:base
+deploy-base:
+	@echo "Deploying to Base mainnet..."
+	@echo "⚠️  WARNING: This will deploy to MAINNET. Are you sure? (y/n) " && read ans && [ $${ans:-n} = y ]
+	npm run deploy:base
 
-contracts-deploy-polygon-test:
-	@echo "Deploying contracts to Polygon zkEVM testnet..."
-	cd $(CONTRACTS_DIR) && npm run deploy:polygon-test
+deploy-polygon-test:
+	@echo "Deploying to Polygon zkEVM testnet..."
+	npm run deploy:polygon-test
 
-contracts-deploy-polygon:
-	@echo "Deploying contracts to Polygon zkEVM mainnet..."
-	cd $(CONTRACTS_DIR) && npm run deploy:polygon
+deploy-polygon:
+	@echo "Deploying to Polygon zkEVM mainnet..."
+	@echo "⚠️  WARNING: This will deploy to MAINNET. Are you sure? (y/n) " && read ans && [ $${ans:-n} = y ]
+	npm run deploy:polygon
+
+# Clean target
+clean:
+	@echo "Cleaning build artifacts and cache..."
+	rm -rf artifacts
+	rm -rf cache
+	rm -rf coverage
+	rm -rf coverage.json
+	rm -rf typechain
+	rm -rf typechain-types
+	rm -rf node_modules
+	@echo "Build artifacts and cache removed."

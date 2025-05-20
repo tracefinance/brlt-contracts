@@ -1,0 +1,32 @@
+{
+  "name": "trace-wallet",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "NODE_ENV=test hardhat test",
+    "test:coverage": "NODE_ENV=test hardhat coverage",
+    "test:gas": "NODE_ENV=test REPORT_GAS=true hardhat test",
+    "test:watch": "NODE_ENV=test hardhat test --watch",
+    "compile": "NODE_ENV=test hardhat compile",
+    "deploy:base-test": "npx hardhat deploy-contract --network base-testnet --contract-name BRLT",
+    "deploy:base": "npx hardhat deploy-contract --network base --contract-name BRLT",
+    "deploy:polygon-amoy": "npx hardhat deploy-contract --network polygon-amoy --contract-name BRLT",
+    "deploy:polygon": "npx hardhat deploy-contract --network polygon-zkevm --contract-name BRLT",
+    "deploy:sepolia": "npx hardhat deploy-contract --network sepolia --contract-name BRLT"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.12",
+    "@openzeppelin/contracts": "^5.2.0",
+    "@openzeppelin/hardhat-upgrades": "^3.9.0",
+    "dotenv": "^16.4.7",
+    "hardhat": "^2.22.18"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts-upgradeable": "^5.3.0"
+  }
+}
