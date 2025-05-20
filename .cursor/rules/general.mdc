@@ -8,7 +8,7 @@ alwaysApply: true
 This document provides general guidelines for developing the Vault0 project.
 
 ## Project Overview
-Vault0 is a full-stack web3 application combining blockchain technology with modern web development. It uses a layered architecture with clear separation of concerns.
+Vault0 is a blockchain project focused on smart contract development. It uses a layered architecture with clear separation of concerns.
 
 ## Core Development Principles
 - Follow DRY (Don't Repeat Yourself).
@@ -21,29 +21,29 @@ Vault0 is a full-stack web3 application combining blockchain technology with mod
 
 ## Project Structure
 ```
-vault0/
-├── ui/              # Frontend Nuxt 3 application
-├── contracts/       # Smart contracts
-├── cmd/             # Command-line applications
-├── internal/        # Backend application code
-│   ├── api/         # Layer 3: Communication (handlers, middleware, server setup)
-│   ├── core/        # Layer 1: Core/Infrastructure (blockchain, contract, crypto, etc.)
-│   ├── services/    # Layer 2: Service (user, wallet, auth, blockchain domains)
-│   ├── config/      # Configuration management
-│   ├── db/          # Database access
-│   ├── errors/      # Error types and handling
-│   ├── logger/      # Logging utilities
-│   ├── types/       # Shared type definitions
-│   └── wire/        # Dependency injection (Google Wire)
-└── migrations/      # Database migrations
+brlt-contracts/      # Project root
+├── solidity/        # Smart contracts
+├── scripts/         # Deployment and interaction scripts
+├── test/            # Contract tests
+├── ignition/        # Hardhat Ignition deployment modules
+├── resources/       # Supporting resources for contracts
+├── .github/         # GitHub Actions workflows (e.g., CI for contracts)
+├── .vscode/         # VSCode editor settings
+├── .devcontainer/   # Dev container configuration
+├── .cursor/         # Cursor AI related files
+│   └── rules/       # Cursor rule files
+├── node_modules/    # Project dependencies (managed by npm/yarn)
+├── .gitignore       # Specifies intentionally untracked files that Git should ignore
+├── hardhat.config.js # Hardhat configuration file
+├── Makefile         # Makefile for contract-related tasks (compile, test, deploy)
+├── package.json     # Defines project dependencies and scripts
+├── package-lock.json # Records exact versions of dependencies
+└── README.md        # Project overview and instructions for contracts
 ```
-*Note: Refer to `frontend.mdc` and `backend.mdc` for detailed structures of `ui/` and `internal/` respectively.* 
 
 ## Technology Stack Overview
-- **Frontend**: Nuxt 3, TypeScript, TailwindCSS with shadcn/ui components
-- **Backend**: Go, SQLite, Gin
 - **Blockchain**: Solidity, Hardhat
-- **Testing**: Vitest, Go testing, Hardhat test
+- **Testing**: Hardhat test
 
 ## General Code Style Guidelines
 - Use meaningful names for variables, functions, and files.

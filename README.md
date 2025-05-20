@@ -1,347 +1,186 @@
-# Vault0: Multi-Signature Crypto Wallet
+# Multi-Signature Crypto Wallet
 
-Vault0 is a secure, dual-signature cryptocurrency wallet smart contract system with a robust recovery mechanism. It implements a multi-signature wallet that requires two authorizations (client and manager) to withdraw funds, with additional security features such as timelock-based recovery and token whitelisting.
+[![Smart Contract CI](https://github.com/tracefinance/fx-multisig-wallet/actions/workflows/compile-and-test.yml/badge.svg)](https://github.com/tracefinance/fx-multisig-wallet/actions/workflows/compile-and-test.yml)
+[![codecov](https://codecov.io/gh/tracefinance/fx-multisig-wallet/graph/badge.svg?token=fsCmAuBO0b)](https://codecov.io/gh/tracefinance/fx-multisig-wallet)
 
-## Project Overview
+A secure Ethereum-compatible wallet smart contract that requires dual signatures for withdrawals and implements a secure recovery mechanism.
 
-The Vault0 system consists of:
+## Features
 
-1. **Smart Contracts**: Solidity-based multi-signature wallet implementation
-2. **Backend API**: Go-based server providing wallet management features
-3. **Frontend UI**: Nuxt 3 web interface for user interactions
+### Dual-Signature Mechanism
+- Requires both manager and client signatures to withdraw funds
+- Support for native coins (ETH) and ERC-20 tokens
+- 24-hour expiration on withdrawal requests
+- Comprehensive event logging
 
-## Key Features
-
-- **Wallets, keys, users and signers management**: Comprehensive management of crypto assets and access control
-- **Vaults with multi-sig smart contracts**:
-  * Recovery mechanism with 72-hour timelock process
-  * Token whitelisting and management
-- **EVM compatible**: Supports Ethereum, Base, Arbitrum, Binance Chain, and Tron networks
-- **Realtime transaction monitoring**: Track and verify transactions as they happen
-- **Full dashboard with web3 support for signatures**: Complete UI for managing wallets and signing transactions
-
-## Progress
-
-- [x] Backend structure in golang with three-layer architecture:
-  * Layer 1 (Core): Key management, signing, blockchain integration, price feed, database access, cryptography utilities
-  * Layer 2 (Services): User service, wallet service, blockchain service, transaction processing
-  * Layer 3 (API): RESTful endpoints, middleware, request/response handling
-- [x] Solidity smart contract with:
-  * Multi-signature support requiring dual authorization
-  * 72-hour timelock recovery mechanism
-  * Native coin and ERC20 token support
-  * Token whitelisting functionality
-  * Gas-optimized operations
-- [ ] Full featured dashboard with web3 signing
-  - [x] Wallet interface with balances and real-time transactions
-  - [x] User, wallet, signer, key and token management
-  - [ ] Vault management
-  - [ ] Vault interface with balances and real-time transactions
-  - [ ] Withdraw interface with signing support
-- [ ] Authentication
-
-## Future Roadmap
-
-- [ ] Bridge support (create one vault and send/receive from any supported blockchain)
-- [ ] Swap support
-- [ ] Public API
-
-## Technical Architecture
-
-### Smart Contract Layer
-
-The core of Vault0 is the `MultiSigWallet.sol` contract, which:
-
-- Implements a dual-signature system for withdrawals
-- Provides a 72-hour recovery timelock mechanism
-- Supports both native coins (ETH) and ERC20 tokens
-- Includes whitelisting and token management functions
-- Uses OpenZeppelin contracts for security best practices
-
-### Backend API (Go)
-
-The Go backend follows a three-layer architecture:
-
-#### Layer 1: Core/Infrastructure Layer
-Composed of foundational modules that serve as building blocks for the entire system, organized in the `internal/core` directory:
-- **Database Access**: Provides database connectivity and query execution
-- **Wallet Operations**: Low-level wallet functionality
-- **Keystore**: Secure storage and retrieval of cryptographic keys
-- **Blockchain Interaction**: Core blockchain communication
-- **Cryptography Utilities**: Encryption, decryption, and hashing functions
-- **Contract Interaction**: Smart contract operation abstraction
-- **Key Generation**: Cryptographic key generation utilities
-
-#### Layer 2: Service Layer
-Contains business logic modules organized by domain in the `internal/services` directory, each encapsulating:
-- Domain-specific data models
-- Business operations and validation rules
-- Repository interfaces for data access
-
-Services include:
-- User management
-- Wallet administration
-- Authentication and authorization
-- Transaction processing
-- Blockchain service integration
-
-#### Layer 3: Communication Layer
-Exposes the service layer functionality externally through the `internal/api` directory:
-- RESTful API endpoints
-- Request/response handling
-- Middleware (authentication, logging, error handling)
-- Route management
-
-The backend also provides:
-- Database integration for transaction history
-- Secure key management with AES-GCM encryption
-- Modular architecture for multiple key storage mechanisms
-- OAuth2 support for secure authentication
-
-### Frontend (Nuxt 3)
-
-The UI is built with:
-
-- Nuxt 3 (Vue.js framework)
-- TailwindCSS with shadcn/ui components
-- TypeScript for type safety
-- Token-based pagination
-
-## Supported Networks
-
-Vault0 is designed to work on EVM-compatible networks including:
-
-- **Ethereum**: 
-  - Mainnet
-  - Testnets (Sepolia, Goerli)
-- **Base**: 
-  - Mainnet (Chain ID: 8453)
-  - Testnet (Chain ID: 84531)
-- **Arbitrum**: 
-  - Mainnet
-  - Testnet
-- **Binance Smart Chain**: 
-  - Mainnet
-  - Testnet
-- **Tron**: 
-  - Mainnet
-  - Testnet
-
-## Technical Stack
-
-### Smart Contracts
-- **Language**: Solidity ^0.8.28
-- **Framework**: Hardhat
-- **Libraries**: OpenZeppelin Contracts
-- **Testing**: Hardhat test suite with high coverage requirements (90%+)
-
-### Backend
-- **Language**: Go
-- **Database**: SQLite
-- **Web Framework**: Gin
-- **API**: RESTful API with token-based pagination
-- **Configuration**: Environment-based configuration
-- **Encryption**: AES-GCM for key encryption
-- **Key Management**: Module-based architecture supporting multiple implementations
-
-### Frontend
-- **Framework**: Nuxt 3
-- **UI Library**: Vue.js with Composition API
-- **Components**: shadcn/ui components (located in `~/components/ui/`)
-- **Styling**: TailwindCSS
-- **Language**: TypeScript
-- **API Integration**: Nuxt plugin with dedicated client modules
-
-## Security Features
-
-- **Dual-Signature Requirement**: Prevents single-point compromise
-- **Timelock Recovery**: 72-hour delay for recovery operations
-- **Withdrawal Expiration**: 24-hour expiration for withdrawal requests
-- **Reentrancy Protection**: Guards against reentrancy attacks
-- **Token Whitelisting**: Controlled token support
-- **Event Logging**: Comprehensive event logging for all operations
-- **Encrypted Key Storage**: Private keys stored using AES-GCM encryption
-- **Environment-Based Encryption Key**: Database encryption key provided via environment variables
+### Recovery Mechanism
+- 72-hour timelock recovery process
+- Only manager can initiate recovery
+- Client can cancel recovery within timelock period
+- Separate functions for native coin and token recovery
+- Funds are sent to a predefined recovery address
 
 ## Project Structure
 
 ```
-vault0/
-├── ui/              # Frontend Nuxt application
-│   ├── components/  # Vue components (auto-imported)
-│   │   └── ui/      # shadcn/ui components
-│   ├── composables/ # Vue composables (auto-imported)
-│   ├── lib/         # Utility functions
-│   ├── pages/       # Nuxt pages
-│   ├── plugins/     # Nuxt plugins (including API client)
-│   ├── public/      # Static assets
-│   ├── server/      # Server-side code
-│   └── types/       # TypeScript type definitions
-├── contracts/       # Smart contracts
-│   ├── solidity/    # Contract source files
-│   ├── test/        # Contract tests
-│   └── scripts/     # Deployment and utility scripts
-├── cmd/             # Command-line applications
-├── internal/        # Backend application code
-│   ├── api/         # Communication Layer (Layer 3)
-│   ├── core/        # Core/Infrastructure Layer (Layer 1)
-│   └── services/    # Service Layer (Layer 2)
-└── migrations/      # Database migrations
+├── solidity/
+│   ├── MultiSigWallet.sol   # Main wallet contract
+│   └── MockToken.sol        # Test ERC-20 token
+├── test/
+│   └── MultiSigWallet.js    # Test suite
+├── scripts/
+│   └── deploy.js            # Deployment script
+├── ignition/
+│   └── modules/
+│       └── MultiSigWallet.js # Deployment module
+└── hardhat.config.js        # Hardhat configuration
 ```
 
-## Development Setup
+## Prerequisites
 
-### Prerequisites
+- Node.js >= 14.0.0
+- npm >= 6.0.0
 
-- Visual Studio Code with Dev Containers plugin or Cursor Code Editor
-- Docker and Docker Compose
-- Git
+## Installation
 
-### Development Container Setup
-
-This project uses dev containers for consistent development environments across all team members.
-
-1. Install Visual Studio Code or Cursor Code Editor with the Dev Containers extension
-2. Clone the repository
-3. Open the project in your editor
-4. When prompted, click "Reopen in Container" or use the command palette to select "Dev Containers: Reopen in Container"
-5. Wait for the container to build (this may take a few minutes the first time)
-
-### Key Development Commands
-
-```bash
-# Install all dependencies
-make deps
-
-# Build and run the backend server
-make server
-
-# Build and start the frontend UI
-make ui
-
-# Compile and test smart contracts
-make contracts
-```
-
-### Smart Contract Development
-
-```bash
+```shell
 # Install dependencies
-make contracts-deps
-
-# Compile contracts
-make contracts
-
-# Run tests
-make contracts-test
-
-# Run coverage tests
-make contracts-test-coverage
-
-# Lint contracts
-make contracts-lint
-
-# Clean contract artifacts
-make contracts-clean
+npm install
 ```
 
-### Backend Development
+## Configuration
 
-```bash
-# Install Go dependencies
-make server-deps
-
-# Generate an encryption key for development
-make genkey
-./bin/genkey
-
-# Set the encryption key in your environment
-export DB_ENCRYPTION_KEY='generated-key-from-above-command'
-
-# Build server
-make server
-
-# Run server
-make server-dev
-
-# Run tests
-make server-test
+1. For development and testing, copy `.env.example` and update values if needed:
+```shell
+cp .env.example .env
 ```
 
-### Frontend Development
+2. For production deployment, create `.env` with your configuration:
+```env
+# Network RPC URLs
+BASE_RPC_URL=your_base_rpc_url
+BASE_TESTNET_RPC_URL=your_base_testnet_rpc_url
+POLYGON_ZKEVM_RPC_URL=your_polygon_rpc_url
+POLYGON_ZKEVM_TESTNET_RPC_URL=your_polygon_testnet_rpc_url
 
-```bash
-# Install dependencies (always run from ui/ directory)
-cd ui && npm install
+# API Keys
+ETHERSCAN_API_KEY=your_etherscan_api_key
+BASESCAN_API_KEY=your_basescan_api_key
+POLYGONSCAN_API_KEY=your_polygonscan_api_key
 
-# Or use the make command
-make ui-deps
+# Private Key - Be careful with this!
+PRIVATE_KEY=your_private_key_here
 
-# Start development server
-make ui-dev
+# Contract Parameters
+CLIENT_ADDRESS=your_client_address
+RECOVERY_ADDRESS=your_recovery_address
+```
 
-# Build for production
-make ui
+## Testing
 
-# Start production server
-make ui-start
+```shell
+# Run all tests
+npm test
 
-# Lint code
-make ui-lint
+# Run tests with coverage report
+npm run test:coverage
 
-# Clean UI build artifacts
-make ui-clean
+# Run tests with gas reporting
+npm run test:gas
+
+# Run tests in watch mode (development)
+npm run test:watch
 ```
 
 ## Deployment
 
-### Smart Contract Deployment
+The contract can be deployed to various networks:
 
-```bash
+### Base Network
+
+```shell
 # Deploy to Base testnet
-make contracts-deploy-base-test
+npm run deploy:base-test
 
 # Deploy to Base mainnet
-make contracts-deploy-base
+npm run deploy:base
+```
 
+### Polygon zkEVM
+
+```shell
 # Deploy to Polygon zkEVM testnet
-make contracts-deploy-polygon-test
+npm run deploy:polygon-test
 
 # Deploy to Polygon zkEVM mainnet
-make contracts-deploy-polygon
+npm run deploy:polygon
 ```
 
-### Version Control
+### Deployment Verification
 
-```bash
-# Reset to last commit (caution: removes all untracked files)
-make git-reset
+The deployment script will automatically:
+1. Deploy the contract
+2. Wait for confirmations
+3. Verify the contract on the respective block explorer
+
+## Network Configurations
+
+The project supports multiple networks:
+
+### Base
+- Mainnet Chain ID: 8453
+- Testnet Chain ID: 84531
+- Explorer: https://basescan.org
+
+### Polygon zkEVM
+- Mainnet Chain ID: 1101
+- Testnet Chain ID: 1442
+- Explorer: https://zkevm.polygonscan.com
+
+## Usage
+
+### Setting Up
+1. Deploy the contract with client and recovery addresses
+2. The deploying address becomes the manager
+
+### Withdrawing Funds
+1. Either manager or client initiates withdrawal request
+2. The other party signs the request
+3. Funds are automatically transferred after both signatures
+
+### Recovery Process
+1. Manager initiates recovery
+2. Client has 72 hours to cancel
+3. After timelock, manager can:
+   - Execute native coin recovery
+   - Execute token recovery
+   - Complete the recovery process
+
+## Security Considerations
+
+- Keep private keys secure
+- Verify addresses before deployment
+- Monitor events for unauthorized attempts
+- Test thoroughly on testnet before mainnet deployment
+- Use secure RPC endpoints
+
+## Development
+
+```shell
+# Start local Hardhat node
+npx hardhat node
+
+# Run tests
+npm test
+
+# Deploy to local network
+npx hardhat run scripts/deploy.js --network localhost
 ```
 
-## Contributors
+## Contributing
 
-The Vault0 team
-
-## License
-
-This project is licensed under the MIT License.
-
-Copyright (c) 2025 Vault0
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a new Pull Request
