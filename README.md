@@ -1,45 +1,46 @@
-# Multi-Signature Crypto Wallet
+# BRLT Token Project
 
 [![Smart Contract CI](https://github.com/tracefinance/fx-multisig-wallet/actions/workflows/compile-and-test.yml/badge.svg)](https://github.com/tracefinance/fx-multisig-wallet/actions/workflows/compile-and-test.yml)
 [![codecov](https://codecov.io/gh/tracefinance/fx-multisig-wallet/graph/badge.svg?token=fsCmAuBO0b)](https://codecov.io/gh/tracefinance/fx-multisig-wallet)
 
-A secure Ethereum-compatible wallet smart contract that requires dual signatures for withdrawals and implements a secure recovery mechanism.
+An ERC20 stablecoin pegged to BRL (Brazilian Real), implemented as a UUPS upgradeable smart contract. Features include minting, burning, pausing, blacklisting capabilities, and EIP-2612 permit functionality.
 
 ## Features
 
-### Dual-Signature Mechanism
-- Requires both manager and client signatures to withdraw funds
-- Support for native coins (ETH) and ERC-20 tokens
-- 24-hour expiration on withdrawal requests
-- Comprehensive event logging
-
-### Recovery Mechanism
-- 72-hour timelock recovery process
-- Only manager can initiate recovery
-- Client can cancel recovery within timelock period
-- Separate functions for native coin and token recovery
-- Funds are sent to a predefined recovery address
+-   **ERC20 Standard:** Fully compliant with the ERC20 token standard.
+-   **BRL Pegged:** Designed to maintain a 1:1 peg with the Brazilian Real.
+-   **UUPS Upgradeable:** Contract logic can be upgraded without changing the token address.
+-   **Access Control:** Granular role-based permissions for administrative functions (minter, burner, pauser, blacklister, upgrader) using OpenZeppelin AccessControl.
+-   **Mintable & Burnable:** Tokens can be minted by authorized minters and burned by authorized burners.
+-   **Pausable:** Token transfers and other operations can be paused by authorized pausers.
+-   **Blacklisting:** Addresses can be blacklisted, preventing them from sending or receiving tokens.
+-   **EIP-2612 Permit:** Supports gasless approvals via signatures.
 
 ## Project Structure
 
 ```
 ├── solidity/
-│   ├── MultiSigWallet.sol   # Main wallet contract
-│   └── MockToken.sol        # Test ERC-20 token
+│   ├── BRLT.sol             # Main BRLT token contract (UUPS Upgradeable)
+│   └── mocks/
+│       ├── BRLTv2.sol       # Mock for testing BRLT upgrades
+│       └── MockToken.sol    # Generic test ERC-20 token
 ├── test/
-│   └── MultiSigWallet.js    # Test suite
+│   └── BRLT.test.js         # Test suite for BRLT token
 ├── scripts/
-│   └── deploy.js            # Deployment script
+│   └── deploy-task.js     # Hardhat task for deploying BRLT
 ├── ignition/
-│   └── modules/
-│       └── MultiSigWallet.js # Deployment module
-└── hardhat.config.js        # Hardhat configuration
+│   └── modules/             # Ignition deployment modules (currently unused for BRLT)
+├── tasks/
+│   └── BRLT_Token_Development.md # Development task tracking
+├── .openzeppelin/             # Hardhat Upgrades plugin manifest files
+├── DEPLOYMENT.MD              # Detailed deployment and upgrade instructions
+└── hardhat.config.js          # Hardhat configuration
 ```
 
 ## Prerequisites
 
-- Node.js >= 14.0.0
-- npm >= 6.0.0
+-   Node.js >= 14.0.0
+-   npm >= 6.0.0
 
 ## Installation
 
@@ -50,31 +51,30 @@ npm install
 
 ## Configuration
 
-1. For development and testing, copy `.env.example` and update values if needed:
-```shell
-cp .env.example .env
-```
+1.  Copy `.env.example` to `.env` and update with your specific values:
+    ```shell
+    cp .env.example .env
+    ```
+2.  Ensure your `.env` file includes:
+    ```env
+    # Network RPC URLs (replace with your actual provider URLs)
+    BASE_RPC_URL=https://mainnet.base.org
+    BASE_TESTNET_RPC_URL=https://sepolia.base.org
+    POLYGON_ZKEVM_RPC_URL=https://zkevm-rpc.com
+    POLYGON_AMOY_RPC_URL=https://rpc-amoy.polygon.technology/
+    SEPOLIA_RPC_URL=https://rpc.sepolia.org # For Ethereum Sepolia
 
-2. For production deployment, create `.env` with your configuration:
-```env
-# Network RPC URLs
-BASE_RPC_URL=your_base_rpc_url
-BASE_TESTNET_RPC_URL=your_base_testnet_rpc_url
-POLYGON_ZKEVM_RPC_URL=your_polygon_rpc_url
-POLYGON_ZKEVM_TESTNET_RPC_URL=your_polygon_testnet_rpc_url
+    # API Keys for contract verification
+    ETHERSCAN_API_KEY=your_etherscan_api_key # Used for Ethereum Mainnet & Sepolia
+    BASESCAN_API_KEY=your_basescan_api_key
+    POLYGONSCAN_API_KEY=your_polygonscan_api_key
 
-# API Keys
-ETHERSCAN_API_KEY=your_etherscan_api_key
-BASESCAN_API_KEY=your_basescan_api_key
-POLYGONSCAN_API_KEY=your_polygonscan_api_key
+    # Private Key for deployment (use with caution, preferably from a secure vault or hardware wallet for mainnet)
+    PRIVATE_KEY=your_deployer_private_key_here
 
-# Private Key - Be careful with this!
-PRIVATE_KEY=your_private_key_here
-
-# Contract Parameters
-CLIENT_ADDRESS=your_client_address
-RECOVERY_ADDRESS=your_recovery_address
-```
+    # Optional: Initial Admin for BRLT contract roles (defaults to deployer if not set)
+    BRLT_INITIAL_ADMIN=your_initial_admin_address_here
+    ```
 
 ## Testing
 
@@ -85,7 +85,7 @@ npm test
 # Run tests with coverage report
 npm run test:coverage
 
-# Run tests with gas reporting
+# Run tests with gas reporting (ensure REPORT_GAS=true in .env or hardhat.config.js if needed by tests)
 npm run test:gas
 
 # Run tests in watch mode (development)
@@ -94,75 +94,67 @@ npm run test:watch
 
 ## Deployment
 
-The contract can be deployed to various networks:
+The BRLT contract can be deployed to various networks using the `deploy-contract` Hardhat task. The `--contract-name BRLT` parameter is required.
 
-### Base Network
-
+### Ethereum Sepolia Testnet
 ```shell
-# Deploy to Base testnet
-npm run deploy:base-test
+npm run deploy:sepolia
+```
 
-# Deploy to Base mainnet
+### Base Testnet (Base Sepolia)
+```shell
+npm run deploy:base-test
+```
+
+### Base Mainnet
+```shell
 npm run deploy:base
 ```
 
-### Polygon zkEVM
-
+### Polygon Amoy Testnet
 ```shell
-# Deploy to Polygon zkEVM testnet
-npm run deploy:polygon-test
+npm run deploy:polygon-amoy
+```
 
-# Deploy to Polygon zkEVM mainnet
+### Polygon zkEVM Mainnet
+```shell
 npm run deploy:polygon
 ```
 
 ### Deployment Verification
+The deployment task automatically attempts to:
+1. Deploy the BRLT contract as a UUPS proxy.
+2. Wait for block confirmations.
+3. Verify the implementation contract and link the proxy on the respective block explorer.
 
-The deployment script will automatically:
-1. Deploy the contract
-2. Wait for confirmations
-3. Verify the contract on the respective block explorer
+Refer to `DEPLOYMENT.MD` for more detailed deployment and upgrade procedures.
 
 ## Network Configurations
 
-The project supports multiple networks:
+The project supports multiple networks. Key details:
+
+### Ethereum
+-   **Sepolia (Testnet)**
+    -   Chain ID: `11155111`
+    -   Explorer: [https://sepolia.etherscan.io](https://sepolia.etherscan.io)
 
 ### Base
-- Mainnet Chain ID: 8453
-- Testnet Chain ID: 84531
-- Explorer: https://basescan.org
+-   **Mainnet**
+    -   Chain ID: `8453`
+    -   Explorer: [https://basescan.org](https://basescan.org)
+-   **Sepolia (Testnet)**
+    -   Chain ID: `84532`
+    -   Explorer: [https://sepolia.basescan.org](https://sepolia.basescan.org)
 
-### Polygon zkEVM
-- Mainnet Chain ID: 1101
-- Testnet Chain ID: 1442
-- Explorer: https://zkevm.polygonscan.com
 
-## Usage
+### Polygon
+-   **zkEVM Mainnet**
+    -   Chain ID: `1101`
+    -   Explorer: [https://zkevm.polygonscan.com](https://zkevm.polygonscan.com)
+-   **Amoy (Testnet)**
+    -   Chain ID: `80002`
+    -   Explorer: [https://www.oklink.com/amoy](https://www.oklink.com/amoy)
 
-### Setting Up
-1. Deploy the contract with client and recovery addresses
-2. The deploying address becomes the manager
-
-### Withdrawing Funds
-1. Either manager or client initiates withdrawal request
-2. The other party signs the request
-3. Funds are automatically transferred after both signatures
-
-### Recovery Process
-1. Manager initiates recovery
-2. Client has 72 hours to cancel
-3. After timelock, manager can:
-   - Execute native coin recovery
-   - Execute token recovery
-   - Complete the recovery process
-
-## Security Considerations
-
-- Keep private keys secure
-- Verify addresses before deployment
-- Monitor events for unauthorized attempts
-- Test thoroughly on testnet before mainnet deployment
-- Use secure RPC endpoints
 
 ## Development
 
@@ -170,17 +162,20 @@ The project supports multiple networks:
 # Start local Hardhat node
 npx hardhat node
 
+# Compile contracts
+npm run compile
+
 # Run tests
 npm test
 
-# Deploy to local network
-npx hardhat run scripts/deploy.js --network localhost
+# Deploy to local Hardhat network
+npx hardhat deploy-contract --network localhost --contract-name BRLT
 ```
 
 ## Contributing
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request
+1.  Fork the repository.
+2.  Create your feature branch (`git checkout -b feat/your-amazing-feature`).
+3.  Commit your changes (`git commit -m 'feat: add some amazing feature'`).
+4.  Push to the branch (`git push origin feat/your-amazing-feature`).
+5.  Create a new Pull Request.
