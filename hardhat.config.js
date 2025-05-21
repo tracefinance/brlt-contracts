@@ -34,6 +34,17 @@ console.log("Dotenv: BASESCAN_API_KEY in process.env after dotenv load is set:",
 console.log("Dotenv: SEPOLIA_RPC_URL in process.env after dotenv load:", process.env.SEPOLIA_RPC_URL);
 
 require("./scripts/deploy-task.js");
+require("./scripts/interactions/getContractStatus.js");
+require("./scripts/interactions/queryBRLT.js");
+require("./scripts/interactions/manageRoles.js");
+require("./scripts/interactions/mintTokens.js");
+require("./scripts/interactions/burnTokens.js");
+require("./scripts/interactions/togglePause.js");
+require("./scripts/interactions/manageBlacklist.js");
+require("./scripts/interactions/approveTokens.js");
+require("./scripts/interactions/transferTokens.js");
+require("./scripts/interactions/prepareUpgradeBRLT.js");
+require("./scripts/interactions/applyUpgradeBRLT.js");
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -50,6 +61,18 @@ module.exports = {
     sources: "./solidity",
   },
   networks: {
+    hardhat: {
+      // Configuration for the in-memory Hardhat Network (used for tests)
+      // Can be left empty for defaults, or configured e.g. for forking:
+      // forking: {
+      //   url: process.env.MAINNET_RPC_URL || "",
+      // }
+    },
+    localhost: {
+      url: "http://127.0.0.1:8545/",
+      // accounts: [process.env.LOCAL_PRIVATE_KEY_IF_NEEDED] // Optional: if your local node uses specific accounts
+      // chainId: 31337 // Default for Hardhat Network, usually not needed to specify unless forking
+    },
     // Base Mainnet
     base: {
       url: process.env.BASE_RPC_URL || "https://mainnet.base.org",

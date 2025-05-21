@@ -158,19 +158,74 @@ The project supports multiple networks. Key details:
 
 ## Development
 
-```shell
-# Start local Hardhat node
-npx hardhat node
+For local development and testing, you can use the Hardhat Network, a local Ethereum network designed for development.
 
-# Compile contracts
-npm run compile
+### Running a Local Development Node
 
-# Run tests
-npm test
+1.  **Start a local Hardhat node:**
+    ```bash
+    npx hardhat node
+    ```
+    This will start a local Ethereum node with several pre-funded accounts, useful for testing and development.
 
-# Deploy to local Hardhat network
-npx hardhat deploy-contract --network localhost --contract-name BRLT
-```
+2.  **Deploy the `BRLT` contract to the local node:**
+    In a new terminal, run:
+    ```bash
+    npm run deploy:localhost -- --contract-name BRLT
+    ```
+    Take note of the deployed proxy and implementation addresses.
+
+### Interacting with the Contract Locally
+
+Once deployed locally, you can interact with the `BRLT` token using the Hardhat console or custom scripts.
+
+**Using Hardhat Console:**
+
+1.  Connect to your local node:
+    ```bash
+    npx hardhat console --network localhost
+    ```
+2.  Inside the console, get an instance of your deployed BRLT contract. You'll need the BRLT contract's ABI (from `artifacts/solidity/BRLT.sol/BRLT.json`) and its deployed proxy address (from the deployment step):
+    ```javascript
+    // Example: Get the BRLT contract factory
+    const BRLT = await ethers.getContractFactory("BRLT");
+    // Attach to the deployed proxy address (replace with your actual proxy address)
+    const brltProxyAddress = "0xYourBRLTProxyAddressHere"; // Get this from deployment output
+    const brlt = BRLT.attach(brltProxyAddress);
+    ```
+3.  Now you can interact with the contract. Examples:
+    ```javascript
+    // Get token name
+    await brlt.name();
+    // Get total supply
+    await brlt.totalSupply();
+    // Get balance of an account (e.g., the first Hardhat node account)
+    const signers = await ethers.getSigners();
+    await brlt.balanceOf(signers[0].address);
+
+    // If signers[0] has MINTER_ROLE, you can mint:
+    // await brlt.connect(signers[0]).mint(signers[1].address, ethers.parseUnits("1000", 18));
+    // await brlt.balanceOf(signers[1].address);
+
+    // If signers[0] has PAUSER_ROLE, you can pause/unpause:
+    // await brlt.connect(signers[0]).pause();
+    // await brlt.paused();
+    // await brlt.connect(signers[0]).unpause();
+    ```
+    Remember that for operations requiring specific roles (mint, pause, etc.), the signer used (`signers[0]` in these examples, which is the default if no `.connect()` is used for write operations) must possess that role. Roles are granted during the `initialize` function to the `initialAdmin` (which is the deployer by default in local deployments).
+
+**Using Interaction Scripts:**
+
+The project includes scripts for more complex interactions in the `scripts/interactions/` directory.
+
+*   **`queryBRLT.js`**: This script queries basic information about the BRLT contract, such as its name, symbol, total supply, and the roles of pre-defined accounts. 
+    To run it (after deploying to localhost):
+    ```bash
+    npx hardhat run scripts/interactions/queryBRLT.js --network localhost
+    ```
+    You might need to update the `brltProxyAddress` within the script if it's hardcoded and doesn't dynamically fetch it.
+
+*   **Custom Scripts**: You can develop further scripts to automate sequences of interactions, such as minting to multiple users, performing transfers, checking blacklist status, etc., for testing or administrative tasks.
 
 ## Contributing
 
