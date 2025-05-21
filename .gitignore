@@ -47,3 +47,10 @@ out/
 *.pid
 *.seed
 *.pid.lock
+
+# Test environment files
+.env.test
+
+# Local npm/npx artifacts
+npx
+trace-wallet@1.0.0
