@@ -39,16 +39,11 @@ contract BRLT is
     mapping(address => bool) private _isBlacklisted;
 
     /**
-     * @notice Emitted when an `account` is added to the blacklist.
-     * @param account The address that was blacklisted.
+     * @notice Emitted when an `account`'s blacklist status is changed.
+     * @param account The address whose blacklist status was changed.
+     * @param isBlacklisted The new blacklist status of the account (true if blacklisted, false otherwise).
      */
-    event AddressBlacklisted(address indexed account);
-
-    /**
-     * @notice Emitted when an `account` is removed from the blacklist.
-     * @param account The address that was unblacklisted.
-     */
-    event AddressUnblacklisted(address indexed account);
+    event AddressBlacklistedStatusChanged(address indexed account, bool isBlacklisted);
 
     // Custom error for blacklisted accounts, to be used in _update
     error AccountBlacklisted(address account);
@@ -83,7 +78,7 @@ contract BRLT is
      * @return The number of decimals (18).
      */
     function decimals() public pure override(ERC20Upgradeable) returns (uint8) {
-        return 18;
+        return 6;
     }
 
     /**
@@ -146,7 +141,7 @@ contract BRLT is
     function blacklistAddress(address account) external virtual onlyRole(BLACKLISTER_ROLE) {
         require(account != address(0), "BRLT: cannot blacklist zero address");
         _isBlacklisted[account] = true;
-        emit AddressBlacklisted(account);
+        emit AddressBlacklistedStatusChanged(account, true);
     }
 
     /**
@@ -154,7 +149,7 @@ contract BRLT is
      */
     function unblacklistAddress(address account) external virtual onlyRole(BLACKLISTER_ROLE) {
         _isBlacklisted[account] = false;
-        emit AddressUnblacklisted(account);
+        emit AddressBlacklistedStatusChanged(account, false);
     }
 
     /**

@@ -11,9 +11,23 @@
     "compile": "NODE_ENV=test hardhat compile",
     "deploy:base-test": "npx hardhat deploy-contract --network base-testnet --contract-name BRLT",
     "deploy:base": "npx hardhat deploy-contract --network base --contract-name BRLT",
-    "deploy:polygon-amoy": "npx hardhat deploy-contract --network polygon-amoy --contract-name BRLT",
-    "deploy:polygon": "npx hardhat deploy-contract --network polygon-zkevm --contract-name BRLT",
-    "deploy:sepolia": "npx hardhat deploy-contract --network sepolia --contract-name BRLT"
+    "deploy:polygon-amoy": "hardhat run scripts/deploy-task.js --network polygonAmoy --contract-name BRLT",
+    "deploy:polygon": "hardhat run scripts/deploy-task.js --network polygonZkEVM --contract-name BRLT",
+    "deploy:sepolia": "npx hardhat deploy-contract --network sepolia --contract-name BRLT",
+    "deploy:localhost": "npx hardhat deploy-contract --network localhost --contract-name BRLT",
+    "query:brlt": "npx hardhat query-brlt",
+    "manage-roles": "npx hardhat manage-roles",
+    "mint-tokens": "npx hardhat mint-tokens",
+    "burn-tokens": "npx hardhat burn-tokens",
+    "toggle-pause": "npx hardhat toggle-pause",
+    "manage-blacklist": "npx hardhat manage-blacklist",
+    "get-status": "npx hardhat get-status",
+    "approve-tokens": "npx hardhat approve-tokens",
+    "transfer-tokens": "npx hardhat transfer-tokens",
+    "prepare-upgrade-brlt": "npx hardhat prepare-upgrade-brlt",
+    "apply-upgrade-brlt": "npx hardhat apply-upgrade-brlt",
+    "verify:sepolia": "hardhat verify --network sepolia",
+    "verify:base-test": "hardhat verify --network baseTestnet"
   },
   "keywords": [],
   "author": "",
@@ -21,10 +35,11 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.12",
-    "@openzeppelin/contracts": "^5.2.0",
+    "@openzeppelin/contracts": "^5.3.0",
     "@openzeppelin/hardhat-upgrades": "^3.9.0",
     "dotenv": "^16.4.7",
-    "hardhat": "^2.22.18"
+    "hardhat": "^2.22.18",
+    "yargs": "^17.7.2"
   },
   "dependencies": {
     "@openzeppelin/contracts-upgradeable": "^5.3.0"

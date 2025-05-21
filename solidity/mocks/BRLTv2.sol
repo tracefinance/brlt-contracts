@@ -5,55 +5,60 @@ import "../BRLT.sol"; // Import the upgradeable BRLT
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
- * @title BRLTv2 (for testing UUPS upgrades)
- * @notice A mock V2 implementation of BRLT.
+ * @title BRLTv2 Mock Upgradeable Contract
+ * @author Vault0 Team
+ * @notice Mock contract for testing UUPS upgradeability from BRLT.
+ * Adds a new state variable `version2Field` and an initializer `initializeV2`.
+ * Overrides `symbol()` to return "BRLTV2".
+ * @dev This contract is intended for testing purposes only.
  */
 contract BRLTv2 is BRLT {
     uint256 public version2Field;
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
+    /**
+     * @dev Emitted when V2 is initialized.
+     * @param initializer The address that called the V2 initializer.
+     * @param versionField The value set for the version2Field.
+     */
+    event V2Initialized(address indexed initializer, uint256 versionField);
 
     /**
-     * @notice Initializer for BRLTv2. If BRLTv2 were deployed as the first implementation.
+     * @notice Initializes BRLTv2 if deployed as the first implementation.
      * @dev Calls the initializers of parent contracts.
      */
-    function initialize(address initialAdmin) public override initializer {
+    function initialize(address initialAdmin) public virtual override initializer {
         super.initialize(initialAdmin); // Call BRLT's initialize function
-        // Any BRLTv2 specific initialization logic (not for reinitialization from V1) would go here.
-        // For this mock, there isn't any for the main initialize.
+        // BRLTv2 specific standalone initialization (if any) would go here.
+        // initializeV2 is intended for post-upgrade V2 state setup.
     }
 
     /**
-     * @notice Re-initializer for BRLTv2 specific state. Only intended for use during upgrade from V1.
+     * @notice Initializes V2 specific features post-upgrade or for standalone V2.
      * @dev Sets the version2Field.
+     * Uses reinitializer(2) to allow being called after the BRLT initialization.
+     * @param initialV2Value The value to set for the version2Field.
      */
-    function initializeV2(uint256 initialV2Value) public reinitializer(2) {
+    function initializeV2(uint256 initialV2Value) public virtual reinitializer(2) {
         version2Field = initialV2Value;
+        emit V2Initialized(_msgSender(), initialV2Value);
     }
 
     /**
-     * @notice Returns the token symbol (overridden to "BRLTV2").
+     * @notice Returns the value of version2Field.
+     * @return The value of version2Field.
+     */
+    function getVersion2Field() external view returns (uint256) {
+        return version2Field;
+    }
+    
+    /**
+     * @notice Returns the token symbol "BRLTV2".
      * @return The token symbol.
      */
-    function symbol() public pure override returns (string memory) {
+    function symbol() public pure virtual override returns (string memory) {
         return "BRLTV2";
     }
 
-    /**
-     * @notice Gets the value of version2Field.
-     * @return The value of version2Field.
-     */
-    function getVersion2Field() public view returns (uint256) {
-        return version2Field;
-    }
-
-    /**
-     * @dev This empty reserved space is put in place to allow future versions to add new
-     * variables without shifting down storage in the inheritance chain.
-     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
-     */
-    uint256[50] private __gap;
+    // _authorizeUpgrade is inherited from BRLT and allows UPGRADER_ROLE to upgrade.
+    // No need to override if the logic remains the same.
 } 

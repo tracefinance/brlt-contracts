@@ -24,7 +24,7 @@ This document outlines the tasks for analyzing the current project, implementing
 4. [x] **Define BRLT Token Specifications:**
     - [x] Token Name: BRLT
     - [x] Token Symbol: BRLT
-    - [x] Decimals: 18
+    - [x] Decimals: 6
     - [x] Initial Supply strategy: 0 at deployment; mintable by `MINTER_ROLE` as BRL is collateralized.
     - [x] Access Control model: OpenZeppelin `AccessControl` with:
         - `MINTER_ROLE` for minting.
@@ -76,6 +76,13 @@ This document outlines the tasks for analyzing the current project, implementing
 18. [x] **Test Deployment on Testnets:** Perform trial deployments of BRLT to all specified testnets, verifying contract functionality and explorer verification. *(User action required)*
 19. [x] **Document Deployment Process:** Create clear documentation for deploying BRLT to each mainnet and testnet, including prerequisites, steps, and verification checks.
 20. [ ] **Prepare for Mainnet Deployment:** Conduct final reviews and checklists before any mainnet deployment. *(User action/review required)*
+    - [ ] **Define and Implement `initialAdmin` Strategy:** Decide on the strategy for the `initialAdmin` address (e.g., Gnosis Safe multi-sig). Set up the chosen address/mechanism before mainnet deployment. (Strongly recommended: Gnosis Safe).
+    - [ ] **Conduct Final Code & Security Review:** Perform a thorough internal review of `BRLT.sol` and consider a formal third-party audit.
+    - [ ] **Verify Test Coverage & Scenarios:** Ensure all critical paths and edge cases are covered by tests.
+    - [ ] **Finalize Deployment Scripts & Configuration:** Double-check mainnet configurations, private key management, and gas strategies.
+    - [ ] **Update All Documentation:** Ensure `README.md`, `DEPLOYMENT.MD`, and other relevant docs are accurate for mainnet.
+    - [ ] **Establish Operational Procedures:** Plan for monitoring, emergency responses, and ongoing role management.
+    - [ ] **Obtain Stakeholder Go/No-Go:** Secure final approval before proceeding.
 
 **Phase 5: Advanced Features & Maintenance (New Phase)**
 21. [ ] **Implement UUPS Upgradability for BRLT:**
@@ -88,6 +95,24 @@ This document outlines the tasks for analyzing the current project, implementing
     - [x] Add tests to `BRLT.test.js` for the upgrade mechanism (e.g., deploying a V2, upgrading, and checking state/functionality).
     - [x] Create/Update deployment scripts to handle deploying the UUPS proxy (`ERC1967Proxy`) and the `BRLT` implementation contract.
     - [x] Document the BRLT upgrade process in `DEPLOYMENT.md`.
+
+**Phase 6: Integration Testing & Local Network Interaction (New Phase)**
+22. [x] **Setup Local Hardhat Node for Interaction:**
+    - [x] Confirm `localhost` network configuration in `hardhat.config.js`.
+    - [x] Document procedure for starting a standalone `npx hardhat node`.
+    - [x] Document deploying `BRLT` to the local node using `deploy-contract --network localhost`.
+23. [x] **Develop Interaction Scripts (Optional but Recommended):**
+    - [x] Create an initial interaction script (`scripts/interactions/queryBRLT.js`) to query basic contract info, balance, and roles.
+    - [x] Create example scripts in `scripts/interactions/` to demonstrate common BRLT operations (mint, transfer, approve, check balance, get roles, etc.) against a local or testnet deployment.
+24. [x] **Write Scenario-Based Integration Tests:**
+    - [x] Add new test suites to `test/BRLT.test.js` or create a new `test/BRLT.integration.test.js`.
+    - [x] Implement tests for full user lifecycle scenarios (mint -> transfer -> approve -> transferFrom -> permit -> burn).
+    - [x] Implement tests for pause/unpause scenarios, verifying operational restrictions.
+    - [x] Implement tests for blacklisting/unblacklisting scenarios, verifying transfer restrictions.
+    - [x] Implement tests for comprehensive access control management (granting/revoking multiple roles by different admins).
+    - [x] Implement tests for more complex upgrade scenarios, ensuring state preservation and functionality of new/modified features after an upgrade.
+25. [x] **Document Local Interaction and Testing:**
+    - [x] Update `README.md` or a development guide on how to use the Hardhat console and interaction scripts for local testing.
 
 ## Implementation Plan
 

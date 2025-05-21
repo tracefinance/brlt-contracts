@@ -6,7 +6,7 @@ const { upgrades } = require("hardhat");
 
 // Helper function to convert amounts to the token's decimal representation
 function H(amount) {
-    return ethers.parseUnits(amount.toString(), 18); // BRLT has 18 decimals
+    return ethers.parseUnits(amount.toString(), 6); // BRLT now has 6 decimals
 }
 
 describe("BRLT", function () {
@@ -78,9 +78,9 @@ describe("BRLT", function () {
             expect(await brlt.symbol()).to.equal("BRLT");
         });
 
-        it("Should have 18 decimals", async function () {
+        it("Should have 6 decimals", async function () {
             const { brlt } = await loadFixture(deployBRLTFixture);
-            expect(await brlt.decimals()).to.equal(18);
+            expect(await brlt.decimals()).to.equal(6);
         });
 
         it("Should assign all roles (MINTER, BURNER, PAUSER, BLACKLISTER, DEFAULT_ADMIN, UPGRADER) to the deployer (initialAdmin)", async function () {
@@ -471,20 +471,17 @@ describe("BRLT", function () {
         const mintAmount = H(1000);
         const transferAmount = H(100);
 
-        it("BLACKLISTER_ROLE should be able to blacklist and unblacklist an address", async function () {
-            const { brlt, owner, user1 } = await loadFixture(deployBRLTFixture);
-            expect(await brlt.isBlacklisted(user1.address)).to.be.false;
+        it("Should allow BLACKLISTER_ROLE to blacklist and unblacklist an address, emitting correct events", async function () {
+            const { brlt, owner, user1, BLACKLISTER_ROLE } = await loadFixture(deployBRLTFixture);
 
             // Blacklist
             await expect(brlt.connect(owner).blacklistAddress(user1.address))
-                .to.emit(brlt, "AddressBlacklisted")
-                .withArgs(user1.address);
+                .to.emit(brlt, "AddressBlacklistedStatusChanged").withArgs(user1.address, true);
             expect(await brlt.isBlacklisted(user1.address)).to.be.true;
 
             // Unblacklist
             await expect(brlt.connect(owner).unblacklistAddress(user1.address))
-                .to.emit(brlt, "AddressUnblacklisted")
-                .withArgs(user1.address);
+                .to.emit(brlt, "AddressBlacklistedStatusChanged").withArgs(user1.address, false);
             expect(await brlt.isBlacklisted(user1.address)).to.be.false;
         });
 
