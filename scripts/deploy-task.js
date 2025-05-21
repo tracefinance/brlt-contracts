@@ -69,18 +69,26 @@ task("deploy-contract", "Deploys the BRLT contract")
             // If this fails, one might need to verify the implementationAddress separately
             // and Etherscan/Basescan will link them if the proxy points to it.
           });
-          console.log("BRLT proxy contract verified successfully (or verification was initiated).");
+          console.log("BRLT proxy contract verified successfully (or verification was initiated and linked).");
         } catch (error) {
-          console.error("BRLT proxy verification failed:", error.message);
-          console.log("Attempting to verify implementation contract directly...");
-          try {
-            await hre.run("verify:verify", {
-                address: implementationAddress,
-                contract: "solidity/BRLT.sol:BRLT" // Specify contract path for clarity
-            });
-            console.log(`BRLT implementation contract (${implementationAddress}) verified. Please ensure proxy ${brltAddress} points to it and is manually marked as proxy if needed.`);
-          } catch (implError) {
-            console.error("BRLT implementation verification also failed:", implError.message);
+          if (error.message.toLowerCase().includes("already verified")) {
+            console.log(`BRLT proxy contract at ${brltAddress} is already verified/linked.`);
+          } else {
+            console.error("BRLT proxy verification failed:", error.message);
+            console.log("Attempting to verify implementation contract directly as a fallback...");
+            try {
+              await hre.run("verify:verify", {
+                  address: implementationAddress,
+                  contract: "solidity/BRLT.sol:BRLT" // Specify contract path for clarity
+              });
+              console.log(`BRLT implementation contract (${implementationAddress}) verified. Please ensure proxy ${brltAddress} points to it and is manually marked as proxy if needed.`);
+            } catch (implError) {
+              if (implError.message.toLowerCase().includes("already verified") || implError.message.toLowerCase().includes("has already been verified")) {
+                console.log(`BRLT implementation contract at ${implementationAddress} is already verified.`);
+              } else {
+                console.error("BRLT implementation verification also failed:", implError.message);
+              }
+            }
           }
         }
       }
